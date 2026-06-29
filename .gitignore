@@ -1,7 +1,3 @@
-# Personal / local files — not part of the project
-SLADOJEVIC_Marko_ssh_config.txt
-SLADOJEVIC_Marko_ssh_issue_log.txt
-
 # OS / editor
 .DS_Store
 *.swp
@@ -9,3 +5,6 @@ SLADOJEVIC_Marko_ssh_issue_log.txt
 # Local env / secrets
 .env
 *.local
+
+# Agent skills etc etc
+.claude/
