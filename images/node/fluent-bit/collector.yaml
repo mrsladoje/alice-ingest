@@ -1,0 +1,30 @@
+service:
+  flush: 1
+  log_level: info
+  parsers_file: /etc/fluent-bit/parsers.yaml
+
+pipeline:
+  inputs:
+    - name: tail
+      path: /var/log/node/dds.log
+      tag: dds
+      parser: json
+      read_from_head: true
+      refresh_interval: 5
+
+    - name: tail
+      path: /var/log/node/stdout.log
+      tag: stdout
+      parser: stdout_text
+      read_from_head: true
+      refresh_interval: 5
+
+    - name: tcp
+      listen: 0.0.0.0
+      port: 5170
+      tag: infologger
+      format: json
+
+  outputs:
+    - name: stdout
+      match: '*'

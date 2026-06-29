@@ -1,0 +1,11 @@
+parsers:
+  # DDS tail: JSON lines -> structured fields (trivial, JSON has a known grammar).
+  - name: json
+    format: json
+
+  # stdout tail: free-form text -> fields via regex capture groups.
+  # Matches the stdout producer's line:  <iso-time> <node> [<SEV>] <message>
+  # e.g. 2026-06-29T10:00:00.123+00:00 node-01 [INFO] Processing event 42 in 17ms
+  - name: stdout_text
+    format: regex
+    regex: '^(?<time>[0-9T:.\-+]+) (?<node>[^ ]+) \[(?<severity>[A-Z]+)\] (?<message>.*)$'
