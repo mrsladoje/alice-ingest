@@ -1,0 +1,56 @@
+services:
+  opensearch:
+    image: opensearchproject/opensearch:2.17.0
+    ports:
+      - 9200:9200
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+      - OPENSEARCH_JAVA_OPTS=-Xms3g -Xmx3g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - osdata:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.17.0
+    ports:
+      - 5601:5601
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    depends_on:
+        opensearch:
+          condition: service_healthy
+
+  node-01:
+    build:
+      context: ./images/node
+      dockerfile: ./Dockerfile
+    ports:
+      - 2020:2020
+    environment:
+      - NODE_ID=node-01
+    volumes:
+      - ./images/node/fluent-bit/collector.yaml:/etc/fluent-bit/collector.yaml:ro
+      - ./images/node/fluent-bit/parsers.yaml:/etc/fluent-bit/parsers.yaml:ro
+      - ./images/node/producers:/app/producers:ro
+      - flb-storage:/var/log/flb-storage/
+    depends_on:
+        opensearch:
+          condition: service_healthy
+
+volumes:
+  osdata:
+  flb-storage:

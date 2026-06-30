@@ -2,6 +2,11 @@ service:
   flush: 1
   log_level: info
   parsers_file: /etc/fluent-bit/parsers.yaml
+  storage.path: /var/log/flb-storage/
+  storage.max_chunks_up: 64
+  http_server: on
+  http_listen: 0.0.0.0
+  http_port: 2020
 
 pipeline:
   inputs:
@@ -11,6 +16,7 @@ pipeline:
       parser: json
       read_from_head: true
       refresh_interval: 5
+      storage.type: filesystem
 
     - name: tail
       path: /var/log/node/stdout.log
@@ -18,13 +24,54 @@ pipeline:
       parser: stdout_text
       read_from_head: true
       refresh_interval: 5
+      storage.type: filesystem
 
     - name: tcp
       listen: 0.0.0.0
       port: 5170
       tag: infologger
       format: json
+      storage.type: filesystem
+
+  filters:
+    - name: rewrite_tag
+      match: dds
+      rule: $severity ^INFO$  family.info false
+      rule: $severity ^.*$  family.other false
+      emitter_name: dds_router
+    - name: rewrite_tag
+      match: stdout
+      rule: $severity ^INFO$  family.info false
+      rule: $severity ^.*$  family.other false
+      emitter_name: stdout_router
 
   outputs:
-    - name: stdout
-      match: '*'
+    - name: opensearch
+      match: infologger
+      host: opensearch
+      port: 9200
+      index: infologger
+      suppress_type_name: true
+      trace_error: true
+      storage.total_limit_size: 1M
+      retry_limit: 2
+
+    - name: opensearch
+      match: family.info
+      host: opensearch
+      port: 9200
+      index: generic-log-info
+      suppress_type_name: true
+      trace_error: true
+      storage.total_limit_size: 1M
+      retry_limit: 2
+
+    - name: opensearch
+      match: family.other
+      host: opensearch
+      port: 9200
+      index: generic-log-other
+      suppress_type_name: true
+      trace_error: true
+      storage.total_limit_size: 1M
+      retry_limit: 2
