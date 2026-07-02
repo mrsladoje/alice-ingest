@@ -8,23 +8,47 @@ service:
   http_listen: 0.0.0.0
   http_port: 2020
 
+multiline_parsers:
+  - name: dds_multiline
+    type: regex
+    flush_timeout: 1000
+    rules:
+      - state: start_state
+        regex: '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+\s/'
+        next_state: cont
+      - state: cont
+        regex: '/^(?!\d{4}-\d{2}-\d{2})/'
+        next_state: cont
+  - name: stdout_multiline
+    type: regex
+    flush_timeout: 1000
+    rules:
+      - state: start_state
+        regex: '/^\S/'
+        next_state: cont
+      - state: cont
+        regex: '/^\s/'
+        next_state: cont
+
 pipeline:
   inputs:
     - name: tail
       path: /var/log/node/dds.log
       tag: dds
-      parser: json
+      multiline.parser: dds_multiline
       read_from_head: true
       refresh_interval: 5
       storage.type: filesystem
+      db: /var/log/flb-storage/dds.db
 
     - name: tail
       path: /var/log/node/stdout.log
       tag: stdout
-      parser: stdout_text
+      multiline.parser: stdout_multiline
       read_from_head: true
       refresh_interval: 5
       storage.type: filesystem
+      db: /var/log/flb-storage/stdout.db
 
     - name: tcp
       listen: 0.0.0.0
@@ -34,15 +58,45 @@ pipeline:
       storage.type: filesystem
 
   filters:
+    - name: lua
+      match: infologger
+      call: set_event_time
+      code: |
+        local last_ts = nil
+        function set_event_time(tag, ts, record)
+          local t = record['timestamp']
+          if t ~= nil and t > 0 then
+            last_ts = t
+          else
+            t = last_ts
+          end
+          if t ~= nil then
+            record['_evt'] = string.format('%.3f', t)
+          end
+          return 1, ts, record
+        end
+    - name: parser
+      match: infologger
+      key_name: _evt
+      parser: il_event_time
+      reserve_data: on
+    - name: parser
+      match: dds
+      key_name: log
+      parser: dds_text
     - name: rewrite_tag
       match: dds
-      rule: $severity ^INFO$  family.info false
+      rule: $severity ^inf$  family.info false
       rule: $severity ^.*$  family.other false
       emitter_name: dds_router
+    - name: parser
+      match: stdout
+      key_name: log
+      parser: stdout_root
     - name: rewrite_tag
       match: stdout
-      rule: $severity ^INFO$  family.info false
-      rule: $severity ^.*$  family.other false
+      rule: $severity ^Info$  family.info false
+      rule: $message ^.*$  family.other false
       emitter_name: stdout_router
 
   outputs:

@@ -6,5 +6,15 @@
 .env
 *.local
 
+# CERN S3 tooling (platform binary, not source)
+tools/cephs3usage
+
+# Python
+__pycache__/
+*.pyc
+
+# Local scratch downloads
+downloads/
+
 # Agent skills etc etc
 .claude/
