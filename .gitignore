@@ -18,3 +18,11 @@ downloads/
 
 # Agent skills etc etc
 .claude/
+
+# Teaching workspace (/teach skill)
+MISSION.md
+RESOURCES.md
+NOTES.md
+lessons/
+learning-records/
+reference/
