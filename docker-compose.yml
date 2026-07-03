@@ -47,10 +47,38 @@ services:
       - ./images/node/fluent-bit/parsers.yaml:/etc/fluent-bit/parsers.yaml:ro
       - ./images/node/producers:/app/producers:ro
       - flb-storage:/var/log/flb-storage/
+      - nodelogs:/var/log/node
     depends_on:
         opensearch:
           condition: service_healthy
 
+  replay:
+    build:
+      context: ./images/replay
+      dockerfile: ./Dockerfile
+    ports:
+      - 8088:8088
+    environment:
+      - AWS_PROFILE=cern_s3
+      - AWS_SHARED_CREDENTIALS_FILE=/root/.aws/credentials
+      - S3_ENDPOINT=https://s3.cern.ch
+      - S3_BUCKET=epn-backup-logs
+      - RUN_TAG=33NXirFsSfT_38917
+      - INFOLOGGER_HOST=node-01
+      - INFOLOGGER_TCP_PORT=5170
+      - DDS_OUT_DIR=/var/log/node/dds
+      - DDS_REPLAY_RATE=400
+      - IL_REPLAY_RATE=500
+      - DDS_MAX_OBJECTS=0
+      - IL_MAX_OBJECTS=3
+      - AUTOSTART_REPLAY=true
+    volumes:
+      - ${HOME}/.aws/credentials:/root/.aws/credentials:ro
+      - nodelogs:/var/log/node
+    depends_on:
+      - node-01
+
 volumes:
   osdata:
   flb-storage:
+  nodelogs:
