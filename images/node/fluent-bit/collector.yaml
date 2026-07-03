@@ -33,7 +33,8 @@ multiline_parsers:
 pipeline:
   inputs:
     - name: tail
-      path: /var/log/node/dds.log
+      path: /var/log/node/dds.log,/var/log/node/dds/*.log
+      path_key: file
       tag: dds
       multiline.parser: dds_multiline
       read_from_head: true
@@ -42,7 +43,8 @@ pipeline:
       db: /var/log/flb-storage/dds.db
 
     - name: tail
-      path: /var/log/node/stdout.log
+      path: /var/log/node/stdout.log,/var/log/node/stdout/*.log
+      path_key: file
       tag: stdout
       multiline.parser: stdout_multiline
       read_from_head: true
@@ -80,10 +82,31 @@ pipeline:
       key_name: _evt
       parser: il_event_time
       reserve_data: on
+    - name: record_modifier
+      match: infologger
+      remove_key:
+        - timestamp
     - name: parser
       match: dds
       key_name: log
       parser: dds_text
+      reserve_data: on
+    - name: lua
+      match: dds
+      call: set_host
+      code: |
+        function set_host(tag, ts, record)
+          local f = record['file']
+          if f ~= nil then
+            local h = string.match(f, 'dds/(epn%d+)%.log$')
+            if h ~= nil then record['host'] = h end
+          end
+          return 1, ts, record
+        end
+    - name: record_modifier
+      match: dds
+      remove_key:
+        - file
     - name: rewrite_tag
       match: dds
       rule: $severity ^inf$  family.info false
@@ -93,6 +116,23 @@ pipeline:
       match: stdout
       key_name: log
       parser: stdout_root
+      reserve_data: on
+    - name: lua
+      match: stdout
+      call: set_host
+      code: |
+        function set_host(tag, ts, record)
+          local f = record['file']
+          if f ~= nil then
+            local h = string.match(f, 'stdout/(epn%d+)%.log$')
+            if h ~= nil then record['host'] = h end
+          end
+          return 1, ts, record
+        end
+    - name: record_modifier
+      match: stdout
+      remove_key:
+        - file
     - name: rewrite_tag
       match: stdout
       rule: $severity ^Info$  family.info false
