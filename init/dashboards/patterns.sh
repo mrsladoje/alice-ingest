@@ -11,6 +11,17 @@ OS="${OS_URL:-http://opensearch:9200}"
 PATTERNS="infologger generic-log-info generic-log-other"
 TIME_FIELD="@timestamp"
 
+create_template() {
+  code=$(curl -s -o /tmp/resp -w '%{http_code}' \
+    -XPUT "$OS/_index_template/alice-logs" \
+    -H 'Content-Type: application/json' \
+    -d '{"index_patterns":["infologger","generic-log-*"],"template":{"settings":{"number_of_shards":1,"number_of_replicas":1}}}')
+  case "$code" in
+    200|201) echo "[init] index template applied: alice-logs" ;;
+    *)       echo "[init] WARN: index template -> HTTP $code: $(cat /tmp/resp)" ;;
+  esac
+}
+
 create_pattern() {
   id="$1"
   code=$(curl -s -o /tmp/resp -w '%{http_code}' \
@@ -60,6 +71,7 @@ wait_index() {
   return 1
 }
 
+create_template
 wait_ready
 for p in $PATTERNS; do
   if wait_index "$p"; then
