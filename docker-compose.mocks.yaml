@@ -60,6 +60,18 @@ services:
         opensearch:
           condition: service_healthy
 
+  opensearch-init:
+    image: curlimages/curl:8.11.0
+    restart: "no"
+    environment:
+      - OS_URL=http://opensearch:9200
+    volumes:
+      - ./init/opensearch:/init:ro
+    entrypoint: ["sh", "/init/templates.sh"]
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
   dashboards-init:
     image: curlimages/curl:8.11.0
     restart: "no"
@@ -92,6 +104,8 @@ services:
     depends_on:
         opensearch:
           condition: service_healthy
+        opensearch-init:
+          condition: service_completed_successfully
 
 volumes:
   osdata:
