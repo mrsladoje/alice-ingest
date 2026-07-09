@@ -27,5 +27,7 @@ lessons/
 learning-records/
 reference/
 
-# Personal OpenStack deployment guide (env-specific ops notes, not source)
+# Personal / local docs (not for remote)
 docs/OPENSTACK_GUIDE.md
+docs/DEPLOY-DISTRIBUTED.md
+docs/RESEARCH.md
