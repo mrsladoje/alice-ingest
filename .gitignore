@@ -26,3 +26,6 @@ NOTES.md
 lessons/
 learning-records/
 reference/
+
+# Personal OpenStack deployment guide (env-specific ops notes, not source)
+docs/OPENSTACK_GUIDE.md
