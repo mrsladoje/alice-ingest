@@ -1,7 +1,9 @@
 parsers: 
   - name: stdout_root
     format: regex
-    regex: '(?m)^(?:(?<severity>Info|Warning|Error|Fatal|Sys) in <(?<facility>[^>]*)>: )?(?<message>.*)$'
+    regex: '(?m)^(?:(?<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+) )?(?:(?<severity>Info|Warning|Error|Fatal|Sys) in <(?<facility>[^>]*)>: )?(?<message>.*)$'
+    time_key: time
+    time_format: '%Y-%m-%d %H:%M:%S.%L'
 
   - name: dds_text
     format: regex

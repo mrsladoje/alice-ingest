@@ -94,6 +94,28 @@ IL_COLUMNS = [
 _HOST_RE = re.compile(r"_(epn[0-9]+)\.tar\.gz$")
 _STDOUT_MEMBER_RE = re.compile(r"_(?:out|err)\.log$")
 
+# Real stdout process-log filenames embed the process START time, e.g.
+#   mft-tracker_t0_reco3_2026-06-20-12-15-21_9613..._out.log
+#                        └── YYYY-MM-DD-HH-MM-SS ──┘
+# The file itself has NO per-line timestamp, so without this every stdout line
+# would get INGEST time (today) and land weeks away from dds/infologger (which
+# carry real 2026-06-20 event-times). We derive the start-time from the name and
+# prepend it to each record-start line; the collector's stdout_root parser reads
+# it as @timestamp. All lines in one file share that start-time (the reality —
+# there's nothing finer to recover), with a monotonic microsecond bump so lines
+# keep their order in Discover.
+_STDOUT_TS_RE = re.compile(r"_(\d{4}-\d{2}-\d{2})-(\d{2})-(\d{2})-(\d{2})_")
+
+
+def _stdout_event_ts(member_name):
+    """Return 'YYYY-MM-DD HH:MM:SS' derived from a process-log filename, or None
+    if the name doesn't carry the expected timestamp (then we fall back to
+    ingest time for that member)."""
+    m = _STDOUT_TS_RE.search(member_name)
+    if not m:
+        return None
+    return f"{m.group(1)} {m.group(2)}:{m.group(3)}:{m.group(4)}"
+
 
 def log(msg: str) -> None:
     print(f"[replay] {msg}", flush=True)
@@ -270,24 +292,24 @@ def replay_infologger(s3, stop: threading.Event) -> dict:
 
 
 # --- DDS + stdout: ONE streamed pass per tarball -----------------------------
-def _write_member(src, out_path, stop, pacer, max_lines, counter, host, label):
-    """Append a tar member's lines to out_path at a paced rate. Returns the
-    number of lines written; `counter` is a running per-family total used only
-    for progress logging."""
-    lines = 0
+def _write_lines(lines, out_path, stop, pacer, counter, host, label):
+    """Append buffered raw byte-lines to out_path at a paced rate. Reads from an
+    in-memory list (not a live tar stream) so several families can be paced out
+    CONCURRENTLY from a single tar pass — see replay_tarballs. `counter` is a
+    running per-family total used only for progress logging. Returns lines written.
+    Per-line caps are applied when buffering, so there's no max_lines here."""
+    n = 0
     with open(out_path, "a", buffering=1) as out:
-        for raw in src:
+        for raw in lines:
             if stop.is_set():
                 break
-            if max_lines and lines >= max_lines:
-                break
             out.write(raw.decode("utf-8", "replace"))
-            lines += 1
+            n += 1
             counter[0] += 1
             if counter[0] % 5000 == 0:
                 log(f"{label}[{host}]: {counter[0]} lines")
             pacer.wait()
-    return lines
+    return n
 
 
 def replay_tarballs(s3, stop: threading.Event, want_dds, want_stdout) -> list:
@@ -296,7 +318,9 @@ def replay_tarballs(s3, stop: threading.Event, want_dds, want_stdout) -> list:
     (DDS), and the <proc>_*_{out,err}.log members -> the shared stdout tail file.
     Formerly two functions that each downloaded the ~104 MB object; merging them
     halves S3 bandwidth per node. Per-family object caps still apply, and we stop
-    reading a tar as soon as both enabled families are satisfied for that node."""
+    reading a tar as soon as both enabled families are satisfied for that node.
+    Within a node the two families are paced out CONCURRENTLY (a writer thread
+    each) so dds and stdout land together rather than dds-then-stdout."""
     dds_pacer, stdout_pacer = Pacer(DDS_RATE), Pacer(STDOUT_RATE)
     if want_dds:
         os.makedirs(DDS_OUT_DIR, exist_ok=True)
@@ -323,6 +347,13 @@ def replay_tarballs(s3, stop: threading.Event, want_dds, want_stdout) -> list:
         picked = 0
         log(f"tar: {key} (dds={int(dds_on)} stdout={int(stdout_on)})")
         body = s3.get_object(Bucket=S3_BUCKET, Key=key)["Body"]
+        # Buffer the members we want during the SINGLE tar pass (fast, unpaced),
+        # then pace dds + stdout out CONCURRENTLY below. Buffering (rather than
+        # stream-writing inline) is what lets both families start TOGETHER
+        # regardless of member order in the tar: otherwise the ~25 s paced dds
+        # firehose write blocks stdout until it finishes. DDS is ~10K lines/node
+        # (a few MB), so holding it in memory briefly is cheap.
+        dds_buf, stdout_buf = [], []
         with tarfile.open(fileobj=body, mode="r|gz") as tar:
             for member in tar:
                 if stop.is_set():
@@ -334,22 +365,47 @@ def replay_tarballs(s3, stop: threading.Event, want_dds, want_stdout) -> list:
                         r"/dds_\d{4}-\d{2}-\d{2}\.\d+\.log$", "/" + name)):
                     src = tar.extractfile(member)
                     if src is not None:
-                        _write_member(src, dds_path, stop, dds_pacer, 0,
-                                      dds_lines_c, host, "dds")
+                        dds_buf = list(src)          # whole firehose, uncapped
                     firehose_done = True
                 elif (stdout_on and _STDOUT_MEMBER_RE.search(name)
                         and (not STDOUT_MAX_MEMBERS or picked < STDOUT_MAX_MEMBERS)):
                     src = tar.extractfile(member)
                     if src is not None:
-                        _write_member(src, stdout_path, stop, stdout_pacer,
-                                      STDOUT_MAX_LINES, stdout_lines_c, host,
-                                      "stdout")
+                        ev = _stdout_event_ts(name)  # process start-time from name
+                        kept = 0
+                        for raw in src:
+                            if STDOUT_MAX_LINES and kept >= STDOUT_MAX_LINES:
+                                break
+                            # Prepend derived event-time to record-START lines
+                            # only; indented continuations (module-loading block,
+                            # stack traces) keep their leading whitespace so the
+                            # collector's multiline parser still folds them.
+                            if ev is not None and raw[:1] not in (b" ", b"\t", b"\n"):
+                                raw = f"{ev}.{kept % 1000000:06d} ".encode() + raw
+                            stdout_buf.append(raw)
+                            kept += 1
                         stdout_members += 1
                         picked += 1
                 stdout_full = not stdout_on or (
                     STDOUT_MAX_MEMBERS and picked >= STDOUT_MAX_MEMBERS)
                 if firehose_done and stdout_full:
                     break
+        # Pace both families out at the same time — one writer thread each — so
+        # dds and stdout for this node land concurrently instead of dds-then-stdout.
+        writers = []
+        if dds_buf:
+            writers.append(threading.Thread(
+                target=_write_lines, daemon=True,
+                args=(dds_buf, dds_path, stop, dds_pacer, dds_lines_c, host, "dds")))
+        if stdout_buf:
+            writers.append(threading.Thread(
+                target=_write_lines, daemon=True,
+                args=(stdout_buf, stdout_path, stop, stdout_pacer, stdout_lines_c,
+                      host, "stdout")))
+        for w in writers:
+            w.start()
+        for w in writers:
+            w.join()
         if dds_on:
             dds_nodes += 1
         if stdout_on:

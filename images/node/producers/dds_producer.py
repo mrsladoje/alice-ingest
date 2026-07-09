@@ -66,8 +66,14 @@ def _handle() -> str:
 
 
 def _now_ts() -> str:
-    """Current time as 'YYYY-MM-DD HH:MM:SS.microseconds' (6-digit µs, like real)."""
-    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+    """Current time as 'YYYY-MM-DD HH:MM:SS.microseconds' (6-digit µs, like real).
+
+    Emitted in UTC on purpose. The line carries no zone, and the `dds_text` parser
+    (no %z) reads a zone-less timestamp as UTC — so if we wrote naive local time
+    here (datetime.now()), a non-UTC container/VM clock (e.g. CERN's Europe/Zurich,
+    UTC+2 in summer) would land every dds doc hours in the FUTURE. Anchoring to UTC
+    makes @timestamp correct regardless of the host timezone."""
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")
 
 
 def _format(sev: str, source: str, msg: str) -> str:

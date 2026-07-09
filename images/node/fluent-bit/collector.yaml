@@ -84,6 +84,8 @@ pipeline:
       reserve_data: on
     - name: record_modifier
       match: infologger
+      record:
+        - log_source infologger
       remove_key:
         - timestamp
     - name: parser
@@ -105,6 +107,8 @@ pipeline:
         end
     - name: record_modifier
       match: dds
+      record:
+        - log_source dds
       remove_key:
         - file
     - name: rewrite_tag
@@ -131,6 +135,8 @@ pipeline:
         end
     - name: record_modifier
       match: stdout
+      record:
+        - log_source stdout
       remove_key:
         - file
     - name: rewrite_tag

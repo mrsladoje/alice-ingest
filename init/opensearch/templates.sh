@@ -120,7 +120,9 @@ GENERIC_MAPPINGS=$(cat <<'JSON'
     "mappings": {
       "dynamic": false,
       "properties": {
-        "@timestamp": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "@timestamp":  { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "ingest_time": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "log_source": { "type": "keyword" },
         "severity":   { "type": "keyword" },
         "host":       { "type": "keyword" },
         "source":     { "type": "keyword" },
@@ -147,7 +149,9 @@ INFOLOGGER_MAPPINGS=$(cat <<'JSON'
     "mappings": {
       "dynamic": "strict",
       "properties": {
-        "@timestamp": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "@timestamp":  { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "ingest_time": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "log_source": { "type": "keyword" },
         "severity":   { "type": "keyword" },
         "level":      { "type": "short" },
         "hostname":   { "type": "keyword" },
@@ -185,7 +189,8 @@ GENERIC_INFO_TPL=$(cat <<'JSON'
     "settings": {
       "number_of_shards": 3,
       "number_of_replicas": 1,
-      "codec": "zstd"
+      "codec": "zstd",
+      "index.default_pipeline": "alice-add-ingest-time"
     }
   },
   "_meta": { "note": "least-valuable tier: 1 replica; short retention (ISM, still to come)" }
@@ -204,7 +209,8 @@ GENERIC_OTHER_TPL=$(cat <<'JSON'
     "settings": {
       "number_of_shards": 3,
       "number_of_replicas": 2,
-      "codec": "zstd"
+      "codec": "zstd",
+      "index.default_pipeline": "alice-add-ingest-time"
     }
   },
   "_meta": { "note": "valuable warn/error/debug: 2 replicas; long retention (ISM, still to come)" }
@@ -224,10 +230,33 @@ INFOLOGGER_INDEX_TPL=$(cat <<'JSON'
     "settings": {
       "number_of_shards": 3,
       "number_of_replicas": 2,
-      "codec": "zstd"
+      "codec": "zstd",
+      "index.default_pipeline": "alice-add-ingest-time"
     }
   },
   "_meta": { "note": "hot tier: 3 shards, 2 replicas (3 copies) for read throughput + resilience" }
+}
+JSON
+)
+
+# TWO-TIMESTAMP MODEL. Logs carry two distinct times and conflating them is the
+# "timestamps not respected" bug:
+#   @timestamp  = EVENT time — when the message was logged AT SOURCE. Extracted by
+#                 the collector (dds_text/il_event_time parsers). This is what you
+#                 sort/scrub by in Discover.
+#   ingest_time = when OpenSearch actually RECEIVED the doc. Stamped here, server-
+#                 side, from `_ingest.timestamp` — immune to producer/collector
+#                 clock skew, and it lets you measure source->OS latency
+#                 (ingest_time - @timestamp) and spot backfilled/replayed data.
+# Wired as each index's `index.default_pipeline`, so EVERY write runs it with no
+# collector change. Must exist BEFORE the first write (default_pipeline is resolved
+# at index time), hence it is applied ahead of the index templates below.
+INGEST_PIPELINE=$(cat <<'JSON'
+{
+  "description": "Stamp ingest_time = the moment OpenSearch received the doc (distinct from @timestamp = source/event time). Two-timestamp model.",
+  "processors": [
+    { "set": { "field": "ingest_time", "value": "{{{_ingest.timestamp}}}" } }
+  ]
 }
 JSON
 )
@@ -241,6 +270,10 @@ wait_os
 # (it matched generic-log-info, which our new -generic-info template also matches).
 del "/_index_template/alice-logs"         "legacy index template alice-logs"
 del "/_index_template/alice-logs-generic" "superseded index template alice-logs-generic"
+
+# Ingest pipeline first: index templates below reference it as default_pipeline,
+# and it must exist before the first write creates an index (else writes error).
+put "/_ingest/pipeline/alice-add-ingest-time" "$INGEST_PIPELINE" "ingest pipeline alice-add-ingest-time"
 
 # Component templates first (index templates reference them via composed_of).
 put "/_component_template/alice-logs-generic-mappings"    "$GENERIC_MAPPINGS"    "component alice-logs-generic-mappings"
