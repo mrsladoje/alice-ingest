@@ -87,7 +87,7 @@ services:
       opensearch-dashboards:
         condition: service_started
 
-  node-01:
+  node-01: &node
     build:
       context: ./images/node
       dockerfile: ./Dockerfile
@@ -100,15 +100,41 @@ services:
       - ./images/node/fluent-bit/collector.yaml:/etc/fluent-bit/collector.yaml:ro
       - ./images/node/fluent-bit/parsers.yaml:/etc/fluent-bit/parsers.yaml:ro
       - ./images/node/producers:/app/producers:ro
-      - flb-storage:/var/log/flb-storage/
+      - flb-storage1:/var/log/flb-storage
     depends_on:
         opensearch:
           condition: service_healthy
         opensearch-init:
           condition: service_completed_successfully
 
+  node-02:
+    <<: *node
+    ports:
+      - 2021:2020
+    environment:
+      - NODE_ID=node-02
+    volumes:
+      - ./images/node/fluent-bit/collector.yaml:/etc/fluent-bit/collector.yaml:ro
+      - ./images/node/fluent-bit/parsers.yaml:/etc/fluent-bit/parsers.yaml:ro
+      - ./images/node/producers:/app/producers:ro
+      - flb-storage2:/var/log/flb-storage
+
+  node-03:
+    <<: *node
+    ports:
+      - 2022:2020
+    environment:
+      - NODE_ID=node-03
+    volumes:
+      - ./images/node/fluent-bit/collector.yaml:/etc/fluent-bit/collector.yaml:ro
+      - ./images/node/fluent-bit/parsers.yaml:/etc/fluent-bit/parsers.yaml:ro
+      - ./images/node/producers:/app/producers:ro
+      - flb-storage3:/var/log/flb-storage
+
 volumes:
   osdata:
   osdata2:
   osdata3:
-  flb-storage:
+  flb-storage1:
+  flb-storage2:
+  flb-storage3:

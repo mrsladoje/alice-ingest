@@ -11,9 +11,37 @@ import random
 import time
 
 # --- node identity -----------------------------------------------------------
-# Each of node-01..node-10 gets a distinct NODE_ID injected by docker-compose,
-# so dashboards can filter by node. Falls back to a sentinel if run bare.
+# Each of node-01..node-0N gets a distinct NODE_ID injected by docker-compose.
+# NODE_ID is the COLLECTOR identity (this Fluent Bit / VM); the collector stamps
+# it onto every record as `node`. Falls back to a sentinel if run bare.
 NODE_ID = os.environ.get("NODE_ID", "node-unknown")
+
+
+# --- host pool (the GPU processing nodes this collector aggregates) -----------
+# A collector is NOT the same as the host a log was born on. Each Fluent Bit
+# collector (this node) fronts a RACK of EPNs — the GPU Event Processing Nodes
+# where reconstruction runs and processes emit their logs. So `node` (collector,
+# from NODE_ID) and `host`/`hostname` (emitting EPN) DIFFER, mirroring a real
+# aggregator topology (one collector, many GPU hosts) rather than a degenerate
+# 1:1. node-01 -> epn001..epn010, node-02 -> epn011..epn020, and so on.
+HOST_POOL_SIZE = int(os.environ.get("HOST_POOL_SIZE", "10"))
+
+
+def _node_index() -> int:
+    """Ordinal from NODE_ID (node-03 -> 3); 1 for the bare-run sentinel."""
+    digits = "".join(c for c in NODE_ID if c.isdigit())
+    return int(digits) if digits else 1
+
+
+def host_pool() -> list:
+    """The EPN hostnames this collector serves, e.g. node-02 -> epn011..epn020."""
+    start = (_node_index() - 1) * HOST_POOL_SIZE + 1
+    return [f"epn{start + i:03d}" for i in range(HOST_POOL_SIZE)]
+
+
+def pick_host() -> str:
+    """One EPN from this collector's rack, drawn per record."""
+    return random.choice(host_pool())
 
 
 # --- severity distribution ---------------------------------------------------

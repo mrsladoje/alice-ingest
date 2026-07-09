@@ -20,9 +20,12 @@ Does not react to BURST (multiplier 1).
 import os
 import random
 
-from common import NODE_ID, sleep_for_rate
+from common import NODE_ID, pick_host, sleep_for_rate
 
-LOG_PATH = os.environ.get("STDOUT_LOG_PATH", "/var/log/node/stdout.log")
+# One file PER EPN (stdout/<host>.log), mirroring the real per-process layout and
+# the replay stack. The collector's `set_host` Lua reads the host from this path,
+# so per-host files are what give mock stdout records a `host` at all.
+STDOUT_DIR = os.environ.get("STDOUT_LOG_DIR", "/var/log/node/stdout")
 BASE_RATE = float(os.environ.get("STDOUT_RATE", "15"))         # msgs/sec/node
 BURST_MULTIPLIER = float(os.environ.get("STDOUT_BURST_MULTIPLIER", "1"))
 
@@ -99,13 +102,25 @@ def write_loading_block(f) -> None:
 
 
 def main() -> None:
-    print(f"[stdout] starting on {NODE_ID} -> {LOG_PATH} @ {BASE_RATE}/s",
+    print(f"[stdout] starting on {NODE_ID} -> {STDOUT_DIR}/epn*.log @ {BASE_RATE}/s",
           flush=True)
-    with open(LOG_PATH, "a", buffering=1) as f:
-        write_loading_block(f)
-        while True:
-            f.write(make_line() + "\n")
-            sleep_for_rate(BASE_RATE, BURST_MULTIPLIER)
+    os.makedirs(STDOUT_DIR, exist_ok=True)
+
+    # One line-buffered handle per EPN, opened lazily. Each host's file opens with
+    # the indented module-loading block (the multiline case).
+    handles: dict = {}
+
+    def handle(host: str):
+        f = handles.get(host)
+        if f is None:
+            f = open(os.path.join(STDOUT_DIR, f"{host}.log"), "a", buffering=1)
+            write_loading_block(f)
+            handles[host] = f
+        return f
+
+    while True:
+        handle(pick_host()).write(make_line() + "\n")
+        sleep_for_rate(BASE_RATE, BURST_MULTIPLIER)
 
 
 if __name__ == "__main__":

@@ -17,9 +17,14 @@ Design (decided with the user):
   * Paced live-mimic: emit at a throttled rate so the stream flows in real time
     rather than dumping as one bulk load. Event-time still lands in the past
     (the data is historical) because we preserve the original timestamps.
-  * One collector, node id in data: all 31 EPN nodes of a run flow through the
-    single node-01 collector; identity rides in the data (InfoLogger hostname
-    column; DDS via the per-node file path).
+  * Multi-collector fan-out: the ~31 EPN hosts of a run are PARTITIONED across N
+    collector nodes (node-01..node-0N) by EPN number — each its own Fluent Bit +
+    OpenSearch writer, tailing its own volume — so the replay simulates a
+    multi-node farm, not one collector fronting everything. `node` = the collector
+    a record was routed to (stamped from NODE_ID in collector.yaml); `host`/
+    `hostname` = the real EPN it was born on (in the data). So node != host, with
+    N node buckets. InfoLogger records route by their `hostname` to that
+    collector's TCP input; DDS/stdout files land in that collector's tail dir.
 
 Runs two ways:
   * `python replay.py serve`            -> HTTP trigger stub (the "replay button"
@@ -51,10 +56,35 @@ S3_REGION = os.environ.get("S3_REGION", "us-east-1")  # Ceph RGW ignores it
 RUN_TAG = os.environ.get("RUN_TAG", "33NXirFsSfT_38917")
 INFOLOGGER_PREFIX = os.environ.get("INFOLOGGER_PREFIX", "infologger-2026/")
 
-IL_HOST = os.environ.get("INFOLOGGER_HOST", "node-01")
 IL_PORT = int(os.environ.get("INFOLOGGER_TCP_PORT", "5170"))
 
-DDS_OUT_DIR = os.environ.get("DDS_OUT_DIR", "/var/log/node/dds")
+# --- collector fan-out -------------------------------------------------------
+# The real EPN hosts are PARTITIONED across N collector nodes (node-01..node-0N),
+# each a separate Fluent Bit with its OWN tail volume + OpenSearch writes, so the
+# replay path simulates a multi-node farm rather than one collector fronting all
+# ~31 hosts. A host is assigned to a collector by its EPN number (stable, ~even):
+#   node = the collector it was routed to (stamped from NODE_ID in collector.yaml)
+#   host = the real EPN it was born on (in the data)  -> node != host, N buckets.
+NODE_COUNT = int(os.environ.get("NODE_COUNT", "3"))
+# Each collector's tail volume is mounted at <NODES_ROOT>/<collector>/ inside the
+# replay container; files go to <NODES_ROOT>/<collector>/(dds|stdout)/<host>.log.
+NODES_ROOT = os.environ.get("NODES_ROOT", "/var/log/nodes")
+COLLECTOR_HOSTS = [f"node-{i:02d}" for i in range(1, NODE_COUNT + 1)]
+
+
+def _epn_num(host: str) -> int:
+    digits = "".join(c for c in (host or "") if c.isdigit())
+    return int(digits) if digits else 0
+
+
+def node_index_for(host: str) -> int:
+    """Stable 0-based collector index for an EPN host (balanced by EPN number)."""
+    return _epn_num(host) % NODE_COUNT
+
+
+def _family_dir(host: str, family: str) -> str:
+    """Tail dir for this host's family on its assigned collector's volume."""
+    return os.path.join(NODES_ROOT, COLLECTOR_HOSTS[node_index_for(host)], family)
 
 # Paced live-mimic: records/sec per family (0 or negative => unthrottled).
 DDS_RATE = float(os.environ.get("DDS_REPLAY_RATE", "400"))
@@ -66,7 +96,6 @@ IL_RATE = float(os.environ.get("IL_REPLAY_RATE", "500"))
 DDS_MAX_OBJECTS = int(os.environ.get("DDS_MAX_OBJECTS", "0"))
 IL_MAX_OBJECTS = int(os.environ.get("IL_MAX_OBJECTS", "3"))
 
-STDOUT_OUT_DIR = os.environ.get("STDOUT_OUT_DIR", "/var/log/node/stdout")
 STDOUT_RATE = float(os.environ.get("STDOUT_REPLAY_RATE", "400"))
 STDOUT_MAX_OBJECTS = int(os.environ.get("STDOUT_MAX_OBJECTS", "3"))
 STDOUT_MAX_MEMBERS = int(os.environ.get("STDOUT_MAX_MEMBERS", "4"))
@@ -229,23 +258,40 @@ def parse_insert_rows(stmt: str):
         yield vals
 
 
-def il_connect() -> socket.socket:
-    """Block until the collector's tcp input accepts us (it may still be booting)."""
+def il_connect(host: str) -> socket.socket:
+    """Block until a collector's tcp input accepts us (it may still be booting)."""
     while True:
         try:
-            s = socket.create_connection((IL_HOST, IL_PORT), timeout=5)
-            log(f"infologger: connected to {IL_HOST}:{IL_PORT}")
+            s = socket.create_connection((host, IL_PORT), timeout=5)
+            log(f"infologger: connected to {host}:{IL_PORT}")
             return s
         except OSError as e:
-            log(f"infologger: waiting for collector {IL_HOST}:{IL_PORT}: {e}")
+            log(f"infologger: waiting for collector {host}:{IL_PORT}: {e}")
             time.sleep(1.0)
 
 
 def replay_infologger(s3, stop: threading.Event) -> dict:
     """Stream every non-empty InfoLogger dump under the prefix, parse rows, and
-    send them as JSON lines to the collector's tcp input at a paced rate."""
+    send each as a JSON line to the tcp input of the collector that OWNS its
+    `hostname` (fan-out across node-01..node-0N), at a paced rate."""
     pacer = Pacer(IL_RATE)
-    sock = il_connect()
+    socks = {}  # collector index -> socket, opened lazily on first record for it
+
+    def send(idx: int, payload: bytes) -> None:
+        s = socks.get(idx)
+        if s is None:
+            s = socks[idx] = il_connect(COLLECTOR_HOSTS[idx])
+        try:
+            s.sendall(payload)
+        except OSError:
+            log(f"infologger: {COLLECTOR_HOSTS[idx]} lost, reconnecting")
+            try:
+                s.close()
+            except OSError:
+                pass
+            s = socks[idx] = il_connect(COLLECTOR_HOSTS[idx])
+            s.sendall(payload)
+
     sent, objects = 0, 0
     for key, size in list_objects(s3, INFOLOGGER_PREFIX):
         if stop.is_set():
@@ -269,25 +315,18 @@ def replay_infologger(s3, stop: threading.Event) -> dict:
                         continue  # skip anything that didn't parse to 16 fields
                     record = dict(zip(IL_COLUMNS, vals))
                     payload = (json.dumps(record) + "\n").encode()
-                    try:
-                        sock.sendall(payload)
-                    except OSError:
-                        log("infologger: connection lost, reconnecting")
-                        try:
-                            sock.close()
-                        except OSError:
-                            pass
-                        sock = il_connect()
-                        sock.sendall(payload)
+                    send(node_index_for(str(record.get("hostname") or "")), payload)
                     sent += 1
                     if sent % 5000 == 0:
                         log(f"infologger: {sent} records sent")
                     pacer.wait()
-    try:
-        sock.close()
-    except OSError:
-        pass
-    log(f"infologger: DONE — {sent} records from {objects} objects")
+    for s in socks.values():
+        try:
+            s.close()
+        except OSError:
+            pass
+    log(f"infologger: DONE — {sent} records from {objects} objects "
+        f"across {len(socks)} collector(s)")
     return {"family": "infologger", "objects": objects, "records": sent}
 
 
@@ -322,10 +361,6 @@ def replay_tarballs(s3, stop: threading.Event, want_dds, want_stdout) -> list:
     Within a node the two families are paced out CONCURRENTLY (a writer thread
     each) so dds and stdout land together rather than dds-then-stdout."""
     dds_pacer, stdout_pacer = Pacer(DDS_RATE), Pacer(STDOUT_RATE)
-    if want_dds:
-        os.makedirs(DDS_OUT_DIR, exist_ok=True)
-    if want_stdout:
-        os.makedirs(STDOUT_OUT_DIR, exist_ok=True)
     prefix = f"dds/{RUN_TAG}_"
     dds_lines_c, stdout_lines_c = [0], [0]
     dds_nodes = stdout_nodes = stdout_members = 0
@@ -341,8 +376,15 @@ def replay_tarballs(s3, stop: threading.Event, want_dds, want_stdout) -> list:
         if not dds_on and not stdout_on:
             break
         host = m.group(1)
-        dds_path = os.path.join(DDS_OUT_DIR, f"{host}.log")
-        stdout_path = os.path.join(STDOUT_OUT_DIR, f"{host}.log")
+        # Route this host's files into its assigned collector's tail volume
+        # (node != host: one collector fronts several EPNs).
+        dds_dir, stdout_dir = _family_dir(host, "dds"), _family_dir(host, "stdout")
+        if dds_on:
+            os.makedirs(dds_dir, exist_ok=True)
+        if stdout_on:
+            os.makedirs(stdout_dir, exist_ok=True)
+        dds_path = os.path.join(dds_dir, f"{host}.log")
+        stdout_path = os.path.join(stdout_dir, f"{host}.log")
         firehose_done = not dds_on
         picked = 0
         log(f"tar: {key} (dds={int(dds_on)} stdout={int(stdout_on)})")

@@ -86,6 +86,7 @@ pipeline:
       match: infologger
       record:
         - log_source infologger
+        - node ${NODE_ID}
       remove_key:
         - timestamp
     - name: parser
@@ -109,6 +110,7 @@ pipeline:
       match: dds
       record:
         - log_source dds
+        - node ${NODE_ID}
       remove_key:
         - file
     - name: rewrite_tag
@@ -137,6 +139,7 @@ pipeline:
       match: stdout
       record:
         - log_source stdout
+        - node ${NODE_ID}
       remove_key:
         - file
     - name: rewrite_tag

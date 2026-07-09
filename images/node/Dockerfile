@@ -23,8 +23,8 @@ COPY fluent-bit/collector.yaml  /etc/fluent-bit/collector.yaml
 COPY producers/        /app/producers/
 
 
-# 4. where the file-tail producers write
-RUN mkdir -p /var/log/node
+# 4. log files go in /var/log/node; Fluent Bit keeps its offsets in flb-storage
+RUN mkdir -p /var/log/node /var/log/flb-storage
 
 # 5. PID 1 is the supervisor; it launches the 4 processes
 CMD ["supervisord", "-c", "/etc/supervisord-collector.conf"]

@@ -111,9 +111,12 @@ del() {
 # aggregatable, and half the storage of an analyzed text+keyword pair.
 
 # Shared by BOTH generic-log-* indices: the UNION of dds and stdout fields.
-#   shared : @timestamp, severity, message, host
+#   shared : @timestamp, node, severity, message, host
 #   dds    : source, tid
 #   stdout : facility
+# node vs host: `node` = the Fluent Bit collector/VM that ingested the record
+# (stamped from NODE_ID); `host` = the EPN the log was born on (from the per-host
+# file path). One collector fronts many hosts, so they differ (aggregator model).
 GENERIC_MAPPINGS=$(cat <<'JSON'
 {
   "template": {
@@ -123,6 +126,7 @@ GENERIC_MAPPINGS=$(cat <<'JSON'
         "@timestamp":  { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
         "ingest_time": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
         "log_source": { "type": "keyword" },
+        "node":       { "type": "keyword" },
         "severity":   { "type": "keyword" },
         "host":       { "type": "keyword" },
         "source":     { "type": "keyword" },
@@ -152,6 +156,7 @@ INFOLOGGER_MAPPINGS=$(cat <<'JSON'
         "@timestamp":  { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
         "ingest_time": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
         "log_source": { "type": "keyword" },
+        "node":       { "type": "keyword" },
         "severity":   { "type": "keyword" },
         "level":      { "type": "short" },
         "hostname":   { "type": "keyword" },
@@ -172,7 +177,7 @@ INFOLOGGER_MAPPINGS=$(cat <<'JSON'
   },
   "_meta": {
     "family": "infologger",
-    "note": "types mirror the real mysqldump CREATE TABLE (verified against s3 infologger-2026 dumps): tinyint->short, mediumint->integer, int unsigned->long (exceeds es integer's signed 2.1B), smallint unsigned->integer. dynamic:strict is safe+protective: every real row is exactly these 16 columns, so an unexpected field means a pipeline bug and should fail loud."
+    "note": "types mirror the real mysqldump CREATE TABLE (verified against s3 infologger-2026 dumps): tinyint->short, mediumint->integer, int unsigned->long (exceeds es integer's signed 2.1B), smallint unsigned->integer. dynamic:strict is safe+protective: every real row is exactly the 16 DB columns plus the collector-stamped fields (@timestamp, ingest_time, log_source, node), so an unexpected field means a pipeline bug and should fail loud. `node` must be declared here BECAUSE strict: the collector stamps it from NODE_ID and strict mode would otherwise reject the write."
   }
 }
 JSON

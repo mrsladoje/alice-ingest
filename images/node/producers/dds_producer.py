@@ -18,9 +18,13 @@ import datetime
 import os
 import random
 
-from common import NODE_ID, sleep_for_rate
+from common import NODE_ID, pick_host, sleep_for_rate
 
-LOG_PATH = os.environ.get("DDS_LOG_PATH", "/var/log/node/dds.log")
+# One log file PER EPN, exactly like the real replay layout
+# (dds/<host>.log). The collector's `set_host` Lua extracts the host from this
+# path, so writing per-host files is what makes `host` populate — in mocks too,
+# not just replay (single-file mocks had no host at all).
+DDS_DIR = os.environ.get("DDS_LOG_DIR", "/var/log/node/dds")
 BASE_RATE = float(os.environ.get("DDS_RATE", "50"))            # msgs/sec/node
 BURST_MULTIPLIER = float(os.environ.get("DDS_BURST_MULTIPLIER", "15"))
 
@@ -125,14 +129,26 @@ def write_banner(f) -> None:
 
 
 def main() -> None:
-    print(f"[dds] starting on {NODE_ID} -> {LOG_PATH} "
+    print(f"[dds] starting on {NODE_ID} -> {DDS_DIR}/epn*.log "
           f"@ {BASE_RATE}/s (burst x{BURST_MULTIPLIER})", flush=True)
-    # buffering=1 => line-buffered so Fluent Bit's tail sees each line immediately.
-    with open(LOG_PATH, "a", buffering=1) as f:
-        write_banner(f)
-        while True:
-            f.write(make_line() + "\n")
-            sleep_for_rate(BASE_RATE, BURST_MULTIPLIER)
+    os.makedirs(DDS_DIR, exist_ok=True)
+
+    # One line-buffered handle per EPN, opened lazily. Each host's file opens with
+    # the DDS startup banner (the multiline case), just like a real agent log.
+    handles: dict = {}
+
+    def handle(host: str):
+        f = handles.get(host)
+        if f is None:
+            # buffering=1 => line-buffered so Fluent Bit's tail sees each line at once.
+            f = open(os.path.join(DDS_DIR, f"{host}.log"), "a", buffering=1)
+            write_banner(f)
+            handles[host] = f
+        return f
+
+    while True:
+        handle(pick_host()).write(make_line() + "\n")
+        sleep_for_rate(BASE_RATE, BURST_MULTIPLIER)
 
 
 if __name__ == "__main__":

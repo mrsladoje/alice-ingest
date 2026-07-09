@@ -38,16 +38,17 @@ import random
 import socket
 import time
 
-from common import NODE_ID, pick_severity, sleep_for_rate
+from common import NODE_ID, host_pool, pick_host, pick_severity, sleep_for_rate
 
 HOST = os.environ.get("INFOLOGGER_HOST", "127.0.0.1")
 PORT = int(os.environ.get("INFOLOGGER_TCP_PORT", "5170"))
 BASE_RATE = float(os.environ.get("INFOLOGGER_RATE", "10"))     # msgs/sec/node
 BURST_MULTIPLIER = float(os.environ.get("INFOLOGGER_BURST_MULTIPLIER", "1"))
 
-# Node identity as a real EPN hostname: node-01 -> epn001.
-_digits = "".join(c for c in NODE_ID if c.isdigit()) or "0"
-HOSTNAME = f"epn{int(_digits):03d}"
+# `hostname` is the emitting EPN (GPU node), drawn per record from this
+# collector's rack (common.pick_host) — NOT the collector identity. The collector
+# stamps its own NODE_ID onto every record as the separate `node` field, so one
+# node reports many hostnames (aggregator topology).
 USERNAME = os.environ.get("IL_USERNAME", "epn")
 
 # Canonical severity -> real single-char code (see common.pick_severity mix).
@@ -157,7 +158,7 @@ def make_record() -> dict:
         "severity": SEV_CHAR[sev],
         "level": random.choice(SEV_LEVELS[sev]),
         "timestamp": round(time.time(), 6),
-        "hostname": HOSTNAME,
+        "hostname": pick_host(),
         "rolename": random.choice(ROLENAMES),
         "pid": random.randint(1000, 4_000_000),
         "username": USERNAME,
@@ -187,8 +188,9 @@ def connect() -> socket.socket:
 
 
 def main() -> None:
-    print(f"[infologger] starting on {HOSTNAME} -> {HOST}:{PORT} @ {BASE_RATE}/s",
-          flush=True)
+    pool = host_pool()
+    print(f"[infologger] starting on {NODE_ID} "
+          f"({pool[0]}..{pool[-1]}) -> {HOST}:{PORT} @ {BASE_RATE}/s", flush=True)
     sock = connect()
     while True:
         line = (json.dumps(make_record()) + "\n").encode()
