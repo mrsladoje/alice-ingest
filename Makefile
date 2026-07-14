@@ -58,3 +58,14 @@ endif
 # Both spellings are accepted so `make down volumes` works too.
 volume volumes:
 	@:
+
+.PHONY: provision deploy teardown
+
+provision:
+	cd deploy && ansible-playbook provision.yml
+
+deploy:
+	cd deploy && ansible-playbook site.yml --ask-vault-pass
+
+teardown:
+	cd deploy && ansible-playbook teardown.yml

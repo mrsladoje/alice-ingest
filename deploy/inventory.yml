@@ -1,0 +1,24 @@
+all:
+  vars:
+    ansible_user: root
+
+  children:
+
+    alice_nodes:
+      hosts:
+        alice-ingest-1:
+          ansible_host: 203.0.113.11
+          node_id: node-01
+          epn_partition: 0
+        alice-ingest-2:
+          ansible_host: 203.0.113.12
+          node_id: node-02
+          epn_partition: 1
+        alice-ingest-3:
+          ansible_host: 203.0.113.13
+          node_id: node-03
+          epn_partition: 2
+
+    control:
+      hosts:
+        alice-ingest-1: {}

@@ -1,0 +1,170 @@
+- name: Provision the 3 CERN OpenStack VMs for alice-ingest
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    os_image: b5e094ad-88a9-4f78-8211-06532cdf492c
+    os_flavor: m2.medium
+    os_network: CERN_NETWORK
+    keypair_name: masladoj-key
+    ssh_security_group: alice-ingest-ssh
+    dashboards_security_group: dashboards
+
+    keypair_public_key_path: "{{ lookup('env', 'HOME') }}/.ssh/id_ed25519.pub"
+
+    provision_wait_for_ssh: true
+
+    provision_active_retries: 60
+    provision_active_delay: 30
+    provision_ssh_timeout: 600
+
+    _dashboards_port: "{{ dashboards_external_port | default(5601) }}"
+
+  tasks:
+    - name: "Pre-flight - cheap authenticated API call (look up the ALMA9 image)"
+      openstack.cloud.image_info:
+        image: "{{ os_image }}"
+      register: _auth_check
+      ignore_errors: true
+
+    - name: "Pre-flight — fail fast if OpenStack auth is not working"
+      ansible.builtin.assert:
+        that:
+          - _auth_check is succeeded
+          - (_auth_check.images | default([]) | length) > 0
+        success_msg: "OpenStack auth OK — able to query project resources."
+        fail_msg: >-
+          OpenStack authentication failed, or the ALMA9 image
+          ({{ os_image }}) was not visible in the current project. This
+          playbook needs ambient OpenStack auth already established in the
+          environment it runs in. On lxplus: run `kinit`, then export
+          OS_AUTH_URL=https://keystone.cern.ch/v3, OS_AUTH_TYPE=v3fedkerb,
+          OS_IDENTITY_PROVIDER=sssd, OS_PROTOCOL=kerberos,
+          OS_PROJECT_DOMAIN_ID=default,
+          OS_PROJECT_NAME="Personal masladoj" (see docs/OPENSTACK_GUIDE.md
+          section 1). From a Mac outside CERN, use an application credential
+          instead (same doc). Underlying error (if any):
+          {{ _auth_check.msg | default('image lookup returned no results') }}
+
+    - name: "Look up existing keypair {{ keypair_name }}"
+      openstack.cloud.keypair_info:
+        name: "{{ keypair_name }}"
+      register: _kp
+
+    - name: "Create the keypair, only when absent: {{ keypair_name }}"
+      openstack.cloud.keypair:
+        state: present
+        name: "{{ keypair_name }}"
+        public_key: "{{ lookup('file', keypair_public_key_path) }}"
+      when: (_kp.keypairs | default([]) | length) == 0
+
+    - name: "Ensure the SSH security group exists: {{ ssh_security_group }}"
+      openstack.cloud.security_group:
+        state: present
+        name: "{{ ssh_security_group }}"
+        description: "SSH (22) for alice-ingest VMs"
+
+    - name: "Ensure the SSH security group allows tcp/22 ingress: {{ ssh_security_group }}"
+      openstack.cloud.security_group_rule:
+        state: present
+        security_group: "{{ ssh_security_group }}"
+        protocol: tcp
+        port_range_min: 22
+        port_range_max: 22
+        direction: ingress
+        remote_ip_prefix: 0.0.0.0/0
+
+    - name: "Ensure the Dashboards security group exists: {{ dashboards_security_group }}"
+      openstack.cloud.security_group:
+        state: present
+        name: "{{ dashboards_security_group }}"
+        description: "OpenSearch Dashboards ({{ _dashboards_port }}, CERN-internal) — control VM only"
+
+    - name: "Ensure the Dashboards security group allows ingress on tcp/{{ _dashboards_port }}"
+      openstack.cloud.security_group_rule:
+        state: present
+        security_group: "{{ dashboards_security_group }}"
+        protocol: tcp
+        port_range_min: "{{ _dashboards_port }}"
+        port_range_max: "{{ _dashboards_port }}"
+        direction: ingress
+        remote_ip_prefix: 0.0.0.0/0
+
+    - name: "Create the alice-ingest VMs (idempotent by name; does not block on boot)"
+      openstack.cloud.server:
+        state: present
+        name: "{{ item }}"
+        image: "{{ os_image }}"
+        flavor: "{{ os_flavor }}"
+        key_name: "{{ keypair_name }}"
+        network: "{{ os_network }}"
+        security_groups: "{{ ['default', ssh_security_group] + ([dashboards_security_group] if item in groups['control'] else []) }}"
+        auto_ip: false
+        wait: false
+      loop: "{{ groups['alice_nodes'] }}"
+
+    - name: "Wait for each VM to reach ACTIVE (all three are building at once)"
+      openstack.cloud.server_info:
+        name: "{{ item }}"
+      register: _server_state
+      loop: "{{ groups['alice_nodes'] }}"
+      loop_control:
+        label: "{{ item }}"
+      until: >-
+        (_server_state.servers | default([]) | length) > 0
+        and _server_state.servers[0].status in ['ACTIVE', 'ERROR']
+      retries: "{{ provision_active_retries }}"
+      delay: "{{ provision_active_delay }}"
+
+    - name: "Fail with the cloud's own reason if any VM did not build"
+      ansible.builtin.assert:
+        that: item.servers[0].status == 'ACTIVE'
+        success_msg: "{{ item.item }} is ACTIVE."
+        fail_msg: >-
+          {{ item.item }} did not build (status={{ item.servers[0].status }}).
+          Reason reported by OpenStack:
+          {{ item.servers[0].fault | default('(none reported)') }}
+      loop: "{{ _server_state.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: "Determine each VM's assigned IPv4 and build the generated-inventory host map"
+      ansible.builtin.set_fact:
+        _generated_hosts: >-
+          {{
+            _generated_hosts | default({}) | combine({
+              item.item: {
+                'ansible_host': (item.servers[0].addresses[os_network]
+                  | selectattr('version', 'equalto', 4)
+                  | map(attribute='addr')
+                  | first)
+              }
+            })
+          }}
+      loop: "{{ _server_state.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: "Wait for SSH (tcp/22) to accept connections on each VM"
+      ansible.builtin.wait_for:
+        host: "{{ item.value.ansible_host }}"
+        port: 22
+        timeout: "{{ provision_ssh_timeout }}"
+      loop: "{{ _generated_hosts | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      when: provision_wait_for_ssh | bool
+
+    - name: "Write inventory.generated.yml with the real assigned IPs"
+      ansible.builtin.copy:
+        dest: "{{ playbook_dir }}/inventory.generated.yml"
+        mode: "0644"
+        content: |
+          {{ {'all': {'hosts': _generated_hosts}} | to_nice_yaml(indent=2) }}
+
+    - name: "Report assigned IPs"
+      ansible.builtin.debug:
+        msg: "{{ item.key }} -> {{ item.value.ansible_host }}"
+      loop: "{{ _generated_hosts | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"

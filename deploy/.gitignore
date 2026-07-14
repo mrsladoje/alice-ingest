@@ -1,0 +1,5 @@
+inventory.generated.yml
+group_vars/vault.yml
+.vault_pass
+.vault_pass.txt
+*.retry
