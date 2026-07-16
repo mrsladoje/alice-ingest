@@ -1,0 +1,7 @@
+collector_repo_baseurl: "https://packages.fluentbit.io/centos/$releasever/"
+collector_repo_gpgkey: "https://packages.fluentbit.io/fluentbit.key"
+
+collector_service_name: fluent-bit
+collector_binary_path: /opt/fluent-bit/bin/fluent-bit
+collector_config_dir: /etc/fluent-bit
+collector_systemd_dropin_dir: /etc/systemd/system/fluent-bit.service.d

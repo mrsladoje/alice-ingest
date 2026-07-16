@@ -1,0 +1,5 @@
+# {{ ansible_managed }}
+
+[Service]
+LimitMEMLOCK=infinity
+LimitNOFILE={{ opensearch_limit_nofile }}

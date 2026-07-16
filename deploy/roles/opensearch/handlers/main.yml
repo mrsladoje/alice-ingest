@@ -1,0 +1,10 @@
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  listen: reload systemd
+
+- name: Restart opensearch
+  ansible.builtin.systemd:
+    name: "{{ opensearch_service_name }}"
+    state: restarted
+  listen: restart opensearch

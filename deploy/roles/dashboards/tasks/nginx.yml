@@ -1,0 +1,56 @@
+- name: Install nginx (AlmaLinux AppStream)
+  ansible.builtin.dnf:
+    name: nginx
+    state: present
+
+- name: Ensure passlib is present (required by community.general.htpasswd)
+  ansible.builtin.pip:
+    name: passlib
+    state: present
+
+- name: Set HTTP basic-auth credentials for the Dashboards reverse proxy
+  community.general.htpasswd:
+    path: "{{ dashboards_nginx_htpasswd_file }}"
+    name: "{{ dashboards_basic_auth_user }}"
+    password: "{{ dashboards_basic_auth_password }}"
+    owner: root
+    group: nginx
+    mode: "0640"
+  notify: restart nginx
+
+- name: Template the Dashboards reverse-proxy vhost (TLS + basic-auth + websocket upgrade)
+  ansible.builtin.template:
+    src: dashboards.conf.j2
+    dest: "{{ dashboards_nginx_vhost_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart nginx
+
+- name: Ensure Python SELinux bindings are present (required by ansible.posix.seboolean and community.general.seport)
+  ansible.builtin.dnf:
+    name:
+      - python3-libselinux
+      - python3-policycoreutils
+      - python3-libsemanage
+    state: present
+
+- name: Allow nginx to reverse-proxy to Dashboards over SELinux (ALMA9 enforcing), on 127.0.0.1:{{ dashboards_internal_port }}
+  ansible.posix.seboolean:
+    name: httpd_can_network_connect
+    state: true
+    persistent: true
+
+- name: Label the Dashboards external port as http_port_t so nginx can bind it under SELinux enforcing, on tcp/{{ dashboards_external_port }}
+  community.general.seport:
+    ports: "{{ dashboards_external_port }}"
+    proto: tcp
+    setype: http_port_t
+    state: present
+
+- name: Enable and start nginx
+  ansible.builtin.systemd:
+    name: nginx
+    enabled: true
+    state: started
+    daemon_reload: true

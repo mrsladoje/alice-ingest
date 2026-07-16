@@ -1,0 +1,46 @@
+- name: Ensure the Python cryptography library is present (required by community.crypto)
+  ansible.builtin.dnf:
+    name: python3-cryptography
+    state: present
+  become: true
+
+- name: Ensure the nginx TLS material directory exists
+  ansible.builtin.file:
+    path: "{{ dashboards_nginx_tls_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Generate the TLS private key for the Dashboards proxy
+  community.crypto.openssl_privatekey:
+    path: "{{ dashboards_nginx_tls_key }}"
+    type: RSA
+    size: 2048
+    owner: root
+    group: root
+    mode: "0640"
+
+- name: Generate the self-signed certificate's CSR
+  community.crypto.openssl_csr:
+    path: "{{ dashboards_nginx_tls_csr }}"
+    privatekey_path: "{{ dashboards_nginx_tls_key }}"
+    common_name: "{{ ansible_host }}"
+    subject_alt_name:
+      - "IP:{{ ansible_host }}"
+      - "DNS:{{ inventory_hostname }}"
+    owner: root
+    group: root
+    mode: "0640"
+
+- name: Generate the self-signed TLS certificate
+  community.crypto.x509_certificate:
+    path: "{{ dashboards_nginx_tls_cert }}"
+    csr_path: "{{ dashboards_nginx_tls_csr }}"
+    privatekey_path: "{{ dashboards_nginx_tls_key }}"
+    provider: selfsigned
+    selfsigned_not_after: "+{{ dashboards_nginx_tls_cert_days }}d"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart nginx

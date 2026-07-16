@@ -1,0 +1,42 @@
+- name: Ensure the bootstrap scripts directory exists
+  ansible.builtin.file:
+    path: "{{ dashboards_bootstrap_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Copy the OpenSearch index-template/ISM bootstrap script (verbatim from init/opensearch/templates.sh)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../init/opensearch/templates.sh"
+    dest: "{{ dashboards_bootstrap_templates_script }}"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Copy the Dashboards index-pattern bootstrap script (verbatim from init/dashboards/patterns.sh)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../init/dashboards/patterns.sh"
+    dest: "{{ dashboards_bootstrap_patterns_script }}"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Run the OpenSearch index-template/ISM bootstrap (one-shot, marker-guarded)
+  ansible.builtin.command:
+    cmd: "{{ dashboards_bootstrap_templates_script }}"
+    creates: "{{ dashboards_bootstrap_templates_marker }}"
+  environment:
+    OS_URL: "http://localhost:{{ opensearch_http_port }}"
+  changed_when: true
+  notify: record templates bootstrap done
+
+- name: Run the Dashboards index-pattern bootstrap (one-shot, marker-guarded)
+  ansible.builtin.command:
+    cmd: "{{ dashboards_bootstrap_patterns_script }}"
+    creates: "{{ dashboards_bootstrap_patterns_marker }}"
+  environment:
+    OSD_URL: "http://127.0.0.1:{{ dashboards_internal_port }}"
+    OS_URL: "http://localhost:{{ opensearch_http_port }}"
+  changed_when: true
+  notify: record patterns bootstrap done

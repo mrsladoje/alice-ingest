@@ -16,6 +16,7 @@ real platform at small scale, for hands-on learning and failure experiments.
 
 - **Design target:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the real platform we simplify *from*.
 - **Local design + deliberate divergences:** [`docs/PAPER-AIRPLANE.md`](docs/PAPER-AIRPLANE.md).
+- **Beyond one machine:** Docker Compose (below) remains the local dev path — for a native, no-Docker deploy onto 3 CERN OpenStack VMs with one 3-node OpenSearch cluster, see [`deploy/README.md`](deploy/README.md).
 
 > **This tag (`paper-airplane-v2`)** is *flight 2*: a single node ships **real
 > CERN S3 logs** (replayed from the `epn-backup-logs` bucket) — or **mock** logs

@@ -1,0 +1,10 @@
+- name: Daemon-reload fluent-bit
+  ansible.builtin.systemd:
+    daemon_reload: true
+  listen: daemon-reload fluent-bit
+
+- name: Restart fluent-bit
+  ansible.builtin.systemd:
+    name: "{{ collector_service_name }}"
+    state: restarted
+  listen: restart fluent-bit

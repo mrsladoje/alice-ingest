@@ -1,0 +1,28 @@
+# =============================================================================
+# deploy/group_vars/vault.yml.example — PLAINTEXT TEMPLATE, obviously-fake
+# values. Copy to vault.yml, fill in real values, then encrypt it in place:
+#
+#   cp group_vars/vault.yml.example group_vars/vault.yml
+#   $EDITOR group_vars/vault.yml
+#   ansible-vault encrypt group_vars/vault.yml
+#
+# group_vars/vault.yml is gitignored (see deploy/.gitignore) precisely so a
+# plaintext draft never gets committed by accident; only the encrypted file
+# should ever exist on disk for real. Run playbooks with --ask-vault-pass or
+# --vault-password-file.
+#
+# These vault_* names are referenced (never hardcoded) from group_vars/all.yml:
+#   s3_access_key_id             = "{{ vault_s3_access_key_id }}"
+#   s3_secret_access_key         = "{{ vault_s3_secret_access_key }}"
+#   dashboards_basic_auth_password = "{{ vault_dashboards_basic_auth_password }}"
+# =============================================================================
+
+# AWS/Ceph RGW credentials for the [cern_s3] profile (see s3_aws_profile in
+# group_vars/all.yml) used by images/replay/replay.py's boto3 client.
+vault_s3_access_key_id: "AKIAEXAMPLEFAKEKEY00"
+vault_s3_secret_access_key: "ExampleFakeSecretKeyDoNotUseXXXXXXXXXXXX"
+
+# HTTP basic-auth password for the nginx reverse proxy in front of OpenSearch
+# Dashboards on the control host (port 5601, TLS + basic-auth — the security
+# plugin itself is disabled cluster-wide).
+vault_dashboards_basic_auth_password: "change-me-fake-password"

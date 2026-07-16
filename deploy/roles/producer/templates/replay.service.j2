@@ -1,0 +1,65 @@
+# Managed by Ansible (deploy/roles/producer) — local edits will be overwritten.
+# Native port of images/replay/replay.py's default container CMD
+# (`python replay.py serve`) — the HTTP trigger stub (GET /health,
+# POST /replay?family=...) which also fires the AUTOSTART_REPLAY-guarded
+# one-shot load on first boot, exactly like docker-compose.yml's `replay`
+# service. Runs through files/replay_partition_wrapper.py so this VM only
+# ever replays its own epn_partition slice — see that file's docstring.
+#
+# Restarting this unit is SAFE and will NOT re-ingest: replay.py's own
+# AUTOSTART_MARKER guard (below) persists on disk in log_root and is checked
+# before any autostart load runs again.
+
+[Unit]
+Description=ALICE S3 log replay — single-partition wrapper ({{ node_id }}, epn_partition {{ epn_partition }})
+Documentation=file://{{ producers_app_root }}/replay_partition_wrapper.py
+# Soft ordering only: InfoLogger rows retry-connect forever inside replay.py
+# (il_connect) and the DDS/stdout tail files are picked up by Fluent Bit's
+# `tail` input whenever it next polls, so this unit tolerates starting
+# before Fluent Bit is up. If the collector role's unit is named
+# differently, this After= is simply a no-op (systemd does not fail on an
+# After= referencing an unknown unit).
+After=network-online.target fluent-bit.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory={{ producers_app_root }}
+
+Environment=AWS_PROFILE={{ s3_aws_profile }}
+Environment=AWS_SHARED_CREDENTIALS_FILE={{ producer_aws_credentials_file }}
+Environment=S3_ENDPOINT={{ s3_endpoint }}
+Environment=S3_BUCKET={{ s3_bucket }}
+Environment=S3_REGION={{ s3_region }}
+Environment=RUN_TAG={{ run_tag }}
+Environment=INFOLOGGER_PREFIX={{ infologger_prefix }}
+Environment=INFOLOGGER_TCP_PORT={{ infologger_tcp_port }}
+Environment=NODE_COUNT={{ node_count }}
+Environment=NODES_ROOT={{ producer_nodes_root }}
+Environment=DDS_REPLAY_RATE={{ dds_replay_rate }}
+Environment=IL_REPLAY_RATE={{ il_replay_rate }}
+Environment=DDS_MAX_OBJECTS={{ dds_max_objects }}
+Environment=IL_MAX_OBJECTS={{ il_max_objects }}
+Environment=REPLAY_HTTP_PORT={{ replay_http_port }}
+Environment=AUTOSTART_REPLAY=true
+Environment=AUTOSTART_FAMILIES={{ producer_autostart_families }}
+Environment=AUTOSTART_MARKER={{ producer_autostart_marker }}
+Environment=EPN_PARTITION={{ epn_partition }}
+Environment=PYTHONUNBUFFERED=1
+
+ExecStart={{ producers_venv_path }}/bin/python3 {{ producers_app_root }}/replay_partition_wrapper.py serve
+
+Restart=on-failure
+RestartSec=5s
+
+# No NODES_ROOT/, log_root, or /root/.aws hardening (ProtectSystem etc.)
+# beyond what's needed: this unit writes under log_root (via the NODES_ROOT
+# symlink) and reads /root/.aws/credentials, both outside typical
+# ProtectSystem=strict allowances, and it runs as root to match the
+# preserved container behavior (compose mounted the AWS credentials at
+# /root/.aws/credentials because the replay container ran as root).
+
+[Install]
+WantedBy=multi-user.target

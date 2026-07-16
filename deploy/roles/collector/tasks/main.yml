@@ -1,0 +1,79 @@
+- name: Add official Fluent Bit yum repository (packages.fluentbit.io)
+  ansible.builtin.yum_repository:
+    name: fluent-bit
+    description: Fluent Bit
+    baseurl: "{{ collector_repo_baseurl }}"
+    gpgcheck: true
+    gpgkey: "{{ collector_repo_gpgkey }}"
+    enabled: true
+
+- name: Install fluent-bit RPM (pinned to fluent_bit_version, matches images/node/Dockerfile)
+  ansible.builtin.dnf:
+    name: "{{ collector_service_name }}-{{ fluent_bit_version }}"
+    state: present
+
+- name: Create log_root and its dds/stdout subdirectories (local producers write here, this collector tails them)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ log_root }}"
+    - "{{ log_root }}/dds"
+    - "{{ log_root }}/stdout"
+
+- name: Create Fluent Bit storage/buffer path (native equivalent of the container's /var/log/flb-storage)
+  ansible.builtin.file:
+    path: "{{ fluent_bit_storage_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Port parsers.yaml (verbatim from images/node/fluent-bit/parsers.yaml)
+  ansible.builtin.template:
+    src: parsers.yaml.j2
+    dest: "{{ collector_config_dir }}/parsers.yaml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart fluent-bit
+
+- name: Port collector.yaml (from images/node/fluent-bit/collector.yaml, seams templated per contract)
+  ansible.builtin.template:
+    src: collector.yaml.j2
+    dest: "{{ collector_config_dir }}/collector.yaml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart fluent-bit
+
+- name: Create systemd drop-in directory for fluent-bit.service
+  ansible.builtin.file:
+    path: "{{ collector_systemd_dropin_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Systemd drop-in — point ExecStart at collector.yaml instead of the packaged fluent-bit.conf
+  ansible.builtin.template:
+    src: fluent-bit-override.conf.j2
+    dest: "{{ collector_systemd_dropin_dir }}/override.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - daemon-reload fluent-bit
+    - restart fluent-bit
+
+- name: Apply pending Fluent Bit config/unit changes now
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure fluent-bit is enabled and running
+  ansible.builtin.systemd:
+    name: "{{ collector_service_name }}"
+    enabled: true
+    state: started

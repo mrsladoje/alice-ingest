@@ -1,0 +1,17 @@
+common_packages:
+  - python3
+  - python3-pip
+  - tar
+  - chrony
+  - firewalld
+  - ca-certificates
+
+common_timezone: UTC
+
+common_vm_max_map_count: 262144
+common_sysctl_conf_file: /etc/sysctl.d/99-opensearch.conf
+
+common_log_dirs:
+  - "{{ log_root }}"
+  - "{{ log_root }}/dds"
+  - "{{ log_root }}/stdout"

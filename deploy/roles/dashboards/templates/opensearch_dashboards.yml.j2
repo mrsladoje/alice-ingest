@@ -1,0 +1,6 @@
+# {{ ansible_managed }}
+
+server.host: "127.0.0.1"
+server.port: {{ dashboards_internal_port }}
+
+opensearch.hosts: {{ dashboards_opensearch_hosts | to_json }}

@@ -1,0 +1,47 @@
+opensearch_version: "2.17.0"
+opensearch_cluster_name: alice-logs
+
+opensearch_heap_size: "512m"
+
+opensearch_http_port: 9200
+opensearch_transport_port: 9300
+
+opensearch_data_path: /var/lib/opensearch
+opensearch_log_path: /var/log/opensearch
+
+opensearch_seed_hosts: "{{ groups['alice_nodes'] | map('extract', hostvars, 'ansible_host') | list }}"
+opensearch_initial_cluster_manager_nodes: "{{ groups['alice_nodes'] | map('extract', hostvars, 'node_id') | list }}"
+dashboards_opensearch_hosts: "{{ groups['alice_nodes'] | map('extract', hostvars, 'ansible_host') |
+  map('regex_replace', '^(.*)$', 'http://\\1:' ~ (opensearch_http_port | string)) | list }}"
+
+dashboards_internal_port: 5602
+dashboards_external_port: 5601
+
+infologger_tcp_port: 5170
+log_root: /var/log/node
+fluent_bit_storage_path: /var/log/flb-storage
+fluent_bit_http_port: 2020
+fluent_bit_version: "5.0.8"
+
+s3_endpoint: "https://s3.cern.ch"
+s3_bucket: epn-backup-logs
+s3_region: us-east-1
+s3_aws_profile: cern_s3
+run_tag: "33NXirFsSfT_38917"
+infologger_prefix: "infologger-2026/"
+
+replay_http_port: 8088
+node_count: "{{ groups['alice_nodes'] | length }}"
+
+dds_replay_rate: 400
+il_replay_rate: 500
+dds_max_objects: 0
+il_max_objects: 3
+
+producers_venv_path: /opt/alice-ingest/venv
+producers_app_root: /opt/alice-ingest/app
+
+s3_access_key_id: "{{ vault_s3_access_key_id }}"
+s3_secret_access_key: "{{ vault_s3_secret_access_key }}"
+dashboards_basic_auth_user: alice
+dashboards_basic_auth_password: "{{ vault_dashboards_basic_auth_password }}"

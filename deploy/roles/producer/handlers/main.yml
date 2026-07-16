@@ -1,0 +1,18 @@
+# authored by the producer unit agent
+# =============================================================================
+# Restarting alice-replay is SAFE at any time: replay.py's own
+# AUTOSTART_MARKER guard (producer_autostart_marker, on disk in log_root)
+# persists across restarts, so a config/binary change here never re-ingests
+# a duplicate copy of the run — it just picks the new code/config up and
+# resumes serving (GET /health, POST /replay) with the same guard intact.
+# No serial/cluster-safety gate needed (quality bar #3 exempts stateless
+# per-node services; the marker itself is this role's dedup mechanism).
+# =============================================================================
+---
+
+- name: Restart alice-replay
+  ansible.builtin.systemd:
+    name: "{{ producer_service_name }}"
+    state: restarted
+    daemon_reload: true
+  listen: restart alice-replay

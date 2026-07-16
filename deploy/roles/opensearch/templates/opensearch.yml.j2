@@ -1,0 +1,29 @@
+# {{ ansible_managed }}
+
+cluster.name: {{ opensearch_cluster_name }}
+node.name: {{ node_id }}
+
+path.data: {{ opensearch_data_path }}
+path.logs: {{ opensearch_log_path }}
+
+network.host:
+  - _local_
+  - {{ ansible_host }}
+network.publish_host: {{ ansible_host }}
+
+http.port: {{ opensearch_http_port }}
+transport.port: {{ opensearch_transport_port }}
+
+discovery.seed_hosts:
+{% for h in opensearch_seed_hosts %}
+  - {{ h }}
+{% endfor %}
+
+cluster.initial_cluster_manager_nodes:
+{% for n in opensearch_initial_cluster_manager_nodes %}
+  - {{ n }}
+{% endfor %}
+
+bootstrap.memory_lock: true
+
+plugins.security.disabled: true

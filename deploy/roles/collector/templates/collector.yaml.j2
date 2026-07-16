@@ -1,0 +1,180 @@
+service:
+  flush: 1
+  log_level: info
+  parsers_file: {{ collector_config_dir }}/parsers.yaml
+  storage.path: {{ fluent_bit_storage_path }}/
+  storage.max_chunks_up: 64
+  http_server: on
+  http_listen: 0.0.0.0
+  http_port: {{ fluent_bit_http_port }}
+
+multiline_parsers:
+  - name: dds_multiline
+    type: regex
+    flush_timeout: 1000
+    rules:
+      - state: start_state
+        regex: '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+\s/'
+        next_state: cont
+      - state: cont
+        regex: '/^(?!\d{4}-\d{2}-\d{2})/'
+        next_state: cont
+  - name: stdout_multiline
+    type: regex
+    flush_timeout: 1000
+    rules:
+      - state: start_state
+        regex: '/^\S/'
+        next_state: cont
+      - state: cont
+        regex: '/^\s/'
+        next_state: cont
+
+pipeline:
+  inputs:
+    - name: tail
+      path: {{ log_root }}/dds.log,{{ log_root }}/dds/*.log
+      path_key: file
+      tag: dds
+      multiline.parser: dds_multiline
+      read_from_head: true
+      refresh_interval: 5
+      storage.type: filesystem
+      db: {{ fluent_bit_storage_path }}/dds.db
+
+    - name: tail
+      path: {{ log_root }}/stdout.log,{{ log_root }}/stdout/*.log
+      path_key: file
+      tag: stdout
+      multiline.parser: stdout_multiline
+      read_from_head: true
+      refresh_interval: 5
+      storage.type: filesystem
+      db: {{ fluent_bit_storage_path }}/stdout.db
+
+    - name: tcp
+      listen: 0.0.0.0
+      port: {{ infologger_tcp_port }}
+      tag: infologger
+      format: json
+      storage.type: filesystem
+
+  filters:
+    - name: lua
+      match: infologger
+      call: set_event_time
+      code: |
+        local last_ts = nil
+        function set_event_time(tag, ts, record)
+          local t = record['timestamp']
+          if t ~= nil and t > 0 then
+            last_ts = t
+          else
+            t = last_ts
+          end
+          if t ~= nil then
+            record['_evt'] = string.format('%.3f', t)
+          end
+          return 1, ts, record
+        end
+    - name: parser
+      match: infologger
+      key_name: _evt
+      parser: il_event_time
+      reserve_data: on
+    - name: record_modifier
+      match: infologger
+      record:
+        - log_source infologger
+        - node {{ node_id }}
+      remove_key:
+        - timestamp
+    - name: parser
+      match: dds
+      key_name: log
+      parser: dds_text
+      reserve_data: on
+    - name: lua
+      match: dds
+      call: set_host
+      code: |
+        function set_host(tag, ts, record)
+          local f = record['file']
+          if f ~= nil then
+            local h = string.match(f, 'dds/(epn%d+)%.log$')
+            if h ~= nil then record['host'] = h end
+          end
+          return 1, ts, record
+        end
+    - name: record_modifier
+      match: dds
+      record:
+        - log_source dds
+        - node {{ node_id }}
+      remove_key:
+        - file
+    - name: rewrite_tag
+      match: dds
+      rule: $severity ^inf$  family.info false
+      rule: $severity ^.*$  family.other false
+      emitter_name: dds_router
+    - name: parser
+      match: stdout
+      key_name: log
+      parser: stdout_root
+      reserve_data: on
+    - name: lua
+      match: stdout
+      call: set_host
+      code: |
+        function set_host(tag, ts, record)
+          local f = record['file']
+          if f ~= nil then
+            local h = string.match(f, 'stdout/(epn%d+)%.log$')
+            if h ~= nil then record['host'] = h end
+          end
+          return 1, ts, record
+        end
+    - name: record_modifier
+      match: stdout
+      record:
+        - log_source stdout
+        - node {{ node_id }}
+      remove_key:
+        - file
+    - name: rewrite_tag
+      match: stdout
+      rule: $severity ^Info$  family.info false
+      rule: $message ^.*$  family.other false
+      emitter_name: stdout_router
+
+  outputs:
+    - name: opensearch
+      match: infologger
+      host: localhost
+      port: {{ opensearch_http_port }}
+      index: infologger
+      suppress_type_name: true
+      trace_error: true
+      storage.total_limit_size: 1M
+      retry_limit: 2
+
+    - name: opensearch
+      match: family.info
+      host: localhost
+      port: {{ opensearch_http_port }}
+      index: generic-log-info
+      suppress_type_name: true
+      trace_error: true
+      storage.total_limit_size: 1M
+      retry_limit: 2
+
+    - name: opensearch
+      match: family.other
+      host: localhost
+      port: {{ opensearch_http_port }}
+      index: generic-log-other
+      suppress_type_name: true
+      trace_error: true
+      storage.total_limit_size: 1M
+      retry_limit: 2

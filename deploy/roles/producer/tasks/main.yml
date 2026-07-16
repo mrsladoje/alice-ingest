@@ -1,0 +1,161 @@
+# authored by the producer unit agent
+# =============================================================================
+# roles/producer — native (venv + systemd) S3-replay engine, one per VM.
+#
+# SCOPE (quality bar #2, native fidelity — determined by reading
+# images/node/Dockerfile, images/node/supervisord-collector.conf vs.
+# supervisord-self-contained.conf, and docker-compose.yml vs.
+# docker-compose.mocks.yaml):
+#   - docker-compose.yml (the REAL 'make run' stack) starts node-01/02/03
+#     with NO command: override, so the Dockerfile's default CMD applies —
+#     `supervisord -c /etc/supervisord-collector.conf`, which runs ONLY
+#     Fluent Bit. images/node/producers/*.py (dds/stdout/infologger mock
+#     generators) are started ONLY by supervisord-self-contained.conf, which
+#     is exclusively docker-compose.mocks.yaml's command: override.
+#   - The real stack's only producer is the separate `replay` service
+#     (images/replay/replay.py, `python replay.py serve`), which streams
+#     real CERN S3 logs into the shared node volumes / TCP :5170.
+#   - Therefore THIS role ports images/replay/replay.py only. The mock
+#     producers under images/node/producers/ are mocks-stack-only and are
+#     deliberately NOT deployed here — porting them would drift from what
+#     'make run' (the real stack) actually runs.
+#
+# SINGLE-PARTITION DESIGN (LOCKED topology: each VM replays ONLY its own
+# epn_partition slice, InfoLogger strictly to localhost): replay.py's own
+# NODE_COUNT/NODES_ROOT/COLLECTOR_HOSTS fan-out assumes ONE process serving
+# ALL collectors. images/replay/replay.py is PRESERVED (must not be edited),
+# so files/replay_partition_wrapper.py imports it unmodified and monkeypatches
+# its list_objects()/il_connect() extension points to narrow the SAME fan-out
+# logic to this VM's slice — see that file's module docstring for the full
+# reasoning (why a directory/symlink trick alone can't handle InfoLogger,
+# whose per-collector routing is row-level, not object-level).
+# =============================================================================
+---
+
+# --- Python runtime ----------------------------------------------------------
+- name: Install Python3 (dnf) for the replay venv
+  ansible.builtin.dnf:
+    name:
+      - python3
+      - python3-pip
+    state: present
+
+- name: Ensure the app root exists (replay.py + partition wrapper land here)
+  ansible.builtin.file:
+    path: "{{ producers_app_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Copy images/replay/replay.py verbatim (PRESERVED ground truth, unmodified)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../images/replay/replay.py"
+    dest: "{{ producers_app_root }}/replay.py"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart alice-replay
+
+- name: Copy the single-partition wrapper (imports replay.py unmodified, see its docstring)
+  ansible.builtin.copy:
+    src: replay_partition_wrapper.py
+    dest: "{{ producers_app_root }}/replay_partition_wrapper.py"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart alice-replay
+
+- name: Create/update the replay venv and install boto3 into it
+  ansible.builtin.pip:
+    name: boto3
+    state: present
+    virtualenv: "{{ producers_venv_path }}"
+    virtualenv_command: /usr/bin/python3 -m venv
+  notify: restart alice-replay
+
+# --- S3 credentials (vault-only, quality bar #5) ------------------------------
+- name: Ensure /root/.aws exists
+  ansible.builtin.file:
+    path: "{{ producer_aws_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Template the AWS credentials profile from vault
+  ansible.builtin.template:
+    src: aws-credentials.j2
+    dest: "{{ producer_aws_credentials_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: restart alice-replay
+
+# --- Local log_root + this VM's slice of replay.py's NODES_ROOT layout -------
+# replay.py writes DDS/stdout files under
+# NODES_ROOT/<collector-name>/<family>/<host>.log via os.makedirs(exist_ok=True)
+# — untouched. Pointing NODES_ROOT/<our node_id> at log_root via a symlink
+# means those unmodified writes land exactly where the LOCAL Fluent Bit tails
+# (log_root/dds/*.log, log_root/stdout/*.log — see
+# images/node/fluent-bit/collector.yaml), with zero code changes and zero
+# extra disk usage for the two partitions this VM never touches (the
+# wrapper's list_objects() filter means no other collector name is ever
+# resolved here, so os.makedirs() for one never happens).
+- name: Ensure the local Fluent Bit log_root exists (defensive — collector role also owns this)
+  ansible.builtin.file:
+    path: "{{ log_root }}/{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - dds
+    - stdout
+
+- name: Ensure the replay partition-root parent directory exists
+  ansible.builtin.file:
+    path: "{{ producer_nodes_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Symlink this VM's replay partition-root to the local log_root
+  ansible.builtin.file:
+    src: "{{ log_root }}"
+    dest: "{{ producer_nodes_root }}/{{ node_id }}"
+    state: link
+    force: true
+    follow: false
+
+# --- systemd unit --------------------------------------------------------
+- name: Template the alice-replay systemd unit
+  ansible.builtin.template:
+    src: replay.service.j2
+    dest: /etc/systemd/system/{{ producer_service_name }}.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart alice-replay
+
+- name: Apply any pending restart now, before the one-shot autostart can be interrupted
+  # First-run fidelity: replay.py's _maybe_autostart() writes AUTOSTART_MARKER up
+  # front and then runs the minutes-long run_replay(). If any of the templated/
+  # copied tasks above (replay.py, wrapper, venv, creds, unit) notified
+  # 'restart alice-replay', that handler would otherwise flush at END of play —
+  # AFTER the 'started' task below has already kicked off autostart — SIGTERMing
+  # mid-ingest. The restarted process then sees the marker already present and
+  # skips autostart entirely (replay.py comment: recovery needs a manual
+  # POST /replay). Flushing here forces the restart (if any) to happen BEFORE
+  # the service is asked to run, so autostart completes uninterrupted and the
+  # task below becomes a true no-op (enable-at-boot only).
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start alice-replay
+  ansible.builtin.systemd:
+    name: "{{ producer_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true

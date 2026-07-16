@@ -1,0 +1,38 @@
+# authored by the producer unit agent
+# Role-local defaults ONLY (lowest precedence). Cross-cutting parameters
+# (s3_*, run_tag, *_replay_rate, *_max_objects, infologger_tcp_port, log_root,
+# replay_http_port, node_count, producers_venv_path, producers_app_root,
+# vault-backed secrets, ...) live in group_vars/all.yml and are referenced
+# directly — NOT duplicated here.
+#
+# Everything below is purely internal plumbing for THIS role: filesystem
+# paths and a service/unit name that only the producer role cares about.
+---
+
+# Parent directory that stands in for replay.py's own NODES_ROOT concept.
+# The role creates exactly ONE symlink under here, "<node_id>" -> log_root,
+# so replay.py's unmodified _family_dir()/os.makedirs() calls land straight
+# in this VM's local Fluent Bit log_root with zero code changes (see
+# files/replay_partition_wrapper.py's module docstring for the full reasoning
+# and roles/producer/tasks/main.yml for the task that creates the symlink).
+# No other collector's subdirectory is ever created — the wrapper's
+# list_objects() filter means replay.py never resolves a foreign collector
+# name for a DDS/stdout file, so os.makedirs() is never called for one.
+producer_nodes_root: /var/log/alice-replay-root
+
+# systemd unit + AWS credentials plumbing.
+producer_service_name: alice-replay
+producer_aws_dir: /root/.aws
+producer_aws_credentials_file: "{{ producer_aws_dir }}/credentials"
+
+# Where replay.py + the partition wrapper record that AUTOSTART_REPLAY has
+# already run once (ported 1:1 from docker-compose.yml's
+# AUTOSTART_MARKER=/var/log/nodes/node-01/.replay-autostart-done — same
+# guard, same semantics: a service restart must NOT re-ingest). Lives
+# directly in log_root since, on this VM, log_root IS this partition's
+# NODES_ROOT/<collector> directory (via the symlink above).
+producer_autostart_marker: "{{ log_root }}/.replay-autostart-done"
+
+# Families to auto-load once at first boot — matches replay.py's own default
+# (AUTOSTART_FAMILIES) and docker-compose.yml's AUTOSTART_REPLAY=true.
+producer_autostart_families: "infologger,dds,stdout"

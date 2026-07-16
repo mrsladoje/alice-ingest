@@ -1,0 +1,11 @@
+- name: Check whether the securityDashboards plugin is still installed
+  ansible.builtin.stat:
+    path: "{{ dashboards_home_dir }}/plugins/securityDashboards"
+  register: dashboards_security_plugin_stat
+
+- name: Remove the bundled securityDashboards plugin
+  ansible.builtin.command:
+    cmd: "{{ dashboards_plugin_bin }} remove securityDashboards --allow-root"
+  when: dashboards_security_plugin_stat.stat.exists
+  changed_when: true
+  notify: restart opensearch-dashboards

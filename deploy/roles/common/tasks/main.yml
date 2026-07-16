@@ -1,0 +1,71 @@
+- name: Install baseline packages
+  ansible.builtin.dnf:
+    name: "{{ common_packages }}"
+    state: present
+    update_cache: true
+
+- name: Set system timezone to UTC
+  community.general.timezone:
+    name: "{{ common_timezone }}"
+
+- name: Ensure chronyd is enabled and running (correct wall-clock across the 3-node cluster)
+  ansible.builtin.systemd:
+    name: chronyd
+    enabled: true
+    state: started
+
+- name: Set vm.max_map_count for OpenSearch (persistent + live)
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "{{ common_vm_max_map_count | string }}"
+    sysctl_file: "{{ common_sysctl_conf_file }}"
+    sysctl_set: true
+    state: present
+    reload: true
+
+- name: Create the local log directory tree ({{ log_root }})
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ common_log_dirs }}"
+
+- name: Ensure firewalld is enabled and running
+  ansible.builtin.systemd:
+    name: firewalld
+    enabled: true
+    state: started
+
+- name: Open OpenSearch HTTP (9200/tcp) between the 3 cluster nodes
+  ansible.posix.firewalld:
+    rich_rule: >-
+      rule family="ipv4"
+      source address="{{ item }}"
+      port port="{{ opensearch_http_port }}" protocol="tcp"
+      accept
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ opensearch_seed_hosts }}"
+
+- name: Open OpenSearch transport (9300/tcp) between the 3 cluster nodes
+  ansible.posix.firewalld:
+    rich_rule: >-
+      rule family="ipv4"
+      source address="{{ item }}"
+      port port="{{ opensearch_transport_port }}" protocol="tcp"
+      accept
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ opensearch_seed_hosts }}"
+
+- name: Open the Dashboards external port (5601/tcp, nginx TLS+basic-auth) on the control host
+  ansible.posix.firewalld:
+    port: "{{ dashboards_external_port }}/tcp"
+    permanent: true
+    immediate: true
+    state: enabled
+  when: inventory_hostname in groups['control']

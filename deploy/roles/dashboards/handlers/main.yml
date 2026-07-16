@@ -1,0 +1,30 @@
+- name: Restart opensearch-dashboards
+  ansible.builtin.systemd:
+    name: "{{ dashboards_service_name }}"
+    state: restarted
+    daemon_reload: true
+  listen: restart opensearch-dashboards
+
+- name: Restart nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: restarted
+  listen: restart nginx
+
+- name: Record that the OpenSearch templates bootstrap has completed
+  ansible.builtin.file:
+    path: "{{ dashboards_bootstrap_templates_marker }}"
+    state: touch
+    owner: root
+    group: root
+    mode: "0640"
+  listen: record templates bootstrap done
+
+- name: Record that the Dashboards index-pattern bootstrap has completed
+  ansible.builtin.file:
+    path: "{{ dashboards_bootstrap_patterns_marker }}"
+    state: touch
+    owner: root
+    group: root
+    mode: "0640"
+  listen: record patterns bootstrap done

@@ -1,0 +1,38 @@
+# {{ ansible_managed }}
+
+map $http_upgrade $dashboards_connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen {{ dashboards_external_port }} ssl;
+    listen [::]:{{ dashboards_external_port }} ssl;
+    server_name _;
+
+    ssl_certificate     {{ dashboards_nginx_tls_cert }};
+    ssl_certificate_key {{ dashboards_nginx_tls_key }};
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    auth_basic           "ALICE Logging Dashboards";
+    auth_basic_user_file {{ dashboards_nginx_htpasswd_file }};
+
+    location / {
+        proxy_pass http://127.0.0.1:{{ dashboards_internal_port }};
+        proxy_http_version 1.1;
+
+        # Dashboards needs the websocket upgrade headers (live queries / UI
+        # push channel) — without these the proxy silently downgrades every
+        # connection to plain HTTP and parts of the UI stop updating.
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $dashboards_connection_upgrade;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_read_timeout 90s;
+    }
+}

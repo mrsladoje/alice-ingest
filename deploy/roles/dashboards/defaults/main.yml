@@ -1,0 +1,21 @@
+dashboards_config_dir: /etc/opensearch-dashboards
+dashboards_config_file: "{{ dashboards_config_dir }}/opensearch_dashboards.yml"
+dashboards_service_name: opensearch-dashboards
+dashboards_system_user: opensearch-dashboards
+dashboards_system_group: opensearch-dashboards
+dashboards_home_dir: /usr/share/opensearch-dashboards
+dashboards_plugin_bin: "{{ dashboards_home_dir }}/bin/opensearch-dashboards-plugin"
+
+dashboards_nginx_tls_dir: /etc/nginx/tls
+dashboards_nginx_tls_cert: "{{ dashboards_nginx_tls_dir }}/dashboards.crt"
+dashboards_nginx_tls_key: "{{ dashboards_nginx_tls_dir }}/dashboards.key"
+dashboards_nginx_tls_csr: "{{ dashboards_nginx_tls_dir }}/dashboards.csr"
+dashboards_nginx_tls_cert_days: 3650
+dashboards_nginx_htpasswd_file: /etc/nginx/dashboards.htpasswd
+dashboards_nginx_vhost_file: /etc/nginx/conf.d/dashboards.conf
+
+dashboards_bootstrap_root: /opt/alice-ingest/init
+dashboards_bootstrap_templates_script: "{{ dashboards_bootstrap_root }}/templates.sh"
+dashboards_bootstrap_patterns_script: "{{ dashboards_bootstrap_root }}/patterns.sh"
+dashboards_bootstrap_templates_marker: "{{ dashboards_bootstrap_root }}/.templates-bootstrap-done"
+dashboards_bootstrap_patterns_marker: "{{ dashboards_bootstrap_root }}/.patterns-bootstrap-done"

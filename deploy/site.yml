@@ -1,0 +1,59 @@
+- name: Common host prep (all 3 VMs)
+  hosts: alice_nodes
+  become: true
+  roles:
+    - common
+
+- name: OpenSearch cluster — initial bring-up (all 3 nodes together, so a manager can be elected)
+  hosts: alice_nodes
+  become: true
+  roles:
+    - opensearch
+
+- name: OpenSearch cluster — rolling-safety gate (one node at a time)
+  hosts: alice_nodes
+  become: true
+  serial: 1
+  tasks:
+    - name: Flush handlers (apply any pending opensearch service restart/reload now, before gating)
+      ansible.builtin.meta: flush_handlers
+
+    - name: Wait for this node's OpenSearch HTTP API to accept connections
+      ansible.builtin.uri:
+        url: "http://{{ ansible_host }}:{{ opensearch_http_port }}/_cluster/health?timeout=5s"
+        status_code: 200
+      register: _os_node_up
+      until: _os_node_up.status == 200
+      retries: 60
+      delay: 5
+
+    - name: Gate — wait for cluster status before releasing the next node in the batch
+      ansible.builtin.uri:
+        url: "http://{{ ansible_host }}:{{ opensearch_http_port }}/_cluster/health?timeout=5s"
+        status_code: 200
+      register: _os_gate
+      until: _os_gate.status == 200 and _os_gate.json.status in ['red', 'yellow', 'green']
+      retries: 60
+      delay: 5
+
+- name: OpenSearch Dashboards + nginx proxy + cluster bootstrap (control host only)
+  hosts: control
+  become: true
+  vars_files:
+    - "{{ playbook_dir }}/group_vars/vault.yml"
+  roles:
+    - dashboards
+
+- name: Fluent Bit collector (all 3 VMs)
+  hosts: alice_nodes
+  become: true
+  roles:
+    - collector
+
+- name: S3-replay producers (all 3 VMs)
+  hosts: alice_nodes
+  become: true
+  vars_files:
+    - "{{ playbook_dir }}/group_vars/vault.yml"
+  roles:
+    - producer
