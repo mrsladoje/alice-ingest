@@ -54,8 +54,11 @@ essentials:
 **Prereqs.**
 1. **OpenStack auth** — on lxplus, `kinit` plus the six `OS_*` exports
    (`v3fedkerb`); see [`deploy/README.md`](deploy/README.md) §3.1.
-2. **Ansible** — `pip install ansible-core openstacksdk`, then
-   `cd deploy && ansible-galaxy collection install -r requirements.yml`.
+2. **Control-node toolchain** — `make bootstrap` builds a self-contained `.venv`
+   with ansible-core, `openstacksdk`, `keystoneauth1[kerberos]` (needed for
+   `v3fedkerb`), and the `python-openstackclient` CLI, plus the Galaxy
+   collections. The deploy targets use it automatically; see
+   [`deploy/README.md`](deploy/README.md) §3.2.
 3. **Secrets (vault)** — the `[cern_s3]` keys and the Dashboards basic-auth
    password live in an encrypted vault, never plaintext:
    ```bash

@@ -59,13 +59,25 @@ endif
 volume volumes:
 	@:
 
-.PHONY: provision deploy teardown
+.PHONY: bootstrap provision deploy teardown
+
+# Control-node toolchain lives in a self-contained venv (override with VENV=...).
+# The deploy targets prefer it, but fall back to an already-activated venv on PATH
+# so `make bootstrap` is convenient without being mandatory.
+VENV ?= $(CURDIR)/.venv
+ANSIBLE_PLAYBOOK := $(if $(wildcard $(VENV)/bin/ansible-playbook),$(VENV)/bin/ansible-playbook,ansible-playbook)
+
+bootstrap:
+	python3 -m venv $(VENV)
+	$(VENV)/bin/python -m pip install --upgrade pip
+	$(VENV)/bin/pip install -r deploy/requirements.txt
+	cd deploy && $(VENV)/bin/ansible-galaxy collection install -r requirements.yml
 
 provision:
-	cd deploy && ansible-playbook provision.yml
+	cd deploy && $(ANSIBLE_PLAYBOOK) provision.yml
 
 deploy:
-	cd deploy && ansible-playbook site.yml --ask-vault-pass
+	cd deploy && $(ANSIBLE_PLAYBOOK) site.yml --ask-vault-pass
 
 teardown:
-	cd deploy && ansible-playbook teardown.yml
+	cd deploy && $(ANSIBLE_PLAYBOOK) teardown.yml

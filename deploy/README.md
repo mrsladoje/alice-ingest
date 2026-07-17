@@ -162,19 +162,35 @@ index pre-creates, Dashboards index patterns).
   need — they authenticate via the `openstack.cloud` collection using exactly
   this ambient `OS_*` environment, never a hardcoded credential.
 
-### 3.2 Ansible + collections (wherever you run the playbooks from)
+### 3.2 Control-node toolchain — `make bootstrap`
+
+One command from the repo root builds a self-contained venv (`.venv/`, gitignored)
+with every control-node dependency and installs the Galaxy collections:
 
 ```bash
-pip install ansible-core           # or your distro's ansible-core package
-cd deploy
-ansible-galaxy collection install -r requirements.yml
+make bootstrap
 ```
-`requirements.yml` pulls in `openstack.cloud` (VM/network/security-group
-management), `ansible.posix` (sysctl, firewalld), `community.general`
-(htpasswd, seport, ini_file-style modules), `community.crypto` (self-signed
-TLS for the nginx/Dashboards proxy). `openstack.cloud` also needs the
-`openstacksdk` Python package (`pip install openstacksdk`) available to the
-same Python Ansible runs under.
+
+That installs, from `deploy/requirements.txt`: `ansible-core`; `openstacksdk`
+(the SDK `openstack.cloud` modules run through); **`keystoneauth1[kerberos]`**
+(required for `v3fedkerb` auth — without the `[kerberos]` extra, provision fails
+with an `ImportError` the moment it tries the Kerberos plugin); and
+`python-openstackclient` (the `openstack` CLI, used for the clean-slate check).
+Then it installs the `requirements.yml` collections: `openstack.cloud`
+(VM/network/security-group management), `ansible.posix` (sysctl, firewalld),
+`community.general` (htpasswd, timezone), `community.crypto` (self-signed TLS
+for the nginx/Dashboards proxy).
+
+`make provision`/`deploy`/`teardown` use `.venv` automatically (falling back to
+an already-activated venv on `PATH` if `.venv` is absent), so after
+`make bootstrap` you don't need to activate anything. Override the location with
+`make bootstrap VENV=/path/to/venv` (pass the same `VENV=` to the other targets).
+
+> **Build prerequisite:** `keystoneauth1[kerberos]` compiles a small C extension
+> (`pykerberos`), so the box needs `gcc` and `krb5-devel` (`krb5-config`). lxplus
+> has both. On Python 3.9 (lxplus default) `ansible-core` resolves to 2.15.x and
+> the newer collections log a "does not support 2.15" *warning* — non-fatal, and
+> the version v1 deployed green on.
 
 ### 3.3 Vault setup (secrets)
 

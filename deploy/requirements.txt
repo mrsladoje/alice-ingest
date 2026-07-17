@@ -1,0 +1,4 @@
+ansible-core
+openstacksdk
+keystoneauth1[kerberos]
+python-openstackclient
