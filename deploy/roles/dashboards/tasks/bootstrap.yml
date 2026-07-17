@@ -6,17 +6,17 @@
     group: root
     mode: "0750"
 
-- name: Copy the OpenSearch index-template/ISM bootstrap script (verbatim from init/opensearch/templates.sh)
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../init/opensearch/templates.sh"
+- name: Render the tier-aware OpenSearch index-template bootstrap script
+  ansible.builtin.template:
+    src: templates.sh.j2
     dest: "{{ dashboards_bootstrap_templates_script }}"
     owner: root
     group: root
     mode: "0750"
 
-- name: Copy the Dashboards index-pattern bootstrap script (verbatim from init/dashboards/patterns.sh)
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../init/dashboards/patterns.sh"
+- name: Render the Dashboards index-pattern bootstrap script
+  ansible.builtin.template:
+    src: patterns.sh.j2
     dest: "{{ dashboards_bootstrap_patterns_script }}"
     owner: root
     group: root

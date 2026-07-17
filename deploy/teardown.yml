@@ -1,4 +1,4 @@
-- name: Tear down the 3 CERN OpenStack VMs for alice-ingest
+- name: Tear down the 5 CERN OpenStack VMs for alice-ingest (2 worker + 3 storage)
   hosts: localhost
   connection: local
   gather_facts: false

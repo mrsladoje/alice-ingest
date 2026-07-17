@@ -3,6 +3,15 @@
 cluster.name: {{ opensearch_cluster_name }}
 node.name: {{ node_id }}
 
+{% if node_tier == 'storage' %}
+node.roles: [cluster_manager, data, ingest]
+node.attr.role: storage
+{% else %}
+node.roles: [data, ingest]
+node.attr.role: worker
+node.attr.box: {{ node_id }}
+{% endif %}
+
 path.data: {{ opensearch_data_path }}
 path.logs: {{ opensearch_log_path }}
 

@@ -8,7 +8,7 @@
   community.general.timezone:
     name: "{{ common_timezone }}"
 
-- name: Ensure chronyd is enabled and running (correct wall-clock across the 3-node cluster)
+- name: Ensure chronyd is enabled and running (correct wall-clock across the 5-node cluster)
   ansible.builtin.systemd:
     name: chronyd
     enabled: true
@@ -38,7 +38,7 @@
     enabled: true
     state: started
 
-- name: Open OpenSearch HTTP (9200/tcp) between the 3 cluster nodes
+- name: Open OpenSearch HTTP (9200/tcp) between all 5 cluster nodes
   ansible.posix.firewalld:
     rich_rule: >-
       rule family="ipv4"
@@ -48,9 +48,9 @@
     permanent: true
     immediate: true
     state: enabled
-  loop: "{{ opensearch_seed_hosts }}"
+  loop: "{{ opensearch_cluster_hosts }}"
 
-- name: Open OpenSearch transport (9300/tcp) between the 3 cluster nodes
+- name: Open OpenSearch transport (9300/tcp) between all 5 cluster nodes
   ansible.posix.firewalld:
     rich_rule: >-
       rule family="ipv4"
@@ -60,7 +60,7 @@
     permanent: true
     immediate: true
     state: enabled
-  loop: "{{ opensearch_seed_hosts }}"
+  loop: "{{ opensearch_cluster_hosts }}"
 
 - name: Open the Dashboards external port (5601/tcp, nginx TLS+basic-auth) on the control host
   ansible.posix.firewalld:

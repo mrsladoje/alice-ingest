@@ -15,22 +15,25 @@ A recreation of the **ALICE O2 Scalable Logging Architecture**, built at two sca
 - **Paper airplane** — the whole pipeline shrunk onto **one machine** with Docker
   Compose, for hands-on learning and failure experiments.
 - **Cardboard airplane** — the same pipeline as an **actual distributed system**:
-  **3 CERN OpenStack VMs**, native systemd services (no Docker), one **3-node
-  OpenSearch cluster**, provisioned and configured end-to-end with **Ansible**.
+  **5 CERN OpenStack VMs**, native systemd services (no Docker), one **5-node
+  two-tier OpenSearch cluster** (2 worker + 3 storage), provisioned and configured
+  end-to-end with **Ansible**.
 
 Both replay **real CERN S3 logs** (from the `epn-backup-logs` bucket — or **mock**
 logs offline) through **Fluent Bit → OpenSearch → Dashboards**, with index
 patterns auto-provisioned on startup. Still no Kafka, no Grafana (next flight).
 
-> **This tag — `cardboard-airplane-v1`** — is the jump from *paper* to *cardboard*:
-> from "Docker Compose on one machine" to real multi-VM provisioning and a genuine
-> OpenSearch cluster. The single-machine path is unchanged and remains the local
-> dev loop.
+> **The cardboard airplane** is the jump from *paper* to *cardboard*: from "Docker
+> Compose on one machine" to real multi-VM provisioning and a genuine OpenSearch
+> cluster. **v2** (this tree) splits that cluster into two tiers — 2 worker nodes
+> holding disposable, node-local `info` logs, plus 3 replicated storage nodes for
+> the valuable `other` + infologger logs. The single-machine path is unchanged and
+> remains the local dev loop.
 
 | | Paper airplane | Cardboard airplane |
 |---|---|---|
-| Runtime | Docker Compose, 1 machine | 3 CERN OpenStack VMs, native systemd |
-| OpenSearch | single node | 3-node cluster (`alice-logs`, quorum 2) |
+| Runtime | Docker Compose, 1 machine | 5 CERN OpenStack VMs, native systemd |
+| OpenSearch | single node | 5-node two-tier cluster (2 worker + 3 storage, quorum 2) |
 | Orchestration | `docker compose` | Ansible (provision → configure → teardown) |
 | Bring up | `make run` | `make provision && make deploy` |
 | Full docs | [`docs/PAPER-AIRPLANE.md`](docs/PAPER-AIRPLANE.md) | [`deploy/README.md`](deploy/README.md) |
@@ -40,12 +43,13 @@ Design target — the real platform we simplify *from*:
 
 ---
 
-## Cardboard airplane — distributed deploy (3 VMs, native, no Docker)
+## Cardboard airplane — distributed deploy (5 VMs, two-tier, native, no Docker)
 
-Provisions 3 CERN VMs and configures a 3-node OpenSearch cluster + per-VM Fluent
-Bit + S3-replay producers, with Dashboards (nginx TLS + basic-auth) on one control
-node. Full runbook — topology, the two auth paths, rolling-safety, verification —
-is [`deploy/README.md`](deploy/README.md); the essentials:
+Provisions 5 CERN VMs and configures a 5-node two-tier OpenSearch cluster (2 worker
++ 3 storage) + worker Fluent Bit + S3-replay producers, with Dashboards (nginx TLS +
+basic-auth) on one storage control node. Full runbook — topology, the two auth
+paths, rolling-safety, verification — is [`deploy/README.md`](deploy/README.md); the
+essentials:
 
 **Prereqs.**
 1. **OpenStack auth** — on lxplus, `kinit` plus the six `OS_*` exports
@@ -61,10 +65,17 @@ is [`deploy/README.md`](deploy/README.md); the essentials:
    ansible-vault encrypt group_vars/vault.yml
    ```
 
+> **Clean-slate prerequisite.** v2 assumes the OpenStack project is empty or already
+> running v2. It does not know about v1 and won't clean it up. Because it reuses the
+> VM names `alice-ingest-1..5`, a still-running **v1** stack (`alice-ingest-1..3`)
+> would be silently adopted into a broken mixed cluster — **tear v1 down first**
+> (`ansible-playbook teardown.yml` from a `cardboard-airplane-v1` checkout). See
+> [`deploy/README.md`](deploy/README.md) §3.
+
 **Fly** (from the repo root):
 
 ```bash
-make provision     # create the 3 OpenStack VMs (idempotent) — needs OpenStack auth
+make provision     # create the 5 OpenStack VMs (idempotent) — needs OpenStack auth
 make deploy        # configure the cluster — prompts for the vault password
 ```
 
@@ -81,7 +92,7 @@ widen the time range rather than assuming no data.
 **Teardown.**
 
 ```bash
-make teardown      # delete the 3 VMs, re-close 5601, drop the generated inventory
+make teardown      # delete the 5 VMs, re-close 5601, drop the generated inventory
 ```
 
 ---

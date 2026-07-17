@@ -1,0 +1,208 @@
+#!/bin/sh
+set -eu
+
+OS="${OS_URL:-http://opensearch:9200}"
+
+WORKER_NODES="{{ groups['workers'] | map('extract', hostvars, 'node_id') | join(' ') }}"
+
+wait_os() {
+  echo "[os-init] waiting for OpenSearch at $OS ..."
+  i=1
+  while [ "$i" -le 60 ]; do
+    code=$(curl -s -o /dev/null -w '%{http_code}' \
+      "$OS/_cluster/health?wait_for_status=yellow&timeout=5s" || echo 000)
+    if [ "$code" = "200" ]; then
+      echo "[os-init] OpenSearch ready (attempt $i)"
+      return 0
+    fi
+    echo "[os-init] not ready (HTTP $code), retry $i/60"
+    i=$((i + 1))
+    sleep 3
+  done
+  echo "[os-init] FATAL: OpenSearch never became ready"
+  return 1
+}
+
+put() {
+  path="$1"; body="$2"; name="$3"
+  i=1
+  while [ "$i" -le 5 ]; do
+    code=$(curl -s -o /tmp/resp -w '%{http_code}' \
+      -XPUT "$OS$path" -H 'Content-Type: application/json' -d "$body" || echo 000)
+    case "$code" in
+      200|201) echo "[os-init] applied: $name"; return 0 ;;
+      *) echo "[os-init] WARN: $name -> HTTP $code: $(cat /tmp/resp 2>/dev/null); retry $i/5" ;;
+    esac
+    i=$((i + 1)); sleep 2
+  done
+  echo "[os-init] FATAL: could not apply $name"
+  return 1
+}
+
+del() {
+  path="$1"; name="$2"
+  code=$(curl -s -o /tmp/resp -w '%{http_code}' -XDELETE "$OS$path" || echo 000)
+  case "$code" in
+    200|404) echo "[os-init] removed (or absent): $name" ;;
+    *) echo "[os-init] WARN: delete $name -> HTTP $code: $(cat /tmp/resp 2>/dev/null)" ;;
+  esac
+}
+
+ensure_index() {
+  idx="$1"; body="$2"
+  code=$(curl -s -o /dev/null -w '%{http_code}' "$OS/$idx" || echo 000)
+  if [ "$code" = "200" ]; then
+    echo "[os-init] index already present (skip create): $idx"
+    return 0
+  fi
+  put "/$idx" "$body" "index $idx"
+}
+
+GENERIC_MAPPINGS=$(cat <<'JSON'
+{
+  "template": {
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "@timestamp":  { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "ingest_time": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "log_source": { "type": "keyword" },
+        "node":       { "type": "keyword" },
+        "severity":   { "type": "keyword" },
+        "host":       { "type": "keyword" },
+        "source":     { "type": "keyword" },
+        "tid":        { "type": "keyword" },
+        "facility":   { "type": "keyword" },
+        "message":    { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 1024 } } }
+      }
+    }
+  },
+  "_meta": {
+    "family": "generic-log",
+    "sources": ["dds", "stdout"]
+  }
+}
+JSON
+)
+
+INFOLOGGER_MAPPINGS=$(cat <<'JSON'
+{
+  "template": {
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "@timestamp":  { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "ingest_time": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "log_source": { "type": "keyword" },
+        "node":       { "type": "keyword" },
+        "severity":   { "type": "keyword" },
+        "level":      { "type": "short" },
+        "hostname":   { "type": "keyword" },
+        "rolename":   { "type": "keyword" },
+        "pid":        { "type": "integer" },
+        "username":   { "type": "keyword" },
+        "system":     { "type": "keyword" },
+        "facility":   { "type": "keyword" },
+        "detector":   { "type": "keyword" },
+        "partition":  { "type": "keyword" },
+        "run":        { "type": "long" },
+        "errcode":    { "type": "long" },
+        "errline":    { "type": "integer" },
+        "errsource":  { "type": "keyword" },
+        "message":    { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 1024 } } }
+      }
+    }
+  },
+  "_meta": {
+    "family": "infologger"
+  }
+}
+JSON
+)
+
+GENERIC_INFO_TPL=$(cat <<'JSON'
+{
+  "index_patterns": ["generic-log-info-*"],
+  "composed_of": ["alice-logs-generic-mappings"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "codec": "zstd",
+      "index.default_pipeline": "alice-add-ingest-time"
+    }
+  },
+  "_meta": { "note": "worker tier: local, disposable; per-node index pinned by require.box (pre-created below)" }
+}
+JSON
+)
+
+GENERIC_OTHER_TPL=$(cat <<'JSON'
+{
+  "index_patterns": ["generic-log-other"],
+  "composed_of": ["alice-logs-generic-mappings"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 3,
+      "number_of_replicas": 2,
+      "codec": "zstd",
+      "index.default_pipeline": "alice-add-ingest-time",
+      "index.routing.allocation.require.role": "storage"
+    }
+  },
+  "_meta": { "note": "storage tier: durable, replicated, pinned to require.role=storage" }
+}
+JSON
+)
+
+INFOLOGGER_INDEX_TPL=$(cat <<'JSON'
+{
+  "index_patterns": ["infologger"],
+  "composed_of": ["alice-logs-infologger-mappings"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 3,
+      "number_of_replicas": 2,
+      "codec": "zstd",
+      "index.default_pipeline": "alice-add-ingest-time",
+      "index.routing.allocation.require.role": "storage"
+    }
+  },
+  "_meta": { "note": "storage tier: durable, replicated, pinned to require.role=storage" }
+}
+JSON
+)
+
+INGEST_PIPELINE=$(cat <<'JSON'
+{
+  "description": "Stamp ingest_time = the moment OpenSearch received the doc (distinct from @timestamp = source/event time). Two-timestamp model.",
+  "processors": [
+    { "set": { "field": "ingest_time", "value": "{% raw %}{{{_ingest.timestamp}}}{% endraw %}" } }
+  ]
+}
+JSON
+)
+
+wait_os
+
+del "/_index_template/alice-logs"         "legacy index template alice-logs"
+del "/_index_template/alice-logs-generic" "superseded index template alice-logs-generic"
+
+put "/_ingest/pipeline/alice-add-ingest-time" "$INGEST_PIPELINE" "ingest pipeline alice-add-ingest-time"
+
+put "/_component_template/alice-logs-generic-mappings"    "$GENERIC_MAPPINGS"    "component alice-logs-generic-mappings"
+put "/_component_template/alice-logs-infologger-mappings" "$INFOLOGGER_MAPPINGS" "component alice-logs-infologger-mappings"
+
+put "/_index_template/alice-logs-generic-info"  "$GENERIC_INFO_TPL"     "index template alice-logs-generic-info"
+put "/_index_template/alice-logs-generic-other" "$GENERIC_OTHER_TPL"    "index template alice-logs-generic-other"
+put "/_index_template/alice-logs-infologger"    "$INFOLOGGER_INDEX_TPL" "index template alice-logs-infologger"
+
+for wn in $WORKER_NODES; do
+  ensure_index "generic-log-info-$wn" \
+    "{\"settings\":{\"index.routing.allocation.require.box\":\"$wn\"}}"
+done
+
+echo "[os-init] DONE — tier-aware mappings and per-node worker indices in place before first write"

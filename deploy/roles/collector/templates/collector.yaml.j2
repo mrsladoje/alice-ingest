@@ -163,7 +163,7 @@ pipeline:
       match: family.info
       host: localhost
       port: {{ opensearch_http_port }}
-      index: generic-log-info
+      index: generic-log-info-{{ node_id }}
       suppress_type_name: true
       trace_error: true
       storage.total_limit_size: 1M

@@ -1,8 +1,13 @@
-# alice-ingest — Distributed Deployment (3-VM, native, no Docker)
+# alice-ingest — Distributed Deployment (5-VM two-tier, native, no Docker)
 
 This tree takes the ALICE O2 logging paper-airplane from "Docker Compose on
-one machine" to **3 CERN OpenStack VMs, native systemd services, one 3-node
-OpenSearch cluster**, provisioned and configured with pure Ansible. It is
+one machine" to **5 CERN OpenStack VMs, native systemd services, one 5-node
+two-tier OpenSearch cluster** (2 worker + 3 storage), provisioned and
+configured with pure Ansible. It evolves the earlier flat 3-VM layout (tag
+`cardboard-airplane-v1`) into a value-based storage split: high-volume, low-value
+`info` logs stay strictly local and disposable on the worker that produced them,
+while low-volume, high-value logs (`other` + infologger) are shipped to a
+dedicated, replicated storage tier. It is
 purely **additive**: `docker-compose.yml`, `docker-compose.mocks.yaml`,
 `images/**`, `init/**` and the root Makefile/README are untouched and remain
 the local dev path (Docker Compose on a single machine — see the root
@@ -14,50 +19,54 @@ the local dev path (Docker Compose on a single machine — see the root
 ## 1. Topology
 
 ```
-                                CERN_NETWORK (internal only)
-                                        │
-        ┌───────────────────────────────────────────────────────────┐
-        │                                                             │
-┌───────▼────────┐          ┌────────────────┐          ┌────────────▼───┐
-│ alice-ingest-1  │          │ alice-ingest-2  │          │ alice-ingest-3  │
-│  (control)      │◄────────►│                 │◄────────►│                 │
-│                 │  9200/   │                 │  9200/   │                 │
-│                 │  9300    │                 │  9300    │                 │
-│ OpenSearch node │          │ OpenSearch node │          │ OpenSearch node │
-│  node-01        │          │  node-02        │          │  node-03        │
-│  :9200 :9300    │          │  :9200 :9300    │          │  :9200 :9300    │
-│                 │          │                 │          │                 │
-│ Fluent Bit      │          │ Fluent Bit      │          │ Fluent Bit      │
-│  tails local    │          │  tails local    │          │  tails local    │
-│  dds/stdout,    │          │  dds/stdout,    │          │  dds/stdout,    │
-│  TCP :5170 IL   │          │  TCP :5170 IL   │          │  TCP :5170 IL   │
-│  -> localhost   │          │  -> localhost   │          │  -> localhost   │
-│  :9200 ONLY     │          │  :9200 ONLY     │          │  :9200 ONLY     │
-│                 │          │                 │          │                 │
-│ alice-replay    │          │ alice-replay    │          │ alice-replay    │
-│  epn%3==0 slice │          │  epn%3==1 slice │          │  epn%3==2 slice │
-│                 │          │                 │          │                 │
-│ ── control-only:│          │                 │          │                 │
-│ OpenSearch      │          │                 │          │                 │
-│  Dashboards     │          │                 │          │                 │
-│  127.0.0.1:5602 │          │                 │          │                 │
-│ nginx (TLS +    │          │                 │          │                 │
-│  basic-auth)    │          │                 │          │                 │
-│  :5601 (SG-open)│          │                 │          │                 │
-│ one-shot cluster│          │                 │          │                 │
-│  bootstrap      │          │                 │          │                 │
-│ [alertmanager:  │          │                 │          │                 │
-│  reserved slot] │          │                 │          │                 │
-└─────────────────┘          └─────────────────┘          └─────────────────┘
+                              CERN_NETWORK (internal only) — one OpenSearch cluster
+    ┌──────────────────────── WORKER TIER (2) ────────────────────────┐
+┌───────────────────┐                          ┌───────────────────┐
+│ alice-ingest-1     │                          │ alice-ingest-2     │
+│ OpenSearch node-01 │  node.roles:[data,ingest]│ OpenSearch node-02 │
+│  attr role=worker  │  (never manager)         │  attr role=worker  │
+│  attr box=node-01  │                          │  attr box=node-02  │
+│ Fluent Bit -> localhost:9200 ONLY             │ Fluent Bit -> localhost:9200 ONLY
+│ alice-replay  epn%2==0 slice                  │ alice-replay  epn%2==1 slice
+│ generic-log-info-node-01 (1 shard,0 repl,     │ generic-log-info-node-02 (local,
+│   pinned require.box=node-01, disposable)     │   pinned require.box=node-02)
+└───────────────────┘                          └───────────────────┘
+    └──────────────────────── STORAGE TIER (3) ───────────────────────┘
+┌───────────────────┐   ┌───────────────────┐   ┌───────────────────┐
+│ alice-ingest-3     │   │ alice-ingest-4     │   │ alice-ingest-5     │
+│  (control)         │   │                    │   │                    │
+│ OpenSearch node-03 │   │ OpenSearch node-04 │   │ OpenSearch node-05 │
+│  roles:[cluster_manager,data]  attr role=storage on all three (quorum 2)
+│ nginx (TLS+auth)   │   │                    │   │                    │
+│  :5601 (SG-open)   │   │ generic-log-other  │   │ infologger         │
+│ Dashboards :5602   │   │  + infologger:     │   │  + generic-log-other:
+│ one-shot bootstrap │   │  3 shards, 2 repl, require.role=storage, balanced across the 3
+│ [alertmanager slot]│   │                    │   │                    │
+└───────────────────┘   └───────────────────┘   └───────────────────┘
+  Storage tier runs NO collector and NO producer — it never touches the ingest firehose.
 ```
 
-Single OpenSearch cluster, `cluster.name: alice-logs`, 3 data + cluster-manager
-eligible nodes (quorum 2). Every VM is identical at the data tier: one
-OpenSearch node + one Fluent Bit collector + the S3-replay producer for its
-own EPN slice. Exactly one VM — `alice-ingest-1`, first in inventory, the
-"control" host — additionally runs OpenSearch Dashboards, an nginx reverse
-proxy in front of it, and the one-shot cluster bootstrap (index
-templates/ISM, Dashboards index patterns).
+Single OpenSearch cluster, `cluster.name: alice-logs`, split into two
+hard-pinned tiers by shard-allocation `require` filtering:
+
+- **Worker tier (2 nodes):** `node.roles: [data, ingest]` (never
+  manager-eligible), `node.attr.role: worker`, `node.attr.box: <node_id>`. Runs
+  the Fluent Bit collector + S3-replay producer for its own EPN slice, and holds
+  only its own `generic-log-info-<node_id>` index (1 shard, **0 replicas**,
+  `require.box: <node_id>`) — so the info firehose is written localhost → local
+  shard with zero network hops and is deliberately disposable. The `ingest` role
+  is required because every index sets `default_pipeline: alice-add-ingest-time`,
+  and it is on the workers specifically so that local info write runs its pipeline
+  locally rather than hopping to another node.
+- **Storage tier (3 nodes):** `node.roles: [cluster_manager, data, ingest]`,
+  `node.attr.role: storage`, quorum 2 (tolerates one storage node lost). Holds
+  `generic-log-other` and `infologger` (3 shards, **2 replicas**,
+  `require.role: storage`). Runs no collector and no producer.
+
+Exactly one VM — `alice-ingest-3`, the first storage node, the "control" host —
+additionally runs OpenSearch Dashboards, an nginx reverse proxy in front of it,
+and the one-shot cluster bootstrap (tier-aware index templates + per-worker
+index pre-creates, Dashboards index patterns).
 
 ---
 
@@ -68,31 +77,43 @@ templates/ISM, Dashboards index patterns).
   the Compose-based local dev stack: on real CERN VMs we want systemd-managed
   services with normal `systemctl`/journald operational ergonomics, not a
   second container runtime to operate on top of OpenStack.
-- **Fluent Bit → its own LOCAL OpenSearch node only.** Each VM's collector
-  writes to `http://localhost:9200`; there is no cross-VM write hop. The
-  OpenSearch cluster itself does the replication. This keeps the write path
-  identical to the single-node Compose stack's `fluent-bit -> opensearch`
-  edge, just fanned out per-VM, and avoids one VM's Fluent Bit becoming a
-  single point of ingestion for the whole farm.
-- **One control VM for Dashboards/nginx/bootstrap, not three.** Dashboards
-  and the one-shot index-template/pattern bootstrap only need to exist once
-  per cluster (any node answers cluster-wide API calls); running three copies
-  would just be three more moving parts with no benefit. `alice-ingest-1` was
-  picked as "first in inventory" purely as a convention — nothing else about
-  it is special.
-- **`epn_num % 3` slicing.** `images/replay/replay.py` (preserved,
-  unmodified) already partitions EPN hosts across `NODE_COUNT` collectors by
-  `epn_num % NODE_COUNT`. With `NODE_COUNT=3` fixed by the 3-VM topology, each
-  VM's `epn_partition` (0, 1, or 2 — set once in `inventory.yml`) selects
-  exactly the slice that VM's replay should serve. `node` (the collector
-  identity) is this VM's `node_id`; `host`/`hostname` (the EPN the log was
-  actually born on) is untouched — same distinction as the existing
-  multi-node local mode.
+- **Tier by severity, not by source.** The collector already routes by
+  severity (`rewrite_tag` → `family.info` / `family.other`), so dds and stdout
+  stay merged. `info` is simultaneously the bulk and the trash → kept local and
+  disposable on the worker. `other` is simultaneously rare and valuable → shipped
+  to the replicated storage tier (cheap, because low-volume, and worth
+  replicating). Source-based placement ("dds local, stdout to storage") can't do
+  that — it would ship the whole stdout-info bulk across the network while
+  disposably discarding dds errors. The only edit to the v1 collector pipeline is
+  the `family.info` output index name (`generic-log-info` →
+  `generic-log-info-<node_id>`); the `family.other` and `infologger` outputs are
+  byte-for-byte unchanged and now land on the storage tier via one network hop.
+- **Fluent Bit → its own LOCAL OpenSearch node only.** Each worker's collector
+  writes to `http://localhost:9200`; there is no cross-VM write hop from the
+  collector. The `generic-log-info-<node_id>` index is pinned to that same VM
+  (`require.box`), so the high-volume info path is localhost → local shard, zero
+  network. `generic-log-other`/`infologger` are written to localhost too, then
+  the local coordinator forwards them one hop to the storage tier — acceptable
+  because that tier is low-volume. Only the 2 worker VMs run a collector.
+- **One control VM for Dashboards/nginx/bootstrap, on the storage tier.**
+  Dashboards and the one-shot bootstrap only need to exist once per cluster (any
+  node answers cluster-wide API calls). It lives on `alice-ingest-3`, the first
+  storage node — deliberately a storage node so the UI/bootstrap host is one that
+  never runs the ingest firehose. Nothing else about it is special.
+- **`epn_num % 2` slicing (was `% 3`).** `images/replay/replay.py` (preserved,
+  unmodified) partitions EPN hosts across `NODE_COUNT` collectors by
+  `epn_num % NODE_COUNT`. `NODE_COUNT` now derives from the **`workers`** group
+  (→ 2), so each worker's `epn_partition` (0 or 1 — set once in `inventory.yml`,
+  pinned to `node-01`/`node-02`) selects exactly its slice. Dropping from 3
+  workers to 2 means each replays ~50% more EPN hosts; `dds_replay_rate` /
+  `il_replay_rate` are env-tunable if a worker saturates. `node` (the collector
+  identity) is this VM's `node_id`; `host`/`hostname` (the EPN the log was born
+  on) is untouched.
 - **Heap `-Xms512m -Xmx512m`.** VMs are `m2.medium` (2 vCPU / 3.75 GB RAM),
   smaller than the `m2.large` (7.5 GB) single-VM demo in
   `docs/OPENSTACK_GUIDE.md`, which itself already trimmed Compose's default
   `-Xms1g -Xmx1g`. With OpenSearch + Fluent Bit + the replay producer sharing
-  3.75 GB on each of 3 VMs, 512 MB heap per node is the deliberate further
+  3.75 GB on each VM, 512 MB heap per node is the deliberate further
   trim (see `deploy/group_vars/all.yml` `opensearch_heap_size`).
 - **Alertmanager is a reserved seam, not built.** `group_vars/all.yml` has a
   commented `alertmanager_port: 9093`, and the dashboards role/nginx vhost
@@ -103,6 +124,23 @@ templates/ISM, Dashboards index patterns).
 ---
 
 ## 3. Prerequisites
+
+> ### ⚠️ Clean-slate prerequisite — this tree assumes an empty project or an existing v2
+>
+> v2 is self-contained and only ever expects the OpenStack project to be **empty**
+> or **already running this same v2 deployment**. It does **not** know about, detect,
+> or clean up v1, and it ships no v1-teardown step by design.
+>
+> The catch is that `provision.yml` reuses the fixed VM names `alice-ingest-1..5`
+> with `state: present` (idempotent-by-name). If a **v1** deployment
+> (`cardboard-airplane-v1`, VMs `alice-ingest-1..3`) is still live, running
+> `make provision` here would *adopt* those three VMs and merely add `-4`/`-5` —
+> silently producing an unsupported mixed v1/v2 cluster with the wrong node roles.
+>
+> **So: if a v1 stack is running, tear it down first** (from a `cardboard-airplane-v1`
+> checkout: `cd deploy && ansible-playbook teardown.yml`), *then* provision v2 on the
+> now-empty project. Re-running v2 provision/deploy against an existing **v2** stack is
+> safe and idempotent.
 
 ### 3.1 CERN / lxplus access
 
@@ -169,7 +207,7 @@ the commands below).
 ```bash
 cd deploy
 
-# 1. Provision the 3 OpenStack VMs (idempotent — safe to re-run).
+# 1. Provision the 5 OpenStack VMs (idempotent — safe to re-run).
 kinit    # if the ticket has expired
 ansible-playbook provision.yml
 
@@ -209,31 +247,36 @@ recreated) just refreshes `inventory.generated.yml`.
   attempts (which *do* honor `ansible_ssh_common_args`) are the equivalent
   gate when this flag is set.
 
-### 4.2 Rolling-safety note (cluster changes)
+### 4.2 Bring-up and restart behaviour (read before day-2 changes)
 
-`site.yml` never bounces all 3 OpenSearch nodes at once. It splits the
-OpenSearch role into two plays:
+`site.yml` splits the OpenSearch role into two plays:
 
-1. **Initial bring-up** (`hosts: alice_nodes`, no `serial`) — all 3 nodes
+1. **Initial bring-up** (`hosts: alice_nodes`, no `serial`) — all 5 nodes
    start together, deliberately, because a brand-new cluster's
-   `cluster.initial_cluster_manager_nodes` quorum (2-of-3) can only be
-   reached if at least two nodes are up concurrently; a `serial: 1` rollout
-   here would deadlock node 1 waiting on a cluster that can never form.
-2. **Rolling-safety gate** (`hosts: alice_nodes`, `serial: 1`) — flushes any
-   pending config/restart handlers from step 1 one node at a time, waits for
-   that node's HTTP API to respond, then waits for `_cluster/health` to
-   return a valid status (`red`/`yellow`/`green` — first-boot tolerant, not
+   `cluster.initial_cluster_manager_nodes` quorum (2-of-3 among the
+   manager-eligible **storage** nodes) can only be reached if at least two
+   storage nodes are up concurrently; a `serial: 1` rollout here would deadlock
+   the first node waiting on a cluster that can never form. This play's config
+   templates notify the `restart opensearch` handler, and the role flushes
+   handlers at its end — so on a *fresh* deploy all nodes simply start once,
+   which is correct.
+2. **Health gate** (`hosts: alice_nodes`, `serial: 1`) — one node at a time,
+   waits for that node's HTTP API to respond, then waits for `_cluster/health`
+   to return a valid status (`red`/`yellow`/`green` — first-boot tolerant, not
    hard-requiring `green`) before moving to the next node.
 
-Re-running `site.yml` later against an **already-formed** cluster (e.g. a
-config change) only ever exercises the second play in earnest — since the
-cluster already exists, step 1 is a no-op reconciliation and step 2's
-`serial: 1` + health gate is what actually protects quorum, restarting one
-OpenSearch node at a time and waiting for it to rejoin before touching the
-next. Fluent Bit and the replay producers are stateless per node and are
-deployed with no `serial` — a plain restart only re-tails from saved offsets
-or resumes from the on-disk `AUTOSTART_MARKER` guard, so bouncing all 3 at
-once is safe for those two roles.
+**This is NOT a rolling-restart guarantee for reconfiguration.** Because the
+restart handler flushes inside play 1 (which has no `serial`), *re-running
+`site.yml` against a live cluster with a config change restarts every
+OpenSearch node — including all 3 storage managers — at once*; by the time the
+`serial: 1` gate in play 2 runs there is no pending handler left to flush, so
+it only gates health, not the restart. This is inherited unchanged from v1 and
+is acceptable for the v2 milestone (fresh provision → deploy → verify →
+teardown), where every node starts exactly once. A true serialized
+reconfiguration is a deliberate, real-cluster-tested follow-up — see §8. Fluent
+Bit and the replay producers are stateless per node (a restart only re-tails
+from saved offsets or resumes from the `AUTOSTART_MARKER` guard), so those two
+roles are safe to bounce.
 
 ---
 
@@ -241,20 +284,36 @@ once is safe for those two roles.
 
 ```bash
 # From any VM, or via SSH:
-curl -s http://localhost:9200/_cluster/health?pretty | grep status   # want: green (all 3 nodes joined)
+curl -s http://localhost:9200/_cluster/health?pretty | grep status   # want: green (all 5 nodes joined)
 
 curl -s 'http://localhost:9200/_cat/indices/infologger,generic-log-*?v'
-```
-Expected indices (3 shards each, spread across the 3 nodes; replicas per
-`init/opensearch/templates.sh`): `infologger` (2 replicas), `generic-log-info`
-(1 replica), `generic-log-other` (2 replicas) — all `green` once all 3 nodes
-have joined.
 
-**Dashboards:** `https://<control-VM-address>:5601`, basic-auth user `alice`
-(password = `vault_dashboards_basic_auth_password`), self-signed cert (browser
-will warn — expected, it's a self-signed CERN-internal cert). The three index
-patterns (`infologger`, `generic-log-info`, `generic-log-other`) are
-auto-provisioned by the one-shot bootstrap — no manual setup.
+# Verify tier placement — each index must land STRICTLY on its intended tier:
+curl -s 'http://localhost:9200/_cat/shards/infologger,generic-log-*?v&h=index,shard,prirep,state,node'
+```
+Expected indices and placement (rendered by the native bootstrap, forked from
+`init/opensearch/templates.sh`):
+
+| index | shards | replicas | lands on |
+|---|---|---|---|
+| `generic-log-info-node-01` | 1 | **0** | worker node-01 only (`require.box: node-01`) |
+| `generic-log-info-node-02` | 1 | **0** | worker node-02 only (`require.box: node-02`) |
+| `generic-log-other` | 3 | **2** | storage tier only (`require.role: storage`) |
+| `infologger` | 3 | **2** | storage tier only (`require.role: storage`) |
+
+The two per-worker `generic-log-info-*` indices are single-shard, zero-replica,
+and hard-pinned to their own VM — if a worker dies its info index is lost with no
+recovery (accepted: it is the disposable trash tier). The two storage indices are
+9 shard copies balanced 3-per-node across the storage tier. `require` is a **hard**
+rule: a shard that cannot satisfy it goes **unassigned** (cluster reports yellow)
+rather than ever leaking onto the wrong tier.
+
+**Dashboards:** `https://<control-VM-address>:5601` (control = `alice-ingest-3`),
+basic-auth user `alice` (password = `vault_dashboards_basic_auth_password`),
+self-signed cert (browser will warn — expected). The three index patterns
+(`infologger`, `generic-log-info-*`, `generic-log-other`) are auto-provisioned by
+the one-shot bootstrap — no manual setup. `generic-log-info-*` is a wildcard so
+both per-worker info indices appear together in Discover.
 
 **Gotcha — data is ~June 2026.** The replayed logs are historical (the
 `RUN_TAG` in `group_vars/all.yml` pins a specific S3 replay window). If
@@ -270,7 +329,7 @@ to "Last 30 days" or an absolute window covering June 2026, not the live
 cd deploy
 ansible-playbook teardown.yml
 ```
-Deletes the 3 VMs (idempotent — a missing VM is not an error), re-closes the
+Deletes the 5 VMs (idempotent — a missing VM is not an error), re-closes the
 `dashboards` security group's `5601/tcp` ingress rule and removes the group
 itself, and deletes the local `inventory.generated.yml` so a later
 `site.yml` run can never target a stale IP. It deliberately does **not**
@@ -282,24 +341,25 @@ generations.
 
 ## 7. Validation status
 
-This tree was validated with a local Python venv providing `ansible-core`,
-`ansible-lint`, and `yamllint` (none were present on `PATH` otherwise).
-Everything below ran clean:
+The v2 two-tier change surface was validated offline with a throwaway
+`ansible-core` venv and the `deploy/requirements.yml` collections. Everything
+below ran clean:
 
 | Check | Result |
 |---|---|
-| `ansible-galaxy collection install -r requirements.yml` (+ `pip install openstacksdk`) | pass — `openstack.cloud` 2.6.0, `ansible.posix` 2.2.1, `community.general` 13.1.0, `community.crypto` 3.2.2, `openstacksdk` 4.17.0 |
-| `yamllint deploy/` (relaxed config: line-length/document-start off, `[true,false,yes,no]` truthy) | pass — zero violations |
-| `ansible-playbook --syntax-check` on `site.yml`, `provision.yml`, `teardown.yml` | pass — zero syntax errors (benign warning only: `inventory.generated.yml` doesn't exist pre-provision, which is expected) |
-| `ansible-lint` (default profile) | pass — 0 failures, 0 warnings, 43/46 files |
-| `ansible-lint --profile production` (strictest) | pass — 0 failures, 0 warnings, 43/46 files |
-| `ansible-playbook site.yml/provision.yml/teardown.yml --list-tasks` | pass — full play/role/task structure resolves, no missing roles or undefined vars |
-| Jinja/variable sanity across all 10 role templates (`*.j2`) | pass — every `{{ }}`/`{% %}` and every `register:` traced to a real source (`group_vars/all.yml`, inventory host vars, or the owning role's own `defaults/main.yml`), none undefined or stale |
+| `ansible-inventory --graph` on `inventory.yml` | pass — `alice_nodes` resolves to `workers` (2) + `storage` (3); `control` = `alice-ingest-3` (a storage node) |
+| `ansible-playbook --syntax-check` on `site.yml`, `provision.yml`, `teardown.yml` | pass — zero syntax errors |
+| `ansible-playbook site.yml --list-hosts` | pass — common/opensearch/gate target all 5, dashboards → control, collector + producer → the 2 workers only |
+| `group_vars/all.yml` derivations (`ansible -m debug`) | pass — `node_count=2` (from `workers`); seeds/initial-managers/Dashboards-hosts = the 3 storage nodes; `opensearch_cluster_hosts` = all 5 (firewall mesh) |
+| `opensearch.yml.j2` render (both tiers) | pass — workers get `node.roles: [data, ingest]` + `node.attr.role: worker` + `node.attr.box: <node_id>`; storage gets `[cluster_manager, data, ingest]` + `node.attr.role: storage` |
+| `opensearch.yml.j2` ingest role | pass — every index sets `default_pipeline: alice-add-ingest-time`, and explicit `node.roles` drops the implicit `ingest` role, so both tiers list `ingest` (`[data, ingest]` / `[cluster_manager, data, ingest]`); workers stay ingest-capable so the local info path needs no cross-node hop for the pipeline |
+| Native bootstrap render (`templates.sh.j2`, `patterns.sh.j2`) + `sh -n`, rendered under Ansible's real Jinja (`trim_blocks=True`) | pass — info template `generic-log-info-*` (1 shard/0 repl); `generic-log-other`+`infologger` carry `require.role: storage`; per-worker pre-creates emit `require.box` and are idempotent (`ensure_index` GET-then-PUT, no crash if the index already exists); all 6 JSON payloads parse; the OpenSearch mustache `{{{_ingest.timestamp}}}` is wrapped **inline** in `{% raw %}…{% endraw %}` (wrapping the whole heredoc glued `}` to the `JSON` terminator under `trim_blocks`, breaking the first PUT — inline wrapping leaves no newline for `trim_blocks` to eat) |
 
 **Not validated** (requires the real infrastructure, out of scope for a
-static/offline check): an actual `provision.yml` run against CERN OpenStack,
-an actual `site.yml` run against real VMs, and therefore the live cluster
-health / Dashboards / index verification steps in section 5. Nothing was
+static/offline check): an actual `provision.yml` run against CERN OpenStack, an
+actual `site.yml` run against real VMs, and therefore the live cluster health /
+tier-placement / Dashboards / index verification steps in section 5 — in
+particular that each shard lands **strictly** on its intended tier. Nothing was
 skipped silently — this is the honest boundary of what can be checked without
 CERN network access and real quota.
 
@@ -310,9 +370,45 @@ CERN network access and real quota.
 - **Alertmanager** — reserved seam only (`alertmanager_port` commented out in
   `group_vars/all.yml`; the dashboards role's nginx vhost has an explicit
   "when it lands" comment block). Not built, by design (LOCKED topology).
-- **Everything else in the LOCKED topology and quality bar is implemented**:
-  native no-Docker services, per-VM local Fluent Bit → local OpenSearch write
-  path, single control-host Dashboards/nginx/bootstrap, `epn_num % 3`
-  slicing, 512 MB heap, inventory-driven discovery/publish/Dashboards-hosts
-  Jinja (no IP typed twice), `serial: 1` + health-gate rolling safety for
-  OpenSearch, vault-only secrets, `docker-compose.yml`/`docker-compose.mocks.yaml`/`images/**`/`init/**` untouched.
+- **`dds-other` value (out to Lubos).** The bootstrap folds `dds-other` into
+  `generic-log-other` → storage tier (the safe default: keeping a possibly-valuable
+  log is a cheaper mistake than trashing it). If dds turns out worthless
+  end-to-end, re-cut so all dds stays on the worker tier. Nothing blocks on it.
+- **Retention (ISM).** Still deferred, same as v1: `other` deserves longer
+  retention than `info`, but meaningful retention needs time-based / rollover-aliased
+  indices (a write-path change), not a settings tweak on these static index names.
+- **Bootstrap assumes a fresh cluster.** The tier-aware index templates and
+  `require.role`/`require.box` rules shape **new** indices only — OpenSearch does
+  not retroactively re-settle existing shards when a template changes. v2 is a
+  fresh-provision deliverable (different VM count and node roles than v1 — it is a
+  new `make provision`, not an in-place v1→v2 upgrade), so this is the intended
+  path. The per-worker index pre-creates are idempotent (skip if already present),
+  so a control-VM rebuild against a surviving cluster is safe; but **reconciling
+  allocation settings on already-populated `generic-log-other`/`infologger`
+  indices** (e.g. if they were created before the storage-tier rules) is **not**
+  done here and would need an explicit `PUT _settings` migration step.
+- **Day-2 reconfiguration restarts all OpenSearch nodes at once (inherited from
+  v1).** The initial bring-up play (`hosts: alice_nodes`, no `serial`) flushes the
+  restart handler across all nodes together — deliberate and required for *fresh*
+  cluster formation (quorum needs ≥2 managers up concurrently), but it means a
+  later config change re-applied through the same play bounces every node,
+  including all 3 storage managers, before the `serial: 1` gate play runs (which
+  then has no pending handler left to flush). This is unchanged from v1 and is
+  **not** a fresh-deploy blocker; a proper rolling reconfiguration (serialize
+  config+restart while still allowing concurrent first formation) is a deliberate,
+  real-cluster-tested change left for a follow-up.
+- **Quota ceiling.** v2 sits at exactly 10 cores / 5 instances (the binding
+  constraint is instances, not cores — that is why the split is 2+3, not 3+3). A
+  symmetric 3+3 tier with a spare needs an `instances` quota bump to 6.
+- **Everything else in the LOCKED v2 topology and quality bar is implemented**:
+  native no-Docker services, two-tier cluster (2 worker + 3 storage) hard-pinned
+  by `require` shard-allocation filtering, per-worker local `generic-log-info-<node_id>`
+  (1 shard/0 replicas/`require.box`), replicated `generic-log-other`+`infologger`
+  on the storage tier (`require.role: storage`), worker-only Fluent Bit → local
+  OpenSearch write path, single storage-host Dashboards/nginx/bootstrap, `epn_num % 2`
+  slicing, 512 MB heap, inventory-driven discovery/publish/Dashboards-hosts Jinja
+  (no IP typed twice), `serial: 1` health gate on first bring-up (see §4.2 — this is
+  a health gate, **not** a rolling-restart guarantee for day-2 reconfiguration),
+  vault-only secrets, tier-aware native bootstrap **forked** from the shared
+  `init/` scripts (so `docker-compose.yml`/`docker-compose.mocks.yaml`/`images/**`/`init/**`
+  stay untouched and the compose stacks keep working).

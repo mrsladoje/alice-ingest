@@ -1,4 +1,4 @@
-- name: Provision the 3 CERN OpenStack VMs for alice-ingest
+- name: Provision the 5 CERN OpenStack VMs for alice-ingest (2 worker + 3 storage)
   hosts: localhost
   connection: local
   gather_facts: false
@@ -103,7 +103,7 @@
         wait: false
       loop: "{{ groups['alice_nodes'] }}"
 
-    - name: "Wait for each VM to reach ACTIVE (all three are building at once)"
+    - name: "Wait for each VM to reach ACTIVE (all five are building at once)"
       openstack.cloud.server_info:
         name: "{{ item }}"
       register: _server_state

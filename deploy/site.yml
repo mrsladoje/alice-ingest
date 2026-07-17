@@ -1,10 +1,10 @@
-- name: Common host prep (all 3 VMs)
+- name: Common host prep (all 5 VMs — workers + storage)
   hosts: alice_nodes
   become: true
   roles:
     - common
 
-- name: OpenSearch cluster — initial bring-up (all 3 nodes together, so a manager can be elected)
+- name: OpenSearch cluster — initial bring-up (all 5 nodes together, so a storage-tier manager can be elected)
   hosts: alice_nodes
   become: true
   roles:
@@ -44,14 +44,14 @@
   roles:
     - dashboards
 
-- name: Fluent Bit collector (all 3 VMs)
-  hosts: alice_nodes
+- name: Fluent Bit collector (worker VMs only)
+  hosts: workers
   become: true
   roles:
     - collector
 
-- name: S3-replay producers (all 3 VMs)
-  hosts: alice_nodes
+- name: S3-replay producers (worker VMs only)
+  hosts: workers
   become: true
   vars_files:
     - "{{ playbook_dir }}/group_vars/vault.yml"

@@ -9,9 +9,10 @@ opensearch_transport_port: 9300
 opensearch_data_path: /var/lib/opensearch
 opensearch_log_path: /var/log/opensearch
 
-opensearch_seed_hosts: "{{ groups['alice_nodes'] | map('extract', hostvars, 'ansible_host') | list }}"
-opensearch_initial_cluster_manager_nodes: "{{ groups['alice_nodes'] | map('extract', hostvars, 'node_id') | list }}"
-dashboards_opensearch_hosts: "{{ groups['alice_nodes'] | map('extract', hostvars, 'ansible_host') |
+opensearch_cluster_hosts: "{{ groups['alice_nodes'] | map('extract', hostvars, 'ansible_host') | list }}"
+opensearch_seed_hosts: "{{ groups['storage'] | map('extract', hostvars, 'ansible_host') | list }}"
+opensearch_initial_cluster_manager_nodes: "{{ groups['storage'] | map('extract', hostvars, 'node_id') | list }}"
+dashboards_opensearch_hosts: "{{ groups['storage'] | map('extract', hostvars, 'ansible_host') |
   map('regex_replace', '^(.*)$', 'http://\\1:' ~ (opensearch_http_port | string)) | list }}"
 
 dashboards_internal_port: 5602
@@ -31,7 +32,7 @@ run_tag: "33NXirFsSfT_38917"
 infologger_prefix: "infologger-2026/"
 
 replay_http_port: 8088
-node_count: "{{ groups['alice_nodes'] | length }}"
+node_count: "{{ groups['workers'] | length }}"
 
 dds_replay_rate: 400
 il_replay_rate: 500

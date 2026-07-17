@@ -5,20 +5,33 @@ all:
   children:
 
     alice_nodes:
-      hosts:
-        alice-ingest-1:
-          ansible_host: 203.0.113.11
-          node_id: node-01
-          epn_partition: 0
-        alice-ingest-2:
-          ansible_host: 203.0.113.12
-          node_id: node-02
-          epn_partition: 1
-        alice-ingest-3:
-          ansible_host: 203.0.113.13
-          node_id: node-03
-          epn_partition: 2
+      children:
+        workers:
+          vars:
+            node_tier: worker
+          hosts:
+            alice-ingest-1:
+              ansible_host: 203.0.113.11
+              node_id: node-01
+              epn_partition: 0
+            alice-ingest-2:
+              ansible_host: 203.0.113.12
+              node_id: node-02
+              epn_partition: 1
+        storage:
+          vars:
+            node_tier: storage
+          hosts:
+            alice-ingest-3:
+              ansible_host: 203.0.113.13
+              node_id: node-03
+            alice-ingest-4:
+              ansible_host: 203.0.113.14
+              node_id: node-04
+            alice-ingest-5:
+              ansible_host: 203.0.113.15
+              node_id: node-05
 
     control:
       hosts:
-        alice-ingest-1: {}
+        alice-ingest-3: {}
