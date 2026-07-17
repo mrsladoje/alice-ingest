@@ -22,6 +22,14 @@
     group: root
     mode: "0750"
 
+- name: Stage the ALICE Cockpit saved-objects NDJSON
+  ansible.builtin.copy:
+    src: cockpit.ndjson
+    dest: "{{ dashboards_bootstrap_cockpit_ndjson }}"
+    owner: root
+    group: root
+    mode: "0640"
+
 - name: Run the OpenSearch index-template/ISM bootstrap (one-shot, marker-guarded)
   ansible.builtin.command:
     cmd: "{{ dashboards_bootstrap_templates_script }}"
@@ -38,5 +46,6 @@
   environment:
     OSD_URL: "http://127.0.0.1:{{ dashboards_internal_port }}"
     OS_URL: "http://localhost:{{ opensearch_http_port }}"
+    COCKPIT_NDJSON: "{{ dashboards_bootstrap_cockpit_ndjson }}"
   changed_when: true
   notify: record patterns bootstrap done

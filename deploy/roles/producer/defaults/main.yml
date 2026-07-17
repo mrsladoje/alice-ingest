@@ -36,3 +36,4 @@ producer_autostart_marker: "{{ log_root }}/.replay-autostart-done"
 # Families to auto-load once at first boot — matches replay.py's own default
 # (AUTOSTART_FAMILIES) and docker-compose.yml's AUTOSTART_REPLAY=true.
 producer_autostart_families: "infologger,dds,stdout"
+producer_autostart_replay: false

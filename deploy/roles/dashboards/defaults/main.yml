@@ -19,3 +19,4 @@ dashboards_bootstrap_templates_script: "{{ dashboards_bootstrap_root }}/template
 dashboards_bootstrap_patterns_script: "{{ dashboards_bootstrap_root }}/patterns.sh"
 dashboards_bootstrap_templates_marker: "{{ dashboards_bootstrap_root }}/.templates-bootstrap-done"
 dashboards_bootstrap_patterns_marker: "{{ dashboards_bootstrap_root }}/.patterns-bootstrap-done"
+dashboards_bootstrap_cockpit_ndjson: "{{ dashboards_bootstrap_root }}/cockpit.ndjson"

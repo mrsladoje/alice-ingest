@@ -25,17 +25,19 @@ patterns auto-provisioned on startup. Still no Kafka, no Grafana (next flight).
 
 > **The cardboard airplane** is the jump from *paper* to *cardboard*: from "Docker
 > Compose on one machine" to real multi-VM provisioning and a genuine OpenSearch
-> cluster. **v2** (this tree) splits that cluster into two tiers — 2 worker nodes
-> holding disposable, node-local `info` logs, plus 3 replicated storage nodes for
-> the valuable `other` + infologger logs. The single-machine path is unchanged and
-> remains the local dev loop.
+> cluster. **v2** split that cluster into two tiers — 2 worker nodes holding
+> disposable, node-local `info` logs, plus 3 replicated storage nodes for the
+> valuable `other` + infologger logs. **v3** (this tree) adds a triggered
+> **replay button** (`make replay`), more real data, and the auto-provisioned
+> **ALICE Cockpit** dashboard. The single-machine path is unchanged and remains the
+> local dev loop.
 
 | | Paper airplane | Cardboard airplane |
 |---|---|---|
 | Runtime | Docker Compose, 1 machine | 5 CERN OpenStack VMs, native systemd |
 | OpenSearch | single node | 5-node two-tier cluster (2 worker + 3 storage, quorum 2) |
 | Orchestration | `docker compose` | Ansible (provision → configure → teardown) |
-| Bring up | `make run` | `make provision && make deploy` |
+| Bring up | `make run` | `make provision && make deploy && make replay` |
 | Full docs | [`docs/PAPER-AIRPLANE.md`](docs/PAPER-AIRPLANE.md) | [`deploy/README.md`](deploy/README.md) |
 
 Design target — the real platform we simplify *from*:
@@ -80,7 +82,13 @@ essentials:
 ```bash
 make provision     # create the 5 OpenStack VMs (idempotent) — needs OpenStack auth
 make deploy        # configure the cluster — prompts for the vault password
+make replay        # load real logs (the "replay button" — no vault needed)
 ```
+
+`make deploy` **arms** the pipeline but ingests nothing; `make replay` is the
+deliberate load step (POSTs `/replay` to each worker). Because replay has no dedup,
+use `make replay-fresh` to wipe and reload cleanly rather than a second `make
+replay`. See [`docs/CARDBOARD-AIRPLANE-V3.md`](docs/CARDBOARD-AIRPLANE-V3.md).
 
 **View.** Dashboards on the control VM: `https://<control-VM>:5601`, user `alice`
 (the vault password), self-signed cert. From outside CERN, tunnel through lxplus:
@@ -89,8 +97,10 @@ make deploy        # configure the cluster — prompts for the vault password
 ssh -L 5601:<control-VM-internal-ip>:5601 lxplus.cern.ch    # then https://localhost:5601
 ```
 
-Data is historical (~June 2026, pinned by `RUN_TAG`) — if Discover looks empty,
-widen the time range rather than assuming no data.
+Open the **ALICE Cockpit** dashboard (auto-provisioned) for the unified health view,
+or Discover on the default `infologger,generic-log-*` pattern with the seven seed
+saved searches. Data is historical (~June 2026, pinned by `RUN_TAG`) — if Discover
+looks empty, widen the time range rather than assuming no data.
 
 **Teardown.**
 

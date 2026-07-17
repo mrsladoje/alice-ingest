@@ -1,0 +1,50 @@
+- name: Wipe log indices before a fresh replay (only when replay_fresh=true)
+  hosts: control
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Delete the storage-tier log indices
+      ansible.builtin.uri:
+        url: "http://localhost:{{ opensearch_http_port }}/{{ item }}"
+        method: DELETE
+        status_code: [200, 404]
+      loop:
+        - infologger
+        - generic-log-other
+      when: replay_fresh | default(false) | bool
+
+    - name: Delete each worker's local info-tier index
+      ansible.builtin.uri:
+        url: "http://localhost:{{ opensearch_http_port }}/generic-log-info-{{ hostvars[item].node_id }}"
+        method: DELETE
+        status_code: [200, 404]
+      loop: "{{ groups['workers'] }}"
+      when: replay_fresh | default(false) | bool
+
+    - name: Re-create each worker's local info-tier index pinned to its box
+      ansible.builtin.uri:
+        url: "http://localhost:{{ opensearch_http_port }}/generic-log-info-{{ hostvars[item].node_id }}"
+        method: PUT
+        body_format: json
+        body:
+          settings:
+            index.routing.allocation.require.box: "{{ hostvars[item].node_id }}"
+        status_code: [200, 201]
+      loop: "{{ groups['workers'] }}"
+      when: replay_fresh | default(false) | bool
+
+- name: Trigger the S3 replay on every worker
+  hosts: workers
+  gather_facts: false
+  tasks:
+    - name: POST /replay to the local alice-replay trigger
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ replay_http_port }}/replay?family={{ replay_families | default('infologger,dds,stdout') }}"
+        method: POST
+        status_code: [202, 409]
+        return_content: true
+      register: _replay
+
+    - name: Report the trigger result for this worker
+      ansible.builtin.debug:
+        msg: "{{ node_id }} ({{ inventory_hostname }}) -> HTTP {{ _replay.status }}: {{ _replay.content }}"

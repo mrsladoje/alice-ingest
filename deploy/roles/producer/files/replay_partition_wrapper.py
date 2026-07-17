@@ -79,14 +79,24 @@ if not (0 <= EPN_PARTITION < replay.NODE_COUNT):
 
 OWN_COLLECTOR = replay.COLLECTOR_HOSTS[EPN_PARTITION]
 
+try:
+    MAX_OBJECT_BYTES = int(os.environ.get("REPLAY_MAX_OBJECT_BYTES", "0"))
+except ValueError:
+    MAX_OBJECT_BYTES = 0
+
 _orig_list_objects = replay.list_objects
 
 
 def _partition_filtered_list_objects(s3, prefix):
     """Same generator as replay.list_objects, minus other partitions' DDS/
-    stdout tarballs (dropped before the S3 GET). Non-host-tagged keys (e.g.
-    InfoLogger dump objects) are never filtered here — see module docstring."""
+    stdout tarballs (dropped before the S3 GET) and any object larger than
+    REPLAY_MAX_OBJECT_BYTES. Non-host-tagged keys (e.g. InfoLogger dump
+    objects) are only size-filtered here — see module docstring."""
     for key, size in _orig_list_objects(s3, prefix):
+        if MAX_OBJECT_BYTES and size > MAX_OBJECT_BYTES:
+            replay.log(f"skip oversize object ({size / 1e6:.0f} MB > "
+                       f"{MAX_OBJECT_BYTES / 1e6:.0f} MB cap): {key}")
+            continue
         m = replay._HOST_RE.search(key)
         if m is not None and replay.node_index_for(m.group(1)) != EPN_PARTITION:
             continue

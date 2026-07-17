@@ -42,8 +42,10 @@ Environment=DDS_REPLAY_RATE={{ dds_replay_rate }}
 Environment=IL_REPLAY_RATE={{ il_replay_rate }}
 Environment=DDS_MAX_OBJECTS={{ dds_max_objects }}
 Environment=IL_MAX_OBJECTS={{ il_max_objects }}
+Environment=STDOUT_MAX_OBJECTS={{ stdout_max_objects }}
+Environment=REPLAY_MAX_OBJECT_BYTES={{ replay_max_object_bytes }}
 Environment=REPLAY_HTTP_PORT={{ replay_http_port }}
-Environment=AUTOSTART_REPLAY=true
+Environment=AUTOSTART_REPLAY={{ producer_autostart_replay | string | lower }}
 Environment=AUTOSTART_FAMILIES={{ producer_autostart_families }}
 Environment=AUTOSTART_MARKER={{ producer_autostart_marker }}
 Environment=EPN_PARTITION={{ epn_partition }}

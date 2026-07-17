@@ -37,7 +37,9 @@ node_count: "{{ groups['workers'] | length }}"
 dds_replay_rate: 400
 il_replay_rate: 500
 dds_max_objects: 0
-il_max_objects: 3
+il_max_objects: 15
+stdout_max_objects: 0
+replay_max_object_bytes: 157286400
 
 producers_venv_path: /opt/alice-ingest/venv
 producers_app_root: /opt/alice-ingest/app

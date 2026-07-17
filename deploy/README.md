@@ -229,8 +229,16 @@ ansible-playbook provision.yml
 
 # 2. Configure everything (OpenSearch cluster, Dashboards+nginx+bootstrap,
 #    Fluent Bit, replay producers) — needs the vault password.
+#    This ARMS the pipeline but ingests nothing (AUTOSTART_REPLAY=false).
 ansible-playbook site.yml --ask-vault-pass
+
+# 3. Load real logs — the "replay button". No vault needed.
+ansible-playbook replay.yml                  # first clean load
+ansible-playbook replay.yml -e replay_fresh=true   # wipe + reload (no dedup!)
 ```
+
+Equivalent shortcuts from the repo root: `make deploy`, `make replay`,
+`make replay-fresh`.
 
 **How the generated inventory works.** `deploy/inventory.yml` is the
 committed source of truth for groups (`alice_nodes`, `control`), `node_id`,
@@ -326,10 +334,13 @@ rather than ever leaking onto the wrong tier.
 
 **Dashboards:** `https://<control-VM-address>:5601` (control = `alice-ingest-3`),
 basic-auth user `alice` (password = `vault_dashboards_basic_auth_password`),
-self-signed cert (browser will warn — expected). The three index patterns
-(`infologger`, `generic-log-info-*`, `generic-log-other`) are auto-provisioned by
-the one-shot bootstrap — no manual setup. `generic-log-info-*` is a wildcard so
-both per-worker info indices appear together in Discover.
+self-signed cert (browser will warn — expected). The one-shot bootstrap
+auto-provisions the three per-source index patterns (`infologger`,
+`generic-log-info-*`, `generic-log-other`; `generic-log-info-*` is a wildcard so
+both per-worker info indices appear together), plus the **unified**
+`infologger,generic-log-*` pattern (set as the Discover default), seven seed saved
+searches, and the **ALICE Cockpit** home dashboard — no manual setup. See
+[`../docs/CARDBOARD-AIRPLANE-V3.md`](../docs/CARDBOARD-AIRPLANE-V3.md).
 
 **Gotcha — data is ~June 2026.** The replayed logs are historical (the
 `RUN_TAG` in `group_vars/all.yml` pins a specific S3 replay window). If
