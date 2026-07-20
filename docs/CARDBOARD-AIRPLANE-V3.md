@@ -32,6 +32,15 @@ make replay-fresh                  # wipe + reload cleanly (re-runs, tuning, etc
 
 `make replay` returns immediately (HTTP `202` per worker); the stream then flows for a few minutes. `409` from a worker means a replay is already in flight there.
 
+### 1a. The web ops page (browser replay button)
+
+For a non-CLI trigger, a small `alice-ops` service on the control node sits behind the *same* nginx (TLS + `alice` basic-auth) as Dashboards, at **`https://<control>:5601/ops`**. It renders a live document count and two buttons:
+
+- **Reload data (fresh)** → `POST /ops/replay-fresh`: wipes the log indices, re-creates the per-worker `require.box` info indices, then triggers replay on every worker — the always-clean load, safe to click repeatedly.
+- **Append replay** → `POST /ops/replay`: another full pass with no dedup (deliberate use only).
+
+The service (`ops_server.py`, stdlib only, `127.0.0.1:8090`) fans out to each worker's `:8088` trigger and talks to OpenSearch on `localhost:9200`; the recreate uses `wait_for_active_shards=0` so it never blocks on allocation. Workers open `:8088` to the control node's IP (host firewall) so the fan-out can reach them. This is CERN-internal only — reaching it from the public internet would be a separate, deliberate LanDB firewall opening.
+
 ---
 
 ## 2. More data — knobs and the size guard

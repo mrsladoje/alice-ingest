@@ -18,6 +18,19 @@ server {
     auth_basic           "ALICE Logging Dashboards";
     auth_basic_user_file {{ dashboards_nginx_htpasswd_file }};
 
+    location = /ops {
+        return 301 /ops/;
+    }
+
+    location /ops/ {
+        proxy_pass http://127.0.0.1:{{ ops_internal_port }}/;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:{{ dashboards_internal_port }};
         proxy_http_version 1.1;

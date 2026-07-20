@@ -13,5 +13,8 @@
 - name: Install and configure the nginx reverse proxy (TLS + basic-auth)
   ansible.builtin.import_tasks: nginx.yml
 
+- name: Ops trigger service (replay button) behind nginx
+  ansible.builtin.import_tasks: ops.yml
+
 - name: One-shot cluster bootstrap (index templates + Dashboards index-patterns)
   ansible.builtin.import_tasks: bootstrap.yml

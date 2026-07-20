@@ -20,3 +20,7 @@ dashboards_bootstrap_patterns_script: "{{ dashboards_bootstrap_root }}/patterns.
 dashboards_bootstrap_templates_marker: "{{ dashboards_bootstrap_root }}/.templates-bootstrap-done"
 dashboards_bootstrap_patterns_marker: "{{ dashboards_bootstrap_root }}/.patterns-bootstrap-done"
 dashboards_bootstrap_cockpit_ndjson: "{{ dashboards_bootstrap_root }}/cockpit.ndjson"
+
+dashboards_ops_service_name: alice-ops
+dashboards_ops_script: /opt/alice-ingest/ops_server.py
+ops_internal_port: 8090

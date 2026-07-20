@@ -99,8 +99,11 @@ ssh -L 5601:<control-VM-internal-ip>:5601 lxplus.cern.ch    # then https://local
 
 Open the **ALICE Cockpit** dashboard (auto-provisioned) for the unified health view,
 or Discover on the default `infologger,generic-log-*` pattern with the seven seed
-saved searches. Data is historical (~June 2026, pinned by `RUN_TAG`) — if Discover
-looks empty, widen the time range rather than assuming no data.
+saved searches. For a browser-driven load without the CLI, the control node also
+serves an ops page at **`https://<control-VM>:5601/ops`** (same basic-auth) with
+**Reload data (fresh)** / **Append replay** buttons and a live doc count. Data is
+historical (~June 2026, pinned by `RUN_TAG`) — if Discover looks empty, widen the
+time range rather than assuming no data.
 
 **Teardown.**
 
