@@ -214,6 +214,7 @@ COCKPIT_METRICS_TPL=$(cat <<'JSON'
         "indexing_total":        { "type": "long" },
         "indexing_delta":        { "type": "long" },
         "fb_up":                 { "type": "short" },
+        "fb_healthy":            { "type": "short" },
         "input_records":         { "type": "long" },
         "input_records_delta":   { "type": "long" },
         "output_records":        { "type": "long" },
@@ -285,4 +286,8 @@ for wn in $WORKER_NODES; do
     "{\"settings\":{\"index.routing.allocation.require.box\":\"$wn\"}}"
 done
 
-echo "[os-init] DONE — tier-aware mappings and per-node worker indices in place before first write"
+ensure_index "infologger" '{}'
+ensure_index "generic-log-other" '{}'
+ensure_index "{{ cockpit_metrics_index }}" '{}'
+
+echo "[os-init] DONE — tier-aware mappings and all indices in place before first write"

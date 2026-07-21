@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -11,17 +12,37 @@ FB_TARGETS = [
 ]
 METRICS_INDEX = os.environ.get("METRICS_INDEX", "cockpit-metrics")
 INTERVAL = int(os.environ.get("INTERVAL", "30"))
+MAX_BULK_FAILURES = int(os.environ.get("MAX_BULK_FAILURES", "20"))
 
 STATE_CODES = {"green": 0, "yellow": 1, "red": 2}
 
 _prev = {}
+_bulk_failures = 0
 
 
-def get_json(url, timeout=15):
+def log(msg):
+    print(f"[metrics] {msg}", flush=True)
+
+
+def fetch(url, timeout):
     try:
         with urllib.request.urlopen(url, timeout=timeout) as r:
-            return json.load(r)
-    except Exception:
+            return r.status, r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read()
+    except Exception as e:
+        return 0, str(e).encode()
+
+
+def get_json(url, timeout=10):
+    status, body = fetch(url, timeout)
+    if status != 200:
+        log(f"GET {url} failed: status={status} {body[:120]!r}")
+        return None
+    try:
+        return json.loads(body)
+    except ValueError as e:
+        log(f"GET {url} bad JSON: {e}")
         return None
 
 
@@ -57,12 +78,16 @@ def index_docs():
     rows = get_json(f"{OS_URL}/_cat/indices?format=json&bytes=b")
     if rows is None:
         return []
+    stats = get_json(f"{OS_URL}/_stats/indexing?level=indices") or {}
+    ops = {name: s.get("primaries", {}).get("indexing", {}).get(
+        "index_total", 0) for name, s in stats.get("indices", {}).items()}
     docs = []
     for row in rows:
         name = row.get("index", "")
         if name.startswith(".") or name.startswith("top_queries-"):
             continue
         count = int(row.get("docs.count") or 0)
+        indexing = ops.get(name, 0)
         docs.append({
             "kind": "index",
             "index_name": name,
@@ -72,6 +97,8 @@ def index_docs():
             "docs_count": count,
             "docs_delta": delta(("index", name), count),
             "store_bytes": int(row.get("store.size") or 0),
+            "indexing_total": indexing,
+            "indexing_delta": delta(("index_ops", name), indexing),
         })
     return docs
 
@@ -107,10 +134,12 @@ def node_docs():
 def fluentbit_docs():
     docs = []
     for node, url in FB_TARGETS:
-        m = get_json(f"{url}/api/v1/metrics")
+        m = get_json(f"{url}/api/v1/metrics", timeout=5)
         if m is None:
-            docs.append({"kind": "fluentbit", "node": node, "fb_up": 0})
+            docs.append({"kind": "fluentbit", "node": node, "fb_up": 0,
+                         "fb_healthy": 0})
             continue
+        health_status, _ = fetch(f"{url}/api/v2/health", timeout=5)
         inp = sum(v.get("records", 0) for v in m.get("input", {}).values())
         outs = m.get("output", {}).values()
         out = sum(v.get("proc_records", 0) for v in outs)
@@ -122,6 +151,7 @@ def fluentbit_docs():
             "kind": "fluentbit",
             "node": node,
             "fb_up": 1,
+            "fb_healthy": 1 if health_status == 200 else 0,
             "input_records": inp,
             "input_records_delta": delta(("fb_in", node), inp),
             "output_records": out,
@@ -138,7 +168,7 @@ def fluentbit_docs():
 
 
 def osd_docs():
-    s = get_json(f"{OSD_URL}/api/status")
+    s = get_json(f"{OSD_URL}/api/status", timeout=5)
     if s is None:
         return [{"kind": "osd", "osd_state": "unreachable",
                  "osd_state_code": 3}]
@@ -162,7 +192,9 @@ def osd_docs():
 
 
 def push(docs, ts):
+    global _bulk_failures
     if not docs:
+        log("nothing to push (all sources unreachable?)")
         return
     lines = []
     for d in docs:
@@ -174,15 +206,34 @@ def push(docs, ts):
         f"{OS_URL}/_bulk", data=body, method="POST",
         headers={"Content-Type": "application/x-ndjson"})
     try:
-        with urllib.request.urlopen(req, timeout=20) as r:
-            r.read()
+        with urllib.request.urlopen(req, timeout=15) as r:
+            resp = json.load(r)
     except Exception as e:
-        print(f"[metrics] bulk push failed: {e}", flush=True)
+        _bulk_failures += 1
+        log(f"bulk push failed ({_bulk_failures} consecutive): {e}")
+        if _bulk_failures >= MAX_BULK_FAILURES:
+            log("too many consecutive bulk failures, exiting for restart")
+            sys.exit(1)
+        return
+    if resp.get("errors"):
+        failed = [i["index"] for i in resp.get("items", [])
+                  if i.get("index", {}).get("status", 500) >= 300]
+        _bulk_failures += 1
+        first = failed[0].get("error", {}) if failed else {}
+        log(f"bulk had {len(failed)}/{len(docs)} failed items "
+            f"({_bulk_failures} consecutive): "
+            f"{first.get('type')}: {str(first.get('reason'))[:200]}")
+        if _bulk_failures >= MAX_BULK_FAILURES:
+            log("too many consecutive bulk failures, exiting for restart")
+            sys.exit(1)
+        return
+    _bulk_failures = 0
+    log(f"pushed {len(docs)} docs")
 
 
 def main():
-    print(f"[metrics] polling every {INTERVAL}s -> {METRICS_INDEX} "
-          f"(fb_targets={FB_TARGETS})", flush=True)
+    log(f"polling every {INTERVAL}s -> {METRICS_INDEX} "
+        f"(fb_targets={FB_TARGETS})")
     while True:
         started = time.time()
         ts = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())

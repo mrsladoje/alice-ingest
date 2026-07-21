@@ -26,12 +26,15 @@ Dashboards (released 2026-06-09; the majors must match), carrying the fix plus t
 current branding keys).
 
 **De-risked before touching the VMs** (throwaway Docker, real `opensearch:3.7.0`
-+ `opensearch-dashboards:3.7.0`): the full `cockpit.ndjson` imports cleanly
-(idempotent under `overwrite=true`), all saved searches round-trip with their
-`kuery` queries intact, and `defaultIndex` and branding behave exactly as on
-2.17. The one thing Docker cannot prove headlessly — that *opening* a saved
-search applies its query — is a browser-only acceptance gate (§5), testable on
-the same local Docker stack before deploying.
++ `opensearch-dashboards:3.7.0`, plus a headless-Chromium render smoke): the
+full `cockpit.ndjson` imports cleanly (idempotent under `overwrite=true`), all
+saved searches round-trip with their `kuery` queries intact, `defaultIndex` and
+branding behave exactly as on 2.17, and **all 22 dashboard panels render with
+zero errors** — including the failure modes (Fluent Bit down → DOWN within one
+sample; poller stopped → the status strip flips to STALE with the sample age;
+bulk rejections → detected and logged; a partially failed import → the deploy
+fails instead of reporting green). Opening each saved search in a real browser
+remains the final human acceptance gate (§5).
 
 ## 0a. What v4 deliberately does NOT enable
 
@@ -107,23 +110,63 @@ the collector role, mirroring the `:8088` replay-trigger rule).
 
 `gen_cockpit.py` grows from 17 to **31 saved objects** (still one generated
 `cockpit.ndjson`, still imported with `overwrite=true` on **every** deploy, never
-marker-guarded). Everything from v3 stays; below the logs section the dashboard
-gains a **Platform health** band, all driven by `cockpit-metrics`:
+marker-guarded). The dashboard now runs **two clocks on one page**: it stores
+its own time range (June 2026 → now, covering the replayed event time) plus a
+saved **30 s auto-refresh**, while every health panel carries a per-panel
+override pinning it to `now-1h → now` — so live health and historical logs stay
+simultaneously readable, and the header says exactly that. Top to bottom:
 
-- status tiles: **cluster status**, **unassigned shards**, **Dashboards health**
-  (latest-value metric visualizations);
-- **Fluent Bit by node** table — `fb_up`, records shipped, errors, failed
-  retries, drops per worker;
-- **ingest rate by index** (stacked area of doc deltas) and **index size on
-  disk** over time;
-- **Fluent Bit records shipped per node** and **errors / retries / drops** over
-  time;
-- **indices now** table (health / pri / rep / docs / size), **node JVM heap %**,
-  and **Dashboards response time**;
-- drill-down links to the two bundled UIs: **Index Management** (live per-index
-  shards/replicas/health/docs/size) and **Query Insights** (top-N queries by
-  latency/CPU/memory + live queries — top-N collection enabled persistently by
-  `templates.sh`).
+- a **Vega live-status strip**: CLUSTER / DASHBOARDS / FLUENT BIT per worker as
+  colored chips with explicit text (GREEN / YELLOW / RED / UP / UNHEALTHY /
+  DOWN — never color alone). Each chip computes its sample age in-browser and
+  flips to gray **STALE &lt;age&gt;** beyond 90 s, or shows **NO DATA** if the
+  poller has never written — a dead poller cannot leave a stale green on
+  screen;
+- status tiles (cluster status, unassigned shards, Dashboards health) and the
+  **Fluent Bit by node** table — up, **healthy** (the native `/api/v2/health`
+  verdict, distinct from merely HTTP-reachable), records shipped, errors,
+  failed retries, drops;
+- the v3 logs section: totals, severity over time, top hosts/systems, the
+  Errors & Warnings saved search;
+- **Detailed platform health**: **indexing rate by index** (true `_stats`
+  indexing-ops deltas — not document-count growth — with the poller's own
+  `cockpit-metrics` writes excluded), index size on disk, Fluent Bit
+  records/errors/retries/drops per node, **indices now** (health / pri / rep /
+  docs / size), node JVM heap %, Dashboards response time — every y-axis in
+  real units (ops/30 s, bytes, %, ms);
+- drill-down links to the two bundled UIs: **Index Management** and **Query
+  Insights** (top-N collection enabled persistently by `templates.sh`); the
+  Dashboards `defaultRoute` lands users straight on the cockpit.
+
+## 3a. Provisioning is strict and self-verifying (review-driven hardening)
+
+An external review of the first v4 cut found three release blockers; all are
+fixed and locally verified:
+
+- **Field catalogs.** An API-created index pattern stores only
+  `title`/`timeFieldName`; classic visualizations then fail with "Could not
+  locate that index-pattern-field". After every import, `bootstrap.yml` runs
+  `hydrate_patterns.py`, which pulls each pattern's live field list via
+  `/api/index_patterns/_fields_for_wildcard`, persists it into the saved
+  object, and **fails the deploy** if required fields (`@timestamp`, `kind`,
+  `severity`, …) are missing. Because the cockpit import overwrites the
+  patterns each deploy, hydration always re-runs after it.
+- **Template-before-first-write.** The poller previously started before the
+  bootstrap had installed the `cockpit-metrics` template — the first bulk write
+  would auto-create the index with dynamic mappings on the wrong tier. Order is
+  now: templates → explicit index creation (`infologger`, `generic-log-other`,
+  `cockpit-metrics`, per-worker info indices) → import → hydrate → *then* start
+  `alice-metrics`.
+- **`failed=0` means deployed.** The import and settings tasks no longer mask
+  failures: the import response is parsed and must show `success: true` with
+  every object imported and zero errors; pattern-creation and
+  Dashboards-readiness failures are fatal; the old one-shot marker guard is
+  gone (both bootstrap scripts are idempotent and run on every deploy).
+
+The poller is hardened to match: it parses the bulk response (an HTTP 200 with
+`errors: true` is a failure — counted, logged with the first reason, and the
+service exits for systemd restart after 20 consecutive failures), logs every
+unreachable endpoint, and runs as a sandboxed `DynamicUser` unit.
 
 ## 4. Explicitly out / unchanged
 
@@ -138,11 +181,13 @@ gains a **Platform health** band, all driven by `cockpit-metrics`:
 
 ## 5. Verification gates (real VMs)
 
-1. `make deploy` green (`failed=0` on all 5); cluster green; tier placement
-   as in v2 (`generic-log-info-node-0N` local, storage indices on 3/4/5 only,
-   nothing unassigned).
+1. `make deploy` green (`failed=0` on all 5) — which now *implies* the cockpit
+   imported, verified and hydrated (§3a); cluster green; tier placement as in
+   v2, plus `cockpit-metrics` (1 shard, 2 replicas, storage tier, `dynamic:
+   false`), nothing unassigned.
 2. `make replay` loads; `/ops` buttons work.
-3. **Browser** (the two gates that cannot be checked headlessly): opening each of
-   the 7 saved searches populates the query bar and filters the results — the
-   core acceptance criterion of the whole migration; and the cockpit renders,
-   including the health band populating within a minute of deploy.
+3. **Browser** (the human gates): opening each of the 7 saved searches
+   populates the query bar and filters the results — the core acceptance
+   criterion of the whole migration; the cockpit renders with the status strip
+   LIVE and the health band populating within a minute; and the two-clock
+   layout reads sensibly (live health up top, June logs below).

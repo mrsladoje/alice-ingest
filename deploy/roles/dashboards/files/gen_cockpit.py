@@ -9,6 +9,11 @@ METRICS_TITLE = "cockpit-metrics"
 TIME_FIELD = "@timestamp"
 PANEL_VERSION = "3.7.0"
 
+LOG_TIME_FROM = "2026-06-01T00:00:00.000Z"
+HEALTH_RANGE = {"from": "now-1h", "to": "now"}
+REFRESH_MS = 30000
+STALE_SECONDS = 90
+
 ERRWARN_Q = "severity:(E or F or W or Error or Fatal or Warning or err)"
 
 INDEX_REF_NAME = "kibanaSavedObjectMeta.searchSourceJSON.index"
@@ -78,22 +83,7 @@ def count_metric(vid, title, query=None):
             {"id": "1", "enabled": True, "type": "count",
              "schema": "metric", "params": {}}
         ],
-        "params": {
-            "addTooltip": True,
-            "addLegend": False,
-            "type": "metric",
-            "metric": {
-                "percentageMode": False,
-                "useRanges": False,
-                "colorSchema": "Green to Red",
-                "metricColorMode": "None",
-                "colorsRange": [{"from": 0, "to": 10000}],
-                "labels": {"show": True},
-                "invertColors": False,
-                "style": {"bgFill": "#000", "bgColor": False,
-                          "labelColor": False, "subText": "", "fontSize": 60},
-            },
-        },
+        "params": _metric_params(60),
     }
     return viz(vid, title, state, query=query)
 
@@ -129,13 +119,13 @@ def _cat_axis(pos):
              "title": {}}]
 
 
-def _val_axis(pos):
+def _val_axis(pos, title="Count"):
     return [{"id": "ValueAxis-1", "name": "LeftAxis-1", "type": "value",
              "position": pos, "show": True, "style": {},
              "scale": {"type": "linear", "mode": "normal"},
              "labels": {"show": True, "rotate": 0, "filter": False,
                         "truncate": 100},
-             "title": {"text": "Count"}}]
+             "title": {"text": title}}]
 
 
 def _series(mode, kind="histogram", labels=None):
@@ -149,13 +139,14 @@ def _series(mode, kind="histogram", labels=None):
     return out
 
 
-def _bar_params(kind, mode, cat_pos, val_pos):
+def _bar_params(kind, mode, cat_pos, val_pos, y_title="Count"):
+    series_kind = "histogram" if kind == "horizontal_bar" else kind
     return {
         "type": kind,
         "grid": {"categoryLines": False},
         "categoryAxes": _cat_axis(cat_pos),
-        "valueAxes": _val_axis(val_pos),
-        "seriesParams": _series(mode),
+        "valueAxes": _val_axis(val_pos, y_title),
+        "seriesParams": _series(mode, series_kind),
         "addTooltip": True,
         "addLegend": True,
         "legendPosition": "right",
@@ -183,7 +174,8 @@ def severity_over_time(vid, title):
                         "size": 8, "otherBucket": False,
                         "missingBucket": False}},
         ],
-        "params": _bar_params("histogram", "stacked", "bottom", "left"),
+        "params": _bar_params("histogram", "stacked", "bottom", "left",
+                              "log records"),
     }
     return viz(vid, title, state)
 
@@ -200,16 +192,19 @@ def top_terms_bar(vid, title, field):
                         "size": 10, "otherBucket": False,
                         "missingBucket": False}},
         ],
-        "params": _bar_params("horizontal_bar", "normal", "left", "bottom"),
+        "params": _bar_params("horizontal_bar", "normal", "left", "bottom",
+                              "log records"),
     }
     return viz(vid, title, state)
 
 
-def _top_hit(agg_id, field, aggregate):
+def _top_hit(agg_id, field, aggregate, label=None):
+    params = {"field": field, "aggregate": aggregate, "size": 1,
+              "sortField": TIME_FIELD, "sortOrder": "desc"}
+    if label:
+        params["customLabel"] = label
     return {"id": agg_id, "enabled": True, "type": "top_hits",
-            "schema": "metric",
-            "params": {"field": field, "aggregate": aggregate, "size": 1,
-                       "sortField": TIME_FIELD, "sortOrder": "desc"}}
+            "schema": "metric", "params": params}
 
 
 def _metric_params(font_size=40):
@@ -232,11 +227,11 @@ def _metric_params(font_size=40):
     }
 
 
-def latest_metric(vid, title, field, query, aggregate="concat"):
+def latest_metric(vid, title, field, query, aggregate="concat", label=None):
     state = {
         "title": title,
         "type": "metric",
-        "aggs": [_top_hit("1", field, aggregate)],
+        "aggs": [_top_hit("1", field, aggregate, label)],
         "params": _metric_params(),
     }
     return viz(vid, title, state, query=dql(query), pattern=METRICS_ID)
@@ -244,8 +239,8 @@ def latest_metric(vid, title, field, query, aggregate="concat"):
 
 def latest_table(vid, title, bucket_field, columns, query, size=15):
     aggs = []
-    for i, (field, aggregate) in enumerate(columns, start=1):
-        aggs.append(_top_hit(str(i), field, aggregate))
+    for i, (field, aggregate, label) in enumerate(columns, start=1):
+        aggs.append(_top_hit(str(i), field, aggregate, label))
     aggs.append({"id": str(len(columns) + 1), "enabled": True,
                  "type": "terms", "schema": "bucket",
                  "params": {"field": bucket_field, "orderBy": "_key",
@@ -268,7 +263,7 @@ def latest_table(vid, title, bucket_field, columns, query, size=15):
 
 
 def metric_timechart(vid, title, metrics, query, group_field=None,
-                     kind="line", mode="normal"):
+                     kind="line", mode="normal", y_title="Count"):
     aggs = []
     labels = []
     for i, (agg_type, field, label) in enumerate(metrics, start=1):
@@ -288,7 +283,7 @@ def metric_timechart(vid, title, metrics, query, group_field=None,
                                 "order": "asc", "size": 10,
                                 "otherBucket": False,
                                 "missingBucket": False}})
-    params = _bar_params(kind, mode, "bottom", "left")
+    params = _bar_params(kind, mode, "bottom", "left", y_title)
     params["seriesParams"] = _series(mode, kind=kind, labels=labels)
     state = {"title": title, "type": kind, "aggs": aggs, "params": params}
     return viz(vid, title, state, query=dql(query), pattern=METRICS_ID)
@@ -304,17 +299,139 @@ def markdown(vid, title, md):
     return viz(vid, title, state, index_ref_on=False)
 
 
+def status_strip(vid, title):
+    spec = {
+        "$schema": "https://vega.github.io/schema/vega/v5.json",
+        "autosize": {"type": "fit", "contains": "padding"},
+        "padding": 4,
+        "data": [{
+            "name": "latest",
+            "url": {
+                "index": METRICS_TITLE,
+                "body": {
+                    "size": 60,
+                    "sort": [{TIME_FIELD: {"order": "desc"}}],
+                    "query": {"terms": {
+                        "kind": ["cluster", "osd", "fluentbit"]}},
+                },
+            },
+            "format": {"property": "hits.hits"},
+            "transform": [
+                {"type": "formula", "as": "ts",
+                 "expr": "time(toDate(datum._source['@timestamp']))"},
+                {"type": "formula", "as": "key",
+                 "expr": "datum._source.kind + "
+                         "(datum._source.node ? ':' + datum._source.node "
+                         ": '')"},
+                {"type": "window", "groupby": ["key"],
+                 "sort": {"field": "ts", "order": "descending"},
+                 "ops": ["rank"], "as": ["rank"]},
+                {"type": "filter", "expr": "datum.rank == 1"},
+                {"type": "formula", "as": "age",
+                 "expr": "(now() - datum.ts) / 1000"},
+                {"type": "formula", "as": "stale",
+                 "expr": "datum.age > %d" % STALE_SECONDS},
+                {"type": "formula", "as": "state",
+                 "expr": "datum._source.kind == 'cluster' ? "
+                         "upper(datum._source.cluster_status) : "
+                         "datum._source.kind == 'osd' ? "
+                         "upper(datum._source.osd_state) : "
+                         "datum._source.fb_up != 1 ? 'DOWN' : "
+                         "datum._source.fb_healthy == 1 ? 'UP' : "
+                         "'UNHEALTHY'"},
+                {"type": "formula", "as": "label",
+                 "expr": "datum._source.kind == 'cluster' ? 'CLUSTER' : "
+                         "datum._source.kind == 'osd' ? 'DASHBOARDS' : "
+                         "'FLUENT BIT ' + datum._source.node"},
+                {"type": "formula", "as": "display",
+                 "expr": "datum.stale ? 'STALE ' + format(datum.age, '.0f') "
+                         "+ 's' : datum.state"},
+                {"type": "formula", "as": "color",
+                 "expr": "datum.stale ? '#98A2B3' : "
+                         "datum.state == 'GREEN' || datum.state == 'UP' ? "
+                         "'#017D73' : "
+                         "datum.state == 'YELLOW' || "
+                         "datum.state == 'UNHEALTHY' ? '#F5A700' : "
+                         "'#BD271E'"},
+                {"type": "collect", "sort": {"field": "label"}},
+            ],
+        }],
+        "scales": [{
+            "name": "xband",
+            "type": "band",
+            "domain": {"data": "latest", "field": "label"},
+            "range": "width",
+            "padding": 0.08,
+        }],
+        "marks": [
+            {"type": "rect", "from": {"data": "latest"},
+             "encode": {"update": {
+                 "x": {"scale": "xband", "field": "label"},
+                 "width": {"scale": "xband", "band": 1},
+                 "y": {"value": 0},
+                 "y2": {"signal": "height"},
+                 "fill": {"field": "color"},
+                 "cornerRadius": {"value": 4},
+             }}},
+            {"type": "text", "from": {"data": "latest"},
+             "encode": {"update": {
+                 "x": {"scale": "xband", "field": "label",
+                       "band": 0.5},
+                 "y": {"signal": "height * 0.32"},
+                 "text": {"field": "label"},
+                 "align": {"value": "center"},
+                 "baseline": {"value": "middle"},
+                 "fill": {"value": "#FFFFFF"},
+                 "fontSize": {"value": 11},
+             }}},
+            {"type": "text", "from": {"data": "latest"},
+             "encode": {"update": {
+                 "x": {"scale": "xband", "field": "label",
+                       "band": 0.5},
+                 "y": {"signal": "height * 0.68"},
+                 "text": {"field": "display"},
+                 "align": {"value": "center"},
+                 "baseline": {"value": "middle"},
+                 "fill": {"value": "#FFFFFF"},
+                 "fontWeight": {"value": "bold"},
+                 "fontSize": {"value": 16},
+             }}},
+            {"type": "text",
+             "encode": {"update": {
+                 "x": {"signal": "width / 2"},
+                 "y": {"signal": "height / 2"},
+                 "text": {"value": "NO DATA — alice-metrics has not "
+                                   "written yet"},
+                 "align": {"value": "center"},
+                 "baseline": {"value": "middle"},
+                 "fill": {"value": "#BD271E"},
+                 "fontWeight": {"value": "bold"},
+                 "fontSize": {"value": 16},
+                 "opacity": {"signal":
+                             "length(data('latest')) ? 0 : 1"},
+             }}},
+        ],
+    }
+    state = {
+        "title": title,
+        "type": "vega",
+        "aggs": [],
+        "params": {"spec": json.dumps(spec)},
+    }
+    return viz(vid, title, state, index_ref_on=False)
+
+
 def dashboard(panels):
     panels_json = []
     references = []
-    for i, (obj_type, obj_id, grid) in enumerate(panels, start=1):
+    for i, (obj_type, obj_id, grid, *extra) in enumerate(panels, start=1):
         ref_name = "panel_%d" % i
         pidx = str(i)
         panels_json.append({
             "version": PANEL_VERSION,
             "gridData": {**grid, "i": pidx},
             "panelIndex": pidx,
-            "embeddableConfig": {},
+            "embeddableConfig": extra[0] if extra else {},
             "panelRefName": ref_name,
         })
         references.append({"name": ref_name, "type": obj_type, "id": obj_id})
@@ -331,7 +448,10 @@ def dashboard(panels):
             "optionsJSON": json.dumps({"hidePanelTitles": False,
                                        "useMargins": True}),
             "version": 1,
-            "timeRestore": False,
+            "timeRestore": True,
+            "timeFrom": LOG_TIME_FROM,
+            "timeTo": "now",
+            "refreshInterval": {"pause": False, "value": REFRESH_MS},
             "kibanaSavedObjectMeta": {
                 "searchSourceJSON": json.dumps(
                     {"query": dql(""), "filter": []})
@@ -393,116 +513,122 @@ def build():
 
     header_md = (
         "## \U0001F6F0️ ALICE Cockpit\n"
-        "Unified view over **InfoLogger**, **DDS** and **stdout**. "
-        "Use the *log_source* filter to focus a single family, or open the "
-        "**[unified Discover](/app/data-explorer/discover)** and "
-        "*View surrounding documents* for cross-source time context."
-    )
-    index_mgmt_md = (
-        "### \U0001F527 Cluster health\n"
-        "**[Open Index Management →]"
-        "(/app/opensearch_index_management_dashboards#/indices)**\n\n"
-        "Indices table: health, shards, replicas, docs, size."
-    )
-    health_md = (
-        "## \U0001FA7A Platform health\n"
-        "Cluster, per-index, **Fluent Bit per node**, and Dashboards "
-        "self-health — sampled every 30 s by the `alice-metrics` poller "
-        "into `cockpit-metrics`."
+        "Unified view over **InfoLogger**, **DDS** and **stdout**. Two "
+        "clocks on one page: **health panels are live** (pinned to the last "
+        "hour, auto-refresh 30 s) — **log panels follow the time picker**, "
+        "preset to the replayed June 2026 event time. Open the "
+        "**[unified Discover](/app/data-explorer/discover)** for "
+        "*surrounding documents*, or use the *log_source* filter to focus "
+        "one family."
     )
     health_links_md = (
         "### \U0001F50E Drill down\n"
         "**[Index Management →]"
         "(/app/opensearch_index_management_dashboards#/indices)** — live "
-        "indices table: health, shards, replicas, docs, size.\n\n"
+        "indices: health, shards, replicas, docs, size.\n\n"
         "**[Query Insights →](/app/query-insights-dashboards)** — top-N "
         "queries by latency / CPU / memory, live queries."
     )
+    health_detail_md = (
+        "### \U0001FA7A Detailed platform health — live, last hour\n"
+        "Sampled every 30 s by `alice-metrics` into `cockpit-metrics`. "
+        "These panels ignore the time picker."
+    )
     objects += [
         markdown("alice-viz-header", "Cockpit header", header_md),
+        status_strip("alice-viz-status-strip", "Live status"),
         count_metric("alice-viz-total", "Total records"),
         count_metric("alice-viz-errwarn", "Errors & Warnings",
                      query=dql(ERRWARN_Q)),
         terms_table("alice-viz-bysource", "Records by source", "log_source"),
-        markdown("alice-viz-indexmgmt", "Cluster health link", index_mgmt_md),
+        markdown("alice-viz-health-links", "Health drill-down links",
+                 health_links_md),
         severity_over_time("alice-viz-sev-time", "Severity over time"),
         top_terms_bar("alice-viz-top-hosts", "Top hosts (dds / stdout)",
                       "host"),
         top_terms_bar("alice-viz-top-systems", "Top systems (infologger)",
                       "system"),
         markdown("alice-viz-health-header", "Platform health header",
-                 health_md),
+                 health_detail_md),
         latest_metric("alice-viz-cluster-status", "Cluster status",
-                      "cluster_status", "kind:cluster"),
+                      "cluster_status", "kind:cluster", label="status"),
         latest_metric("alice-viz-unassigned", "Unassigned shards",
-                      "unassigned_shards", "kind:cluster", aggregate="max"),
+                      "unassigned_shards", "kind:cluster", aggregate="max",
+                      label="unassigned"),
         latest_metric("alice-viz-osd-status", "Dashboards health",
-                      "osd_state", "kind:osd"),
+                      "osd_state", "kind:osd", label="state"),
         latest_table("alice-viz-fb-status", "Fluent Bit by node", "node",
-                     [("fb_up", "max"),
-                      ("output_records", "max"),
-                      ("output_errors", "max"),
-                      ("output_retries_failed", "max"),
-                      ("output_dropped", "max")],
+                     [("fb_up", "max", "up (1=yes)"),
+                      ("fb_healthy", "max", "healthy (1=yes)"),
+                      ("output_records", "max", "records shipped"),
+                      ("output_errors", "max", "errors"),
+                      ("output_retries_failed", "max", "failed retries"),
+                      ("output_dropped", "max", "dropped")],
                      "kind:fluentbit"),
-        markdown("alice-viz-health-links", "Health drill-down links",
-                 health_links_md),
-        metric_timechart("alice-viz-ingest-rate", "Ingest rate by index",
-                         [("sum", "docs_delta", "docs added")],
-                         "kind:index", group_field="index_name",
-                         kind="area", mode="stacked"),
+        metric_timechart("alice-viz-ingest-rate",
+                         "Indexing rate by index (ops / 30 s)",
+                         [("sum", "indexing_delta", "index ops")],
+                         "kind:index and not index_name:cockpit-metrics",
+                         group_field="index_name",
+                         kind="area", mode="stacked",
+                         y_title="ops / 30 s"),
         metric_timechart("alice-viz-index-size", "Index size on disk",
                          [("max", "store_bytes", "bytes")],
-                         "kind:index", group_field="index_name"),
+                         "kind:index", group_field="index_name",
+                         y_title="bytes"),
         metric_timechart("alice-viz-fb-throughput",
                          "Fluent Bit records shipped per node",
                          [("sum", "output_records_delta", "records")],
-                         "kind:fluentbit", group_field="node"),
+                         "kind:fluentbit", group_field="node",
+                         y_title="records / 30 s"),
         metric_timechart("alice-viz-fb-trouble",
                          "Fluent Bit errors / retries / drops",
                          [("sum", "output_errors_delta", "errors"),
                           ("sum", "output_retries_delta", "retries"),
                           ("sum", "output_dropped_delta", "dropped")],
-                         "kind:fluentbit", group_field="node"),
+                         "kind:fluentbit", group_field="node",
+                         y_title="events / 30 s"),
         latest_table("alice-viz-index-health", "Indices now", "index_name",
-                     [("index_health", "concat"),
-                      ("pri", "max"),
-                      ("rep", "max"),
-                      ("docs_count", "max"),
-                      ("store_bytes", "max")],
+                     [("index_health", "concat", "health"),
+                      ("pri", "max", "pri"),
+                      ("rep", "max", "rep"),
+                      ("docs_count", "max", "docs"),
+                      ("store_bytes", "max", "bytes")],
                      "kind:index"),
         metric_timechart("alice-viz-node-heap", "Node JVM heap %",
                          [("avg", "heap_percent", "heap %")],
-                         "kind:node", group_field="node"),
+                         "kind:node", group_field="node",
+                         y_title="%"),
         metric_timechart("alice-viz-osd-perf", "Dashboards response time",
                          [("avg", "response_avg_ms", "avg ms"),
                           ("max", "response_max_ms", "max ms")],
-                         "kind:osd"),
+                         "kind:osd", y_title="ms"),
     ]
 
+    live = {"timeRange": HEALTH_RANGE}
     panels = [
-        ("visualization", "alice-viz-header",        {"x": 0,  "y": 0,  "w": 48, "h": 4}),
-        ("visualization", "alice-viz-total",         {"x": 0,  "y": 4,  "w": 12, "h": 8}),
-        ("visualization", "alice-viz-errwarn",       {"x": 12, "y": 4,  "w": 12, "h": 8}),
-        ("visualization", "alice-viz-bysource",      {"x": 24, "y": 4,  "w": 12, "h": 8}),
-        ("visualization", "alice-viz-indexmgmt",     {"x": 36, "y": 4,  "w": 12, "h": 8}),
-        ("visualization", "alice-viz-sev-time",      {"x": 0,  "y": 12, "w": 48, "h": 12}),
-        ("visualization", "alice-viz-top-hosts",     {"x": 0,  "y": 24, "w": 24, "h": 12}),
-        ("visualization", "alice-viz-top-systems",   {"x": 24, "y": 24, "w": 24, "h": 12}),
-        ("search",        "alice-search-errwarn",    {"x": 0,  "y": 36, "w": 48, "h": 16}),
-        ("visualization", "alice-viz-health-header", {"x": 0,  "y": 52, "w": 48, "h": 3}),
-        ("visualization", "alice-viz-cluster-status", {"x": 0,  "y": 55, "w": 8,  "h": 8}),
-        ("visualization", "alice-viz-unassigned",    {"x": 8,  "y": 55, "w": 8,  "h": 8}),
-        ("visualization", "alice-viz-osd-status",    {"x": 16, "y": 55, "w": 8,  "h": 8}),
-        ("visualization", "alice-viz-fb-status",     {"x": 24, "y": 55, "w": 12, "h": 8}),
-        ("visualization", "alice-viz-health-links",  {"x": 36, "y": 55, "w": 12, "h": 8}),
-        ("visualization", "alice-viz-ingest-rate",   {"x": 0,  "y": 63, "w": 24, "h": 12}),
-        ("visualization", "alice-viz-index-size",    {"x": 24, "y": 63, "w": 24, "h": 12}),
-        ("visualization", "alice-viz-fb-throughput", {"x": 0,  "y": 75, "w": 24, "h": 12}),
-        ("visualization", "alice-viz-fb-trouble",    {"x": 24, "y": 75, "w": 24, "h": 12}),
-        ("visualization", "alice-viz-index-health",  {"x": 0,  "y": 87, "w": 16, "h": 12}),
-        ("visualization", "alice-viz-node-heap",     {"x": 16, "y": 87, "w": 16, "h": 12}),
-        ("visualization", "alice-viz-osd-perf",      {"x": 32, "y": 87, "w": 16, "h": 12}),
+        ("visualization", "alice-viz-header",         {"x": 0,  "y": 0,  "w": 48, "h": 6}),
+        ("visualization", "alice-viz-status-strip",   {"x": 0,  "y": 6,  "w": 48, "h": 5}),
+        ("visualization", "alice-viz-cluster-status", {"x": 0,  "y": 11, "w": 8,  "h": 8}, live),
+        ("visualization", "alice-viz-unassigned",     {"x": 8,  "y": 11, "w": 8,  "h": 8}, live),
+        ("visualization", "alice-viz-osd-status",     {"x": 16, "y": 11, "w": 8,  "h": 8}, live),
+        ("visualization", "alice-viz-fb-status",      {"x": 24, "y": 11, "w": 14, "h": 8}, live),
+        ("visualization", "alice-viz-health-links",   {"x": 38, "y": 11, "w": 10, "h": 8}),
+        ("visualization", "alice-viz-total",          {"x": 0,  "y": 19, "w": 16, "h": 8}),
+        ("visualization", "alice-viz-errwarn",        {"x": 16, "y": 19, "w": 16, "h": 8}),
+        ("visualization", "alice-viz-bysource",       {"x": 32, "y": 19, "w": 16, "h": 8}),
+        ("visualization", "alice-viz-sev-time",       {"x": 0,  "y": 27, "w": 48, "h": 12}),
+        ("visualization", "alice-viz-top-hosts",      {"x": 0,  "y": 39, "w": 24, "h": 12}),
+        ("visualization", "alice-viz-top-systems",    {"x": 24, "y": 39, "w": 24, "h": 12}),
+        ("search",        "alice-search-errwarn",     {"x": 0,  "y": 51, "w": 48, "h": 16}),
+        ("visualization", "alice-viz-health-header",  {"x": 0,  "y": 67, "w": 48, "h": 3}),
+        ("visualization", "alice-viz-ingest-rate",    {"x": 0,  "y": 70, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-index-size",     {"x": 24, "y": 70, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-fb-throughput",  {"x": 0,  "y": 82, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-fb-trouble",     {"x": 24, "y": 82, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-index-health",   {"x": 0,  "y": 94, "w": 16, "h": 12}, live),
+        ("visualization", "alice-viz-node-heap",      {"x": 16, "y": 94, "w": 16, "h": 12}, live),
+        ("visualization", "alice-viz-osd-perf",       {"x": 32, "y": 94, "w": 16, "h": 12}, live),
     ]
     objects.append(dashboard(panels))
     return objects

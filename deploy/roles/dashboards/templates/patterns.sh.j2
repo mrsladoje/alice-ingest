@@ -15,7 +15,7 @@ create_pattern() {
   case "$code" in
     200|201) echo "[init] created index-pattern: $id" ;;
     409)     echo "[init] index-pattern already exists: $id" ;;
-    *)       echo "[init] WARN: $id -> HTTP $code: $(cat /tmp/resp)" ;;
+    *)       echo "[init] FATAL: $id -> HTTP $code: $(cat /tmp/resp)"; exit 1 ;;
   esac
 }
 
@@ -32,8 +32,8 @@ wait_ready() {
     i=$((i + 1))
     sleep 3
   done
-  echo "[init] WARN: Dashboards not ready after 60 tries; proceeding best-effort"
-  return 0
+  echo "[init] FATAL: Dashboards not ready after 60 tries"
+  return 1
 }
 
 wait_index() {

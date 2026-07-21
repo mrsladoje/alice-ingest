@@ -44,7 +44,7 @@ the local dev path (Docker Compose on a single machine — see the root
 │ nginx (TLS+auth)   │   │                    │   │                    │
 │  :5601 (SG-open)   │   │ generic-log-other  │   │ infologger         │
 │ Dashboards :5602   │   │  + infologger:     │   │  + generic-log-other:
-│ one-shot bootstrap │   │  3 shards, 2 repl, require.role=storage, balanced across the 3
+│ idempotent bootstrap│   │  3 shards, 2 repl, require.role=storage, balanced across the 3
 │ alice-ops (/ops)   │   │  + cockpit-metrics: 1 shard, 2 repl, storage-pinned
 │ alice-metrics poller   │                    │   │                    │
 │ [alertmanager slot]│   │                    │   │                    │
@@ -71,7 +71,7 @@ hard-pinned tiers by shard-allocation `require` filtering:
 
 Exactly one VM — `alice-ingest-3`, the first storage node, the "control" host —
 additionally runs OpenSearch Dashboards, an nginx reverse proxy in front of it,
-and the one-shot cluster bootstrap (tier-aware index templates + per-worker
+and the idempotent cluster bootstrap (tier-aware index templates + per-worker
 index pre-creates, Dashboards index patterns).
 
 ---
@@ -102,7 +102,7 @@ index pre-creates, Dashboards index patterns).
   the local coordinator forwards them one hop to the storage tier — acceptable
   because that tier is low-volume. Only the 2 worker VMs run a collector.
 - **One control VM for Dashboards/nginx/bootstrap, on the storage tier.**
-  Dashboards and the one-shot bootstrap only need to exist once per cluster (any
+  Dashboards and the cluster bootstrap only need to exist once per cluster (any
   node answers cluster-wide API calls). It lives on `alice-ingest-3`, the first
   storage node — deliberately a storage node so the UI/bootstrap host is one that
   never runs the ingest firehose. Nothing else about it is special.
@@ -341,7 +341,8 @@ rather than ever leaking onto the wrong tier.
 
 **Dashboards:** `https://<control-VM-address>:5601` (control = `alice-ingest-3`),
 basic-auth user `alice` (password = `vault_dashboards_basic_auth_password`),
-self-signed cert (browser will warn — expected). The one-shot bootstrap
+self-signed cert (browser will warn — expected). The bootstrap (idempotent,
+re-run on every deploy)
 auto-provisions the three per-source index patterns (`infologger`,
 `generic-log-info-*`, `generic-log-other`; `generic-log-info-*` is a wildcard so
 both per-worker info indices appear together), plus the **unified**

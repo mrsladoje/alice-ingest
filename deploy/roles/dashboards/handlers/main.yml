@@ -24,21 +24,3 @@
     state: restarted
     daemon_reload: true
   listen: restart alice-metrics
-
-- name: Record that the OpenSearch templates bootstrap has completed
-  ansible.builtin.file:
-    path: "{{ dashboards_bootstrap_templates_marker }}"
-    state: touch
-    owner: root
-    group: root
-    mode: "0640"
-  listen: record templates bootstrap done
-
-- name: Record that the Dashboards index-pattern bootstrap has completed
-  ansible.builtin.file:
-    path: "{{ dashboards_bootstrap_patterns_marker }}"
-    state: touch
-    owner: root
-    group: root
-    mode: "0640"
-  listen: record patterns bootstrap done

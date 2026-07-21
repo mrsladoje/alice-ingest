@@ -1,13 +1,16 @@
 # {{ ansible_managed }}
 [Unit]
 Description=ALICE Cockpit metrics poller — control node
-After=network-online.target opensearch.service
+After=network-online.target opensearch.service opensearch-dashboards.service
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=root
-Group=root
+DynamicUser=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
 Environment=OS_URL=http://localhost:{{ opensearch_http_port }}
 Environment=OSD_URL=http://127.0.0.1:{{ dashboards_internal_port }}
 Environment=FB_TARGETS={% for h in groups['workers'] %}{{ hostvars[h].node_id }}=http://{{ hostvars[h].ansible_host }}:{{ fluent_bit_http_port }}{% if not loop.last %},{% endif %}{% endfor %}

@@ -7,6 +7,10 @@ service:
   http_server: on
   http_listen: 0.0.0.0
   http_port: {{ fluent_bit_http_port }}
+  health_check: on
+  hc_errors_count: 1
+  hc_retry_failure_count: 1
+  hc_period: 60
 
 multiline_parsers:
   - name: dds_multiline
