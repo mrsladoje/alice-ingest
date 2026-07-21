@@ -6,19 +6,19 @@ UNIFIED_ID = "alice-unified"
 UNIFIED_TITLE = "infologger,generic-log-*"
 TIME_FIELD = "@timestamp"
 
-ERRWARN_Q = "severity:(E OR F OR W OR Error OR Fatal OR Warning OR err)"
+ERRWARN_Q = "severity:(E or F or W or Error or Fatal or Warning or err)"
 
 INDEX_REF_NAME = "kibanaSavedObjectMeta.searchSourceJSON.index"
 
 DEFAULT_COLUMNS = ["log_source", "severity", "node", "message"]
 
 
-def lucene(q):
-    return {"language": "lucene", "query": q}
+def dql(q):
+    return {"language": "kuery", "query": q}
 
 
 def search_source(query=None, index_ref=True, filters=None):
-    src = {"query": query or lucene(""), "filter": filters or []}
+    src = {"query": query or dql(""), "filter": filters or []}
     if index_ref:
         src["indexRefName"] = INDEX_REF_NAME
     return src
@@ -39,7 +39,7 @@ def saved_search(sid, title, description, query, columns=None):
             "columns": columns or DEFAULT_COLUMNS,
             "sort": [[TIME_FIELD, "desc"]],
             "kibanaSavedObjectMeta": {
-                "searchSourceJSON": json.dumps(search_source(lucene(query)))
+                "searchSourceJSON": json.dumps(search_source(dql(query)))
             },
         },
         "references": index_ref(),
@@ -236,7 +236,7 @@ def dashboard(panels):
             "timeRestore": False,
             "kibanaSavedObjectMeta": {
                 "searchSourceJSON": json.dumps(
-                    {"query": lucene(""), "filter": []})
+                    {"query": dql(""), "filter": []})
             },
         },
         "references": references,
@@ -262,28 +262,28 @@ def build():
         saved_search(
             "alice-search-tcp", "TCP / connection issues",
             "Network trouble by message content.",
-            "message:(tcp OR connection OR refused OR timeout)"),
+            "message:(tcp or connection or refused or timeout)"),
         saved_search(
             "alice-search-detector", "By detector (TPC / ITS / MCH)",
             "InfoLogger records for a given detector.",
-            "detector:(TPC OR ITS OR MCH)"),
+            "detector:(TPC or ITS or MCH)"),
         saved_search(
             "alice-search-host", "One host — edit host:epnNNN",
             "One EPN's whole story; pairs with 'View surrounding documents'. "
             "host + hostname cover all three sources.",
-            "host:epn* OR hostname:epn*"),
+            "host:epn* or hostname:epn*"),
         saved_search(
             "alice-search-system", "By subsystem (ODC / DPL)",
             "InfoLogger records for a given O2 subsystem.",
-            "system:(ODC OR DPL)"),
+            "system:(ODC or DPL)"),
         saved_search(
             "alice-search-dds", "DDS problems",
             "Non-info DDS agent/workflow lines.",
-            "log_source:dds AND NOT severity:inf"),
+            "log_source:dds and not severity:inf"),
         saved_search(
             "alice-search-stdout", "stdout crashes",
             "Error/Fatal lines from the O2 process stdout family.",
-            "log_source:stdout AND severity:(Error OR Fatal)"),
+            "log_source:stdout and severity:(Error or Fatal)"),
     ]
 
     header_md = (
@@ -303,7 +303,7 @@ def build():
         markdown("alice-viz-header", "Cockpit header", header_md),
         count_metric("alice-viz-total", "Total records"),
         count_metric("alice-viz-errwarn", "Errors & Warnings",
-                     query=lucene(ERRWARN_Q)),
+                     query=dql(ERRWARN_Q)),
         terms_table("alice-viz-bysource", "Records by source", "log_source"),
         markdown("alice-viz-indexmgmt", "Cluster health link", index_mgmt_md),
         severity_over_time("alice-viz-sev-time", "Severity over time"),

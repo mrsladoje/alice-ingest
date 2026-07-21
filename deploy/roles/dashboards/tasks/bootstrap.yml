@@ -46,6 +46,43 @@
   environment:
     OSD_URL: "http://127.0.0.1:{{ dashboards_internal_port }}"
     OS_URL: "http://localhost:{{ opensearch_http_port }}"
-    COCKPIT_NDJSON: "{{ dashboards_bootstrap_cockpit_ndjson }}"
   changed_when: true
   notify: record patterns bootstrap done
+
+- name: Import the ALICE Cockpit saved objects (idempotent overwrite, every run)
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -s
+      - -o
+      - /tmp/cockpit-import.json
+      - -w
+      - "%{http_code}"
+      - -XPOST
+      - "http://127.0.0.1:{{ dashboards_internal_port }}/api/saved_objects/_import?overwrite=true"
+      - -H
+      - "osd-xsrf: true"
+      - --form
+      - "file=@{{ dashboards_bootstrap_cockpit_ndjson }}"
+  register: _cockpit_import
+  changed_when: true
+  retries: 10
+  delay: 6
+  until: _cockpit_import.stdout is search('200')
+  failed_when: false
+
+- name: Set the unified pattern as the default Discover index
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ dashboards_internal_port }}/api/opensearch-dashboards/settings/defaultIndex"
+    method: POST
+    headers:
+      osd-xsrf: "true"
+    body_format: json
+    body:
+      value: alice-unified
+    status_code: [200]
+  register: _set_default_index
+  retries: 5
+  delay: 3
+  until: _set_default_index.status == 200
+  failed_when: false

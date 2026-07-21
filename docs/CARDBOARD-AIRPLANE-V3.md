@@ -67,7 +67,7 @@ and push `il_max_objects` higher (via `make replay-fresh`) if the storage tier s
 
 ## 3. The ALICE Cockpit
 
-Provisioned via the existing marker-guarded bootstrap: `deploy/roles/dashboards/files/gen_cockpit.py` generates a static `cockpit.ndjson` (regenerate with `python3 gen_cockpit.py`), which `bootstrap.yml` stages and `patterns.sh.j2` imports (`_import?overwrite=true`) after creating the per-source patterns.
+Provisioned by the bootstrap: `deploy/roles/dashboards/files/gen_cockpit.py` generates a static `cockpit.ndjson` (regenerate with `python3 gen_cockpit.py`), which `bootstrap.yml` stages and imports via `_import?overwrite=true`, then sets the unified pattern as the default. The import runs on **every** deploy (idempotent overwrite), NOT behind the one-shot marker — so editing the queries and re-running `make deploy` updates the saved objects in place. The per-source index patterns are still created by the marker-guarded `patterns.sh`.
 
 **Unified index pattern** `infologger,generic-log-*` (time field `@timestamp`) is set as the **default** — the "one interface to rule them all" in Discover. The per-source patterns (`infologger`, `generic-log-info-*`, `generic-log-other`) are kept for focused views; a `log_source` filter chip narrows the unified view to one family.
 
@@ -85,17 +85,20 @@ OSD Discover's **"View surrounding documents"** shows N docs before/after an anc
 
 ### 3b. Seven seed saved searches
 
-All Lucene, all shipped in `cockpit.ndjson`:
+All in **DQL** (`language: kuery`), all shipped in `cockpit.ndjson`. DQL is the OSD
+default query language, and using it (rather than Lucene) is what makes an *opened*
+saved search re-apply its query reliably — Lucene-language saved queries don't
+restore into the Discover bar in OSD 2.17 (they open as match-all):
 
 | search | query |
 |---|---|
-| Errors & Warnings — all sources | `severity:(E OR F OR W OR Error OR Fatal OR Warning OR err)` |
-| TCP / connection issues | `message:(tcp OR connection OR refused OR timeout)` |
-| By detector (TPC/ITS/MCH) | `detector:(TPC OR ITS OR MCH)` |
-| One host — edit host:epnNNN | `host:epn* OR hostname:epn*` |
-| By subsystem (ODC/DPL) | `system:(ODC OR DPL)` |
-| DDS problems | `log_source:dds AND NOT severity:inf` |
-| stdout crashes | `log_source:stdout AND severity:(Error OR Fatal)` |
+| Errors & Warnings — all sources | `severity:(E or F or W or Error or Fatal or Warning or err)` |
+| TCP / connection issues | `message:(tcp or connection or refused or timeout)` |
+| By detector (TPC/ITS/MCH) | `detector:(TPC or ITS or MCH)` |
+| One host — edit host:epnNNN | `host:epn* or hostname:epn*` |
+| By subsystem (ODC/DPL) | `system:(ODC or DPL)` |
+| DDS problems | `log_source:dds and not severity:inf` |
+| stdout crashes | `log_source:stdout and severity:(Error or Fatal)` |
 
 **The severity wrinkle.** Severity is encoded differently per source — InfoLogger single-char `I/W/E/F`, stdout words `Info/Warning/Error/Fatal/Sys`, DDS lowercase `inf/err/cout` — so any cross-source severity query ORs every encoding (the mapping is left untouched). Likewise host lives on `host` (dds/stdout) but `hostname` (infologger), so the one-host search ORs both; narrow it to a single EPN and pair it with surrounding-documents.
 

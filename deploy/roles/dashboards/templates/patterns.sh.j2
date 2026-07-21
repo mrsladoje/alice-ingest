@@ -48,33 +48,6 @@ wait_index() {
   return 1
 }
 
-import_cockpit() {
-  ndjson="${COCKPIT_NDJSON:-}"
-  if [ -z "$ndjson" ] || [ ! -f "$ndjson" ]; then
-    echo "[init] cockpit NDJSON not provided/found ($ndjson); skipping"
-    return 0
-  fi
-  code=$(curl -s -o /tmp/resp -w '%{http_code}' \
-    -XPOST "$OSD/api/saved_objects/_import?overwrite=true" \
-    -H 'osd-xsrf: true' --form file=@"$ndjson")
-  case "$code" in
-    200) echo "[init] cockpit saved objects imported: $(cat /tmp/resp)" ;;
-    *)   echo "[init] WARN: cockpit import -> HTTP $code: $(cat /tmp/resp)" ;;
-  esac
-}
-
-set_default_index() {
-  id="$1"
-  code=$(curl -s -o /tmp/resp -w '%{http_code}' \
-    -XPOST "$OSD/api/opensearch-dashboards/settings/defaultIndex" \
-    -H 'osd-xsrf: true' -H 'Content-Type: application/json' \
-    -d "{\"value\":\"$id\"}")
-  case "$code" in
-    200) echo "[init] default index-pattern set to $id" ;;
-    *)   echo "[init] WARN: defaultIndex -> HTTP $code: $(cat /tmp/resp)" ;;
-  esac
-}
-
 wait_ready
 for p in $PATTERNS; do
   if wait_index "$p"; then
@@ -84,6 +57,4 @@ for p in $PATTERNS; do
   fi
   create_pattern "$p"
 done
-import_cockpit
-set_default_index "alice-unified"
-echo "[init] index-pattern + cockpit provisioning done"
+echo "[init] index-pattern provisioning done"
