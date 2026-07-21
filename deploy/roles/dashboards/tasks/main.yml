@@ -16,5 +16,8 @@
 - name: Ops trigger service (replay button) behind nginx
   ansible.builtin.import_tasks: ops.yml
 
+- name: Metrics poller service (cockpit health panels)
+  ansible.builtin.import_tasks: metrics.yml
+
 - name: One-shot cluster bootstrap (index templates + Dashboards index-patterns)
   ansible.builtin.import_tasks: bootstrap.yml

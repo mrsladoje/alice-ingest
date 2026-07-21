@@ -1,9 +1,7 @@
-opensearch_yum_repo_baseurl: "https://artifacts.opensearch.org/releases/bundle/opensearch/2.x/yum"
+opensearch_yum_repo_baseurl: "https://artifacts.opensearch.org/releases/bundle/opensearch/{{ opensearch_version.split('.')[0] }}.x/yum"
 opensearch_yum_repo_gpgkey: "https://artifacts.opensearch.org/publickeys/opensearch-release.pgp"
 
 opensearch_package: "opensearch-{{ opensearch_version }}"
-
-opensearch_install_throwaway_admin_password: "Th1s-Is-Not-Used-Security-Disabled!"
 
 opensearch_service_name: opensearch
 

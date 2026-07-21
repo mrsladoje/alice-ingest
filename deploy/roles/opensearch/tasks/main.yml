@@ -1,44 +1,24 @@
-- name: Add official OpenSearch 2.x yum repository
+- name: Add the official OpenSearch yum repository
   ansible.builtin.yum_repository:
-    name: opensearch-2.x
-    description: OpenSearch 2.x repository
+    name: "opensearch-{{ opensearch_version.split('.')[0] }}.x"
+    description: "OpenSearch {{ opensearch_version.split('.')[0] }}.x repository"
     baseurl: "{{ opensearch_yum_repo_baseurl }}"
     enabled: true
     gpgcheck: true
     gpgkey: "{{ opensearch_yum_repo_gpgkey }}"
 
-- name: Check whether the OpenSearch package is already installed
-  ansible.builtin.command: rpm -q opensearch
-  register: _opensearch_installed
-  changed_when: false
-  failed_when: false
+- name: Import the OpenSearch RPM GPG signing key into the rpm keyring
+  ansible.builtin.rpm_key:
+    state: present
+    key: "{{ opensearch_yum_repo_gpgkey }}"
 
-- name: Install OpenSearch under a temporary SHA1-permitting crypto policy (RHEL9 blocks the SHA1-signed OpenSearch key and package)
-  when: _opensearch_installed.rc != 0
-  block:
-    - name: Temporarily allow SHA1 signatures in the system crypto policy
-      ansible.builtin.command: update-crypto-policies --set DEFAULT:SHA1
-      changed_when: true
-
-    - name: Import the OpenSearch RPM GPG signing keys into the rpm keyring
-      ansible.builtin.rpm_key:
-        state: present
-        key: "{{ item }}"
-      loop:
-        - https://artifacts.opensearch.org/publickeys/opensearch.pgp
-        - https://artifacts.opensearch.org/publickeys/opensearch-release.pgp
-
-    - name: Install OpenSearch RPM (version-pinned to match the compose image tag)
-      ansible.builtin.dnf:
-        name: "{{ opensearch_package }}"
-        state: present
-        update_cache: true
-      environment:
-        OPENSEARCH_INITIAL_ADMIN_PASSWORD: "{{ opensearch_install_throwaway_admin_password }}"
-  always:
-    - name: Restore the default crypto policy (disallow SHA1 again)
-      ansible.builtin.command: update-crypto-policies --set DEFAULT
-      changed_when: true
+- name: Install OpenSearch RPM (version-pinned, security demo config suppressed)
+  ansible.builtin.dnf:
+    name: "{{ opensearch_package }}"
+    state: present
+    update_cache: true
+  environment:
+    DISABLE_INSTALL_DEMO_CONFIG: "true"
 
 - name: Ensure OpenSearch data directory exists with correct ownership
   ansible.builtin.file:

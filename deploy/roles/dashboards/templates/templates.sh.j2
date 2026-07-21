@@ -176,6 +176,83 @@ INFOLOGGER_INDEX_TPL=$(cat <<'JSON'
 JSON
 )
 
+COCKPIT_METRICS_TPL=$(cat <<'JSON'
+{
+  "index_patterns": ["{{ cockpit_metrics_index }}"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 2,
+      "codec": "zstd",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "@timestamp":            { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "kind":                  { "type": "keyword" },
+        "node":                  { "type": "keyword" },
+        "index_name":            { "type": "keyword" },
+        "cluster_status":        { "type": "keyword" },
+        "cluster_status_code":   { "type": "short" },
+        "nodes_count":           { "type": "short" },
+        "active_shards":         { "type": "integer" },
+        "relocating_shards":     { "type": "integer" },
+        "initializing_shards":   { "type": "integer" },
+        "unassigned_shards":     { "type": "integer" },
+        "pending_tasks":         { "type": "integer" },
+        "index_health":          { "type": "keyword" },
+        "pri":                   { "type": "short" },
+        "rep":                   { "type": "short" },
+        "docs_count":            { "type": "long" },
+        "docs_delta":            { "type": "long" },
+        "store_bytes":           { "type": "long" },
+        "heap_percent":          { "type": "short" },
+        "cpu_percent":           { "type": "short" },
+        "disk_used_percent":     { "type": "float" },
+        "indexing_total":        { "type": "long" },
+        "indexing_delta":        { "type": "long" },
+        "fb_up":                 { "type": "short" },
+        "input_records":         { "type": "long" },
+        "input_records_delta":   { "type": "long" },
+        "output_records":        { "type": "long" },
+        "output_records_delta":  { "type": "long" },
+        "output_errors":         { "type": "long" },
+        "output_errors_delta":   { "type": "long" },
+        "output_retries":        { "type": "long" },
+        "output_retries_delta":  { "type": "long" },
+        "output_retries_failed": { "type": "long" },
+        "output_dropped":        { "type": "long" },
+        "output_dropped_delta":  { "type": "long" },
+        "osd_state":             { "type": "keyword" },
+        "osd_state_code":        { "type": "short" },
+        "rss_bytes":             { "type": "long" },
+        "event_loop_delay":      { "type": "float" },
+        "load_1m":               { "type": "float" },
+        "response_avg_ms":       { "type": "float" },
+        "response_max_ms":       { "type": "float" },
+        "requests_total":        { "type": "integer" },
+        "concurrent_connections": { "type": "integer" }
+      }
+    }
+  },
+  "_meta": { "note": "cockpit health metrics from the alice-metrics poller; durable, storage tier" }
+}
+JSON
+)
+
+QUERY_INSIGHTS_SETTINGS=$(cat <<'JSON'
+{
+  "persistent": {
+    "search.insights.top_queries.latency.enabled": true,
+    "search.insights.top_queries.cpu.enabled": true,
+    "search.insights.top_queries.memory.enabled": true
+  }
+}
+JSON
+)
+
 INGEST_PIPELINE=$(cat <<'JSON'
 {
   "description": "Stamp ingest_time = the moment OpenSearch received the doc (distinct from @timestamp = source/event time). Two-timestamp model.",
@@ -199,6 +276,9 @@ put "/_component_template/alice-logs-infologger-mappings" "$INFOLOGGER_MAPPINGS"
 put "/_index_template/alice-logs-generic-info"  "$GENERIC_INFO_TPL"     "index template alice-logs-generic-info"
 put "/_index_template/alice-logs-generic-other" "$GENERIC_OTHER_TPL"    "index template alice-logs-generic-other"
 put "/_index_template/alice-logs-infologger"    "$INFOLOGGER_INDEX_TPL" "index template alice-logs-infologger"
+put "/_index_template/alice-cockpit-metrics"    "$COCKPIT_METRICS_TPL"  "index template alice-cockpit-metrics"
+
+put "/_cluster/settings" "$QUERY_INSIGHTS_SETTINGS" "query insights top-n settings"
 
 for wn in $WORKER_NODES; do
   ensure_index "generic-log-info-$wn" \

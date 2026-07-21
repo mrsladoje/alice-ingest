@@ -3,7 +3,11 @@
 This tree takes the ALICE O2 logging paper-airplane from "Docker Compose on
 one machine" to **5 CERN OpenStack VMs, native systemd services, one 5-node
 two-tier OpenSearch cluster** (2 worker + 3 storage), provisioned and
-configured with pure Ansible. It evolves the earlier flat 3-VM layout (tag
+configured with pure Ansible. As of v4 the native stack runs **OpenSearch +
+Dashboards 3.7.0** (see
+[`../docs/CARDBOARD-AIRPLANE-V4.md`](../docs/CARDBOARD-AIRPLANE-V4.md) for the
+migration and the finished cockpit; the compose stack deliberately stays on
+2.17). It evolves the earlier flat 3-VM layout (tag
 `cardboard-airplane-v1`) into a value-based storage split: high-volume, low-value
 `info` logs stay strictly local and disposable on the worker that produced them,
 while low-volume, high-value logs (`other` + infologger) are shipped to a
@@ -41,6 +45,8 @@ the local dev path (Docker Compose on a single machine — see the root
 │  :5601 (SG-open)   │   │ generic-log-other  │   │ infologger         │
 │ Dashboards :5602   │   │  + infologger:     │   │  + generic-log-other:
 │ one-shot bootstrap │   │  3 shards, 2 repl, require.role=storage, balanced across the 3
+│ alice-ops (/ops)   │   │  + cockpit-metrics: 1 shard, 2 repl, storage-pinned
+│ alice-metrics poller   │                    │   │                    │
 │ [alertmanager slot]│   │                    │   │                    │
 └───────────────────┘   └───────────────────┘   └───────────────────┘
   Storage tier runs NO collector and NO producer — it never touches the ingest firehose.
@@ -324,6 +330,7 @@ Expected indices and placement (rendered by the native bootstrap, forked from
 | `generic-log-info-node-02` | 1 | **0** | worker node-02 only (`require.box: node-02`) |
 | `generic-log-other` | 3 | **2** | storage tier only (`require.role: storage`) |
 | `infologger` | 3 | **2** | storage tier only (`require.role: storage`) |
+| `cockpit-metrics` | 1 | **2** | storage tier only (`require.role: storage`) — health samples from the `alice-metrics` poller |
 
 The two per-worker `generic-log-info-*` indices are single-shard, zero-replica,
 and hard-pinned to their own VM — if a worker dies its info index is lost with no
@@ -338,9 +345,13 @@ self-signed cert (browser will warn — expected). The one-shot bootstrap
 auto-provisions the three per-source index patterns (`infologger`,
 `generic-log-info-*`, `generic-log-other`; `generic-log-info-*` is a wildcard so
 both per-worker info indices appear together), plus the **unified**
-`infologger,generic-log-*` pattern (set as the Discover default), seven seed saved
-searches, and the **ALICE Cockpit** home dashboard — no manual setup. See
-[`../docs/CARDBOARD-AIRPLANE-V3.md`](../docs/CARDBOARD-AIRPLANE-V3.md).
+`infologger,generic-log-*` pattern (set as the Discover default), the
+`cockpit-metrics` pattern, seven seed saved searches, and the **ALICE Cockpit**
+home dashboard — logs on top, a platform-health band (cluster status, per-index
+state, Fluent Bit per node, Dashboards self-health) below, with drill-down links
+to the bundled Index Management and Query Insights UIs — no manual setup. See
+[`../docs/CARDBOARD-AIRPLANE-V3.md`](../docs/CARDBOARD-AIRPLANE-V3.md) and
+[`../docs/CARDBOARD-AIRPLANE-V4.md`](../docs/CARDBOARD-AIRPLANE-V4.md).
 
 **Gotcha — data is ~June 2026.** The replayed logs are historical (the
 `RUN_TAG` in `group_vars/all.yml` pins a specific S3 replay window). If

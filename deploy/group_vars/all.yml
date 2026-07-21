@@ -1,4 +1,4 @@
-opensearch_version: "2.17.0"
+opensearch_version: "3.7.0"
 opensearch_cluster_name: alice-logs
 
 opensearch_heap_size: "512m"
@@ -33,6 +33,9 @@ infologger_prefix: "infologger-2026/"
 
 replay_http_port: 8088
 node_count: "{{ groups['workers'] | length }}"
+
+cockpit_metrics_index: cockpit-metrics
+cockpit_metrics_interval_seconds: 30
 
 dds_replay_rate: 400
 il_replay_rate: 500

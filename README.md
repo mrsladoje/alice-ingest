@@ -27,15 +27,18 @@ patterns auto-provisioned on startup. Still no Kafka, no Grafana (next flight).
 > Compose on one machine" to real multi-VM provisioning and a genuine OpenSearch
 > cluster. **v2** split that cluster into two tiers — 2 worker nodes holding
 > disposable, node-local `info` logs, plus 3 replicated storage nodes for the
-> valuable `other` + infologger logs. **v3** (this tree) adds a triggered
-> **replay button** (`make replay`), more real data, and the auto-provisioned
-> **ALICE Cockpit** dashboard. The single-machine path is unchanged and remains the
+> valuable `other` + infologger logs. **v3** added a triggered **replay button**
+> (`make replay`), more real data, and the auto-provisioned **ALICE Cockpit**
+> dashboard. **v4** (this tree) migrates the native stack to **OpenSearch +
+> Dashboards 3.7** (fixing saved-search restore) and finishes the cockpit with a
+> platform-health band: cluster + per-index state, Fluent Bit per node, and
+> Dashboards self-health. The single-machine path is unchanged and remains the
 > local dev loop.
 
 | | Paper airplane | Cardboard airplane |
 |---|---|---|
 | Runtime | Docker Compose, 1 machine | 5 CERN OpenStack VMs, native systemd |
-| OpenSearch | single node | 5-node two-tier cluster (2 worker + 3 storage, quorum 2) |
+| OpenSearch | single node, 2.17 | 5-node two-tier cluster (2 worker + 3 storage, quorum 2), 3.7 |
 | Orchestration | `docker compose` | Ansible (provision → configure → teardown) |
 | Bring up | `make run` | `make provision && make deploy && make replay` |
 | Full docs | [`docs/PAPER-AIRPLANE.md`](docs/PAPER-AIRPLANE.md) | [`deploy/README.md`](deploy/README.md) |
@@ -97,9 +100,10 @@ replay`. See [`docs/CARDBOARD-AIRPLANE-V3.md`](docs/CARDBOARD-AIRPLANE-V3.md).
 ssh -L 5601:<control-VM-internal-ip>:5601 lxplus.cern.ch    # then https://localhost:5601
 ```
 
-Open the **ALICE Cockpit** dashboard (auto-provisioned) for the unified health view,
-or Discover on the default `infologger,generic-log-*` pattern with the seven seed
-saved searches. For a browser-driven load without the CLI, the control node also
+Open the **ALICE Cockpit** dashboard (auto-provisioned) for the unified view —
+logs on top, platform health (cluster, per-index, Fluent Bit per node, Dashboards
+itself) below — or Discover on the default `infologger,generic-log-*` pattern
+with the seven seed saved searches (which apply their query on open, the v4 fix). For a browser-driven load without the CLI, the control node also
 serves an ops page at **`https://<control-VM>:5601/ops`** (same basic-auth) with
 **Reload data (fresh)** / **Append replay** buttons and a live doc count. Data is
 historical (~June 2026, pinned by `RUN_TAG`) — if Discover looks empty, widen the

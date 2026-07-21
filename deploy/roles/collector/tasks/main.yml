@@ -12,6 +12,17 @@
     name: "{{ collector_service_name }}-{{ fluent_bit_version }}"
     state: present
 
+- name: Open the Fluent Bit metrics endpoint ({{ fluent_bit_http_port }}/tcp) to the control node
+  ansible.posix.firewalld:
+    rich_rule: >-
+      rule family="ipv4"
+      source address="{{ hostvars[groups['control'][0]].ansible_host }}"
+      port port="{{ fluent_bit_http_port }}" protocol="tcp"
+      accept
+    permanent: true
+    immediate: true
+    state: enabled
+
 - name: Create log_root and its dds/stdout subdirectories (local producers write here, this collector tails them)
   ansible.builtin.file:
     path: "{{ item }}"

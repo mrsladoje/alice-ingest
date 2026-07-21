@@ -8,31 +8,12 @@
     repo_gpgcheck: false
     gpgkey: https://artifacts.opensearch.org/publickeys/opensearch-release.pgp
 
-- name: Check whether the OpenSearch Dashboards package is already installed
-  ansible.builtin.command: rpm -q opensearch-dashboards
-  register: _dashboards_installed
-  changed_when: false
-  failed_when: false
+- name: Import the OpenSearch RPM GPG signing key into the rpm keyring
+  ansible.builtin.rpm_key:
+    state: present
+    key: https://artifacts.opensearch.org/publickeys/opensearch-release.pgp
 
-- name: Install OpenSearch Dashboards under a temporary SHA1-permitting crypto policy (RHEL9 blocks the SHA1-signed OpenSearch key and package)
-  when: _dashboards_installed.rc != 0
-  block:
-    - name: Temporarily allow SHA1 signatures in the system crypto policy
-      ansible.builtin.command: update-crypto-policies --set DEFAULT:SHA1
-      changed_when: true
-
-    - name: Import the OpenSearch RPM GPG signing keys into the rpm keyring
-      ansible.builtin.rpm_key:
-        state: present
-        key: "{{ item }}"
-      loop:
-        - https://artifacts.opensearch.org/publickeys/opensearch.pgp
-        - https://artifacts.opensearch.org/publickeys/opensearch-release.pgp
-
-    - name: Install OpenSearch Dashboards {{ opensearch_version }}
-      ansible.builtin.dnf:
-        name: "opensearch-dashboards-{{ opensearch_version }}"
-        state: present
-  always:
-    - name: Restore the default crypto policy (disallow SHA1 again)
-      ansible.builtin.command: update-crypto-policies --set DEFAULT
+- name: Install OpenSearch Dashboards {{ opensearch_version }}
+  ansible.builtin.dnf:
+    name: "opensearch-dashboards-{{ opensearch_version }}"
+    state: present
