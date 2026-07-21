@@ -1,3 +1,11 @@
+- name: Ensure the app root exists for the control-node services
+  ansible.builtin.file:
+    path: "{{ dashboards_ops_script | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Install the ops trigger service script
   ansible.builtin.copy:
     src: ops_server.py
