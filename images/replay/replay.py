@@ -43,10 +43,8 @@ import sys
 import tarfile
 import threading
 import time
-from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
-
 
 import boto3
 from botocore.config import Config
@@ -115,9 +113,6 @@ AUTOSTART_FAMILIES = os.environ.get("AUTOSTART_FAMILIES", "infologger,dds,stdout
 AUTOSTART_MARKER = os.environ.get(
     "AUTOSTART_MARKER", "/var/log/node/.replay-autostart-done")
 
-REPLAY_CLOCK = os.environ.get("REPLAY_CLOCK", "preserved").strip().lower()
-_CLOCK_OFFSET_SEC = 0.0
-
 # The 16 InfoLogger columns, in mysqldump order (see the real CREATE TABLE).
 IL_COLUMNS = [
     "severity", "level", "timestamp", "hostname", "rolename", "pid", "username",
@@ -149,152 +144,6 @@ def _stdout_event_ts(member_name):
     if not m:
         return None
     return f"{m.group(1)} {m.group(2)}:{m.group(3)}:{m.group(4)}"
-
-
-_DDS_TS_RE = re.compile(
-    rb"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)")
-
-
-def _parse_wall_ts(s):
-    if s is None:
-        return None
-    if isinstance(s, (int, float)):
-        return float(s)
-    text = str(s).strip()
-    if not text:
-        return None
-    if text[0].isdigit() and "-" not in text[:4] and "T" not in text and " " not in text:
-        return float(text)
-    for fmt in (
-        "%Y-%m-%d %H:%M:%S.%f",
-        "%Y-%m-%d %H:%M:%S",
-        "%Y-%m-%dT%H:%M:%S.%fZ",
-        "%Y-%m-%dT%H:%M:%SZ",
-        "%Y-%m-%dT%H:%M:%S.%f",
-        "%Y-%m-%dT%H:%M:%S",
-    ):
-        try:
-            return datetime.strptime(text.replace("Z", ""), fmt.replace("Z", "")).replace(
-                tzinfo=timezone.utc).timestamp()
-        except ValueError:
-            continue
-    return None
-
-
-def _format_wall_ts(epoch, with_frac=True):
-    dt = datetime.fromtimestamp(epoch, tz=timezone.utc)
-    if with_frac:
-        return dt.strftime("%Y-%m-%d %H:%M:%S.%f")
-    return dt.strftime("%Y-%m-%d %H:%M:%S")
-
-
-def _shift_epoch(value):
-    if _CLOCK_OFFSET_SEC == 0:
-        return value
-    base = _parse_wall_ts(value)
-    if base is None:
-        return value
-    return base + _CLOCK_OFFSET_SEC
-
-
-def _shift_stdout_ts(ts_str):
-    if _CLOCK_OFFSET_SEC == 0 or ts_str is None:
-        return ts_str
-    base = _parse_wall_ts(ts_str)
-    if base is None:
-        return ts_str
-    return _format_wall_ts(base + _CLOCK_OFFSET_SEC, with_frac=False)
-
-
-def _shift_dds_line(raw):
-    if _CLOCK_OFFSET_SEC == 0:
-        return raw
-    m = _DDS_TS_RE.match(raw)
-    if not m:
-        return raw
-    base = _parse_wall_ts(m.group(1).decode())
-    if base is None:
-        return raw
-    new_ts = _format_wall_ts(base + _CLOCK_OFFSET_SEC, with_frac=True).encode()
-    return new_ts + raw[m.end(1):]
-
-
-def _init_shifted_clock(s3, families):
-    global _CLOCK_OFFSET_SEC
-    _CLOCK_OFFSET_SEC = 0.0
-    if REPLAY_CLOCK != "shifted":
-        log(f"clock: mode={REPLAY_CLOCK} (timestamps preserved)")
-        return
-    earliest = None
-
-    if "infologger" in families:
-        scanned = 0
-        for key, size in list_objects(s3, INFOLOGGER_PREFIX):
-            if size <= 1000:
-                continue
-            scanned += 1
-            if scanned > 8:
-                break
-            body = s3.get_object(Bucket=S3_BUCKET, Key=key)["Body"]
-            rows = 0
-            with gzip.GzipFile(fileobj=body) as gz:
-                for raw in gz:
-                    line = raw.decode("utf-8", "replace")
-                    if not line.startswith("INSERT INTO"):
-                        continue
-                    for vals in parse_insert_rows(line):
-                        if len(vals) != len(IL_COLUMNS):
-                            continue
-                        ts = _parse_wall_ts(vals[IL_COLUMNS.index("timestamp")])
-                        if ts is None:
-                            continue
-                        earliest = ts if earliest is None else min(earliest, ts)
-                        rows += 1
-                        if rows >= 200:
-                            break
-                    if rows >= 200:
-                        break
-
-    if "dds" in families or "stdout" in families:
-        prefix = f"dds/{RUN_TAG}_"
-        checked = 0
-        for key, size in list_objects(s3, prefix):
-            if checked >= 12:
-                break
-            m = _HOST_RE.search(key)
-            if not m:
-                continue
-            checked += 1
-            body = s3.get_object(Bucket=S3_BUCKET, Key=key)["Body"]
-            with tarfile.open(fileobj=body, mode="r|gz") as tar:
-                for member in tar:
-                    if not member.isfile():
-                        continue
-                    name = member.name
-                    if re.search(r"/dds_\d{4}-\d{2}-\d{2}\.\d+\.log$", "/" + name):
-                        src = tar.extractfile(member)
-                        if src is not None:
-                            for _ in range(20):
-                                first = src.readline()
-                                if not first:
-                                    break
-                                mts = _DDS_TS_RE.match(first)
-                                if mts:
-                                    ts = _parse_wall_ts(mts.group(1).decode())
-                                    if ts is not None:
-                                        earliest = ts if earliest is None else min(earliest, ts)
-                    elif _STDOUT_MEMBER_RE.search(name):
-                        ev = _stdout_event_ts(name)
-                        ts = _parse_wall_ts(ev)
-                        if ts is not None:
-                            earliest = ts if earliest is None else min(earliest, ts)
-
-    if earliest is None:
-        log("clock: shifted requested but no event timestamps found; leaving preserved")
-        return
-    _CLOCK_OFFSET_SEC = time.time() - earliest
-    log(f"clock: mode=shifted offset_sec={_CLOCK_OFFSET_SEC:.3f} "
-        f"earliest={_format_wall_ts(earliest)}")
 
 
 def log(msg: str) -> None:
@@ -465,8 +314,6 @@ def replay_infologger(s3, stop: threading.Event) -> dict:
                     if len(vals) != len(IL_COLUMNS):
                         continue  # skip anything that didn't parse to 16 fields
                     record = dict(zip(IL_COLUMNS, vals))
-                    if _CLOCK_OFFSET_SEC:
-                        record["timestamp"] = _shift_epoch(record.get("timestamp"))
                     payload = (json.dumps(record) + "\n").encode()
                     send(node_index_for(str(record.get("hostname") or "")), payload)
                     sent += 1
@@ -560,17 +407,21 @@ def replay_tarballs(s3, stop: threading.Event, want_dds, want_stdout) -> list:
                         r"/dds_\d{4}-\d{2}-\d{2}\.\d+\.log$", "/" + name)):
                     src = tar.extractfile(member)
                     if src is not None:
-                        dds_buf = [_shift_dds_line(line) for line in src]
+                        dds_buf = list(src)          # whole firehose, uncapped
                     firehose_done = True
                 elif (stdout_on and _STDOUT_MEMBER_RE.search(name)
                         and (not STDOUT_MAX_MEMBERS or picked < STDOUT_MAX_MEMBERS)):
                     src = tar.extractfile(member)
                     if src is not None:
-                        ev = _shift_stdout_ts(_stdout_event_ts(name))
+                        ev = _stdout_event_ts(name)  # process start-time from name
                         kept = 0
                         for raw in src:
                             if STDOUT_MAX_LINES and kept >= STDOUT_MAX_LINES:
                                 break
+                            # Prepend derived event-time to record-START lines
+                            # only; indented continuations (module-loading block,
+                            # stack traces) keep their leading whitespace so the
+                            # collector's multiline parser still folds them.
                             if ev is not None and raw[:1] not in (b" ", b"\t", b"\n"):
                                 raw = f"{ev}.{kept % 1000000:06d} ".encode() + raw
                             stdout_buf.append(raw)
@@ -617,7 +468,11 @@ def replay_tarballs(s3, stop: threading.Event, want_dds, want_stdout) -> list:
 
 # --- orchestration -----------------------------------------------------------
 def run_replay(families, stop: threading.Event) -> list:
-    _init_shifted_clock(s3_client(), families)
+    # Run the families CONCURRENTLY (one thread each, own S3 client) so every
+    # index appears within seconds — otherwise the dense InfoLogger phase blocks
+    # the others for tens of minutes. InfoLogger streams over TCP; DDS + stdout
+    # share ONE tarball per node, so they run together in a single pass (one
+    # download feeds both) rather than fighting over a double get_object.
     want_dds, want_stdout = "dds" in families, "stdout" in families
     fns = []
     if "infologger" in families:
