@@ -151,17 +151,26 @@
     mode: "0644"
   notify: restart alice-replay
 
+- name: Ensure alice-replay drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/{{ producer_service_name }}.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install alice-replay clock-mode drop-in from group_vars
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/{{ producer_service_name }}.service.d/clock.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Service]
+      Environment=REPLAY_CLOCK={{ replay_clock | default('preserved') }}
+  notify: restart alice-replay
+
 - name: Apply any pending restart now, before the one-shot autostart can be interrupted
-  # First-run fidelity: replay.py's _maybe_autostart() writes AUTOSTART_MARKER up
-  # front and then runs the minutes-long run_replay(). If any of the templated/
-  # copied tasks above (replay.py, wrapper, venv, creds, unit) notified
-  # 'restart alice-replay', that handler would otherwise flush at END of play —
-  # AFTER the 'started' task below has already kicked off autostart — SIGTERMing
-  # mid-ingest. The restarted process then sees the marker already present and
-  # skips autostart entirely (replay.py comment: recovery needs a manual
-  # POST /replay). Flushing here forces the restart (if any) to happen BEFORE
-  # the service is asked to run, so autostart completes uninterrupted and the
-  # task below becomes a true no-op (enable-at-boot only).
   ansible.builtin.meta: flush_handlers
 
 - name: Enable and start alice-replay

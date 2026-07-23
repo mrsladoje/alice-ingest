@@ -13,11 +13,13 @@ FB_TARGETS = [
 METRICS_INDEX = os.environ.get("METRICS_INDEX", "cockpit-metrics")
 INTERVAL = int(os.environ.get("INTERVAL", "30"))
 MAX_BULK_FAILURES = int(os.environ.get("MAX_BULK_FAILURES", "20"))
+INFO_NODES = [n for n in os.environ.get("INFO_NODES", "").split(",") if n]
 
 STATE_CODES = {"green": 0, "yellow": 1, "red": 2}
 
 _prev = {}
 _bulk_failures = 0
+_info_ensured = False
 
 
 def log(msg):
@@ -54,6 +56,31 @@ def delta(key, value):
     if prev is None:
         return 0
     return max(0, value - prev)
+
+
+def ensure_info_indices():
+    global _info_ensured
+    if _info_ensured or not INFO_NODES:
+        return
+    for node in INFO_NODES:
+        idx = f"generic-log-info-{node}"
+        status, _ = fetch(f"{OS_URL}/{idx}", timeout=5)
+        if status == 200:
+            continue
+        body = json.dumps({
+            "settings": {
+                "index.routing.allocation.require.box": node
+            }
+        }).encode()
+        req = urllib.request.Request(
+            f"{OS_URL}/{idx}", data=body, method="PUT",
+            headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                log(f"recreated {idx}: HTTP {r.status}")
+        except Exception as e:
+            log(f"could not recreate {idx}: {e}")
+    _info_ensured = True
 
 
 def cluster_docs():
@@ -161,6 +188,8 @@ def fluentbit_docs():
             "output_retries": retries,
             "output_retries_delta": delta(("fb_retry", node), retries),
             "output_retries_failed": retries_failed,
+            "output_retries_failed_delta": delta(
+                ("fb_retry_fail", node), retries_failed),
             "output_dropped": dropped,
             "output_dropped_delta": delta(("fb_drop", node), dropped),
         })
@@ -236,6 +265,7 @@ def main():
         f"(fb_targets={FB_TARGETS})")
     while True:
         started = time.time()
+        ensure_info_indices()
         ts = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
         docs = (cluster_docs() + index_docs() + node_docs()
                 + fluentbit_docs() + osd_docs())

@@ -1,0 +1,91 @@
+#!/bin/sh
+set -eu
+
+OS="${OS_URL:-http://localhost:9200}"
+MONITORS_DIR="${MONITORS_DIR:-/opt/alice-ingest/init/monitors}"
+GRADE="${AD_ANOMALY_GRADE_THRESHOLD:-0.7}"
+CONF="${AD_ANOMALY_CONFIDENCE_THRESHOLD:-0.7}"
+
+put_ok() {
+  case "$1" in
+    200|201) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+search_monitor_id() {
+  name="$1"
+  curl -s -XPOST "$OS/_plugins/_alerting/monitors/_search" \
+    -H 'Content-Type: application/json' \
+    -d "{\"query\":{\"bool\":{\"should\":[{\"term\":{\"monitor.name.keyword\":\"$name\"}},{\"term\":{\"monitor.name\":\"$name\"}},{\"match_phrase\":{\"monitor.name\":\"$name\"}}]}},\"size\":5}" \
+    | python3 -c '
+import json,sys
+name=sys.argv[1]
+r=json.load(sys.stdin)
+for h in r.get("hits",{}).get("hits",[]):
+    src=h.get("_source",{})
+    mon=src.get("monitor",src)
+    if mon.get("name")==name:
+        print(h["_id"])
+        break
+' "$name"
+}
+
+prepare_body() {
+  file="$1"
+  GRADE="$GRADE" CONF="$CONF" python3 -c '
+import json,os,re,sys
+d=json.load(open(sys.argv[1]))
+if d.get("name")=="ad-high-grade":
+    grade=os.environ["GRADE"]
+    conf=os.environ["CONF"]
+    src=d["triggers"][0]["condition"]["script"]["source"]
+    src=re.sub(r"max_anomaly_grade\.value > [0-9.]+",
+               "max_anomaly_grade.value > "+grade, src)
+    src=re.sub(r"confidence > [0-9.]+",
+               "confidence > "+conf, src)
+    d["triggers"][0]["condition"]["script"]["source"]=src
+print(json.dumps(d))
+' "$file"
+}
+
+upsert_monitor() {
+  file="$1"
+  body=$(prepare_body "$file")
+  name=$(printf '%s' "$body" | python3 -c 'import json,sys; print(json.load(sys.stdin)["name"])')
+  existing=$(search_monitor_id "$name")
+  if [ -n "$existing" ]; then
+    code=$(curl -s -o /tmp/monitor-resp -w '%{http_code}' \
+      -XPUT "$OS/_plugins/_alerting/monitors/$existing" \
+      -H 'Content-Type: application/json' -d "$body" || echo 000)
+    if put_ok "$code"; then
+      echo "[alerting] updated monitor: $name ($existing)"
+    else
+      echo "[alerting] FATAL: update $name -> HTTP $code: $(cat /tmp/monitor-resp)"
+      return 1
+    fi
+  else
+    code=$(curl -s -o /tmp/monitor-resp -w '%{http_code}' \
+      -XPOST "$OS/_plugins/_alerting/monitors" \
+      -H 'Content-Type: application/json' -d "$body" || echo 000)
+    if put_ok "$code"; then
+      echo "[alerting] created monitor: $name"
+    else
+      echo "[alerting] FATAL: create $name -> HTTP $code: $(cat /tmp/monitor-resp)"
+      return 1
+    fi
+  fi
+}
+
+echo "[alerting] provisioning monitors from $MONITORS_DIR"
+count=0
+for f in "$MONITORS_DIR"/*.json; do
+  [ -f "$f" ] || continue
+  upsert_monitor "$f"
+  count=$((count + 1))
+done
+if [ "$count" -lt 1 ]; then
+  echo "[alerting] FATAL: no monitor definitions in $MONITORS_DIR"
+  exit 1
+fi
+echo "[alerting] DONE — $count monitors upserted"

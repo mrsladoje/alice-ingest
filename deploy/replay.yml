@@ -35,8 +35,33 @@
 
 - name: Trigger the S3 replay on every worker
   hosts: workers
+  become: true
   gather_facts: false
   tasks:
+    - name: Ensure alice-replay clock drop-in directory exists
+      ansible.builtin.file:
+        path: /etc/systemd/system/{{ producer_service_name | default('alice-replay') }}.service.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install alice-replay clock-mode drop-in
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/{{ producer_service_name | default('alice-replay') }}.service.d/clock.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Service]
+          Environment=REPLAY_CLOCK={{ replay_clock | default('preserved') }}
+
+    - name: Restart alice-replay with the selected clock mode
+      ansible.builtin.systemd:
+        name: "{{ producer_service_name | default('alice-replay') }}"
+        state: restarted
+        daemon_reload: true
+
     - name: POST /replay to the local alice-replay trigger
       ansible.builtin.uri:
         url: "http://127.0.0.1:{{ replay_http_port }}/replay?family={{ replay_families | default('infologger,dds,stdout') }}"
@@ -44,7 +69,10 @@
         status_code: [202, 409]
         return_content: true
       register: _replay
+      retries: 15
+      delay: 2
+      until: _replay.status in [202, 409]
 
     - name: Report the trigger result for this worker
       ansible.builtin.debug:
-        msg: "{{ node_id }} ({{ inventory_hostname }}) -> HTTP {{ _replay.status }}: {{ _replay.content }}"
+        msg: "{{ node_id }} ({{ inventory_hostname }}) clock={{ replay_clock | default('preserved') }} -> HTTP {{ _replay.status }}: {{ _replay.content }}"

@@ -17,6 +17,12 @@ dashboards_nginx_vhost_file: /etc/nginx/conf.d/dashboards.conf
 dashboards_bootstrap_root: /opt/alice-ingest/init
 dashboards_bootstrap_templates_script: "{{ dashboards_bootstrap_root }}/templates.sh"
 dashboards_bootstrap_patterns_script: "{{ dashboards_bootstrap_root }}/patterns.sh"
+dashboards_bootstrap_alerting_script: "{{ dashboards_bootstrap_root }}/alerting.sh"
+dashboards_bootstrap_detectors_script: "{{ dashboards_bootstrap_root }}/detectors.sh"
+dashboards_bootstrap_ism_script: "{{ dashboards_bootstrap_root }}/ism.sh"
+dashboards_bootstrap_verify_script: "{{ dashboards_bootstrap_root }}/verify_detection.py"
+dashboards_bootstrap_monitors_dir: "{{ dashboards_bootstrap_root }}/monitors"
+dashboards_bootstrap_detectors_dir: "{{ dashboards_bootstrap_root }}/detectors"
 dashboards_bootstrap_cockpit_ndjson: "{{ dashboards_bootstrap_root }}/cockpit.ndjson"
 dashboards_bootstrap_hydrate_script: "{{ dashboards_bootstrap_root }}/hydrate_patterns.py"
 
@@ -26,3 +32,6 @@ ops_internal_port: 8090
 
 dashboards_metrics_service_name: alice-metrics
 dashboards_metrics_script: /opt/alice-ingest/metrics_poller.py
+
+expected_monitors: 11
+expected_detectors: 10

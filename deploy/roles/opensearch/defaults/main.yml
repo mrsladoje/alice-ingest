@@ -10,6 +10,16 @@ opensearch_limit_nofile: 65536
 opensearch_user: opensearch
 opensearch_group: opensearch
 
+opensearch_home: /usr/share/opensearch
+opensearch_plugin_bin: "{{ opensearch_home }}/bin/opensearch-plugin"
 opensearch_config_dir: /etc/opensearch
 opensearch_jvm_options_d: /etc/opensearch/jvm.options.d
 opensearch_systemd_dropin_dir: "/etc/systemd/system/{{ opensearch_service_name }}.service.d"
+
+opensearch_required_plugins:
+  - opensearch-anomaly-detection
+  - opensearch-alerting
+  - opensearch-notifications
+  - opensearch-notifications-core
+  - opensearch-job-scheduler
+  - opensearch-index-management

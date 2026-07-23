@@ -1,0 +1,119 @@
+#!/bin/sh
+set -eu
+
+OS="${OS_URL:-http://localhost:9200}"
+
+RET_CM="{{ ism_retention_cockpit_metrics }}"
+RET_INFO="{{ ism_retention_generic_info }}"
+RET_OTHER="{{ ism_retention_generic_other }}"
+RET_IL="{{ ism_retention_infologger }}"
+RET_AD="{{ ism_retention_ad_results }}"
+RET_ALERT="{{ ism_retention_alert_history }}"
+WORKER_NODES="{{ groups['workers'] | map('extract', hostvars, 'node_id') | join(' ') }}"
+
+put_policy() {
+  id="$1"
+  body="$2"
+  code=$(curl -s -o /tmp/ism-resp -w '%{http_code}' \
+    -XPUT "$OS/_plugins/_ism/policies/$id" \
+    -H 'Content-Type: application/json' -d "$body" || echo 000)
+  case "$code" in
+    200|201)
+      echo "[ism] applied policy: $id"
+      ;;
+    409)
+      cur=$(curl -s "$OS/_plugins/_ism/policies/$id")
+      seq=$(printf '%s' "$cur" | python3 -c 'import json,sys; r=json.load(sys.stdin); print(r.get("_seq_no",""))')
+      term=$(printf '%s' "$cur" | python3 -c 'import json,sys; r=json.load(sys.stdin); print(r.get("_primary_term",""))')
+      code=$(curl -s -o /tmp/ism-resp -w '%{http_code}' \
+        -XPUT "$OS/_plugins/_ism/policies/$id?if_seq_no=$seq&if_primary_term=$term" \
+        -H 'Content-Type: application/json' -d "$body" || echo 000)
+      case "$code" in
+        200|201) echo "[ism] updated policy: $id" ;;
+        *) echo "[ism] FATAL: update $id -> HTTP $code: $(cat /tmp/ism-resp)"; return 1 ;;
+      esac
+      ;;
+    *)
+      echo "[ism] FATAL: put $id -> HTTP $code: $(cat /tmp/ism-resp)"
+      return 1
+      ;;
+  esac
+}
+
+attach_policy() {
+  policy="$1"
+  index="$2"
+  code=$(curl -s -o /tmp/ism-add -w '%{http_code}' \
+    -XPOST "$OS/_plugins/_ism/add/$index" \
+    -H 'Content-Type: application/json' \
+    -d "{\"policy_id\":\"$policy\"}" || echo 000)
+  case "$code" in
+    200|201) echo "[ism] attached $policy -> $index" ;;
+    *)
+      body=$(cat /tmp/ism-add 2>/dev/null || true)
+      case "$body" in
+        *already*|*managed*|*exists*)
+          echo "[ism] already managed: $index ($policy)"
+          ;;
+        *)
+          echo "[ism] FATAL: attach $policy -> $index HTTP $code: $body"
+          return 1
+          ;;
+      esac
+      ;;
+  esac
+}
+
+age_delete_policy() {
+  desc="$1"
+  age="$2"
+  patterns="$3"
+  priority="$4"
+  python3 -c '
+import json,sys
+desc,age,patterns,priority=sys.argv[1:5]
+patterns=patterns.split(",")
+print(json.dumps({
+  "policy": {
+    "description": desc,
+    "default_state": "hot",
+    "states": [
+      {
+        "name": "hot",
+        "actions": [],
+        "transitions": [{"state_name": "delete", "conditions": {"min_index_age": age}}]
+      },
+      {"name": "delete", "actions": [{"delete": {}}], "transitions": []}
+    ],
+    "ism_template": [{"index_patterns": patterns, "priority": int(priority)}]
+  }
+}))
+' "$desc" "$age" "$patterns" "$priority"
+}
+
+put_policy "alice-cockpit-metrics-retention" \
+  "$(age_delete_policy "delete cockpit-metrics after $RET_CM" "$RET_CM" "cockpit-metrics" 100)"
+
+put_policy "alice-generic-info-retention" \
+  "$(age_delete_policy "delete generic-log-info after $RET_INFO" "$RET_INFO" "generic-log-info-*" 100)"
+
+put_policy "alice-generic-other-retention" \
+  "$(age_delete_policy "delete generic-log-other after $RET_OTHER" "$RET_OTHER" "generic-log-other" 100)"
+
+put_policy "alice-infologger-retention" \
+  "$(age_delete_policy "delete infologger after $RET_IL" "$RET_IL" "infologger" 100)"
+
+put_policy "alice-ad-results-retention" \
+  "$(age_delete_policy "delete AD result histories after $RET_AD" "$RET_AD" ".opendistro-anomaly-results-history-*,opensearch-ad-plugin-result-*-history-*" 100)"
+
+put_policy "alice-alert-history-retention" \
+  "$(age_delete_policy "delete alert history after $RET_ALERT" "$RET_ALERT" ".opendistro-alerting-alert-history-*" 100)"
+
+attach_policy "alice-cockpit-metrics-retention" "{{ cockpit_metrics_index }}"
+attach_policy "alice-generic-other-retention" "generic-log-other"
+attach_policy "alice-infologger-retention" "infologger"
+for wn in $WORKER_NODES; do
+  attach_policy "alice-generic-info-retention" "generic-log-info-$wn"
+done
+
+echo "[ism] DONE — retention policies applied and attached"

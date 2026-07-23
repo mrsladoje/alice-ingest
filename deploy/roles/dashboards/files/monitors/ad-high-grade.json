@@ -1,0 +1,66 @@
+{
+  "type": "monitor",
+  "name": "ad-high-grade",
+  "monitor_type": "query_level_monitor",
+  "enabled": true,
+  "schedule": {
+    "period": {
+      "interval": 1,
+      "unit": "MINUTES"
+    }
+  },
+  "inputs": [
+    {
+      "search": {
+        "indices": [
+          ".opendistro-anomaly-results*"
+        ],
+        "query": {
+          "size": 1,
+          "sort": [
+            {
+              "anomaly_grade": {
+                "order": "desc"
+              }
+            }
+          ],
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "range": {
+                    "execution_end_time": {
+                      "gte": "{{period_end}}||-2m",
+                      "lte": "{{period_end}}",
+                      "format": "epoch_millis"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "aggregations": {
+            "max_anomaly_grade": {
+              "max": {
+                "field": "anomaly_grade"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "triggers": [
+    {
+      "name": "ad-high-grade",
+      "severity": "1",
+      "condition": {
+        "script": {
+          "source": "ctx.results[0].hits.total.value > 0 && ctx.results[0].aggregations.max_anomaly_grade.value > 0.7 && ctx.results[0].hits.hits[0]._source.confidence > 0.7",
+          "lang": "painless"
+        }
+      },
+      "actions": []
+    }
+  ]
+}

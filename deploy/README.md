@@ -115,17 +115,13 @@ index pre-creates, Dashboards index patterns).
   `il_replay_rate` are env-tunable if a worker saturates. `node` (the collector
   identity) is this VM's `node_id`; `host`/`hostname` (the EPN the log was born
   on) is untouched.
-- **Heap `-Xms512m -Xmx512m`.** VMs are `m2.medium` (2 vCPU / 3.75 GB RAM),
-  smaller than the `m2.large` (7.5 GB) single-VM demo in
-  `docs/OPENSTACK_GUIDE.md`, which itself already trimmed Compose's default
-  `-Xms1g -Xmx1g`. With OpenSearch + Fluent Bit + the replay producer sharing
-  3.75 GB on each VM, 512 MB heap per node is the deliberate further
-  trim (see `deploy/group_vars/all.yml` `opensearch_heap_size`).
-- **Alertmanager is a reserved seam, not built.** `group_vars/all.yml` has a
-  commented `alertmanager_port: 9093`, and the dashboards role/nginx vhost
-  both leave an explicit "when it lands, it's another control-host-only
-  service behind this nginx" comment. Nothing elsewhere needs to change to
-  add it later.
+- **Heap `-Xms1g -Xmx1g`.** VMs are `m2.medium` (2 vCPU / 3.75 GB RAM).
+  1 GB heap leaves ~2.5 GB for OS/page cache/Fluent Bit and raises the AD
+  model memory budget (10% of heap). See `deploy/group_vars/all.yml`
+  `opensearch_heap_size`.
+- **Alertmanager is a reserved seam, not built.** The nginx vhost leaves an
+  explicit "when it lands, it's another control-host-only service behind this
+  nginx" seam. Nothing elsewhere needs to change to add it later.
 
 ---
 
@@ -433,7 +429,7 @@ CERN network access and real quota.
   later config change re-applied through the same play bounces every node,
   including all 3 storage managers, before the `serial: 1` gate play runs (which
   then has no pending handler left to flush). This is unchanged from v1 and is
-  **not** a fresh-deploy blocker; a proper rolling reconfiguration (serialize
+  **not** a fresh-deploy blocker;   a proper rolling reconfiguration (serialize
   config+restart while still allowing concurrent first formation) is a deliberate,
   real-cluster-tested change left for a follow-up.
 - **Quota ceiling.** v2 sits at exactly 10 cores / 5 instances (the binding
@@ -445,9 +441,69 @@ CERN network access and real quota.
   (1 shard/0 replicas/`require.box`), replicated `generic-log-other`+`infologger`
   on the storage tier (`require.role: storage`), worker-only Fluent Bit → local
   OpenSearch write path, single storage-host Dashboards/nginx/bootstrap, `epn_num % 2`
-  slicing, 512 MB heap, inventory-driven discovery/publish/Dashboards-hosts Jinja
+  slicing, 1 GB heap, inventory-driven discovery/publish/Dashboards-hosts Jinja
   (no IP typed twice), `serial: 1` health gate on first bring-up (see §4.2 — this is
   a health gate, **not** a rolling-restart guarantee for day-2 reconfiguration),
   vault-only secrets, tier-aware native bootstrap **forked** from the shared
   `init/` scripts (so `docker-compose.yml`/`docker-compose.mocks.yaml`/`images/**`/`init/**`
   stay untouched and the compose stacks keep working).
+
+---
+
+## 8. Detection layer runbook (wooden-plane)
+
+Provisioned every `make deploy` by `bootstrap.yml`: monitors, detectors, ISM,
+strict verify. Definitions live under
+`roles/dashboards/files/{monitors,detectors}/`.
+
+### Monitors (Layer 0 — `cockpit-metrics`)
+
+| Monitor | Meaning | Action |
+|---|---|---|
+| `collector-down` | Fluent Bit `fb_up=0` on a worker | Check `fluent-bit` on that node; restart if dead |
+| `collector-unhealthy` | `fb_healthy=0` for 2 min | Inspect Fluent Bit `/api/v2/health` and storage backlog |
+| `cluster-red` | OpenSearch cluster status red | Check `_cluster/health` and unassigned shards |
+| `shards-stuck` | `unassigned_shards > 0` for 5 min | Allocation explain; disk / node attrition |
+| `data-loss` | `output_dropped_delta > 0` | Collector dropping — backpressure or OS down |
+| `shipping-breaking` | `output_retries_failed_delta > 0` | OpenSearch reject/timeout path |
+| `disk-cliff-warn` / `disk-cliff-page` | disk > 85% / > 92% | Free disk on named node before read-only lock |
+| `heap-spiral` | heap > 90% for 5 min | GC death spiral risk; check load / queries |
+| `telemetry-silence` | no `cockpit-metrics` docs for 5 min | `alice-metrics` poller dead on control host |
+| `ad-high-grade` | RCF anomaly grade/confidence high | Open Anomaly Detection UI; correlate with Layer 0 |
+
+Alerts appear in Dashboards → Alerting and on the Cockpit **Detection** panels.
+`/ops` shows active-alert and anomalies-last-hour counts. No external channel yet
+(nginx alertmanager slot remains the future seam).
+
+### Detectors (Layer 0.5 / 1)
+
+| Detector | Signal |
+|---|---|
+| `ingest-flow` | collector throughput / errors / retries |
+| `node-health` | heap, CPU, indexing delta, disk |
+| `dashboards-health` | OSD event-loop / latency / requests |
+| `il-per-epn` (+ `-slow`) | InfoLogger per-`hostname` volume, E/F |
+| `il-per-epn-lag` | InfoLogger per-`hostname` avg `ingest_lag_ms` (no zero-impute) |
+| `other-per-epn` (+ `-slow`) | generic-other per-`host` volume / errors |
+| `info-volume` (+ `-slow`) | generic-info per-`host` volume |
+
+RCF needs a few hundred intervals before scores are meaningful (~3–5 h at 1 min).
+Profile: `GET _plugins/_anomaly_detection/detectors/<id>/_profile`.
+
+### Replay clock
+
+- `make replay` / `make replay-fresh` → `replay_clock=shifted` (event times ≈ now;
+  unlocks log AD + real `ingest_lag_ms`).
+- `make replay-preserved` → historical June timestamps (Discover / backtests).
+- Unit default in `group_vars` stays `preserved`.
+
+### Retention (ISM)
+
+Whole-index delete by age: info 7d, other 30d, infologger 90d, cockpit-metrics 7d,
+AD result histories 14d, alert history 30d. After info-index delete, `alice-metrics`
+re-creates the box-pinned `generic-log-info-*` indices if missing.
+
+### Re-measure window delay
+
+After topology changes, query p99 `ingest_lag_ms` per family on a shifted replay
+and bump `ad_log_window_delay_minutes` in `group_vars/all.yml` if shingles skip.

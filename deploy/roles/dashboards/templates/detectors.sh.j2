@@ -1,0 +1,122 @@
+#!/bin/sh
+set -eu
+
+OS="${OS_URL:-http://localhost:9200}"
+DETECTORS_DIR="${DETECTORS_DIR:-/opt/alice-ingest/init/detectors}"
+METRICS_DELAY="${AD_METRICS_WINDOW_DELAY_MINUTES:-1}"
+LOG_DELAY="${AD_LOG_WINDOW_DELAY_MINUTES:-2}"
+
+METRICS_NAMES="ingest-flow node-health dashboards-health"
+
+put_ok() {
+  case "$1" in
+    200|201) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+search_detector_id() {
+  name="$1"
+  curl -s -XPOST "$OS/_plugins/_anomaly_detection/detectors/_search" \
+    -H 'Content-Type: application/json' \
+    -d "{\"query\":{\"bool\":{\"should\":[{\"term\":{\"name.keyword\":\"$name\"}},{\"term\":{\"name\":\"$name\"}},{\"match_phrase\":{\"name\":\"$name\"}}]}},\"size\":5}" \
+    | python3 -c '
+import json,sys
+name=sys.argv[1]
+r=json.load(sys.stdin)
+for h in r.get("hits",{}).get("hits",[]):
+    if h.get("_source",{}).get("name")==name:
+        print(h["_id"])
+        break
+' "$name"
+}
+
+prepare_body() {
+  file="$1"
+  name=$(basename "$file" .json)
+  delay="$LOG_DELAY"
+  case " $METRICS_NAMES " in
+    *" $name "*) delay="$METRICS_DELAY" ;;
+  esac
+  python3 -c '
+import json,sys
+d=json.load(open(sys.argv[1]))
+d["window_delay"]={"period":{"interval":int(sys.argv[2]),"unit":"Minutes"}}
+print(json.dumps(d))
+' "$file" "$delay"
+}
+
+stop_detector() {
+  id="$1"
+  curl -s -o /tmp/ad-stop -w '%{http_code}' \
+    -XPOST "$OS/_plugins/_anomaly_detection/detectors/$id/_stop" || echo 000
+}
+
+start_detector() {
+  id="$1"
+  code=$(curl -s -o /tmp/ad-start -w '%{http_code}' \
+    -XPOST "$OS/_plugins/_anomaly_detection/detectors/$id/_start" || echo 000)
+  case "$code" in
+    200|201) echo "[detectors] started: $id" ;;
+    *)
+      echo "[detectors] FATAL: start $id -> HTTP $code: $(cat /tmp/ad-start)"
+      return 1
+      ;;
+  esac
+}
+
+upsert_detector() {
+  file="$1"
+  body=$(prepare_body "$file")
+  name=$(printf '%s' "$body" | python3 -c 'import json,sys; print(json.load(sys.stdin)["name"])')
+  existing=$(search_detector_id "$name")
+  if [ -n "$existing" ]; then
+    stop_detector "$existing" >/dev/null || true
+    sleep 2
+    code=$(curl -s -o /tmp/ad-resp -w '%{http_code}' \
+      -XPUT "$OS/_plugins/_anomaly_detection/detectors/$existing" \
+      -H 'Content-Type: application/json' -d "$body" || echo 000)
+    if ! put_ok "$code"; then
+      sleep 3
+      stop_detector "$existing" >/dev/null || true
+      sleep 2
+      code=$(curl -s -o /tmp/ad-resp -w '%{http_code}' \
+        -XPUT "$OS/_plugins/_anomaly_detection/detectors/$existing" \
+        -H 'Content-Type: application/json' -d "$body" || echo 000)
+    fi
+    if put_ok "$code"; then
+      echo "[detectors] updated: $name ($existing)"
+      start_detector "$existing"
+    else
+      echo "[detectors] FATAL: update $name -> HTTP $code: $(cat /tmp/ad-resp)"
+      return 1
+    fi
+  else
+    code=$(curl -s -o /tmp/ad-resp -w '%{http_code}' \
+      -XPOST "$OS/_plugins/_anomaly_detection/detectors" \
+      -H 'Content-Type: application/json' -d "$body" || echo 000)
+    if put_ok "$code"; then
+      id=$(python3 -c 'import json; print(json.load(open("/tmp/ad-resp")).get("_id",""))')
+      echo "[detectors] created: $name ($id)"
+      if [ -n "$id" ]; then
+        start_detector "$id"
+      fi
+    else
+      echo "[detectors] FATAL: create $name -> HTTP $code: $(cat /tmp/ad-resp)"
+      return 1
+    fi
+  fi
+}
+
+echo "[detectors] provisioning from $DETECTORS_DIR (metrics_delay=${METRICS_DELAY}m log_delay=${LOG_DELAY}m)"
+count=0
+for f in "$DETECTORS_DIR"/*.json; do
+  [ -f "$f" ] || continue
+  upsert_detector "$f"
+  count=$((count + 1))
+done
+if [ "$count" -lt 1 ]; then
+  echo "[detectors] FATAL: no detector definitions in $DETECTORS_DIR"
+  exit 1
+fi
+echo "[detectors] DONE — $count detectors upserted and start requested"

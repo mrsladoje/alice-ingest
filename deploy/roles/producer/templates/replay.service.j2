@@ -49,6 +49,7 @@ Environment=AUTOSTART_REPLAY={{ producer_autostart_replay | string | lower }}
 Environment=AUTOSTART_FAMILIES={{ producer_autostart_families }}
 Environment=AUTOSTART_MARKER={{ producer_autostart_marker }}
 Environment=EPN_PARTITION={{ epn_partition }}
+Environment=REPLAY_CLOCK={{ replay_clock }}
 Environment=PYTHONUNBUFFERED=1
 
 ExecStart={{ producers_venv_path }}/bin/python3 {{ producers_app_root }}/replay_partition_wrapper.py serve

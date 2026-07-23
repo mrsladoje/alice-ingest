@@ -1,7 +1,7 @@
 opensearch_version: "3.7.0"
 opensearch_cluster_name: alice-logs
 
-opensearch_heap_size: "512m"
+opensearch_heap_size: "1g"
 
 opensearch_http_port: 9200
 opensearch_transport_port: 9300
@@ -36,6 +36,20 @@ node_count: "{{ groups['workers'] | length }}"
 
 cockpit_metrics_index: cockpit-metrics
 cockpit_metrics_interval_seconds: 30
+
+replay_clock: preserved
+
+ad_metrics_window_delay_minutes: 1
+ad_log_window_delay_minutes: 2
+ad_anomaly_grade_threshold: 0.7
+ad_anomaly_confidence_threshold: 0.7
+
+ism_retention_cockpit_metrics: "7d"
+ism_retention_generic_info: "7d"
+ism_retention_generic_other: "30d"
+ism_retention_infologger: "90d"
+ism_retention_ad_results: "14d"
+ism_retention_alert_history: "30d"
 
 dds_replay_rate: 400
 il_replay_rate: 500

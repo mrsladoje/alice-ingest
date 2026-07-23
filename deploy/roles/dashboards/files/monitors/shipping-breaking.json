@@ -1,0 +1,79 @@
+{
+  "type": "monitor",
+  "name": "shipping-breaking",
+  "monitor_type": "bucket_level_monitor",
+  "enabled": true,
+  "schedule": {
+    "period": {
+      "interval": 1,
+      "unit": "MINUTES"
+    }
+  },
+  "inputs": [
+    {
+      "search": {
+        "indices": ["cockpit-metrics"],
+        "query": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "filter": [
+                { "term": { "kind": "fluentbit" } },
+                {
+                  "range": {
+                    "@timestamp": {
+                      "gte": "{{period_end}}||-2m",
+                      "lte": "{{period_end}}",
+                      "format": "epoch_millis"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "aggregations": {
+            "composite_agg": {
+              "composite": {
+                "sources": [
+                  {
+                    "node": {
+                      "terms": {
+                        "field": "node"
+                      }
+                    }
+                  }
+                ]
+              },
+              "aggregations": {
+                "sum_retries_failed": {
+                  "sum": {
+                    "field": "output_retries_failed_delta"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "triggers": [
+    {
+      "bucket_level_trigger": {
+        "name": "shipping-breaking",
+        "severity": "2",
+        "condition": {
+          "buckets_path": {
+            "sum_retries_failed": "sum_retries_failed"
+          },
+          "parent_bucket_path": "composite_agg",
+          "script": {
+            "source": "params.sum_retries_failed > 0",
+            "lang": "painless"
+          }
+        },
+        "actions": []
+      }
+    }
+  ]
+}

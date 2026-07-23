@@ -41,6 +41,37 @@ def doc_count():
     return "?"
 
 
+def _search_count(index, query):
+    code, body = _req(
+        "POST",
+        f"{OS_URL}/{index}/_search?ignore_unavailable=true&allow_no_indices=true",
+        {"size": 0, "track_total_hits": True, "query": query})
+    if code != 200:
+        return "?"
+    try:
+        total = json.loads(body).get("hits", {}).get("total", 0)
+        if isinstance(total, dict):
+            return str(total.get("value", 0))
+        return str(total)
+    except ValueError:
+        return "?"
+
+
+def active_alerts():
+    return _search_count(
+        ".opendistro-alerting-alerts",
+        {"term": {"state": "ACTIVE"}})
+
+
+def anomalies_last_hour():
+    return _search_count(
+        ".opendistro-anomaly-results*",
+        {"bool": {"filter": [
+            {"range": {"execution_end_time": {"gte": "now-1h"}}},
+            {"range": {"anomaly_grade": {"gt": 0.5}}},
+        ]}})
+
+
 def wipe():
     lines = []
     indices = ["infologger", "generic-log-other"]
@@ -82,6 +113,9 @@ PAGE = """<!doctype html>
  body{{font-family:system-ui,Segoe UI,Roboto,sans-serif;max-width:640px;margin:3rem auto;padding:0 1rem;color:#111}}
  h1{{font-size:1.5rem}}
  .count{{font-size:2.5rem;font-weight:700;margin:.2rem 0}}
+ .row{{display:flex;gap:1.5rem;margin:1rem 0}}
+ .stat{{flex:1}}
+ .stat .count{{font-size:1.8rem}}
  .muted{{color:#666}}
  form{{display:inline}}
  button{{font-size:1rem;padding:.6rem 1rem;border:0;border-radius:8px;cursor:pointer;margin:.3rem .3rem 0 0}}
@@ -90,9 +124,13 @@ PAGE = """<!doctype html>
  a.dash{{display:inline-block;margin-top:1.2rem;font-weight:600}}
  pre{{background:#f5f5f5;padding:1rem;border-radius:8px;white-space:pre-wrap}}
 </style>
-<h1>🛰️ ALICE Cockpit — Ops</h1>
+<h1>ALICE Cockpit — Ops</h1>
 <p class="muted">Documents currently indexed (infologger + generic-log-*):</p>
 <div class="count">{count}</div>
+<div class="row">
+  <div class="stat"><p class="muted">Active alerts</p><div class="count">{alerts}</div></div>
+  <div class="stat"><p class="muted">Anomalies (last hour)</p><div class="count">{anomalies}</div></div>
+</div>
 {result}
 <form method="post" action="replay-fresh" onsubmit="return confirm('Wipe all log indices and reload from S3?');">
   <button class="fresh" type="submit">Reload data (fresh)</button>
@@ -102,7 +140,7 @@ PAGE = """<!doctype html>
 </form>
 <p class="muted">Fresh wipes first, then reloads — always a clean load. Append adds another
 full pass (no dedup), so use it only deliberately. A load takes a few minutes.</p>
-<a class="dash" href="/">← Open the ALICE Cockpit dashboard</a>
+<a class="dash" href="/">Open the ALICE Cockpit dashboard</a>
 """
 
 
@@ -111,7 +149,11 @@ def render(result_lines=None):
     if result_lines:
         joined = html.escape("\n".join(result_lines))
         result = f"<pre>{joined}</pre>"
-    return PAGE.format(count=html.escape(doc_count()), result=result)
+    return PAGE.format(
+        count=html.escape(doc_count()),
+        alerts=html.escape(active_alerts()),
+        anomalies=html.escape(anomalies_last_hour()),
+        result=result)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -128,8 +170,11 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/", "/ops"):
             self._send(200, render())
         elif path == "/status":
-            self._send(200, json.dumps({"count": doc_count()}),
-                       "application/json")
+            self._send(200, json.dumps({
+                "count": doc_count(),
+                "active_alerts": active_alerts(),
+                "anomalies_last_hour": anomalies_last_hour(),
+            }), "application/json")
         else:
             self._send(404, render(["not found"]))
 

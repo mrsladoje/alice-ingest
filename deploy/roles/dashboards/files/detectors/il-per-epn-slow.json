@@ -1,0 +1,54 @@
+{
+  "name": "il-per-epn-slow",
+  "description": "InfoLogger per-EPN volume errors 30m",
+  "time_field": "@timestamp",
+  "indices": [
+    "infologger"
+  ],
+  "feature_attributes": [
+    {
+      "feature_name": "volume",
+      "feature_enabled": true,
+      "aggregation_query": {
+        "volume": {
+          "value_count": {
+            "field": "@timestamp"
+          }
+        }
+      }
+    },
+    {
+      "feature_name": "ef_count",
+      "feature_enabled": true,
+      "aggregation_query": {
+        "ef_count": {
+          "sum": {
+            "script": {
+              "lang": "painless",
+              "source": "doc.containsKey('severity') && doc['severity'].size() != 0 && (doc['severity'].value == 'E' || doc['severity'].value == 'F') ? 1.0 : 0.0"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "detection_interval": {
+    "period": {
+      "interval": 30,
+      "unit": "Minutes"
+    }
+  },
+  "window_delay": {
+    "period": {
+      "interval": 2,
+      "unit": "Minutes"
+    }
+  },
+  "shingle_size": 8,
+  "category_field": [
+    "hostname"
+  ],
+  "imputation_option": {
+    "method": "ZERO"
+  }
+}

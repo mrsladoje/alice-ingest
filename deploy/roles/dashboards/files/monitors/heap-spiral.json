@@ -1,0 +1,79 @@
+{
+  "type": "monitor",
+  "name": "heap-spiral",
+  "monitor_type": "bucket_level_monitor",
+  "enabled": true,
+  "schedule": {
+    "period": {
+      "interval": 1,
+      "unit": "MINUTES"
+    }
+  },
+  "inputs": [
+    {
+      "search": {
+        "indices": ["cockpit-metrics"],
+        "query": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "filter": [
+                { "term": { "kind": "node" } },
+                {
+                  "range": {
+                    "@timestamp": {
+                      "gte": "{{period_end}}||-5m",
+                      "lte": "{{period_end}}",
+                      "format": "epoch_millis"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "aggregations": {
+            "composite_agg": {
+              "composite": {
+                "sources": [
+                  {
+                    "node": {
+                      "terms": {
+                        "field": "node"
+                      }
+                    }
+                  }
+                ]
+              },
+              "aggregations": {
+                "min_heap": {
+                  "min": {
+                    "field": "heap_percent"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "triggers": [
+    {
+      "bucket_level_trigger": {
+        "name": "heap-spiral",
+        "severity": "2",
+        "condition": {
+          "buckets_path": {
+            "min_heap": "min_heap"
+          },
+          "parent_bucket_path": "composite_agg",
+          "script": {
+            "source": "params.min_heap > 90",
+            "lang": "painless"
+          }
+        },
+        "actions": []
+      }
+    }
+  ]
+}

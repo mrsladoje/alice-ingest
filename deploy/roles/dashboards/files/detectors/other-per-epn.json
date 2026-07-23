@@ -1,0 +1,54 @@
+{
+  "name": "other-per-epn",
+  "description": "generic-log-other per-EPN volume errors",
+  "time_field": "@timestamp",
+  "indices": [
+    "generic-log-other"
+  ],
+  "feature_attributes": [
+    {
+      "feature_name": "volume",
+      "feature_enabled": true,
+      "aggregation_query": {
+        "volume": {
+          "value_count": {
+            "field": "@timestamp"
+          }
+        }
+      }
+    },
+    {
+      "feature_name": "err_count",
+      "feature_enabled": true,
+      "aggregation_query": {
+        "err_count": {
+          "sum": {
+            "script": {
+              "lang": "painless",
+              "source": "doc.containsKey('severity') && doc['severity'].size() != 0 && (doc['severity'].value == 'Error' || doc['severity'].value == 'Fatal' || doc['severity'].value == 'err') ? 1.0 : 0.0"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "detection_interval": {
+    "period": {
+      "interval": 1,
+      "unit": "Minutes"
+    }
+  },
+  "window_delay": {
+    "period": {
+      "interval": 2,
+      "unit": "Minutes"
+    }
+  },
+  "shingle_size": 8,
+  "category_field": [
+    "host"
+  ],
+  "imputation_option": {
+    "method": "ZERO"
+  }
+}

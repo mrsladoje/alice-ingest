@@ -1,0 +1,79 @@
+{
+  "type": "monitor",
+  "name": "disk-cliff-page",
+  "monitor_type": "bucket_level_monitor",
+  "enabled": true,
+  "schedule": {
+    "period": {
+      "interval": 1,
+      "unit": "MINUTES"
+    }
+  },
+  "inputs": [
+    {
+      "search": {
+        "indices": ["cockpit-metrics"],
+        "query": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "filter": [
+                { "term": { "kind": "node" } },
+                {
+                  "range": {
+                    "@timestamp": {
+                      "gte": "{{period_end}}||-2m",
+                      "lte": "{{period_end}}",
+                      "format": "epoch_millis"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "aggregations": {
+            "composite_agg": {
+              "composite": {
+                "sources": [
+                  {
+                    "node": {
+                      "terms": {
+                        "field": "node"
+                      }
+                    }
+                  }
+                ]
+              },
+              "aggregations": {
+                "max_disk": {
+                  "max": {
+                    "field": "disk_used_percent"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "triggers": [
+    {
+      "bucket_level_trigger": {
+        "name": "disk-cliff-page",
+        "severity": "1",
+        "condition": {
+          "buckets_path": {
+            "max_disk": "max_disk"
+          },
+          "parent_bucket_path": "composite_agg",
+          "script": {
+            "source": "params.max_disk > 92",
+            "lang": "painless"
+          }
+        },
+        "actions": []
+      }
+    }
+  ]
+}

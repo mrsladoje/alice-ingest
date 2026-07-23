@@ -1,0 +1,40 @@
+{
+  "name": "info-volume",
+  "description": "generic-log-info per-EPN volume",
+  "time_field": "@timestamp",
+  "indices": [
+    "generic-log-info-*"
+  ],
+  "feature_attributes": [
+    {
+      "feature_name": "volume",
+      "feature_enabled": true,
+      "aggregation_query": {
+        "volume": {
+          "value_count": {
+            "field": "@timestamp"
+          }
+        }
+      }
+    }
+  ],
+  "detection_interval": {
+    "period": {
+      "interval": 1,
+      "unit": "Minutes"
+    }
+  },
+  "window_delay": {
+    "period": {
+      "interval": 2,
+      "unit": "Minutes"
+    }
+  },
+  "shingle_size": 8,
+  "category_field": [
+    "host"
+  ],
+  "imputation_option": {
+    "method": "ZERO"
+  }
+}

@@ -22,6 +22,54 @@
     group: root
     mode: "0750"
 
+- name: Render the alerting monitors bootstrap script
+  ansible.builtin.template:
+    src: alerting.sh.j2
+    dest: "{{ dashboards_bootstrap_alerting_script }}"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Render the anomaly detectors bootstrap script
+  ansible.builtin.template:
+    src: detectors.sh.j2
+    dest: "{{ dashboards_bootstrap_detectors_script }}"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Render the ISM retention bootstrap script
+  ansible.builtin.template:
+    src: ism.sh.j2
+    dest: "{{ dashboards_bootstrap_ism_script }}"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Stage monitor definitions
+  ansible.builtin.copy:
+    src: monitors/
+    dest: "{{ dashboards_bootstrap_monitors_dir }}/"
+    owner: root
+    group: root
+    mode: "0640"
+
+- name: Stage detector definitions
+  ansible.builtin.copy:
+    src: detectors/
+    dest: "{{ dashboards_bootstrap_detectors_dir }}/"
+    owner: root
+    group: root
+    mode: "0640"
+
+- name: Stage the detection-layer verify script
+  ansible.builtin.copy:
+    src: verify_detection.py
+    dest: "{{ dashboards_bootstrap_verify_script }}"
+    owner: root
+    group: root
+    mode: "0750"
+
 - name: Stage the ALICE Cockpit saved-objects NDJSON
   ansible.builtin.copy:
     src: cockpit.ndjson
@@ -41,6 +89,13 @@
 - name: Apply index templates, ingest pipeline and pre-create all indices (idempotent, every run)
   ansible.builtin.command:
     cmd: "{{ dashboards_bootstrap_templates_script }}"
+  environment:
+    OS_URL: "http://localhost:{{ opensearch_http_port }}"
+  changed_when: true
+
+- name: Apply ISM retention policies (idempotent, every run)
+  ansible.builtin.command:
+    cmd: "{{ dashboards_bootstrap_ism_script }}"
   environment:
     OS_URL: "http://localhost:{{ opensearch_http_port }}"
   changed_when: true
@@ -126,3 +181,32 @@
   retries: 5
   delay: 3
   until: _set_default_route.status == 200
+
+- name: Upsert alerting monitors (idempotent by name, every run)
+  ansible.builtin.command:
+    cmd: "{{ dashboards_bootstrap_alerting_script }}"
+  environment:
+    OS_URL: "http://localhost:{{ opensearch_http_port }}"
+    MONITORS_DIR: "{{ dashboards_bootstrap_monitors_dir }}"
+    AD_ANOMALY_GRADE_THRESHOLD: "{{ ad_anomaly_grade_threshold }}"
+    AD_ANOMALY_CONFIDENCE_THRESHOLD: "{{ ad_anomaly_confidence_threshold }}"
+  changed_when: true
+
+- name: Upsert and start anomaly detectors (idempotent by name, every run)
+  ansible.builtin.command:
+    cmd: "{{ dashboards_bootstrap_detectors_script }}"
+  environment:
+    OS_URL: "http://localhost:{{ opensearch_http_port }}"
+    DETECTORS_DIR: "{{ dashboards_bootstrap_detectors_dir }}"
+    AD_METRICS_WINDOW_DELAY_MINUTES: "{{ ad_metrics_window_delay_minutes }}"
+    AD_LOG_WINDOW_DELAY_MINUTES: "{{ ad_log_window_delay_minutes }}"
+  changed_when: true
+
+- name: Verify the detection layer (monitors, detectors, ISM)
+  ansible.builtin.command:
+    cmd: "python3 {{ dashboards_bootstrap_verify_script }}"
+  environment:
+    OS_URL: "http://localhost:{{ opensearch_http_port }}"
+    EXPECTED_MONITORS: "{{ expected_monitors }}"
+    EXPECTED_DETECTORS: "{{ expected_detectors }}"
+  changed_when: false

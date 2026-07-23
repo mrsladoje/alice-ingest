@@ -1,0 +1,37 @@
+{
+  "name": "il-per-epn-lag",
+  "description": "InfoLogger per-EPN ingest lag",
+  "time_field": "@timestamp",
+  "indices": [
+    "infologger"
+  ],
+  "category_field": [
+    "hostname"
+  ],
+  "feature_attributes": [
+    {
+      "feature_name": "avg_lag",
+      "feature_enabled": true,
+      "aggregation_query": {
+        "avg_lag": {
+          "avg": {
+            "field": "ingest_lag_ms"
+          }
+        }
+      }
+    }
+  ],
+  "detection_interval": {
+    "period": {
+      "interval": 1,
+      "unit": "Minutes"
+    }
+  },
+  "window_delay": {
+    "period": {
+      "interval": 2,
+      "unit": "Minutes"
+    }
+  },
+  "shingle_size": 8
+}

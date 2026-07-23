@@ -1,0 +1,67 @@
+{
+  "name": "dashboards-health",
+  "description": "Dashboards event loop and latency",
+  "time_field": "@timestamp",
+  "indices": [
+    "cockpit-metrics"
+  ],
+  "feature_attributes": [
+    {
+      "feature_name": "event_loop_delay",
+      "feature_enabled": true,
+      "aggregation_query": {
+        "event_loop_delay": {
+          "avg": {
+            "field": "event_loop_delay"
+          }
+        }
+      }
+    },
+    {
+      "feature_name": "response_avg_ms",
+      "feature_enabled": true,
+      "aggregation_query": {
+        "response_avg_ms": {
+          "avg": {
+            "field": "response_avg_ms"
+          }
+        }
+      }
+    },
+    {
+      "feature_name": "requests_total",
+      "feature_enabled": true,
+      "aggregation_query": {
+        "requests_total": {
+          "avg": {
+            "field": "requests_total"
+          }
+        }
+      }
+    }
+  ],
+  "detection_interval": {
+    "period": {
+      "interval": 1,
+      "unit": "Minutes"
+    }
+  },
+  "window_delay": {
+    "period": {
+      "interval": 1,
+      "unit": "Minutes"
+    }
+  },
+  "shingle_size": 8,
+  "filter_query": {
+    "bool": {
+      "filter": [
+        {
+          "term": {
+            "kind": "osd"
+          }
+        }
+      ]
+    }
+  }
+}

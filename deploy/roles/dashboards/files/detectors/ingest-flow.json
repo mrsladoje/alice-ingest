@@ -1,0 +1,73 @@
+{
+  "name": "ingest-flow",
+  "description": "Collector throughput errors retries",
+  "time_field": "@timestamp",
+  "indices": [
+    "cockpit-metrics"
+  ],
+  "feature_attributes": [
+    {
+      "feature_name": "output_records_delta",
+      "feature_enabled": true,
+      "aggregation_query": {
+        "output_records_delta": {
+          "sum": {
+            "field": "output_records_delta"
+          }
+        }
+      }
+    },
+    {
+      "feature_name": "output_errors_delta",
+      "feature_enabled": true,
+      "aggregation_query": {
+        "output_errors_delta": {
+          "sum": {
+            "field": "output_errors_delta"
+          }
+        }
+      }
+    },
+    {
+      "feature_name": "output_retries_delta",
+      "feature_enabled": true,
+      "aggregation_query": {
+        "output_retries_delta": {
+          "sum": {
+            "field": "output_retries_delta"
+          }
+        }
+      }
+    }
+  ],
+  "detection_interval": {
+    "period": {
+      "interval": 1,
+      "unit": "Minutes"
+    }
+  },
+  "window_delay": {
+    "period": {
+      "interval": 1,
+      "unit": "Minutes"
+    }
+  },
+  "shingle_size": 8,
+  "category_field": [
+    "node"
+  ],
+  "filter_query": {
+    "bool": {
+      "filter": [
+        {
+          "term": {
+            "kind": "fluentbit"
+          }
+        }
+      ]
+    }
+  },
+  "imputation_option": {
+    "method": "ZERO"
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "name": "node-health",
+  "description": "Node heap cpu indexing disk",
+  "time_field": "@timestamp",
+  "indices": [
+    "cockpit-metrics"
+  ],
+  "feature_attributes": [
+    {
+      "feature_name": "heap_percent",
+      "feature_enabled": true,
+      "aggregation_query": {
+        "heap_percent": {
+          "avg": {
+            "field": "heap_percent"
+          }
+        }
+      }
+    },
+    {
+      "feature_name": "cpu_percent",
+      "feature_enabled": true,
+      "aggregation_query": {
+        "cpu_percent": {
+          "avg": {
+            "field": "cpu_percent"
+          }
+        }
+      }
+    },
+    {
+      "feature_name": "indexing_delta",
+      "feature_enabled": true,
+      "aggregation_query": {
+        "indexing_delta": {
+          "sum": {
+            "field": "indexing_delta"
+          }
+        }
+      }
+    },
+    {
+      "feature_name": "disk_used_percent",
+      "feature_enabled": true,
+      "aggregation_query": {
+        "disk_used_percent": {
+          "avg": {
+            "field": "disk_used_percent"
+          }
+        }
+      }
+    }
+  ],
+  "detection_interval": {
+    "period": {
+      "interval": 1,
+      "unit": "Minutes"
+    }
+  },
+  "window_delay": {
+    "period": {
+      "interval": 1,
+      "unit": "Minutes"
+    }
+  },
+  "shingle_size": 8,
+  "category_field": [
+    "node"
+  ],
+  "filter_query": {
+    "bool": {
+      "filter": [
+        {
+          "term": {
+            "kind": "node"
+          }
+        }
+      ]
+    }
+  }
+}

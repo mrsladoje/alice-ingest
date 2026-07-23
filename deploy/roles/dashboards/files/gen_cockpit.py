@@ -6,6 +6,10 @@ UNIFIED_ID = "alice-unified"
 UNIFIED_TITLE = "infologger,generic-log-*"
 METRICS_ID = "alice-metrics"
 METRICS_TITLE = "cockpit-metrics"
+AD_RESULTS_ID = "alice-ad-results"
+AD_RESULTS_TITLE = ".opendistro-anomaly-results*"
+ALERTS_ID = "alice-alerts"
+ALERTS_TITLE = ".opendistro-alerting-alerts*"
 TIME_FIELD = "@timestamp"
 PANEL_VERSION = "3.7.0"
 
@@ -262,6 +266,85 @@ def latest_table(vid, title, bucket_field, columns, query, size=15):
     return viz(vid, title, state, query=dql(query), pattern=METRICS_ID)
 
 
+def ad_results_table(vid, title):
+    state = {
+        "title": title,
+        "type": "table",
+        "aggs": [
+            {"id": "1", "enabled": True, "type": "max", "schema": "metric",
+             "params": {"field": "anomaly_grade", "customLabel": "grade"}},
+            {"id": "2", "enabled": True, "type": "max", "schema": "metric",
+             "params": {"field": "confidence", "customLabel": "confidence"}},
+            {"id": "3", "enabled": True, "type": "terms", "schema": "bucket",
+             "params": {"field": "detector_id", "orderBy": "1", "order": "desc",
+                        "size": 10, "otherBucket": False, "missingBucket": False}},
+        ],
+        "params": {
+            "perPage": 10,
+            "showPartialRows": False,
+            "showMetricsAtAllLevels": False,
+            "showTotal": False,
+            "totalFunc": "sum",
+            "percentageCol": "",
+        },
+    }
+    return viz(vid, title, state, query=dql("anomaly_grade > 0.5"),
+               pattern=AD_RESULTS_ID)
+
+
+def alerts_table(vid, title):
+    state = {
+        "title": title,
+        "type": "table",
+        "aggs": [
+            {"id": "1", "enabled": True, "type": "count", "schema": "metric",
+             "params": {"customLabel": "alerts"}},
+            {"id": "2", "enabled": True, "type": "terms", "schema": "bucket",
+             "params": {"field": "monitor_name", "orderBy": "1", "order": "desc",
+                        "size": 10, "otherBucket": False, "missingBucket": False}},
+            {"id": "3", "enabled": True, "type": "terms", "schema": "bucket",
+             "params": {"field": "state", "orderBy": "1", "order": "desc",
+                        "size": 5, "otherBucket": False, "missingBucket": False}},
+        ],
+        "params": {
+            "perPage": 10,
+            "showPartialRows": False,
+            "showMetricsAtAllLevels": False,
+            "showTotal": True,
+            "totalFunc": "sum",
+            "percentageCol": "",
+        },
+    }
+    return viz(vid, title, state, query=dql("state:ACTIVE"), pattern=ALERTS_ID)
+
+
+def active_alert_metric(vid, title):
+    state = {
+        "title": title,
+        "type": "metric",
+        "aggs": [
+            {"id": "1", "enabled": True, "type": "count",
+             "schema": "metric", "params": {"customLabel": "active alerts"}}
+        ],
+        "params": _metric_params(48),
+    }
+    return viz(vid, title, state, query=dql("state:ACTIVE"), pattern=ALERTS_ID)
+
+
+def anomaly_count_metric(vid, title):
+    state = {
+        "title": title,
+        "type": "metric",
+        "aggs": [
+            {"id": "1", "enabled": True, "type": "count",
+             "schema": "metric", "params": {"customLabel": "anomalies"}}
+        ],
+        "params": _metric_params(48),
+    }
+    return viz(vid, title, state, query=dql("anomaly_grade > 0.5"),
+               pattern=AD_RESULTS_ID)
+
+
 def metric_timechart(vid, title, metrics, query, group_field=None,
                      kind="line", mode="normal", y_title="Count"):
     aggs = []
@@ -478,6 +561,20 @@ def build():
         "references": [],
     })
 
+    objects.append({
+        "type": "index-pattern",
+        "id": AD_RESULTS_ID,
+        "attributes": {"title": AD_RESULTS_TITLE, "timeFieldName": "data_end_time"},
+        "references": [],
+    })
+
+    objects.append({
+        "type": "index-pattern",
+        "id": ALERTS_ID,
+        "attributes": {"title": ALERTS_TITLE, "timeFieldName": "start_time"},
+        "references": [],
+    })
+
     objects += [
         saved_search(
             "alice-search-errwarn", "Errors & Warnings — all sources",
@@ -603,6 +700,14 @@ def build():
                          [("avg", "response_avg_ms", "avg ms"),
                           ("max", "response_max_ms", "max ms")],
                          "kind:osd", y_title="ms"),
+        markdown("alice-viz-detect-header", "Detection header",
+                 "### Detection — live alerts & anomalies\n"
+                 "Layer 0 hard rules write active alerts; Layer 0.5/1 RCF "
+                 "detectors write anomaly grades. Panels pinned to last hour."),
+        active_alert_metric("alice-viz-active-alerts", "Active alerts"),
+        anomaly_count_metric("alice-viz-anomaly-count", "Anomalies (grade>0.5)"),
+        alerts_table("alice-viz-alerts", "Active alerts by monitor"),
+        ad_results_table("alice-viz-anomalies", "Recent high-grade anomalies"),
     ]
 
     live = {"timeRange": HEALTH_RANGE}
@@ -629,6 +734,11 @@ def build():
         ("visualization", "alice-viz-index-health",   {"x": 0,  "y": 94, "w": 16, "h": 12}, live),
         ("visualization", "alice-viz-node-heap",      {"x": 16, "y": 94, "w": 16, "h": 12}, live),
         ("visualization", "alice-viz-osd-perf",       {"x": 32, "y": 94, "w": 16, "h": 12}, live),
+        ("visualization", "alice-viz-detect-header",  {"x": 0,  "y": 106, "w": 48, "h": 3}),
+        ("visualization", "alice-viz-active-alerts",  {"x": 0,  "y": 109, "w": 8,  "h": 8}, live),
+        ("visualization", "alice-viz-anomaly-count",  {"x": 8,  "y": 109, "w": 8,  "h": 8}, live),
+        ("visualization", "alice-viz-alerts",         {"x": 16, "y": 109, "w": 16, "h": 12}, live),
+        ("visualization", "alice-viz-anomalies",      {"x": 32, "y": 109, "w": 16, "h": 12}, live),
     ]
     objects.append(dashboard(panels))
     return objects
