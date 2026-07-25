@@ -1,12 +1,12 @@
 {
   "type": "monitor",
   "name": "trend-other-errors",
-  "description": "Warn when generic-log-other per-host Error/Fatal/err rate rises. Dwell: fire only if breach sustained across 3 consecutive 10m slices (~30m). Ratio 2x rising (volume also <=0.5x collapse - all three slices same direction). Baseline: 7d excluding last 30m; 24h fallback when 7d empty. Schedule 10m. Throttle 30m per alert key via alice-incluster-alert-sink.",
+  "description": "Warn when generic-log-other per-host Error/Fatal/err rate rises. Dwell: fire only if breach sustained across 3 consecutive 10m slices (~30m). Ratio 2x rising (volume also <=0.5x collapse - all three slices same direction). Baseline: 7d excluding last 30m; 24h fallback when 7d empty. Schedule 30m (dwell covers the full 30m, so coverage stays continuous). Throttle 30m per alert key via alice-incluster-alert-sink.",
   "monitor_type": "bucket_level_monitor",
   "enabled": true,
   "schedule": {
     "period": {
-      "interval": 10,
+      "interval": 30,
       "unit": "MINUTES"
     }
   },

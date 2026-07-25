@@ -1,12 +1,12 @@
 {
   "type": "monitor",
   "name": "trend-info-volume",
-  "description": "Warn when generic-log-info per-host doc rate spikes or collapses. Run-start spikes may false-warn until gated. Dwell: fire only if breach sustained across 3 consecutive 10m slices (~30m). Ratio 2x rising (volume also <=0.5x collapse - all three slices same direction). Baseline: 7d excluding last 30m; 24h fallback when 7d empty. Schedule 10m. Throttle 30m per alert key via alice-incluster-alert-sink.",
+  "description": "Warn when generic-log-info per-host doc rate spikes or collapses. Run-start spikes may false-warn until gated. Dwell: fire only if breach sustained across 3 consecutive 10m slices (~30m). Ratio 2x rising (volume also <=0.5x collapse - all three slices same direction). Baseline: 7d excluding last 30m; 24h fallback when 7d empty. Schedule 30m (dwell covers the full 30m, so coverage stays continuous). Throttle 30m per alert key via alice-incluster-alert-sink. Collapse (<=0.5x) additionally requires a non-empty 24h baseline so hosts retired mid-window do not alert forever.",
   "monitor_type": "bucket_level_monitor",
   "enabled": true,
   "schedule": {
     "period": {
-      "interval": 10,
+      "interval": 30,
       "unit": "MINUTES"
     }
   },
@@ -125,7 +125,7 @@
           },
           "parent_bucket_path": "composite_agg",
           "script": {
-            "source": "double sliceMin = 10.0; double base = params.baseline_7d; double baseMin = 10050.0; if (base <= 0) { base = params.baseline_24h; baseMin = 1410.0; } if (base <= 0) { return false; } double baseRate = base / baseMin; double r0 = (params.slice0 / sliceMin) / baseRate; double r1 = (params.slice1 / sliceMin) / baseRate; double r2 = (params.slice2 / sliceMin) / baseRate; boolean hi = r0 >= 2.0 && r1 >= 2.0 && r2 >= 2.0; boolean lo = r0 <= 0.5 && r1 <= 0.5 && r2 <= 0.5; return hi || lo;",
+            "source": "double sliceMin = 10.0; double base = params.baseline_7d; double baseMin = 10050.0; if (base <= 0) { base = params.baseline_24h; baseMin = 1410.0; } if (base <= 0) { return false; } double baseRate = base / baseMin; double r0 = (params.slice0 / sliceMin) / baseRate; double r1 = (params.slice1 / sliceMin) / baseRate; double r2 = (params.slice2 / sliceMin) / baseRate; boolean hi = r0 >= 2.0 && r1 >= 2.0 && r2 >= 2.0; boolean lo = params.baseline_24h > 0 && r0 <= 0.5 && r1 <= 0.5 && r2 <= 0.5; return hi || lo;",
             "lang": "painless"
           }
         },

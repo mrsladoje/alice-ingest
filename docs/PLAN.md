@@ -18,6 +18,15 @@ Scope discipline: this is the product plan. The paper, peer-cohort prototyping, 
 
 **Prerequisite before any stage starts:** finish the pending v4 real-VM redeploy from lxplus (browser gates, then tag `cardboard-airplane-v4`). Building AD on top of an unlanded migration doubles the debugging surface.
 
+**Status (2026-07-25): all seven stages are implemented in code; not one gate has been run on real VMs.** Every "landed" marker below means *written and committed*, not *observed working*. Nothing here has seen a live cluster: no detector has reached RUNNING, no monitor has fired, no bucket-level trigger script has been evaluated by the alerting plugin, the p99 lag that should set window delay has never been measured, and the HCAD `_profile` numbers this plan repeatedly says not to guess are still guesses. Specifically unverified and worth watching on the first soak:
+
+- the `buckets_path` forms (`slice0._count` for filter sub-aggregations, `slice0>avg_lag` for metric sub-aggregations) resolving inside a bucket-level trigger;
+- the Lua `collector_time` stamp surviving the `rewrite_tag` emitter round-trip for **re-emitted** `family.info` / `family.other` records — if it does not, `ingest_lag_ms` and `enter_system_lag_ms` are silently absent and every log detector starves;
+- the ingest-pipeline script parsing the actual `collector_time` / `_ingest.timestamp` formats on all three families;
+- the notification channel + 30m throttle round-tripping through `verify_detection.py` on a cluster that already has monitors from an older deploy.
+
+Treat the first real-VM run as debugging, not confirmation.
+
 ---
 
 
@@ -124,9 +133,16 @@ What this catches (the whole point): an EPN going **silent** (zero-imputed volum
 
 ### Dumb trend lane (deterministic; covers RCF slow-drift blind spot)
 
-Alerting monitors (same `files/monitors/` + `alerting.sh.j2` path as Stage 2). Schedule **10 min**; severity warn; log queries use `collector_time`.
+Alerting monitors (same `files/monitors/` + `alerting.sh.j2` path as Stage 2). Schedule **30 min**; severity warn; log queries use `collector_time`.
 
 **Dwell (landed):** a single noisy 10m window must not fire. Each evaluation requires the ratio condition on **three consecutive 10m slices** (t0=`now-10m→now`, t1=`now-20m→now-10m`, t2=`now-30m→now-20m`) — ≈30m sustained breach. Rising signals (lag / E-F / errors) fire only if `slice/baseline ≥ 2` on **all three** slices. Volume fires only if **all three** are `≥ 2` **or** **all three** are `≤ 0.5` (no mixed high/low). **Baseline** = avg (or rate) over ~7d **excluding the last 30m** (falls back to 24h excluding last 30m when 7d empty). Same 30m per-alert-key throttle as Stage 2. Run-start volume spikes may false-warn until gated (not blocking).
+
+**Schedule = dwell (landed, revised from 10 min):** every evaluation re-scans its 7d baseline window live, ×9 monitors, on 2-vCPU nodes. Running every 10 min meant three full 7d scans per monitor per 30-minute dwell period, all re-deriving the same baseline. The schedule is now **30 min**, exactly the dwell span, so coverage stays continuous with a third of the query load. Worst-case detection latency for this lane is 30m dwell + 30m schedule = ~1h, which is appropriate for a rule whose baseline is a week. The proper fix — a scheduled transform holding the baseline so the monitor reads a rollup instead of raw docs — is Stage 7.4.
+
+**Guards (landed):**
+
+- **Lag floor (2000 ms).** `collector_time` comes from `os.time()` in a Fluent Bit Lua filter — **1-second resolution** (see [§ Non-optimal](#non-optimal-things-in-the-current-system) §8). A 500 ms → 1000 ms rounding artefact is a 2× ratio breach. Lag trend monitors now require every slice to exceed 2000 ms absolutely *and* 2× the baseline, so they fire on multi-second backlogs only.
+- **Retired-host guard.** The composite agg buckets by entity across the whole 7d window, so a host that stopped days ago yields a bucket with zero recent docs — a permanent `≤0.5×` breach re-alerting every throttle period forever. The volume monitors' collapse branch now also requires a non-empty 24h baseline. (An ending replay run still legitimately trips every host's collapse branch at once; that is real silence, throttled, and not suppressed.)
 
 | Monitor | Index | Entity | Metric |
 | --- | --- | --- | --- |
@@ -163,7 +179,8 @@ HCAD sizing check, honestly: ~31 EPN hosts × volume/error detectors + collector
 
 1. **ISM retention** — the deploy has *no* retention anywhere. Minimum: rollover+delete for AD result indices and `cockpit-metrics` (both grow forever, silently); decide log-family retention consciously (the v2 tier design implies: info short, other longer, infologger longest).
 2. Detector/monitor definitions get the same **strict verify** treatment as v4 provisioning: post-deploy assertion script (counts, RUNNING state, profile health) — deploy fails loudly if the detection layer is degraded.
-3. Re-measure p99 lag after any topology change; window delay is config, not folklore.
+3. Re-measure p99 lag after any topology change; window delay is config, not folklore. **The shipped 2-minute log window delay is a placeholder — it has never been measured.** First soak measures it.
+4. **Scheduled transform for the trend baselines.** The nine `trend-*` monitors currently re-scan 7 days of the largest indices on every evaluation to derive a baseline that changes negligibly between runs. A scheduled transform writing per-entity baseline rates into a small index turns each evaluation into a cheap lookup + a 30-minute scan. This is what `ML_AI.md` Part V item 3 originally described ("an Alerting monitor over a scheduled transform") and is the only thing standing between this lane and fleet-scale index sizes.
 
 ---
 
@@ -194,6 +211,7 @@ HCAD sizing check, honestly: ~31 EPN hosts × volume/error detectors + collector
 5. `host` **vs** `hostname` **split** between families blocks any single unified per-EPN detector or cross-family cohort view. Same normalization bucket as #4.
 6. **Single poller = single blind spot** — mitigated by the telemetry-silence monitor (Stage 2), properly fixed only by running the poller redundantly; not worth it at this scale.
 7. **README documents an** `alertmanager_port` **var that doesn't exist** in `group_vars/all.yml` — docs ahead of code; trivial cleanup whenever that file is next touched.
+8. **`ingest_lag_ms` has a ~1-second noise floor.** Fluent Bit's Lua filter has no sub-second wall clock; `collector_time` is `os.time() * 1000`, truncated to whole seconds, so a healthy sub-second shipping path produces lag values that are mostly quantization (and biased high by ~500 ms on average, since truncation puts `collector_time` *before* the true accept time). Consequences: the four `*-shipping-lag` RCF detectors model second-boundary aliasing on a healthy pipeline and only carry real signal for multi-second backlogs; the two `trend-*-shipping-lag` monitors needed the 2000 ms absolute floor above to stop flapping. Mitigated, not fixed. A real fix means stamping accept time outside Lua — e.g. a collector-side sidecar, or accepting that shipping lag is a coarse backlog signal rather than a latency measurement. Cross-VM clock skew is *not* the problem here: `chronyd` is enforced in `roles/common`.
 
 
 

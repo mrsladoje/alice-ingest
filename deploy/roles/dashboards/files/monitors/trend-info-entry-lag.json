@@ -1,12 +1,12 @@
 {
   "type": "monitor",
   "name": "trend-info-entry-lag",
-  "description": "Warn when generic-log-info per-host avg(enter_system_lag_ms) rises. Noisy under preserved June replay (archive age) - expected. Dwell: fire only if breach sustained across 3 consecutive 10m slices (~30m). Ratio 2x rising (volume also <=0.5x collapse - all three slices same direction). Baseline: 7d excluding last 30m; 24h fallback when 7d empty. Schedule 10m. Throttle 30m per alert key via alice-incluster-alert-sink.",
+  "description": "Warn when generic-log-info per-host avg(enter_system_lag_ms) rises. Noisy under preserved June replay (archive age) - expected. Dwell: fire only if breach sustained across 3 consecutive 10m slices (~30m). Ratio 2x rising (volume also <=0.5x collapse - all three slices same direction). Baseline: 7d excluding last 30m; 24h fallback when 7d empty. Schedule 30m (dwell covers the full 30m, so coverage stays continuous). Throttle 30m per alert key via alice-incluster-alert-sink. Lag slices below a 2000 ms floor never fire: collector_time has 1 s resolution, so sub-second lag ratios are quantization noise.",
   "monitor_type": "bucket_level_monitor",
   "enabled": true,
   "schedule": {
     "period": {
-      "interval": 10,
+      "interval": 30,
       "unit": "MINUTES"
     }
   },
@@ -160,7 +160,7 @@
           },
           "parent_bucket_path": "composite_agg",
           "script": {
-            "source": "if (params.slice0 == null || params.slice1 == null || params.slice2 == null) { return false; } if (params.slice0 <= 0 || params.slice1 <= 0 || params.slice2 <= 0) { return false; } double base = (params.baseline_7d != null && params.baseline_7d > 0) ? params.baseline_7d : ((params.baseline_24h != null) ? params.baseline_24h : 0); if (base <= 0) { return false; } return (params.slice0 / base) >= 2.0 && (params.slice1 / base) >= 2.0 && (params.slice2 / base) >= 2.0;",
+            "source": "if (params.slice0 == null || params.slice1 == null || params.slice2 == null) { return false; } double lagFloor = 2000.0; if (params.slice0 < lagFloor || params.slice1 < lagFloor || params.slice2 < lagFloor) { return false; } double base = (params.baseline_7d != null && params.baseline_7d > 0) ? params.baseline_7d : ((params.baseline_24h != null) ? params.baseline_24h : 0); if (base <= 0) { return false; } return (params.slice0 / base) >= 2.0 && (params.slice1 / base) >= 2.0 && (params.slice2 / base) >= 2.0;",
             "lang": "painless"
           }
         },

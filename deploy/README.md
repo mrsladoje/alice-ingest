@@ -473,7 +473,29 @@ strict verify. Definitions live under
 
 ### Trend monitors (deterministic — log indices, `collector_time`)
 
-Recent = avg over ~6h; baseline = ~7d excluding recent (24h fallback). Fire at ≥2× (volume also ≤0.5× collapse). Severity warn. Run-start spikes may false-warn until gated.
+Severity warn. Each monitor runs every **30 min** and evaluates three consecutive
+10-minute slices (`now-10m`, `-20m`, `-30m`) against a baseline of ~7d excluding
+the last 30 min (24h fallback when 7d is empty). The breach must hold on **all
+three** slices — one noisy window cannot fire. Coverage stays continuous because
+the dwell window is exactly the schedule period. Run-start spikes may false-warn
+until run/phase gating exists.
+
+Two guards worth knowing about:
+
+- **Lag floor.** `collector_time` is stamped by a Fluent Bit Lua filter using
+  `os.time()`, which has **1-second resolution**, so `ingest_lag_ms` carries a
+  ~1 s quantization noise floor. Without a guard a 500 ms → 1000 ms rounding
+  artefact reads as a 2× breach. Lag trend monitors therefore require every slice
+  to exceed **2000 ms** in absolute terms as well as 2× the baseline: they detect
+  multi-second backlogs, not sub-second jitter.
+- **Retired-host guard.** The composite aggregation buckets by entity over the
+  whole 7d window, so a host that stopped logging days ago still produces a bucket
+  with zero recent docs — a permanent collapse breach. The volume monitors' `≤0.5×`
+  branch additionally requires a non-empty 24h baseline.
+
+Cost note: each evaluation scans its 7d baseline window live. That is why the
+schedule is 30 min rather than 10 on a 2-vCPU cluster. The proper fix is a
+scheduled transform holding the baseline (see `docs/PLAN.md` Stage 7).
 
 | Monitor | Index | Entity | Metric |
 |---|---|---|---|
@@ -494,6 +516,12 @@ Alerts appear in Dashboards → Alerting and on the Cockpit **Detection** panels
 ### Detectors (Layer 0.5 / 1)
 
 Entity rule: `ingest_lag_ms` → collector `node`; `enter_system_lag_ms` → EPN (`hostname`/`host`). Lag-only detectors have no ZERO imputation. `enter_system_*` AD is valid in production; under preserved replay scores reflect archive age (expected) — detectors still run.
+
+Read the `*-shipping-lag` detectors with the 1-second `collector_time` resolution in
+mind (see the lag-floor note above): on a healthy pipeline `ingest_lag_ms` is mostly
+quantization, so those four detectors are meaningful for **multi-second** backlogs and
+noise below that. Sub-second shipping latency is not measurable from this stack without
+moving the collector stamp out of Lua.
 
 | Detector | Signal |
 |---|---|
@@ -532,6 +560,8 @@ re-creates the box-pinned `generic-log-info-*` indices if missing.
 
 ### Re-measure window delay
 
-After topology changes, query p99 `ingest_lag_ms` per family on a fresh replay
-(shipping lag, not archive age) and bump `ad_log_window_delay_minutes` in
-`group_vars/all.yml` if shingles skip.
+The shipped log detectors use a **2-minute window delay that has never been measured** —
+it is a placeholder, not a derived value. On the first real-VM soak, query p99
+`ingest_lag_ms` per family on a fresh replay (shipping lag, not archive age) and bump
+`ad_log_window_delay_minutes` in `group_vars/all.yml`. Repeat after any topology change,
+or shingles skip.
