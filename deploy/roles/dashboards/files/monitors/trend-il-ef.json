@@ -1,0 +1,172 @@
+{
+  "type": "monitor",
+  "name": "trend-il-ef",
+  "description": "Warn when InfoLogger per-hostname E/F rate rises. Dwell: fire only if breach sustained across 3 consecutive 10m slices (~30m). Ratio 2x rising (volume also <=0.5x collapse - all three slices same direction). Baseline: 7d excluding last 30m; 24h fallback when 7d empty. Schedule 10m. Throttle 30m per alert key via alice-incluster-alert-sink.",
+  "monitor_type": "bucket_level_monitor",
+  "enabled": true,
+  "schedule": {
+    "period": {
+      "interval": 10,
+      "unit": "MINUTES"
+    }
+  },
+  "inputs": [
+    {
+      "search": {
+        "indices": [
+          "infologger"
+        ],
+        "query": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "terms": {
+                    "severity": [
+                      "E",
+                      "F"
+                    ]
+                  }
+                },
+                {
+                  "range": {
+                    "collector_time": {
+                      "gte": "{{period_end}}||-7d",
+                      "lte": "{{period_end}}",
+                      "format": "epoch_millis"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "aggregations": {
+            "composite_agg": {
+              "composite": {
+                "size": 1000,
+                "sources": [
+                  {
+                    "hostname": {
+                      "terms": {
+                        "field": "hostname"
+                      }
+                    }
+                  }
+                ]
+              },
+              "aggregations": {
+                "slice0": {
+                  "filter": {
+                    "range": {
+                      "collector_time": {
+                        "gte": "{{period_end}}||-10m",
+                        "lte": "{{period_end}}",
+                        "format": "epoch_millis"
+                      }
+                    }
+                  }
+                },
+                "slice1": {
+                  "filter": {
+                    "range": {
+                      "collector_time": {
+                        "gte": "{{period_end}}||-20m",
+                        "lt": "{{period_end}}||-10m",
+                        "format": "epoch_millis"
+                      }
+                    }
+                  }
+                },
+                "slice2": {
+                  "filter": {
+                    "range": {
+                      "collector_time": {
+                        "gte": "{{period_end}}||-30m",
+                        "lt": "{{period_end}}||-20m",
+                        "format": "epoch_millis"
+                      }
+                    }
+                  }
+                },
+                "baseline_7d": {
+                  "filter": {
+                    "range": {
+                      "collector_time": {
+                        "gte": "{{period_end}}||-7d",
+                        "lt": "{{period_end}}||-30m",
+                        "format": "epoch_millis"
+                      }
+                    }
+                  }
+                },
+                "baseline_24h": {
+                  "filter": {
+                    "range": {
+                      "collector_time": {
+                        "gte": "{{period_end}}||-24h",
+                        "lt": "{{period_end}}||-30m",
+                        "format": "epoch_millis"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "triggers": [
+    {
+      "bucket_level_trigger": {
+        "name": "trend-il-ef",
+        "severity": "2",
+        "condition": {
+          "buckets_path": {
+            "slice0": "slice0._count",
+            "slice1": "slice1._count",
+            "slice2": "slice2._count",
+            "baseline_7d": "baseline_7d._count",
+            "baseline_24h": "baseline_24h._count"
+          },
+          "parent_bucket_path": "composite_agg",
+          "script": {
+            "source": "double sliceMin = 10.0; double base = params.baseline_7d; double baseMin = 10050.0; if (base <= 0) { base = params.baseline_24h; baseMin = 1410.0; } if (base <= 0) { return false; } double baseRate = base / baseMin; double r0 = (params.slice0 / sliceMin) / baseRate; double r1 = (params.slice1 / sliceMin) / baseRate; double r2 = (params.slice2 / sliceMin) / baseRate; return r0 >= 2.0 && r1 >= 2.0 && r2 >= 2.0;",
+            "lang": "painless"
+          }
+        },
+        "actions": [
+          {
+            "name": "notify",
+            "destination_id": "alice-incluster-alert-sink",
+            "subject_template": {
+              "source": "{{ctx.monitor.name}}",
+              "lang": "mustache"
+            },
+            "message_template": {
+              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_end\":\"{{ctx.periodEnd}}\"}",
+              "lang": "mustache"
+            },
+            "throttle_enabled": true,
+            "throttle": {
+              "value": 30,
+              "unit": "MINUTES"
+            },
+            "action_execution_policy": {
+              "action_execution_scope": {
+                "per_alert": {
+                  "actionable_alerts": [
+                    "DEDUPED",
+                    "NEW"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

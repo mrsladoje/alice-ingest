@@ -66,7 +66,9 @@ GENERIC_MAPPINGS=$(cat <<'JSON'
       "properties": {
         "@timestamp":  { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
         "ingest_time": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "collector_time": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
         "ingest_lag_ms": { "type": "long" },
+        "enter_system_lag_ms": { "type": "long" },
         "log_source": { "type": "keyword" },
         "node":       { "type": "keyword" },
         "severity":   { "type": "keyword" },
@@ -94,7 +96,9 @@ INFOLOGGER_MAPPINGS=$(cat <<'JSON'
       "properties": {
         "@timestamp":  { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
         "ingest_time": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "collector_time": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
         "ingest_lag_ms": { "type": "long" },
+        "enter_system_lag_ms": { "type": "long" },
         "log_source": { "type": "keyword" },
         "node":       { "type": "keyword" },
         "severity":   { "type": "keyword" },
@@ -259,14 +263,14 @@ JSON
 
 INGEST_PIPELINE=$(cat <<'JSON'
 {
-  "description": "Stamp ingest_time and ingest_lag_ms = ingest_time - @timestamp.",
+  "description": "Stamp ingest_time; ingest_lag_ms = ingest_time - collector_time; enter_system_lag_ms = collector_time - @timestamp.",
   "processors": [
     { "set": { "field": "ingest_time", "value": "{% raw %}{{{_ingest.timestamp}}}{% endraw %}" } },
     {
       "script": {
         "lang": "painless",
         "ignore_failure": true,
-        "source": "{% raw %}if (ctx['@timestamp'] == null || ctx.ingest_time == null) { return; } long toEpochMillis(def v) { if (v == null) { return -1L; } if (v instanceof Number) { long n = ((Number)v).longValue(); return n < 100000000000L ? n * 1000L : n; } String s = v.toString().trim(); if (s.length() == 0) { return -1L; } if (Character.isDigit(s.charAt(0)) && s.indexOf('-') < 0 && s.indexOf('T') < 0 && s.indexOf(' ') < 0) { int dot = s.indexOf('.'); String whole = dot < 0 ? s : s.substring(0, dot); long n = Long.parseLong(whole); return n < 100000000000L ? n * 1000L : n; } if (s.indexOf(' ') >= 0 && s.indexOf('T') < 0) { s = s.replace(' ', 'T'); } if (s.length() >= 19 && s.indexOf('Z') < 0 && s.indexOf('+') < 0 && s.lastIndexOf('-') <= 7) { s = s + 'Z'; } try { return Instant.parse(s).toEpochMilli(); } catch (Exception e1) { try { return Instant.parse(s + 'Z').toEpochMilli(); } catch (Exception e2) { return -1L; } } } long eventMs = toEpochMillis(ctx['@timestamp']); long ingestMs = toEpochMillis(ctx.ingest_time); if (eventMs < 0 || ingestMs < 0) { return; } ctx.ingest_lag_ms = ingestMs - eventMs;{% endraw %}"
+        "source": "{% raw %}if (ctx.collector_time == null) { return; } long toEpochMillis(def v) { if (v == null) { return -1L; } if (v instanceof Number) { long n = ((Number)v).longValue(); return n < 100000000000L ? n * 1000L : n; } String s = v.toString().trim(); if (s.length() == 0) { return -1L; } if (Character.isDigit(s.charAt(0)) && s.indexOf('-') < 0 && s.indexOf('T') < 0 && s.indexOf(' ') < 0) { int dot = s.indexOf('.'); String whole = dot < 0 ? s : s.substring(0, dot); long n = Long.parseLong(whole); return n < 100000000000L ? n * 1000L : n; } if (s.indexOf(' ') >= 0 && s.indexOf('T') < 0) { s = s.replace(' ', 'T'); } if (s.length() >= 19 && s.indexOf('Z') < 0 && s.indexOf('+') < 0 && s.lastIndexOf('-') <= 7) { s = s + 'Z'; } try { return Instant.parse(s).toEpochMilli(); } catch (Exception e1) { try { return Instant.parse(s + 'Z').toEpochMilli(); } catch (Exception e2) { return -1L; } } } long collectorMs = toEpochMillis(ctx.collector_time); if (collectorMs < 0) { return; } if (ctx.ingest_time != null) { long ingestMs = toEpochMillis(ctx.ingest_time); if (ingestMs >= 0) { ctx.ingest_lag_ms = ingestMs - collectorMs; } } if (ctx['@timestamp'] != null) { long eventMs = toEpochMillis(ctx['@timestamp']); if (eventMs >= 0) { ctx.enter_system_lag_ms = collectorMs - eventMs; } }{% endraw %}"
       }
     }
   ]
@@ -277,7 +281,9 @@ JSON
 LAG_MAPPING=$(cat <<'JSON'
 {
   "properties": {
-    "ingest_lag_ms": { "type": "long" }
+    "collector_time": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+    "ingest_lag_ms": { "type": "long" },
+    "enter_system_lag_ms": { "type": "long" }
   }
 }
 JSON
@@ -318,10 +324,10 @@ ensure_index "infologger" '{}'
 ensure_index "generic-log-other" '{}'
 ensure_index "{{ cockpit_metrics_index }}" '{}'
 
-put "/infologger/_mapping" "$LAG_MAPPING" "mapping ingest_lag_ms on infologger"
-put "/generic-log-other/_mapping" "$LAG_MAPPING" "mapping ingest_lag_ms on generic-log-other"
+put "/infologger/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on infologger"
+put "/generic-log-other/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on generic-log-other"
 for wn in $WORKER_NODES; do
-  put "/generic-log-info-$wn/_mapping" "$LAG_MAPPING" "mapping ingest_lag_ms on generic-log-info-$wn"
+  put "/generic-log-info-$wn/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on generic-log-info-$wn"
 done
 put "/{{ cockpit_metrics_index }}/_mapping" "$RETRIES_FAILED_DELTA_MAPPING" "mapping output_retries_failed_delta on cockpit-metrics"
 

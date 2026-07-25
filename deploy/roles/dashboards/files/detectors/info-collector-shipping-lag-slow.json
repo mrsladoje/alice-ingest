@@ -1,18 +1,21 @@
 {
-  "name": "info-volume-slow",
-  "description": "generic-log-info per-EPN volume 30m",
+  "name": "info-collector-shipping-lag-slow",
+  "description": "generic-log-info per-collector ingest_lag_ms 30m",
   "time_field": "collector_time",
   "indices": [
     "generic-log-info-*"
   ],
+  "category_field": [
+    "node"
+  ],
   "feature_attributes": [
     {
-      "feature_name": "volume",
+      "feature_name": "avg_shipping_lag",
       "feature_enabled": true,
       "aggregation_query": {
-        "volume": {
-          "value_count": {
-            "field": "@timestamp"
+        "avg_shipping_lag": {
+          "avg": {
+            "field": "ingest_lag_ms"
           }
         }
       }
@@ -30,11 +33,5 @@
       "unit": "Minutes"
     }
   },
-  "shingle_size": 8,
-  "category_field": [
-    "host"
-  ],
-  "imputation_option": {
-    "method": "ZERO"
-  }
+  "shingle_size": 8
 }

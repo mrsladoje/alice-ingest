@@ -1,18 +1,21 @@
 {
-  "name": "info-volume-slow",
-  "description": "generic-log-info per-EPN volume 30m",
+  "name": "info-per-epn-entry-lag-slow",
+  "description": "generic-log-info per-EPN enter_system_lag_ms 30m (archive-age under preserved replay)",
   "time_field": "collector_time",
   "indices": [
     "generic-log-info-*"
   ],
+  "category_field": [
+    "host"
+  ],
   "feature_attributes": [
     {
-      "feature_name": "volume",
+      "feature_name": "avg_entry_lag",
       "feature_enabled": true,
       "aggregation_query": {
-        "volume": {
-          "value_count": {
-            "field": "@timestamp"
+        "avg_entry_lag": {
+          "avg": {
+            "field": "enter_system_lag_ms"
           }
         }
       }
@@ -30,11 +33,5 @@
       "unit": "Minutes"
     }
   },
-  "shingle_size": 8,
-  "category_field": [
-    "host"
-  ],
-  "imputation_option": {
-    "method": "ZERO"
-  }
+  "shingle_size": 8
 }

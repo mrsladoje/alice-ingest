@@ -5,19 +5,28 @@ import urllib.error
 import urllib.request
 
 OS_URL = os.environ.get("OS_URL", "http://localhost:9200")
-EXPECTED_MONITORS = int(os.environ.get("EXPECTED_MONITORS", "11"))
-EXPECTED_DETECTORS = int(os.environ.get("EXPECTED_DETECTORS", "10"))
+EXPECTED_MONITORS = int(os.environ.get("EXPECTED_MONITORS", "20"))
+EXPECTED_DETECTORS = int(os.environ.get("EXPECTED_DETECTORS", "17"))
 
 EXPECTED_MONITOR_NAMES = {
     "collector-down", "collector-unhealthy", "cluster-red", "shards-stuck",
     "data-loss", "shipping-breaking", "disk-cliff-warn", "disk-cliff-page",
     "heap-spiral", "telemetry-silence", "ad-high-grade",
+    "trend-il-volume", "trend-il-ef", "trend-il-entry-lag", "trend-il-shipping-lag",
+    "trend-other-volume", "trend-other-errors",
+    "trend-info-volume", "trend-info-entry-lag", "trend-info-shipping-lag",
 }
 EXPECTED_DETECTOR_NAMES = {
     "ingest-flow", "node-health", "dashboards-health",
-    "il-per-epn", "il-per-epn-lag", "other-per-epn", "info-volume",
-    "il-per-epn-slow", "other-per-epn-slow", "info-volume-slow",
+    "il-per-epn", "il-per-epn-slow",
+    "il-per-epn-entry-lag", "il-per-epn-entry-lag-slow",
+    "il-collector-shipping-lag", "il-collector-shipping-lag-slow",
+    "other-per-epn", "other-per-epn-slow",
+    "info-volume", "info-volume-slow",
+    "info-per-epn-entry-lag", "info-per-epn-entry-lag-slow",
+    "info-collector-shipping-lag", "info-collector-shipping-lag-slow",
 }
+METRICS_DETECTORS = {"ingest-flow", "node-health", "dashboards-health"}
 OK_STATES = {"RUNNING", "INIT", "INITIALIZING", "INIT_PROGRESS"}
 
 
@@ -42,15 +51,48 @@ def req(method, path, payload=None):
 def main():
     errors = []
 
+    sink_id = os.environ.get("ALERT_SINK_ID", "alice-incluster-alert-sink")
+    code, sink = req("GET", f"/_plugins/_notifications/configs/{sink_id}")
+    sink_ok = False
+    if code == 200:
+        for cfg in sink.get("config_list") or []:
+            if cfg.get("config_id") == sink_id:
+                sink_ok = True
+                break
+    if sink_ok:
+        print(f"[verify-detection] notification channel present: {sink_id}")
+    else:
+        errors.append(f"missing notification channel: {sink_id}")
+
     _, mon = req("POST", "/_plugins/_alerting/monitors/_search",
                  {"query": {"match_all": {}}, "size": 200})
     monitors = mon.get("hits", {}).get("hits", [])
     mon_names = set()
+    throttle_missing = []
     for h in monitors:
         src = h.get("_source", {})
-        name = src.get("monitor", {}).get("name") or src.get("name")
+        mon_obj = src.get("monitor", src)
+        name = mon_obj.get("name") or src.get("name")
         if name:
             mon_names.add(name)
+        if name not in EXPECTED_MONITOR_NAMES:
+            continue
+        for t in mon_obj.get("triggers") or []:
+            trig = t.get("bucket_level_trigger") or t.get(
+                "query_level_trigger") or t
+            actions = trig.get("actions") or []
+            ok_throttle = False
+            for a in actions:
+                thr = a.get("throttle") or {}
+                if (a.get("throttle_enabled") is True
+                        and thr.get("value") == 30
+                        and str(thr.get("unit", "")).upper() == "MINUTES"
+                        and a.get("destination_id") == sink_id):
+                    ok_throttle = True
+                    break
+            if not ok_throttle:
+                throttle_missing.append(name)
+                break
     print(f"[verify-detection] monitors={sorted(mon_names)}")
     missing_m = sorted(EXPECTED_MONITOR_NAMES - mon_names)
     if missing_m:
@@ -58,16 +100,24 @@ def main():
     if len(mon_names) < EXPECTED_MONITORS:
         errors.append(
             f"monitor count {len(mon_names)} < {EXPECTED_MONITORS}")
-
+    if throttle_missing:
+        errors.append(
+            f"monitors missing 30m throttle action on {sink_id}: "
+            f"{sorted(throttle_missing)}")
     _, det = req("POST", "/_plugins/_anomaly_detection/detectors/_search",
                  {"query": {"match_all": {}}, "size": 200})
     detectors = det.get("hits", {}).get("hits", [])
     det_names = {}
+    det_time_fields = {}
     for h in detectors:
-        name = h.get("_source", {}).get("name")
+        src = h.get("_source", {})
+        name = src.get("name")
         if not name:
             continue
         det_names.setdefault(name, []).append(h.get("_id"))
+        tf = src.get("time_field")
+        if tf:
+            det_time_fields[name] = tf
     print(f"[verify-detection] detectors={sorted(det_names)}")
     missing_d = sorted(EXPECTED_DETECTOR_NAMES - set(det_names))
     if missing_d:
@@ -75,6 +125,15 @@ def main():
     for name, ids in det_names.items():
         if len(ids) > 1:
             errors.append(f"duplicate detector name {name}: {ids}")
+    for name in EXPECTED_DETECTOR_NAMES:
+        if name not in det_time_fields:
+            continue
+        want = "@timestamp" if name in METRICS_DETECTORS else "collector_time"
+        got = det_time_fields[name]
+        if got != want:
+            errors.append(f"detector {name} time_field={got!r} want={want!r}")
+        else:
+            print(f"[verify-detection] detector {name}: time_field={got}")
 
     for name, ids in det_names.items():
         if name not in EXPECTED_DETECTOR_NAMES:

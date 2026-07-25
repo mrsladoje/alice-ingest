@@ -1,7 +1,7 @@
 {
   "name": "other-per-epn-slow",
   "description": "generic-log-other per-EPN 30m",
-  "time_field": "@timestamp",
+  "time_field": "collector_time",
   "indices": [
     "generic-log-other"
   ],

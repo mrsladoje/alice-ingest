@@ -1,7 +1,7 @@
 {
   "name": "info-volume",
   "description": "generic-log-info per-EPN volume",
-  "time_field": "@timestamp",
+  "time_field": "collector_time",
   "indices": [
     "generic-log-info-*"
   ],

@@ -5,12 +5,92 @@ OS="${OS_URL:-http://localhost:9200}"
 MONITORS_DIR="${MONITORS_DIR:-/opt/alice-ingest/init/monitors}"
 GRADE="${AD_ANOMALY_GRADE_THRESHOLD:-0.7}"
 CONF="${AD_ANOMALY_CONFIDENCE_THRESHOLD:-0.7}"
+SINK_ID="${ALERT_SINK_ID:-alice-incluster-alert-sink}"
+SINK_URL="${ALERT_SINK_URL:-http://127.0.0.1:9200/alice-alert-actions/_doc}"
+SINK_INDEX="${ALERT_SINK_INDEX:-alice-alert-actions}"
 
 put_ok() {
   case "$1" in
     200|201) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+ensure_alert_sink_index() {
+  code=$(curl -s -o /tmp/alert-sink-idx -w '%{http_code}' \
+    -XPUT "$OS/$SINK_INDEX" \
+    -H 'Content-Type: application/json' \
+    -d '{
+      "settings": {"number_of_shards": 1, "number_of_replicas": 0},
+      "mappings": {
+        "properties": {
+          "monitor": {"type": "keyword"},
+          "trigger": {"type": "keyword"},
+          "severity": {"type": "keyword"},
+          "period_end": {"type": "keyword"}
+        }
+      }
+    }' || echo 000)
+  case "$code" in
+    200|201)
+      echo "[alerting] ensured index: $SINK_INDEX"
+      ;;
+    400)
+      if grep -q 'resource_already_exists_exception' /tmp/alert-sink-idx 2>/dev/null; then
+        echo "[alerting] index exists: $SINK_INDEX"
+      else
+        echo "[alerting] FATAL: create index $SINK_INDEX -> HTTP $code: $(cat /tmp/alert-sink-idx)"
+        return 1
+      fi
+      ;;
+    *)
+      echo "[alerting] FATAL: create index $SINK_INDEX -> HTTP $code: $(cat /tmp/alert-sink-idx)"
+      return 1
+      ;;
+  esac
+}
+
+upsert_alert_sink_channel() {
+  body=$(SINK_ID="$SINK_ID" SINK_URL="$SINK_URL" python3 -c '
+import json,os
+print(json.dumps({
+  "config_id": os.environ["SINK_ID"],
+  "config": {
+    "name": os.environ["SINK_ID"],
+    "description": "In-cluster webhook sink for alert action throttle (indexes into alice-alert-actions)",
+    "config_type": "webhook",
+    "is_enabled": True,
+    "webhook": {
+      "url": os.environ["SINK_URL"],
+      "header_params": {"Content-Type": "application/json"},
+    },
+  },
+}))
+')
+  gcode=$(curl -s -o /tmp/alert-sink-get -w '%{http_code}' \
+    "$OS/_plugins/_notifications/configs/$SINK_ID" || echo 000)
+  if [ "$gcode" = "200" ] && grep -q "$SINK_ID" /tmp/alert-sink-get 2>/dev/null; then
+    up_body=$(printf '%s' "$body" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps({"config": d["config"]}))')
+    code=$(curl -s -o /tmp/alert-sink-resp -w '%{http_code}' \
+      -XPUT "$OS/_plugins/_notifications/configs/$SINK_ID" \
+      -H 'Content-Type: application/json' -d "$up_body" || echo 000)
+    if put_ok "$code"; then
+      echo "[alerting] updated notification channel: $SINK_ID"
+    else
+      echo "[alerting] FATAL: update channel $SINK_ID -> HTTP $code: $(cat /tmp/alert-sink-resp)"
+      return 1
+    fi
+  else
+    code=$(curl -s -o /tmp/alert-sink-resp -w '%{http_code}' \
+      -XPOST "$OS/_plugins/_notifications/configs/" \
+      -H 'Content-Type: application/json' -d "$body" || echo 000)
+    if put_ok "$code"; then
+      echo "[alerting] created notification channel: $SINK_ID"
+    else
+      echo "[alerting] FATAL: create channel $SINK_ID -> HTTP $code: $(cat /tmp/alert-sink-resp)"
+      return 1
+    fi
+  fi
 }
 
 search_monitor_id() {
@@ -77,7 +157,9 @@ upsert_monitor() {
   fi
 }
 
-echo "[alerting] provisioning monitors from $MONITORS_DIR"
+echo "[alerting] provisioning alert sink + monitors from $MONITORS_DIR"
+ensure_alert_sink_index
+upsert_alert_sink_channel
 count=0
 for f in "$MONITORS_DIR"/*.json; do
   [ -f "$f" ] || continue
@@ -88,4 +170,4 @@ if [ "$count" -lt 1 ]; then
   echo "[alerting] FATAL: no monitor definitions in $MONITORS_DIR"
   exit 1
 fi
-echo "[alerting] DONE — $count monitors upserted"
+echo "[alerting] DONE — $count monitors upserted (sink=$SINK_ID)"

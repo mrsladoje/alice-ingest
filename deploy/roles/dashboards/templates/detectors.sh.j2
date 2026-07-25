@@ -108,7 +108,32 @@ upsert_detector() {
   fi
 }
 
+delete_detector_by_name() {
+  name="$1"
+  existing=$(search_detector_id "$name")
+  if [ -z "$existing" ]; then
+    return 0
+  fi
+  stop_detector "$existing" >/dev/null || true
+  sleep 1
+  code=$(curl -s -o /tmp/ad-del -w '%{http_code}' \
+    -XDELETE "$OS/_plugins/_anomaly_detection/detectors/$existing" || echo 000)
+  case "$code" in
+    200|201|404)
+      echo "[detectors] deleted obsolete: $name ($existing)"
+      ;;
+    *)
+      echo "[detectors] FATAL: delete obsolete $name -> HTTP $code: $(cat /tmp/ad-del)"
+      return 1
+      ;;
+  esac
+}
+
 echo "[detectors] provisioning from $DETECTORS_DIR (metrics_delay=${METRICS_DELAY}m log_delay=${LOG_DELAY}m)"
+curl -s -XPUT "$OS/_cluster/settings" -H 'Content-Type: application/json' \
+  -d '{"persistent":{"plugins.anomaly_detection.max_multi_entity_anomaly_detectors":50}}' \
+  >/tmp/ad-settings || true
+delete_detector_by_name "il-per-epn-lag"
 count=0
 for f in "$DETECTORS_DIR"/*.json; do
   [ -f "$f" ] || continue

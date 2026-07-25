@@ -1,7 +1,7 @@
 {
   "name": "other-per-epn",
   "description": "generic-log-other per-EPN volume errors",
-  "time_field": "@timestamp",
+  "time_field": "collector_time",
   "indices": [
     "generic-log-other"
   ],

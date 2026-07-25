@@ -33,5 +33,5 @@ ops_internal_port: 8090
 dashboards_metrics_service_name: alice-metrics
 dashboards_metrics_script: /opt/alice-ingest/metrics_poller.py
 
-expected_monitors: 11
-expected_detectors: 10
+expected_monitors: 20
+expected_detectors: 17

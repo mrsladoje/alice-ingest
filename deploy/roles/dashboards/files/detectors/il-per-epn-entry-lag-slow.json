@@ -1,7 +1,7 @@
 {
-  "name": "il-per-epn-lag",
-  "description": "InfoLogger per-EPN ingest lag",
-  "time_field": "@timestamp",
+  "name": "il-per-epn-entry-lag-slow",
+  "description": "InfoLogger per-EPN enter_system_lag_ms 30m (archive-age under preserved replay)",
+  "time_field": "collector_time",
   "indices": [
     "infologger"
   ],
@@ -10,12 +10,12 @@
   ],
   "feature_attributes": [
     {
-      "feature_name": "avg_lag",
+      "feature_name": "avg_entry_lag",
       "feature_enabled": true,
       "aggregation_query": {
-        "avg_lag": {
+        "avg_entry_lag": {
           "avg": {
-            "field": "ingest_lag_ms"
+            "field": "enter_system_lag_ms"
           }
         }
       }
@@ -23,7 +23,7 @@
   ],
   "detection_interval": {
     "period": {
-      "interval": 1,
+      "interval": 30,
       "unit": "Minutes"
     }
   },

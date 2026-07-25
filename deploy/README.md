@@ -471,11 +471,29 @@ strict verify. Definitions live under
 | `telemetry-silence` | no `cockpit-metrics` docs for 5 min | `alice-metrics` poller dead on control host |
 | `ad-high-grade` | RCF anomaly grade/confidence high | Open Anomaly Detection UI; correlate with Layer 0 |
 
+### Trend monitors (deterministic — log indices, `collector_time`)
+
+Recent = avg over ~6h; baseline = ~7d excluding recent (24h fallback). Fire at ≥2× (volume also ≤0.5× collapse). Severity warn. Run-start spikes may false-warn until gated.
+
+| Monitor | Index | Entity | Metric |
+|---|---|---|---|
+| `trend-il-volume` | `infologger` | `hostname` | doc volume |
+| `trend-il-ef` | `infologger` | `hostname` | E/F count |
+| `trend-il-entry-lag` | `infologger` | `hostname` | `avg(enter_system_lag_ms)` |
+| `trend-il-shipping-lag` | `infologger` | `node` | `avg(ingest_lag_ms)` |
+| `trend-other-volume` | `generic-log-other` | `host` | volume |
+| `trend-other-errors` | `generic-log-other` | `host` | error count |
+| `trend-info-volume` | `generic-log-info-*` | `host` | volume |
+| `trend-info-entry-lag` | `generic-log-info-*` | `host` | `avg(enter_system_lag_ms)` |
+| `trend-info-shipping-lag` | `generic-log-info-*` | `node` | `avg(ingest_lag_ms)` |
+
 Alerts appear in Dashboards → Alerting and on the Cockpit **Detection** panels.
 `/ops` shows active-alert and anomalies-last-hour counts. No external channel yet
 (nginx alertmanager slot remains the future seam).
 
 ### Detectors (Layer 0.5 / 1)
+
+Entity rule: `ingest_lag_ms` → collector `node`; `enter_system_lag_ms` → EPN (`hostname`/`host`). Lag-only detectors have no ZERO imputation. `enter_system_*` AD is valid in production; under preserved replay scores reflect archive age (expected) — detectors still run.
 
 | Detector | Signal |
 |---|---|
@@ -483,18 +501,27 @@ Alerts appear in Dashboards → Alerting and on the Cockpit **Detection** panels
 | `node-health` | heap, CPU, indexing delta, disk |
 | `dashboards-health` | OSD event-loop / latency / requests |
 | `il-per-epn` (+ `-slow`) | InfoLogger per-`hostname` volume, E/F |
-| `il-per-epn-lag` | InfoLogger per-`hostname` avg `ingest_lag_ms` (no zero-impute) |
+| `il-per-epn-entry-lag` (+ `-slow`) | InfoLogger per-`hostname` `avg(enter_system_lag_ms)` |
+| `il-collector-shipping-lag` (+ `-slow`) | InfoLogger per-`node` `avg(ingest_lag_ms)` |
 | `other-per-epn` (+ `-slow`) | generic-other per-`host` volume / errors |
 | `info-volume` (+ `-slow`) | generic-info per-`host` volume |
+| `info-per-epn-entry-lag` (+ `-slow`) | generic-info per-`host` `avg(enter_system_lag_ms)` |
+| `info-collector-shipping-lag` (+ `-slow`) | generic-info per-`node` `avg(ingest_lag_ms)` |
 
-RCF needs a few hundred intervals before scores are meaningful (~3–5 h at 1 min).
+**17** detectors total (3 metrics + 14 log). RCF needs a few hundred intervals before scores are meaningful (~3–5 h at 1 min).
 Profile: `GET _plugins/_anomaly_detection/detectors/<id>/_profile`.
 
 ### Replay clock
 
-- `make replay` / `make replay-fresh` → `replay_clock=shifted` (event times ≈ now;
-  unlocks log AD + real `ingest_lag_ms`).
-- `make replay-preserved` → historical June timestamps (Discover / backtests).
+Dual-clock (`collector_time` wall clock + preserved `@timestamp`) is what unlocks
+log AD and a valid `ingest_lag_ms` (collector → OpenSearch) on preserved replay.
+`enter_system_lag_ms` is implemented for production but is archive-age (huge) under
+preserved June timestamps — expected.
+
+- `make replay` / `make replay-fresh` → currently still pass `replay_clock=shifted`
+  (Discover “live stream” cosmetics; **optional**, not required for AD).
+- `make replay-preserved` → historical June `@timestamp` (Discover / backtests;
+  AD works via `collector_time`).
 - Unit default in `group_vars` stays `preserved`.
 
 ### Retention (ISM)
@@ -505,5 +532,6 @@ re-creates the box-pinned `generic-log-info-*` indices if missing.
 
 ### Re-measure window delay
 
-After topology changes, query p99 `ingest_lag_ms` per family on a shifted replay
-and bump `ad_log_window_delay_minutes` in `group_vars/all.yml` if shingles skip.
+After topology changes, query p99 `ingest_lag_ms` per family on a fresh replay
+(shipping lag, not archive age) and bump `ad_log_window_delay_minutes` in
+`group_vars/all.yml` if shingles skip.

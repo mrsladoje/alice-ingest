@@ -1,7 +1,7 @@
 {
   "name": "il-per-epn",
   "description": "InfoLogger per-EPN volume errors lag",
-  "time_field": "@timestamp",
+  "time_field": "collector_time",
   "indices": [
     "infologger"
   ],

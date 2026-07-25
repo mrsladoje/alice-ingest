@@ -151,6 +151,15 @@ pipeline:
       rule: $severity ^Info$  family.info false
       rule: $message ^.*$  family.other false
       emitter_name: stdout_router
+    - name: lua
+      match: '*'
+      call: stamp_collector_time
+      type_int_key: collector_time
+      code: |
+        function stamp_collector_time(tag, ts, record)
+          record['collector_time'] = os.time() * 1000
+          return 2, ts, record
+        end
 
   outputs:
     - name: opensearch

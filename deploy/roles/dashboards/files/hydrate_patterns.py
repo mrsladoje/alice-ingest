@@ -9,7 +9,7 @@ OSD_URL = os.environ.get("OSD_URL", "http://127.0.0.1:5602")
 REQUIRED = {
     "alice-unified": ["@timestamp", "severity", "log_source", "message",
                       "host", "hostname", "system", "detector",
-                      "ingest_lag_ms"],
+                      "collector_time", "ingest_lag_ms", "enter_system_lag_ms"],
     "alice-metrics": ["@timestamp", "kind", "node", "cluster_status",
                       "index_name", "docs_delta", "indexing_delta",
                       "heap_percent", "fb_up", "fb_healthy", "osd_state",
