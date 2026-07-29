@@ -335,6 +335,19 @@ def _run_replay_shifted(families, stop):
         time.sleep(REPLAY_LOOP_PAUSE)
 
 
+_orig_do_GET = replay.Handler.do_GET
+
+
+def _do_GET_with_status(self):
+    if replay.urlparse(self.path).path == "/replay-status":
+        self._json(200, {"running": replay._active.locked(),
+                         "loop": REPLAY_LOOP,
+                         "collector": OWN_COLLECTOR})
+        return
+    return _orig_do_GET(self)
+
+
+replay.Handler.do_GET = _do_GET_with_status
 replay.list_objects = _partition_filtered_list_objects
 replay.il_connect = _partition_filtered_il_connect
 replay.json.dumps = _json_dumps_shifted

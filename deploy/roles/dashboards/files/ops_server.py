@@ -132,6 +132,20 @@ def wipe():
     return lines
 
 
+def replay_in_flight():
+    busy = []
+    for w in WORKERS:
+        code, body = _req("GET", f"{w}/replay-status", timeout=5)
+        if code != 200:
+            continue
+        try:
+            if json.loads(body).get("running"):
+                busy.append(w)
+        except ValueError:
+            continue
+    return busy
+
+
 def trigger_workers():
     lines = []
     if not WORKERS:
@@ -149,6 +163,18 @@ def clear_only():
 def run_replay(fresh):
     lines = []
     if fresh:
+        busy = replay_in_flight()
+        if busy:
+            return [
+                "REFUSED — a replay is still running on "
+                + ", ".join(busy),
+                "Nothing was wiped. A paced load runs for about an hour, and "
+                "the worker will not accept a second one while the first is "
+                "in flight, so wiping now would have emptied the indices "
+                "without starting a reload.",
+                "Wait for it to finish, or restart alice-replay on those "
+                "workers to cancel it, then press Reload data (fresh) again.",
+            ]
         lines += wipe()
     lines += trigger_workers()
     return lines
