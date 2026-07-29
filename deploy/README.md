@@ -736,11 +736,15 @@ log AD and a valid `ingest_lag_ms` (collector → OpenSearch) on preserved repla
 `enter_system_lag_ms` is implemented for production but is archive-age (huge) under
 preserved June timestamps — expected.
 
-- `make replay` / `make replay-fresh` → currently still pass `replay_clock=shifted`
-  (Discover “live stream” cosmetics; **optional**, not required for AD).
+- `make replay` / `make replay-fresh` → `replay_clock=shifted` (Discover “live
+  stream” cosmetics, **and** the only mode in which `enter_system_lag_ms` — and
+  so the four `*-entry-lag` detectors — carries a real signal rather than
+  archive age).
 - `make replay-preserved` → historical June `@timestamp` (Discover / backtests;
-  AD works via `collector_time`).
-- Unit default in `group_vars` stays `preserved`.
+  AD still works via `collector_time`).
+- Unit default in `group_vars` is now `shifted`, so the ops page's replay button
+  — which POSTs the worker trigger directly and never goes through Ansible —
+  behaves the same as `make replay-fresh` instead of quietly differing.
 
 ### Retention — rolling window, never a wipe
 

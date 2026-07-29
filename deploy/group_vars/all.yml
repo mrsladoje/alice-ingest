@@ -37,7 +37,15 @@ node_count: "{{ groups['workers'] | length }}"
 cockpit_metrics_index: cockpit-metrics
 cockpit_metrics_interval_seconds: 30
 
-replay_clock: preserved
+# shifted slides event timestamps forward so @timestamp lands near now. Every
+# make target that matters already passed shifted explicitly; the default stayed
+# preserved, which meant the ops page's replay button — the one Lubos presses,
+# and the only path that never goes through Ansible — silently did something
+# else. It also matters beyond cosmetics: enter_system_lag_ms is
+# collector_time - @timestamp, so under preserved it is archive age, roughly
+# constant, and the four *-entry-lag detectors have nothing to detect.
+# make replay-preserved overrides this when the original June times are wanted.
+replay_clock: shifted
 
 trend_rollup_index: trend-rollup
 trend_rollup_bucket_seconds: 600
