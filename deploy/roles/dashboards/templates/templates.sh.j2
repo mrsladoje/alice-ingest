@@ -488,6 +488,26 @@ JSON
 
 wait_os
 
+# Forbid OpenSearch from auto-creating an index named exactly after a log
+# family. Those names belong to rollover write aliases. If ingest reaches one
+# while its alias is briefly absent — the seconds between a fresh reload's
+# DELETE and this script recreating the aliases, during which Fluent Bit is
+# still flushing whatever it had buffered — OpenSearch would helpfully create a
+# concrete index with dynamic mapping, which then blocks the alias forever,
+# turns collector_time into a long and host into text, and fails the next
+# deploy. Rejecting those writes loses a few seconds of records and is strictly
+# better. The backing indices (family-000001) are unaffected: they carry a
+# suffix so they do not match these exact patterns, and explicit index creation
+# is never governed by this setting anyway.
+AUTO_CREATE="-infologger,-generic-log-other"
+for wn in $WORKER_NODES; do
+  AUTO_CREATE="$AUTO_CREATE,-generic-log-info-$wn"
+done
+AUTO_CREATE="$AUTO_CREATE,+*"
+put "/_cluster/settings" \
+  "{\"persistent\":{\"action.auto_create_index\":\"$AUTO_CREATE\"}}" \
+  "auto-create guard on the log family alias names ($AUTO_CREATE)"
+
 del "/_index_template/alice-logs"         "legacy index template alice-logs"
 del "/_index_template/alice-logs-generic" "superseded index template alice-logs-generic"
 
