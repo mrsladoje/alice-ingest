@@ -72,6 +72,38 @@ ensure_rollover_index() {
   put "/$alias-000001" "$body" "first rollover index $alias-000001 (write alias $alias)"
 }
 
+seed_if_empty() {
+  alias="$1"
+  cnt=$(curl -s "$OS/$alias/_count?ignore_unavailable=true&allow_no_indices=true" \
+    | python3 -c '
+import json,sys
+try:
+    print(int(json.load(sys.stdin).get("count", 0)))
+except Exception:
+    print(-1)
+')
+  if [ "$cnt" = "-1" ]; then
+    echo "[os-init] FATAL: could not count documents in $alias"
+    return 1
+  fi
+  if [ "$cnt" != "0" ]; then
+    echo "[os-init] $alias holds $cnt documents (no bootstrap seed needed)"
+    return 0
+  fi
+  now=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+  body=$(printf '{"@timestamp":"%s","collector_time":"%s","log_source":"bootstrap","message":"alice-ingest bootstrap seed. The anomaly-detection plugin refuses to create a detector over an index holding zero documents, and the log indices stay empty until the first replay. This document carries no host, node or severity field, so it forms no entity in any detector or trend-rollup bucket. It ages out with the first rollover."}' "$now" "$now")
+  code=$(curl -s -o /tmp/os-seed -w '%{http_code}' \
+    -XPUT "$OS/$alias/_doc/alice-bootstrap-seed?refresh=true" \
+    -H 'Content-Type: application/json' -d "$body" || echo 000)
+  case "$code" in
+    200|201) echo "[os-init] seeded 1 bootstrap document into $alias" ;;
+    *)
+      echo "[os-init] FATAL: seed $alias -> HTTP $code: $(cat /tmp/os-seed)"
+      return 1
+      ;;
+  esac
+}
+
 ensure_index() {
   idx="$1"; body="$2"
   code=$(curl -s -o /dev/null -w '%{http_code}' "$OS/$idx" || echo 000)
@@ -424,5 +456,11 @@ for wn in $WORKER_NODES; do
   put "/generic-log-info-$wn*/_mapping" "$NORM_MAPPING" "mapping severity_norm/origin_host on generic-log-info-$wn"
 done
 put "/{{ cockpit_metrics_index }}/_mapping" "$RETRIES_FAILED_DELTA_MAPPING" "mapping output_retries_failed_delta on cockpit-metrics"
+
+seed_if_empty "infologger"
+seed_if_empty "generic-log-other"
+for wn in $WORKER_NODES; do
+  seed_if_empty "generic-log-info-$wn"
+done
 
 echo "[os-init] DONE — tier-aware mappings, rollover write aliases and all indices in place before first write"

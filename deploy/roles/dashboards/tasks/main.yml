@@ -24,3 +24,6 @@
 
 - name: Trend rollup service (feeds the trend monitors) — after bootstrap so trend-rollup exists first
   ansible.builtin.import_tasks: rollup.yml
+
+- name: Detection layer (anomaly detectors + verify) — after the metrics poller, which fills their source index
+  ansible.builtin.import_tasks: detection.yml

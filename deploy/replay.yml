@@ -2,35 +2,27 @@
   hosts: control
   become: true
   gather_facts: false
+  vars:
+    bootstrap_root: /opt/alice-ingest/init
   tasks:
-    - name: Delete the storage-tier log indices
+    - name: Delete the backing indices of every log family (the family names are rollover write aliases, not indices)
       ansible.builtin.uri:
-        url: "http://localhost:{{ opensearch_http_port }}/{{ item }}"
+        url: "http://localhost:{{ opensearch_http_port }}/{{ item }}?ignore_unavailable=true&allow_no_indices=true"
         method: DELETE
         status_code: [200, 404]
-      loop:
-        - infologger
-        - generic-log-other
+      loop: "{{ ['infologger-*', 'generic-log-other-*']
+                + (groups['workers']
+                   | map('extract', hostvars, 'node_id')
+                   | map('regex_replace', '^(.*)$', 'generic-log-info-\\1-*')
+                   | list) }}"
       when: replay_fresh | default(false) | bool
 
-    - name: Delete each worker's local info-tier index
-      ansible.builtin.uri:
-        url: "http://localhost:{{ opensearch_http_port }}/generic-log-info-{{ hostvars[item].node_id }}"
-        method: DELETE
-        status_code: [200, 404]
-      loop: "{{ groups['workers'] }}"
-      when: replay_fresh | default(false) | bool
-
-    - name: Re-create each worker's local info-tier index pinned to its box
-      ansible.builtin.uri:
-        url: "http://localhost:{{ opensearch_http_port }}/generic-log-info-{{ hostvars[item].node_id }}"
-        method: PUT
-        body_format: json
-        body:
-          settings:
-            index.routing.allocation.require.box: "{{ hostvars[item].node_id }}"
-        status_code: [200, 201]
-      loop: "{{ groups['workers'] }}"
+    - name: Re-create the rollover write aliases, templates, mappings and seed documents
+      ansible.builtin.command:
+        cmd: "{{ bootstrap_root }}/templates.sh"
+      environment:
+        OS_URL: "http://localhost:{{ opensearch_http_port }}"
+      changed_when: true
       when: replay_fresh | default(false) | bool
 
 - name: Trigger the S3 replay on every worker
