@@ -6,6 +6,7 @@ import time
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from string import Template
 
 OPS_PORT = int(os.environ.get("OPS_PORT", "8090"))
 OS_URL = os.environ.get("OS_URL", "http://localhost:9200")
@@ -147,6 +148,34 @@ def replay_in_flight():
     return busy
 
 
+def family_counts():
+    out = []
+    for fam in LOG_FAMILIES:
+        code, body = _req(
+            "GET", f"{OS_URL}/{fam}/_count"
+            "?ignore_unavailable=true&allow_no_indices=true")
+        n = 0
+        if code == 200:
+            try:
+                n = int(json.loads(body).get("count", 0))
+            except (ValueError, TypeError):
+                n = 0
+        out.append((fam, n))
+    return out
+
+
+def snapshot():
+    busy = replay_in_flight()
+    return {
+        "count": doc_count(),
+        "active_alerts": active_alerts(),
+        "anomalies_last_hour": anomalies_last_hour(),
+        "replay_running": bool(busy),
+        "replay_workers": len(busy),
+        "families": family_counts(),
+    }
+
+
 def stop_replays(workers):
     lines = []
     for w in workers:
@@ -211,56 +240,117 @@ def run_replay(fresh):
     return lines
 
 
-PAGE = """<!doctype html>
+PAGE = Template("""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ALICE Cockpit — Ops</title>
 <style>
- body{{font-family:system-ui,Segoe UI,Roboto,sans-serif;max-width:640px;margin:3rem auto;padding:0 1rem;color:#111}}
- h1{{font-size:1.5rem}}
- .count{{font-size:2.5rem;font-weight:700;margin:.2rem 0}}
- .row{{display:flex;gap:1.5rem;margin:1rem 0}}
- .stat{{flex:1}}
- .stat .count{{font-size:1.8rem}}
- .muted{{color:#666}}
- form{{display:inline}}
- button{{font-size:1rem;padding:.6rem 1rem;border:0;border-radius:8px;cursor:pointer;margin:.3rem .3rem 0 0}}
- .fresh{{background:#c0392b;color:#fff}}
- .append{{background:#e0e0e0;color:#111}}
- .clear{{background:#f0ad4e;color:#111}}
- a.dash{{display:inline-block;margin-top:1.2rem;font-weight:600}}
- pre{{background:#f5f5f5;padding:1rem;border-radius:8px;white-space:pre-wrap}}
+ body{font-family:system-ui,Segoe UI,Roboto,sans-serif;max-width:720px;margin:2.5rem auto;padding:0 1rem;color:#111}
+ h1{font-size:1.5rem;margin-bottom:.2rem}
+ .count{font-size:2.5rem;font-weight:700;margin:.2rem 0}
+ .row{display:flex;gap:1.5rem;margin:1rem 0}
+ .stat{flex:1}
+ .stat .count{font-size:1.8rem}
+ .muted{color:#666;font-size:.92rem}
+ form{display:inline}
+ button{font-size:1rem;padding:.6rem 1rem;border:0;border-radius:8px;cursor:pointer;margin:.3rem .3rem 0 0}
+ button:disabled{opacity:.45;cursor:not-allowed}
+ .fresh{background:#c0392b;color:#fff}
+ .append{background:#e0e0e0;color:#111}
+ .clear{background:#f0ad4e;color:#111}
+ a.dash{display:inline-block;margin-top:1.4rem;font-weight:600}
+ pre{background:#f5f5f5;padding:1rem;border-radius:8px;white-space:pre-wrap;font-size:.85rem;line-height:1.5}
+ .pill{display:inline-block;padding:.25rem .7rem;border-radius:999px;font-size:.85rem;font-weight:600}
+ .live{background:#d5f5e3;color:#186a3b}
+ .idle{background:#eee;color:#555}
+ table.fam{border-collapse:collapse;margin:.6rem 0;font-size:.9rem}
+ table.fam td{padding:.2rem .9rem .2rem 0}
+ table.fam td.n{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+ #busy{display:none;margin:1rem 0;padding:.9rem 1rem;border-radius:8px;background:#fff4e5;color:#7a4b00;font-weight:600}
+ #busy.on{display:block}
+ .spin{display:inline-block;width:.85em;height:.85em;margin-right:.5em;border:2px solid #7a4b00;border-right-color:transparent;border-radius:50%;animation:sp .8s linear infinite;vertical-align:-.1em}
+ @keyframes sp{to{transform:rotate(360deg)}}
 </style>
 <h1>ALICE Cockpit — Ops</h1>
-<p class="muted">Documents currently indexed (infologger + generic-log-*):</p>
-<div class="count">{count}</div>
+<p><span id="pill" class="pill $pill_class">$pill_text</span></p>
+
+<p class="muted">Documents indexed (infologger + generic-log-*)</p>
+<div class="count" id="total">$count</div>
+<table class="fam" id="fam">$families</table>
+
 <div class="row">
-  <div class="stat"><p class="muted">Active alerts</p><div class="count">{alerts}</div></div>
-  <div class="stat"><p class="muted">Anomalies (last hour)</p><div class="count">{anomalies}</div></div>
+  <div class="stat"><p class="muted">Active alerts</p><div class="count" id="alerts">$alerts</div></div>
+  <div class="stat"><p class="muted">Anomalies (last hour)</p><div class="count" id="anom">$anomalies</div></div>
 </div>
-{result}
-<form method="post" action="replay-fresh" onsubmit="return confirm('Wipe all log indices and reload from S3?');">
+
+<div id="busy"><span class="spin"></span><span id="busytext">Working…</span></div>
+$result
+
+<form method="post" action="replay-fresh" onsubmit="return go(this,'Cancelling any running replay, wiping, rebuilding aliases and starting a paced reload. This can take up to a minute before the page comes back.');">
   <button class="fresh" type="submit">Reload data (fresh)</button>
 </form>
-<form method="post" action="replay">
+<form method="post" action="replay" onsubmit="return go(this,'Starting another replay pass.');">
   <button class="append" type="submit">Append replay</button>
 </form>
-<form method="post" action="stop">
+<form method="post" action="stop" onsubmit="return go(this,'Asking the workers to stop the current pass.');">
   <button class="append" type="submit">Stop running replay</button>
 </form>
-<form method="post" action="clear" onsubmit="return confirm('Clear all alerts, anomalies and trend baselines? The log data stays.');">
+<form method="post" action="clear" onsubmit="return go(this,'Purging alerts, anomalies and trend baselines.');">
   <button class="clear" type="submit">Clear alerts &amp; anomalies</button>
 </form>
-<p class="muted">Fresh cancels any load already in flight, wipes, then reloads — always a clean load. Append adds another
-full pass (no dedup), so use it only deliberately. A load runs for about an hour:
-it is paced so the anomaly detectors get enough consecutive one-minute windows to
-finish training. Documents start appearing within seconds and climb throughout.</p>
-<p class="muted">Clear removes every alert, anomaly record and trend baseline without
-touching the logs or reloading anything. Use it when the panels are full of findings
-about data you have since replaced. Live cluster telemetry and the trained detector
-models are kept, so detection carries on from the next window.</p>
+
+<p class="muted">A paced load runs for about an hour so the anomaly detectors get enough
+consecutive one-minute windows to finish training. It spends its first minute or two
+reading from S3 before the first record ships, so the counters above stay flat at the
+start — they refresh by themselves every 5 seconds while a replay is running.
+<strong>Reload fresh</strong> cancels anything already in flight, then wipes the logs,
+alerts, anomalies and trend baselines before reloading.
+<strong>Clear</strong> purges those findings without touching the logs.</p>
+
 <a class="dash" href="/">Open the ALICE Cockpit dashboard</a>
-"""
+
+<script>
+function go(form, msg) {
+  document.getElementById('busytext').textContent = msg;
+  document.getElementById('busy').classList.add('on');
+  var b = document.querySelectorAll('button');
+  for (var i = 0; i < b.length; i++) { b[i].disabled = true; }
+  return true;
+}
+function paint(s) {
+  document.getElementById('total').textContent = s.count;
+  document.getElementById('alerts').textContent = s.active_alerts;
+  document.getElementById('anom').textContent = s.anomalies_last_hour;
+  var pill = document.getElementById('pill');
+  if (s.replay_running) {
+    pill.className = 'pill live';
+    pill.textContent = 'Replay running on ' + s.replay_workers + ' worker(s)';
+  } else {
+    pill.className = 'pill idle';
+    pill.textContent = 'No replay running';
+  }
+  var rows = '';
+  for (var i = 0; i < s.families.length; i++) {
+    rows += '<tr><td>' + s.families[i][0] + '</td><td class="n">'
+         + s.families[i][1].toLocaleString() + '</td></tr>';
+  }
+  document.getElementById('fam').innerHTML = rows;
+}
+function poll() {
+  fetch('status', {cache: 'no-store'})
+    .then(function (r) { return r.json(); })
+    .then(paint)
+    .catch(function () {});
+}
+setInterval(poll, 5000);
+</script>
+""")
+
+
+def _family_rows(families):
+    return "".join(
+        f'<tr><td>{html.escape(f)}</td><td class="n">{n:,}</td></tr>'
+        for f, n in families)
 
 
 def render(result_lines=None):
@@ -268,10 +358,16 @@ def render(result_lines=None):
     if result_lines:
         joined = html.escape("\n".join(result_lines))
         result = f"<pre>{joined}</pre>"
-    return PAGE.format(
-        count=html.escape(doc_count()),
-        alerts=html.escape(active_alerts()),
-        anomalies=html.escape(anomalies_last_hour()),
+    snap = snapshot()
+    running = snap["replay_running"]
+    return PAGE.substitute(
+        count=html.escape(str(snap["count"])),
+        alerts=html.escape(str(snap["active_alerts"])),
+        anomalies=html.escape(str(snap["anomalies_last_hour"])),
+        families=_family_rows(snap["families"]),
+        pill_class="live" if running else "idle",
+        pill_text=(f"Replay running on {snap['replay_workers']} worker(s)"
+                   if running else "No replay running"),
         result=result)
 
 
@@ -289,11 +385,7 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/", "/ops"):
             self._send(200, render())
         elif path == "/status":
-            self._send(200, json.dumps({
-                "count": doc_count(),
-                "active_alerts": active_alerts(),
-                "anomalies_last_hour": anomalies_last_hour(),
-            }), "application/json")
+            self._send(200, json.dumps(snapshot()), "application/json")
         else:
             self._send(404, render(["not found"]))
 
