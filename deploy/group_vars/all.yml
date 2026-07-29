@@ -85,27 +85,31 @@ ism_retention_alert_history: "30d"
 
 cockpit_metrics_retention_days: 7
 
-# Replay pacing. These are the rates baked into the alice-replay unit, so they
-# are what the ops page's replay button gets — that button POSTs straight to
-# the worker trigger and never goes through Ansible, so anything set only in
-# replay.yml's drop-in would not reach it on a fresh deploy.
+# Replay pacing. The defaults are baked into the alice-replay unit, so they are
+# what the ops page's replay button gets — that button POSTs straight at the
+# worker trigger and never goes through Ansible.
 #
-# The _fast rates below drain the archive in roughly ten minutes. That is
-# shorter than the 32 consecutive detection intervals an RCF model needs before
-# it can leave Initializing, so every log detector freezes half-trained. The
-# defaults stretch the same archive over roughly an hour instead. Nothing about
-# the data changes — only how many distinct one-minute windows contain it.
+# The default is FAST (~10 minutes for the whole archive) because the button is
+# the demo path: someone presses it to show the dashboard filling up, and an
+# hour of waiting with nothing on screen is the wrong answer there.
+#
+# The _paced rates stretch the same archive over roughly an hour. That is what
+# the log detectors need: an RCF model wants 32 consecutive detection intervals
+# before it leaves Initializing, and a ten-minute load only ever offers ten.
+# Nothing about the data changes — only how many distinct one-minute windows
+# contain it. `make replay` uses these; `make replay-fast` and the ops button
+# use the defaults above.
 #
 # Measured basis: ~338k InfoLogger rows parsed per worker and ~73k tarball lines
 # per worker, so 338000/3600 ~= 94 rows/s, and 73000 split over two families
 # /3600 ~= 10 lines/s each. Re-derive if il_max_objects or run_tag changes.
-il_replay_rate: 94
-dds_replay_rate: 10
-stdout_replay_rate: 10
+il_replay_rate: 500
+dds_replay_rate: 400
+stdout_replay_rate: 400
 
-il_replay_rate_fast: 500
-dds_replay_rate_fast: 400
-stdout_replay_rate_fast: 400
+il_replay_rate_paced: 94
+dds_replay_rate_paced: 10
+stdout_replay_rate_paced: 10
 
 dds_max_objects: 0
 il_max_objects: 15

@@ -286,7 +286,7 @@ PAGE = Template("""<!doctype html>
 <div id="busy"><span class="spin"></span><span id="busytext">Working…</span></div>
 $result
 
-<form method="post" action="replay-fresh" onsubmit="return go(this,'Cancelling any running replay, wiping, rebuilding aliases and starting a paced reload. This can take up to a minute before the page comes back.');">
+<form method="post" action="replay-fresh" onsubmit="return go(this,'Cancelling any running replay, wiping, rebuilding aliases and starting the reload. This can take up to a minute before the page comes back.');">
   <button class="fresh" type="submit">Reload data (fresh)</button>
 </form>
 <form method="post" action="replay" onsubmit="return go(this,'Starting another replay pass.');">
@@ -299,10 +299,11 @@ $result
   <button class="clear" type="submit">Clear alerts &amp; anomalies</button>
 </form>
 
-<p class="muted">A paced load runs for about an hour so the anomaly detectors get enough
-consecutive one-minute windows to finish training. It spends its first minute or two
-reading from S3 before the first record ships, so the counters above stay flat at the
-start — they refresh by themselves every 5 seconds while a replay is running.
+<p class="muted">A load takes about ten minutes and spends its first minute or two reading
+from S3 before the first record ships, so the counters above stay flat at the start —
+they refresh by themselves every 5 seconds while a replay is running. For the slow
+version that lets the anomaly detectors finish training, run <code>make replay</code>
+from the control node instead; that one runs for an hour.
 <strong>Reload fresh</strong> cancels anything already in flight, then wipes the logs,
 alerts, anomalies and trend baselines before reloading.
 <strong>Clear</strong> purges those findings without touching the logs.</p>
