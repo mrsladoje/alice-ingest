@@ -33,5 +33,8 @@ ops_internal_port: 8090
 dashboards_metrics_service_name: alice-metrics
 dashboards_metrics_script: /opt/alice-ingest/metrics_poller.py
 
-expected_monitors: 20
+dashboards_trend_rollup_service_name: alice-trend-rollup
+dashboards_trend_rollup_script: /opt/alice-ingest/trend_rollup.py
+
+expected_monitors: 22
 expected_detectors: 17

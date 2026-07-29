@@ -1,21 +1,24 @@
 {
   "name": "il-per-epn-entry-lag-slow",
-  "description": "InfoLogger per-EPN enter_system_lag_ms 30m (archive-age under preserved replay)",
+  "description": "InfoLogger per-EPN p95(enter_system_lag_ms) 30m (archive-age under preserved replay)",
   "time_field": "collector_time",
   "indices": [
     "infologger"
   ],
   "category_field": [
-    "hostname"
+    "origin_host"
   ],
   "feature_attributes": [
     {
-      "feature_name": "avg_entry_lag",
+      "feature_name": "p95_entry_lag",
       "feature_enabled": true,
       "aggregation_query": {
-        "avg_entry_lag": {
-          "avg": {
-            "field": "enter_system_lag_ms"
+        "p95_entry_lag": {
+          "percentiles": {
+            "field": "enter_system_lag_ms",
+            "percents": [
+              95
+            ]
           }
         }
       }

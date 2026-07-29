@@ -3,12 +3,14 @@ set -eu
 
 OS="${OS_URL:-http://localhost:9200}"
 
-RET_CM="{{ ism_retention_cockpit_metrics }}"
 RET_INFO="{{ ism_retention_generic_info }}"
 RET_OTHER="{{ ism_retention_generic_other }}"
 RET_IL="{{ ism_retention_infologger }}"
 RET_AD="{{ ism_retention_ad_results }}"
 RET_ALERT="{{ ism_retention_alert_history }}"
+ROLL_AGE="{{ log_rollover_period }}"
+ROLL_AGE_INFO="{{ log_rollover_period_info }}"
+ROLL_SIZE="{{ log_rollover_max_size }}"
 WORKER_NODES="{{ groups['workers'] | map('extract', hostvars, 'node_id') | join(' ') }}"
 
 put_policy() {
@@ -64,6 +66,35 @@ attach_policy() {
   esac
 }
 
+rollover_delete_policy() {
+  desc="$1"
+  roll_age="$2"
+  roll_size="$3"
+  del_age="$4"
+  patterns="$5"
+  priority="$6"
+  python3 -c '
+import json,sys
+desc,roll_age,roll_size,del_age,patterns,priority=sys.argv[1:7]
+patterns=patterns.split(",")
+print(json.dumps({
+  "policy": {
+    "description": desc,
+    "default_state": "hot",
+    "states": [
+      {
+        "name": "hot",
+        "actions": [{"rollover": {"min_index_age": roll_age, "min_size": roll_size}}],
+        "transitions": [{"state_name": "delete", "conditions": {"min_index_age": del_age}}]
+      },
+      {"name": "delete", "actions": [{"delete": {}}], "transitions": []}
+    ],
+    "ism_template": [{"index_patterns": patterns, "priority": int(priority)}]
+  }
+}))
+' "$desc" "$roll_age" "$roll_size" "$del_age" "$patterns" "$priority"
+}
+
 age_delete_policy() {
   desc="$1"
   age="$2"
@@ -91,17 +122,17 @@ print(json.dumps({
 ' "$desc" "$age" "$patterns" "$priority"
 }
 
-put_policy "alice-cockpit-metrics-retention" \
-  "$(age_delete_policy "delete cockpit-metrics after $RET_CM" "$RET_CM" "cockpit-metrics" 100)"
-
 put_policy "alice-generic-info-retention" \
-  "$(age_delete_policy "delete generic-log-info after $RET_INFO" "$RET_INFO" "generic-log-info-*" 100)"
+  "$(rollover_delete_policy "roll generic-log-info every $ROLL_AGE_INFO/$ROLL_SIZE, delete backing indices at $RET_INFO" \
+     "$ROLL_AGE_INFO" "$ROLL_SIZE" "$RET_INFO" "generic-log-info-*" 100)"
 
 put_policy "alice-generic-other-retention" \
-  "$(age_delete_policy "delete generic-log-other after $RET_OTHER" "$RET_OTHER" "generic-log-other" 100)"
+  "$(rollover_delete_policy "roll generic-log-other every $ROLL_AGE/$ROLL_SIZE, delete backing indices at $RET_OTHER" \
+     "$ROLL_AGE" "$ROLL_SIZE" "$RET_OTHER" "generic-log-other-*" 100)"
 
 put_policy "alice-infologger-retention" \
-  "$(age_delete_policy "delete infologger after $RET_IL" "$RET_IL" "infologger" 100)"
+  "$(rollover_delete_policy "roll infologger every $ROLL_AGE/$ROLL_SIZE, delete backing indices at $RET_IL" \
+     "$ROLL_AGE" "$ROLL_SIZE" "$RET_IL" "infologger-*" 100)"
 
 put_policy "alice-ad-results-retention" \
   "$(age_delete_policy "delete AD result histories after $RET_AD" "$RET_AD" ".opendistro-anomaly-results-history-*,opensearch-ad-plugin-result-*-history-*" 100)"
@@ -109,11 +140,10 @@ put_policy "alice-ad-results-retention" \
 put_policy "alice-alert-history-retention" \
   "$(age_delete_policy "delete alert history after $RET_ALERT" "$RET_ALERT" ".opendistro-alerting-alert-history-*" 100)"
 
-attach_policy "alice-cockpit-metrics-retention" "{{ cockpit_metrics_index }}"
-attach_policy "alice-generic-other-retention" "generic-log-other"
-attach_policy "alice-infologger-retention" "infologger"
+attach_policy "alice-generic-other-retention" "generic-log-other-*"
+attach_policy "alice-infologger-retention" "infologger-*"
 for wn in $WORKER_NODES; do
-  attach_policy "alice-generic-info-retention" "generic-log-info-$wn"
+  attach_policy "alice-generic-info-retention" "generic-log-info-$wn-*"
 done
 
-echo "[ism] DONE — retention policies applied and attached"
+echo "[ism] DONE — rollover+delete on the log families; cockpit-metrics and trend-rollup prune by document"

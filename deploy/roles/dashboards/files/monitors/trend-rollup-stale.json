@@ -1,0 +1,101 @@
+{
+  "type": "monitor",
+  "name": "trend-rollup-stale",
+  "description": "Page when the alice-trend-rollup service stops writing. Every trend-* monitor reads the trend-rollup index, so a dead rollup silently blinds the whole trend lane. Fires when the rollup wrote _meta heartbeats at some point in the last 24h but none in the last 40m (four rollup periods). The 24h precondition is what keeps a fresh deploy - where the index is legitimately empty until the service first runs - from paging on its own bootstrap.",
+  "monitor_type": "query_level_monitor",
+  "enabled": true,
+  "schedule": {
+    "period": {
+      "interval": 10,
+      "unit": "MINUTES"
+    }
+  },
+  "inputs": [
+    {
+      "search": {
+        "indices": [
+          "trend-rollup"
+        ],
+        "query": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "term": {
+                    "family": "_meta"
+                  }
+                },
+                {
+                  "range": {
+                    "ts": {
+                      "gte": "{{period_end}}||-24h",
+                      "lte": "{{period_end}}",
+                      "format": "epoch_millis"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "aggregations": {
+            "recent": {
+              "filter": {
+                "range": {
+                  "ts": {
+                    "gte": "{{period_end}}||-40m",
+                    "lte": "{{period_end}}",
+                    "format": "epoch_millis"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "triggers": [
+    {
+      "query_level_trigger": {
+        "name": "trend-rollup-stale",
+        "severity": "1",
+        "condition": {
+          "script": {
+            "source": "def r = ctx.results[0]; if (r.hits.total.value == 0) { return false; } return r.aggregations.recent.doc_count == 0;",
+            "lang": "painless"
+          }
+        },
+        "actions": [
+          {
+            "name": "notify",
+            "destination_id": "alice-incluster-alert-sink",
+            "subject_template": {
+              "source": "{{ctx.monitor.name}}",
+              "lang": "mustache"
+            },
+            "message_template": {
+              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_end\":\"{{ctx.periodEnd}}\"}",
+              "lang": "mustache"
+            },
+            "throttle_enabled": true,
+            "throttle": {
+              "value": 30,
+              "unit": "MINUTES"
+            },
+            "action_execution_policy": {
+              "action_execution_scope": {
+                "per_alert": {
+                  "actionable_alerts": [
+                    "DEDUPED",
+                    "NEW"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

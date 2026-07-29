@@ -65,6 +65,23 @@ pipeline:
 
   filters:
     - name: lua
+      match: '*'
+      call: stamp_collector_time
+      time_as_table: true
+      type_int_key: collector_time
+      code: |
+        function stamp_collector_time(tag, ts, record)
+          if record['collector_time'] ~= nil then
+            return 0, ts, record
+          end
+          if type(ts) == 'table' then
+            record['collector_time'] = ts['sec'] * 1000 + math.floor(ts['nsec'] / 1000000)
+          else
+            record['collector_time'] = math.floor(ts * 1000)
+          end
+          return 2, ts, record
+        end
+    - name: lua
       match: infologger
       call: set_event_time
       code: |
@@ -153,11 +170,28 @@ pipeline:
       emitter_name: stdout_router
     - name: lua
       match: '*'
-      call: stamp_collector_time
-      type_int_key: collector_time
+      call: normalize_fields
       code: |
-        function stamp_collector_time(tag, ts, record)
-          record['collector_time'] = os.time() * 1000
+        local SEVERITY_NORM = {
+          I = 'info', W = 'warning', E = 'error', F = 'fatal', D = 'debug',
+          Info = 'info', Warning = 'warning', Error = 'error',
+          Fatal = 'fatal', Sys = 'system',
+          inf = 'info', err = 'error', cout = 'info'
+        }
+        function normalize_fields(tag, ts, record)
+          local s = record['severity']
+          local n = nil
+          if s ~= nil then
+            n = SEVERITY_NORM[s]
+          end
+          record['severity_norm'] = n or 'unknown'
+          local h = record['hostname']
+          if h == nil then
+            h = record['host']
+          end
+          if h ~= nil then
+            record['origin_host'] = h
+          end
           return 2, ts, record
         end
 

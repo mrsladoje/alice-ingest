@@ -5,8 +5,9 @@ import urllib.error
 import urllib.request
 
 OS_URL = os.environ.get("OS_URL", "http://localhost:9200")
-EXPECTED_MONITORS = int(os.environ.get("EXPECTED_MONITORS", "20"))
+EXPECTED_MONITORS = int(os.environ.get("EXPECTED_MONITORS", "22"))
 EXPECTED_DETECTORS = int(os.environ.get("EXPECTED_DETECTORS", "17"))
+ROLLUP_INDEX = os.environ.get("ROLLUP_INDEX", "trend-rollup")
 
 EXPECTED_MONITOR_NAMES = {
     "collector-down", "collector-unhealthy", "cluster-red", "shards-stuck",
@@ -15,7 +16,10 @@ EXPECTED_MONITOR_NAMES = {
     "trend-il-volume", "trend-il-ef", "trend-il-entry-lag", "trend-il-shipping-lag",
     "trend-other-volume", "trend-other-errors",
     "trend-info-volume", "trend-info-entry-lag", "trend-info-shipping-lag",
+    "trend-rollup-stale", "trend-entity-cap",
 }
+TREND_MONITOR_NAMES = {
+    n for n in EXPECTED_MONITOR_NAMES if n.startswith("trend-")}
 EXPECTED_DETECTOR_NAMES = {
     "ingest-flow", "node-health", "dashboards-health",
     "il-per-epn", "il-per-epn-slow",
@@ -69,6 +73,7 @@ def main():
     monitors = mon.get("hits", {}).get("hits", [])
     mon_names = set()
     throttle_missing = []
+    wrong_source = []
     for h in monitors:
         src = h.get("_source", {})
         mon_obj = src.get("monitor", src)
@@ -77,6 +82,14 @@ def main():
             mon_names.add(name)
         if name not in EXPECTED_MONITOR_NAMES:
             continue
+        if name in TREND_MONITOR_NAMES:
+            indices = []
+            for inp in mon_obj.get("inputs") or []:
+                indices.extend((inp.get("search") or {}).get("indices") or [])
+            if indices != [ROLLUP_INDEX]:
+                wrong_source.append(f"{name}={indices}")
+            if mon_obj.get("enabled") is not True:
+                errors.append(f"trend monitor {name} is disabled")
         for t in mon_obj.get("triggers") or []:
             trig = t.get("bucket_level_trigger") or t.get(
                 "query_level_trigger") or t
@@ -104,6 +117,58 @@ def main():
         errors.append(
             f"monitors missing 30m throttle action on {sink_id}: "
             f"{sorted(throttle_missing)}")
+    if wrong_source:
+        errors.append(
+            f"trend monitors not reading {ROLLUP_INDEX}: "
+            f"{sorted(wrong_source)}")
+
+    for idx in ("infologger", "generic-log-other"):
+        code, body = req("GET", f"/{idx}/_mapping")
+        if code != 200:
+            errors.append(f"cannot read mapping for {idx}: HTTP {code}")
+            continue
+        props = {}
+        for mapping in body.values():
+            props.update(
+                (mapping.get("mappings") or {}).get("properties") or {})
+        missing = [f for f in ("severity_norm", "origin_host")
+                   if f not in props]
+        if missing:
+            errors.append(
+                f"{idx} mapping missing normalized fields {missing} — "
+                f"infologger is dynamic:strict, so unmapped fields reject "
+                f"every document")
+        else:
+            print(f"[verify-detection] {idx}: severity_norm + origin_host "
+                  f"mapped")
+
+    for alias in ("infologger", "generic-log-other"):
+        code, body = req("GET", f"/_alias/{alias}")
+        if code == 200 and body:
+            backing = sorted(body)
+            print(f"[verify-detection] {alias}: write alias over "
+                  f"{len(backing)} backing index(es) {backing}")
+        else:
+            print(f"[verify-detection] WARNING: {alias} is a plain index, "
+                  f"not a rollover write alias — it will still be wiped "
+                  f"whole when it ages out. Convert once with "
+                  f"'make deploy-migrate-rollover'")
+
+    code, _ = req("GET", f"/{ROLLUP_INDEX}")
+    if code != 200:
+        errors.append(f"rollup index missing: {ROLLUP_INDEX} (HTTP {code})")
+    else:
+        code, hb = req(
+            "POST", f"/{ROLLUP_INDEX}/_search",
+            {"size": 0, "track_total_hits": True,
+             "query": {"bool": {"filter": [
+                 {"term": {"family": "_meta"}},
+                 {"range": {"ts": {"gte": "now-40m"}}}]}}})
+        fresh = (hb.get("hits", {}).get("total", {}) or {}).get("value", 0)
+        print(f"[verify-detection] {ROLLUP_INDEX}: "
+              f"{fresh} heartbeat buckets in the last 40m "
+              f"(0 is expected on a first deploy — alice-trend-rollup "
+              f"starts after this bootstrap)")
     _, det = req("POST", "/_plugins/_anomaly_detection/detectors/_search",
                  {"query": {"match_all": {}}, "size": 200})
     detectors = det.get("hits", {}).get("hits", [])
@@ -125,6 +190,29 @@ def main():
     for name, ids in det_names.items():
         if len(ids) > 1:
             errors.append(f"duplicate detector name {name}: {ids}")
+    for h in detectors:
+        src = h.get("_source", {})
+        name = src.get("name")
+        if name not in EXPECTED_DETECTOR_NAMES:
+            continue
+        for fa in src.get("feature_attributes") or []:
+            for agg in (fa.get("aggregation_query") or {}).values():
+                pct = (agg or {}).get("percentiles")
+                if not pct:
+                    continue
+                percents = pct.get("percents") or []
+                if len(percents) != 1:
+                    errors.append(
+                        f"detector {name} feature {fa.get('feature_name')}: "
+                        f"percents={percents} — the plugin reads only the "
+                        f"FIRST percentile (ascending), so more than one "
+                        f"silently yields the lowest")
+                if pct.get("method"):
+                    errors.append(
+                        f"detector {name} feature {fa.get('feature_name')}: "
+                        f"percentiles method={pct['method']!r} — only the "
+                        f"default TDigest implementation is parsed")
+
     for name in EXPECTED_DETECTOR_NAMES:
         if name not in det_time_fields:
             continue
@@ -161,7 +249,6 @@ def main():
             f"detector count {len(det_names)} < {EXPECTED_DETECTORS}")
 
     needed = [
-        "alice-cockpit-metrics-retention",
         "alice-generic-info-retention",
         "alice-generic-other-retention",
         "alice-infologger-retention",

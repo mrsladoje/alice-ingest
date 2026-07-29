@@ -24,3 +24,10 @@
     state: restarted
     daemon_reload: true
   listen: restart alice-metrics
+
+- name: Restart alice-trend-rollup
+  ansible.builtin.systemd:
+    name: "{{ dashboards_trend_rollup_service_name }}"
+    state: restarted
+    daemon_reload: true
+  listen: restart alice-trend-rollup

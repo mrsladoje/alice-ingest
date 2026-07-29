@@ -12,6 +12,8 @@ FB_TARGETS = [
 ]
 METRICS_INDEX = os.environ.get("METRICS_INDEX", "cockpit-metrics")
 INTERVAL = int(os.environ.get("INTERVAL", "30"))
+RETENTION_DAYS = int(os.environ.get("RETENTION_DAYS", "7"))
+PRUNE_EVERY_SECONDS = int(os.environ.get("PRUNE_EVERY_SECONDS", "3600"))
 MAX_BULK_FAILURES = int(os.environ.get("MAX_BULK_FAILURES", "20"))
 INFO_NODES = [n for n in os.environ.get("INFO_NODES", "").split(",") if n]
 
@@ -68,18 +70,21 @@ def ensure_info_indices():
         if status == 200:
             continue
         body = json.dumps({
+            "aliases": {idx: {"is_write_index": True}},
             "settings": {
-                "index.routing.allocation.require.box": node
+                "index.routing.allocation.require.box": node,
+                "index.plugins.index_state_management.rollover_alias": idx,
             }
         }).encode()
         req = urllib.request.Request(
-            f"{OS_URL}/{idx}", data=body, method="PUT",
+            f"{OS_URL}/{idx}-000001", data=body, method="PUT",
             headers={"Content-Type": "application/json"})
         try:
             with urllib.request.urlopen(req, timeout=10) as r:
-                log(f"recreated {idx}: HTTP {r.status}")
+                log(f"recreated {idx}-000001 behind write alias {idx}: "
+                    f"HTTP {r.status}")
         except Exception as e:
-            log(f"could not recreate {idx}: {e}")
+            log(f"could not recreate {idx}-000001: {e}")
     _info_ensured = True
 
 
@@ -260,11 +265,35 @@ def push(docs, ts):
     log(f"pushed {len(docs)} docs")
 
 
+def prune():
+    if RETENTION_DAYS <= 0:
+        return
+    body = json.dumps({
+        "query": {"range": {"@timestamp": {"lt": f"now-{RETENTION_DAYS}d"}}}
+    }).encode()
+    req = urllib.request.Request(
+        f"{OS_URL}/{METRICS_INDEX}/_delete_by_query"
+        "?conflicts=proceed&refresh=false",
+        data=body, method="POST",
+        headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            deleted = json.load(r).get("deleted", 0)
+        if deleted:
+            log(f"pruned {deleted} metrics docs older than {RETENTION_DAYS}d")
+    except Exception as e:
+        log(f"prune failed: {e}")
+
+
 def main():
     log(f"polling every {INTERVAL}s -> {METRICS_INDEX} "
-        f"(fb_targets={FB_TARGETS})")
+        f"(fb_targets={FB_TARGETS}, retention={RETENTION_DAYS}d)")
+    last_prune = 0.0
     while True:
         started = time.time()
+        if started - last_prune >= PRUNE_EVERY_SECONDS:
+            last_prune = started
+            prune()
         ensure_info_indices()
         ts = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
         docs = (cluster_docs() + index_docs() + node_docs()

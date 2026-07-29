@@ -190,6 +190,12 @@
     MONITORS_DIR: "{{ dashboards_bootstrap_monitors_dir }}"
     AD_ANOMALY_GRADE_THRESHOLD: "{{ ad_anomaly_grade_threshold }}"
     AD_ANOMALY_CONFIDENCE_THRESHOLD: "{{ ad_anomaly_confidence_threshold }}"
+    TREND_LAG_FLOOR_MS: "{{ trend_lag_floor_ms }}"
+    TREND_ENTRY_LAG_CEILING_MS: "{{ trend_entry_lag_ceiling_ms }}"
+    TREND_ENTITY_CAP: "{{ trend_entity_cap_warn }}"
+    TREND_MIN_SLICE_DOCS: "{{ trend_min_slice_docs }}"
+    TREND_MIN_SLICE_ERRORS: "{{ trend_min_slice_errors }}"
+    TREND_MIN_LAG_DOCS: "{{ trend_min_lag_docs }}"
   changed_when: true
 
 - name: Upsert and start anomaly detectors (idempotent by name, every run)
@@ -209,4 +215,5 @@
     OS_URL: "http://localhost:{{ opensearch_http_port }}"
     EXPECTED_MONITORS: "{{ expected_monitors }}"
     EXPECTED_DETECTORS: "{{ expected_detectors }}"
+    ROLLUP_INDEX: "{{ trend_rollup_index }}"
   changed_when: false

@@ -1,21 +1,24 @@
 {
   "name": "info-per-epn-entry-lag",
-  "description": "generic-log-info per-EPN enter_system_lag_ms (archive-age under preserved replay)",
+  "description": "generic-log-info per-EPN p95(enter_system_lag_ms) (archive-age under preserved replay)",
   "time_field": "collector_time",
   "indices": [
     "generic-log-info-*"
   ],
   "category_field": [
-    "host"
+    "origin_host"
   ],
   "feature_attributes": [
     {
-      "feature_name": "avg_entry_lag",
+      "feature_name": "p95_entry_lag",
       "feature_enabled": true,
       "aggregation_query": {
-        "avg_entry_lag": {
-          "avg": {
-            "field": "enter_system_lag_ms"
+        "p95_entry_lag": {
+          "percentiles": {
+            "field": "enter_system_lag_ms",
+            "percents": [
+              95
+            ]
           }
         }
       }

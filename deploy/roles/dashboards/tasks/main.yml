@@ -21,3 +21,6 @@
 
 - name: Metrics poller service (cockpit health panels) — after bootstrap so cockpit-metrics exists first
   ansible.builtin.import_tasks: metrics.yml
+
+- name: Trend rollup service (feeds the trend monitors) — after bootstrap so trend-rollup exists first
+  ansible.builtin.import_tasks: rollup.yml

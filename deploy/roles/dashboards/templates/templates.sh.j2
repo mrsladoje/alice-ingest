@@ -4,6 +4,7 @@ set -eu
 OS="${OS_URL:-http://opensearch:9200}"
 
 WORKER_NODES="{{ groups['workers'] | map('extract', hostvars, 'node_id') | join(' ') }}"
+MIGRATE_EXISTING="{{ log_rollover_migrate_existing | bool | ternary('true', 'false') }}"
 
 wait_os() {
   echo "[os-init] waiting for OpenSearch at $OS ..."
@@ -48,6 +49,29 @@ del() {
   esac
 }
 
+ensure_rollover_index() {
+  alias="$1"; extra="$2"
+  existing=$(curl -s "$OS/_cat/aliases/$alias?h=index" 2>/dev/null || true)
+  if [ -n "$existing" ]; then
+    echo "[os-init] write alias already present (skip): $alias -> $existing"
+    return 0
+  fi
+  icode=$(curl -s -o /dev/null -w '%{http_code}' "$OS/$alias" || echo 000)
+  if [ "$icode" = "200" ]; then
+    if [ "$MIGRATE_EXISTING" = "true" ]; then
+      echo "[os-init] MIGRATING: '$alias' is a legacy concrete index; deleting so the write alias can take the name"
+      del "/$alias" "legacy concrete index $alias"
+    else
+      echo "[os-init] WARN: '$alias' is a concrete index, so ROLLOVER IS NOT ACTIVE for it and it will still be"
+      echo "[os-init] WARN: wiped whole when it ages out. Convert once with:"
+      echo "[os-init] WARN:   make deploy-migrate-rollover   (deletes the old index; replay data is re-runnable)"
+      return 0
+    fi
+  fi
+  body=$(printf '{"aliases":{"%s":{"is_write_index":true}}%s}' "$alias" "$extra")
+  put "/$alias-000001" "$body" "first rollover index $alias-000001 (write alias $alias)"
+}
+
 ensure_index() {
   idx="$1"; body="$2"
   code=$(curl -s -o /dev/null -w '%{http_code}' "$OS/$idx" || echo 000)
@@ -72,6 +96,8 @@ GENERIC_MAPPINGS=$(cat <<'JSON'
         "log_source": { "type": "keyword" },
         "node":       { "type": "keyword" },
         "severity":   { "type": "keyword" },
+        "severity_norm": { "type": "keyword" },
+        "origin_host":   { "type": "keyword" },
         "host":       { "type": "keyword" },
         "source":     { "type": "keyword" },
         "tid":        { "type": "keyword" },
@@ -102,6 +128,8 @@ INFOLOGGER_MAPPINGS=$(cat <<'JSON'
         "log_source": { "type": "keyword" },
         "node":       { "type": "keyword" },
         "severity":   { "type": "keyword" },
+        "severity_norm": { "type": "keyword" },
+        "origin_host":   { "type": "keyword" },
         "level":      { "type": "short" },
         "hostname":   { "type": "keyword" },
         "rolename":   { "type": "keyword" },
@@ -126,36 +154,39 @@ INFOLOGGER_MAPPINGS=$(cat <<'JSON'
 JSON
 )
 
-GENERIC_INFO_TPL=$(cat <<'JSON'
-{
-  "index_patterns": ["generic-log-info-*"],
+generic_info_tpl() {
+  wn="$1"
+  printf '{
+  "index_patterns": ["generic-log-info-%s-*"],
   "composed_of": ["alice-logs-generic-mappings"],
-  "priority": 200,
+  "priority": 300,
   "template": {
     "settings": {
       "number_of_shards": 1,
       "number_of_replicas": 0,
       "codec": "zstd",
-      "index.default_pipeline": "alice-add-ingest-time"
+      "index.default_pipeline": "alice-add-ingest-time",
+      "index.routing.allocation.require.box": "%s",
+      "index.plugins.index_state_management.rollover_alias": "generic-log-info-%s"
     }
   },
-  "_meta": { "note": "worker tier: local, disposable; per-node index pinned by require.box (pre-created below)" }
+  "_meta": { "note": "worker tier: local, disposable, rolled weekly; pinned by require.box" }
+}' "$wn" "$wn" "$wn"
 }
-JSON
-)
 
 GENERIC_OTHER_TPL=$(cat <<'JSON'
 {
-  "index_patterns": ["generic-log-other"],
+  "index_patterns": ["generic-log-other-*"],
   "composed_of": ["alice-logs-generic-mappings"],
   "priority": 200,
   "template": {
     "settings": {
-      "number_of_shards": 3,
+      "number_of_shards": 1,
       "number_of_replicas": 2,
       "codec": "zstd",
       "index.default_pipeline": "alice-add-ingest-time",
-      "index.routing.allocation.require.role": "storage"
+      "index.routing.allocation.require.role": "storage",
+      "index.plugins.index_state_management.rollover_alias": "generic-log-other"
     }
   },
   "_meta": { "note": "storage tier: durable, replicated, pinned to require.role=storage" }
@@ -165,16 +196,17 @@ JSON
 
 INFOLOGGER_INDEX_TPL=$(cat <<'JSON'
 {
-  "index_patterns": ["infologger"],
+  "index_patterns": ["infologger-*"],
   "composed_of": ["alice-logs-infologger-mappings"],
   "priority": 200,
   "template": {
     "settings": {
-      "number_of_shards": 3,
+      "number_of_shards": 1,
       "number_of_replicas": 2,
       "codec": "zstd",
       "index.default_pipeline": "alice-add-ingest-time",
-      "index.routing.allocation.require.role": "storage"
+      "index.routing.allocation.require.role": "storage",
+      "index.plugins.index_state_management.rollover_alias": "infologger"
     }
   },
   "_meta": { "note": "storage tier: durable, replicated, pinned to require.role=storage" }
@@ -250,6 +282,47 @@ COCKPIT_METRICS_TPL=$(cat <<'JSON'
 JSON
 )
 
+TREND_ROLLUP_TPL=$(cat <<'JSON'
+{
+  "index_patterns": ["{{ trend_rollup_index }}"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 2,
+      "codec": "zstd",
+      "refresh_interval": "30s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "ts":                    { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "family":                { "type": "keyword" },
+        "entity_kind":           { "type": "keyword" },
+        "entity":                { "type": "keyword" },
+        "doc_count":             { "type": "long" },
+        "ef_count":              { "type": "long" },
+        "fleet_count":           { "type": "long" },
+        "fleet_ef_count":        { "type": "long" },
+        "entity_count":          { "type": "integer" },
+        "truncated":             { "type": "boolean" },
+        "bucket_seconds":        { "type": "integer" },
+        "p95_entry_lag_ms":      { "type": "double" },
+        "p95_shipping_lag_ms":   { "type": "double" },
+        "avg_entry_lag_ms":      { "type": "double" },
+        "avg_shipping_lag_ms":   { "type": "double" }
+      }
+    }
+  },
+  "_meta": {
+    "family": "trend-rollup",
+    "written_by": "alice-trend-rollup"
+  }
+}
+JSON
+)
+
 QUERY_INSIGHTS_SETTINGS=$(cat <<'JSON'
 {
   "persistent": {
@@ -289,6 +362,16 @@ LAG_MAPPING=$(cat <<'JSON'
 JSON
 )
 
+NORM_MAPPING=$(cat <<'JSON'
+{
+  "properties": {
+    "severity_norm": { "type": "keyword" },
+    "origin_host":   { "type": "keyword" }
+  }
+}
+JSON
+)
+
 RETRIES_FAILED_DELTA_MAPPING=$(cat <<'JSON'
 {
   "properties": {
@@ -308,27 +391,38 @@ put "/_ingest/pipeline/alice-add-ingest-time" "$INGEST_PIPELINE" "ingest pipelin
 put "/_component_template/alice-logs-generic-mappings"    "$GENERIC_MAPPINGS"    "component alice-logs-generic-mappings"
 put "/_component_template/alice-logs-infologger-mappings" "$INFOLOGGER_MAPPINGS" "component alice-logs-infologger-mappings"
 
-put "/_index_template/alice-logs-generic-info"  "$GENERIC_INFO_TPL"     "index template alice-logs-generic-info"
 put "/_index_template/alice-logs-generic-other" "$GENERIC_OTHER_TPL"    "index template alice-logs-generic-other"
 put "/_index_template/alice-logs-infologger"    "$INFOLOGGER_INDEX_TPL" "index template alice-logs-infologger"
 put "/_index_template/alice-cockpit-metrics"    "$COCKPIT_METRICS_TPL"  "index template alice-cockpit-metrics"
+put "/_index_template/alice-trend-rollup"       "$TREND_ROLLUP_TPL"     "index template alice-trend-rollup"
+
+for wn in $WORKER_NODES; do
+  put "/_index_template/alice-logs-generic-info-$wn" "$(generic_info_tpl "$wn")" \
+    "index template alice-logs-generic-info-$wn"
+done
 
 put "/_cluster/settings" "$QUERY_INSIGHTS_SETTINGS" "query insights top-n settings"
 
 for wn in $WORKER_NODES; do
-  ensure_index "generic-log-info-$wn" \
-    "{\"settings\":{\"index.routing.allocation.require.box\":\"$wn\"}}"
+  ensure_rollover_index "generic-log-info-$wn" ""
 done
 
-ensure_index "infologger" '{}'
-ensure_index "generic-log-other" '{}'
+ensure_rollover_index "infologger" ""
+ensure_rollover_index "generic-log-other" ""
 ensure_index "{{ cockpit_metrics_index }}" '{}'
+ensure_index "{{ trend_rollup_index }}" '{}'
 
-put "/infologger/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on infologger"
-put "/generic-log-other/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on generic-log-other"
+put "/infologger*/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on infologger"
+put "/generic-log-other*/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on generic-log-other"
 for wn in $WORKER_NODES; do
-  put "/generic-log-info-$wn/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on generic-log-info-$wn"
+  put "/generic-log-info-$wn*/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on generic-log-info-$wn"
+done
+
+put "/infologger*/_mapping" "$NORM_MAPPING" "mapping severity_norm/origin_host on infologger"
+put "/generic-log-other*/_mapping" "$NORM_MAPPING" "mapping severity_norm/origin_host on generic-log-other"
+for wn in $WORKER_NODES; do
+  put "/generic-log-info-$wn*/_mapping" "$NORM_MAPPING" "mapping severity_norm/origin_host on generic-log-info-$wn"
 done
 put "/{{ cockpit_metrics_index }}/_mapping" "$RETRIES_FAILED_DELTA_MAPPING" "mapping output_retries_failed_delta on cockpit-metrics"
 
-echo "[os-init] DONE — tier-aware mappings and all indices in place before first write"
+echo "[os-init] DONE — tier-aware mappings, rollover write aliases and all indices in place before first write"

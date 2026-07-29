@@ -77,7 +77,10 @@ provision:
 	cd deploy && $(ANSIBLE_PLAYBOOK) provision.yml
 
 deploy:
-	cd deploy && $(ANSIBLE_PLAYBOOK) site.yml --ask-vault-pass
+	cd deploy && $(ANSIBLE_PLAYBOOK) site.yml --ask-vault-pass $(ANSIBLE_EXTRA)
+
+deploy-migrate-rollover:
+	cd deploy && $(ANSIBLE_PLAYBOOK) site.yml --ask-vault-pass -e log_rollover_migrate_existing=true
 
 replay:
 	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_clock=shifted

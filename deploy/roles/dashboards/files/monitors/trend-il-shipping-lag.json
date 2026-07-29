@@ -1,12 +1,12 @@
 {
   "type": "monitor",
   "name": "trend-il-shipping-lag",
-  "description": "Warn when InfoLogger per-node avg(ingest_lag_ms) rises. Dwell: fire only if breach sustained across 3 consecutive 10m slices (~30m). Ratio 2x rising (volume also <=0.5x collapse - all three slices same direction). Baseline: 7d excluding last 30m; 24h fallback when 7d empty. Schedule 30m (dwell covers the full 30m, so coverage stays continuous). Throttle 30m per alert key via alice-incluster-alert-sink. Lag slices below a 2000 ms floor never fire: collector_time has 1 s resolution, so sub-second lag ratios are quantization noise.",
+  "description": "Warn when InfoLogger per-collector p95 ingest_lag_ms rises. Metric is the per-bucket p95 of ingest_lag_ms, not the mean: backlogs show in the tail first. The baseline averages ~1000 per-bucket p95 values, so a slice p95 is compared against a typical bucket's p95 - like against like. Needs >=100 records in every slice, because a p95 over a handful of records is just the maximum. Floor 250 ms absolute as well as 2x baseline (both substituted at bootstrap). Reads the trend-rollup 10m rollup, not raw logs: the 7d baseline is a few thousand tiny docs per entity. Dwell: fire only if the breach holds on 3 consecutive 10m rollup buckets (~30m), offset 10m so the newest bucket is always complete. Baseline 7d excluding the last 40m; 24h fallback when 7d is empty. Schedule 10m. Throttle 30m per alert key via alice-incluster-alert-sink.",
   "monitor_type": "bucket_level_monitor",
   "enabled": true,
   "schedule": {
     "period": {
-      "interval": 30,
+      "interval": 10,
       "unit": "MINUTES"
     }
   },
@@ -14,7 +14,7 @@
     {
       "search": {
         "indices": [
-          "infologger"
+          "trend-rollup"
         ],
         "query": {
           "size": 0,
@@ -22,8 +22,18 @@
             "bool": {
               "filter": [
                 {
+                  "term": {
+                    "family": "infologger"
+                  }
+                },
+                {
+                  "term": {
+                    "entity_kind": "node"
+                  }
+                },
+                {
                   "range": {
-                    "collector_time": {
+                    "ts": {
                       "gte": "{{period_end}}||-7d",
                       "lte": "{{period_end}}",
                       "format": "epoch_millis"
@@ -36,12 +46,12 @@
           "aggregations": {
             "composite_agg": {
               "composite": {
-                "size": 1000,
+                "size": 2000,
                 "sources": [
                   {
-                    "node": {
+                    "entity": {
                       "terms": {
-                        "field": "node"
+                        "field": "entity"
                       }
                     }
                   }
@@ -51,25 +61,7 @@
                 "slice0": {
                   "filter": {
                     "range": {
-                      "collector_time": {
-                        "gte": "{{period_end}}||-10m",
-                        "lte": "{{period_end}}",
-                        "format": "epoch_millis"
-                      }
-                    }
-                  },
-                  "aggregations": {
-                    "avg_lag": {
-                      "avg": {
-                        "field": "ingest_lag_ms"
-                      }
-                    }
-                  }
-                },
-                "slice1": {
-                  "filter": {
-                    "range": {
-                      "collector_time": {
+                      "ts": {
                         "gte": "{{period_end}}||-20m",
                         "lt": "{{period_end}}||-10m",
                         "format": "epoch_millis"
@@ -77,17 +69,22 @@
                     }
                   },
                   "aggregations": {
-                    "avg_lag": {
+                    "lag": {
                       "avg": {
-                        "field": "ingest_lag_ms"
+                        "field": "p95_shipping_lag_ms"
+                      }
+                    },
+                    "docs": {
+                      "sum": {
+                        "field": "doc_count"
                       }
                     }
                   }
                 },
-                "slice2": {
+                "slice1": {
                   "filter": {
                     "range": {
-                      "collector_time": {
+                      "ts": {
                         "gte": "{{period_end}}||-30m",
                         "lt": "{{period_end}}||-20m",
                         "format": "epoch_millis"
@@ -95,9 +92,37 @@
                     }
                   },
                   "aggregations": {
-                    "avg_lag": {
+                    "lag": {
                       "avg": {
-                        "field": "ingest_lag_ms"
+                        "field": "p95_shipping_lag_ms"
+                      }
+                    },
+                    "docs": {
+                      "sum": {
+                        "field": "doc_count"
+                      }
+                    }
+                  }
+                },
+                "slice2": {
+                  "filter": {
+                    "range": {
+                      "ts": {
+                        "gte": "{{period_end}}||-40m",
+                        "lt": "{{period_end}}||-30m",
+                        "format": "epoch_millis"
+                      }
+                    }
+                  },
+                  "aggregations": {
+                    "lag": {
+                      "avg": {
+                        "field": "p95_shipping_lag_ms"
+                      }
+                    },
+                    "docs": {
+                      "sum": {
+                        "field": "doc_count"
                       }
                     }
                   }
@@ -105,17 +130,22 @@
                 "baseline_7d": {
                   "filter": {
                     "range": {
-                      "collector_time": {
+                      "ts": {
                         "gte": "{{period_end}}||-7d",
-                        "lt": "{{period_end}}||-30m",
+                        "lt": "{{period_end}}||-40m",
                         "format": "epoch_millis"
                       }
                     }
                   },
                   "aggregations": {
-                    "avg_lag": {
+                    "lag": {
                       "avg": {
-                        "field": "ingest_lag_ms"
+                        "field": "p95_shipping_lag_ms"
+                      }
+                    },
+                    "docs": {
+                      "sum": {
+                        "field": "doc_count"
                       }
                     }
                   }
@@ -123,17 +153,22 @@
                 "baseline_24h": {
                   "filter": {
                     "range": {
-                      "collector_time": {
+                      "ts": {
                         "gte": "{{period_end}}||-24h",
-                        "lt": "{{period_end}}||-30m",
+                        "lt": "{{period_end}}||-40m",
                         "format": "epoch_millis"
                       }
                     }
                   },
                   "aggregations": {
-                    "avg_lag": {
+                    "lag": {
                       "avg": {
-                        "field": "ingest_lag_ms"
+                        "field": "p95_shipping_lag_ms"
+                      }
+                    },
+                    "docs": {
+                      "sum": {
+                        "field": "doc_count"
                       }
                     }
                   }
@@ -152,15 +187,18 @@
         "severity": "2",
         "condition": {
           "buckets_path": {
-            "slice0": "slice0>avg_lag",
-            "slice1": "slice1>avg_lag",
-            "slice2": "slice2>avg_lag",
-            "baseline_7d": "baseline_7d>avg_lag",
-            "baseline_24h": "baseline_24h>avg_lag"
+            "s0_lag": "slice0>lag",
+            "s1_lag": "slice1>lag",
+            "s2_lag": "slice2>lag",
+            "s0_docs": "slice0>docs",
+            "s1_docs": "slice1>docs",
+            "s2_docs": "slice2>docs",
+            "b7_lag": "baseline_7d>lag",
+            "b24_lag": "baseline_24h>lag"
           },
           "parent_bucket_path": "composite_agg",
           "script": {
-            "source": "if (params.slice0 == null || params.slice1 == null || params.slice2 == null) { return false; } double lagFloor = 2000.0; if (params.slice0 < lagFloor || params.slice1 < lagFloor || params.slice2 < lagFloor) { return false; } double base = (params.baseline_7d != null && params.baseline_7d > 0) ? params.baseline_7d : ((params.baseline_24h != null) ? params.baseline_24h : 0); if (base <= 0) { return false; } return (params.slice0 / base) >= 2.0 && (params.slice1 / base) >= 2.0 && (params.slice2 / base) >= 2.0;",
+            "source": "if (params.s0_lag == null || params.s1_lag == null || params.s2_lag == null) { return false; } double minLagDocs = 100.0; if (params.s0_docs < minLagDocs || params.s1_docs < minLagDocs || params.s2_docs < minLagDocs) { return false; } double lagFloor = 250.0; if (params.s0_lag < lagFloor || params.s1_lag < lagFloor || params.s2_lag < lagFloor) { return false; } double base = (params.b7_lag != null && params.b7_lag > 0) ? params.b7_lag : ((params.b24_lag != null) ? params.b24_lag : 0); if (base <= 0) { return false; } return (params.s0_lag / base) >= 2.0 && (params.s1_lag / base) >= 2.0 && (params.s2_lag / base) >= 2.0;",
             "lang": "painless"
           }
         },

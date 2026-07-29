@@ -5,6 +5,12 @@ OS="${OS_URL:-http://localhost:9200}"
 MONITORS_DIR="${MONITORS_DIR:-/opt/alice-ingest/init/monitors}"
 GRADE="${AD_ANOMALY_GRADE_THRESHOLD:-0.7}"
 CONF="${AD_ANOMALY_CONFIDENCE_THRESHOLD:-0.7}"
+LAG_FLOOR="${TREND_LAG_FLOOR_MS:-250}"
+LAG_CEILING="${TREND_ENTRY_LAG_CEILING_MS:-3600000}"
+ENTITY_CAP="${TREND_ENTITY_CAP:-1800}"
+MIN_SLICE_DOCS="${TREND_MIN_SLICE_DOCS:-50}"
+MIN_SLICE_ERRORS="${TREND_MIN_SLICE_ERRORS:-10}"
+MIN_LAG_DOCS="${TREND_MIN_LAG_DOCS:-100}"
 SINK_ID="${ALERT_SINK_ID:-alice-incluster-alert-sink}"
 SINK_URL="${ALERT_SINK_URL:-http://127.0.0.1:9200/alice-alert-actions/_doc}"
 SINK_INDEX="${ALERT_SINK_INDEX:-alice-alert-actions}"
@@ -113,10 +119,15 @@ for h in r.get("hits",{}).get("hits",[]):
 
 prepare_body() {
   file="$1"
-  GRADE="$GRADE" CONF="$CONF" python3 -c '
+  GRADE="$GRADE" CONF="$CONF" LAG_FLOOR="$LAG_FLOOR" \
+  ENTITY_CAP="$ENTITY_CAP" LAG_CEILING="$LAG_CEILING" \
+  MIN_SLICE_DOCS="$MIN_SLICE_DOCS" MIN_SLICE_ERRORS="$MIN_SLICE_ERRORS" \
+  MIN_LAG_DOCS="$MIN_LAG_DOCS" \
+  python3 -c '
 import json,os,re,sys
 d=json.load(open(sys.argv[1]))
-if d.get("name")=="ad-high-grade":
+name=d.get("name")
+if name=="ad-high-grade":
     grade=os.environ["GRADE"]
     conf=os.environ["CONF"]
     src=d["triggers"][0]["condition"]["script"]["source"]
@@ -125,6 +136,31 @@ if d.get("name")=="ad-high-grade":
     src=re.sub(r"confidence > [0-9.]+",
                "confidence > "+conf, src)
     d["triggers"][0]["condition"]["script"]["source"]=src
+if name and name.startswith("trend-"):
+    floor=float(os.environ["LAG_FLOOR"])
+    cap=float(os.environ["ENTITY_CAP"])
+    ceiling=float(os.environ["LAG_CEILING"])
+    mindocs=float(os.environ["MIN_SLICE_DOCS"])
+    minerrs=float(os.environ["MIN_SLICE_ERRORS"])
+    minlagdocs=float(os.environ["MIN_LAG_DOCS"])
+    for t in d.get("triggers") or []:
+        trig=t.get("bucket_level_trigger") or t.get("query_level_trigger")
+        if not trig:
+            continue
+        src=trig["condition"]["script"]["source"]
+        src=re.sub(r"double lagFloor = [0-9.]+;",
+                   "double lagFloor = %r;" % floor, src)
+        src=re.sub(r"double lagCeiling = [0-9.]+;",
+                   "double lagCeiling = %r;" % ceiling, src)
+        src=re.sub(r"double entityCap = [0-9.]+;",
+                   "double entityCap = %r;" % cap, src)
+        src=re.sub(r"double minDocs = [0-9.]+;",
+                   "double minDocs = %r;" % mindocs, src)
+        src=re.sub(r"double minLagDocs = [0-9.]+;",
+                   "double minLagDocs = %r;" % minlagdocs, src)
+        src=re.sub(r"double minEf = [0-9.]+;",
+                   "double minEf = %r;" % minerrs, src)
+        trig["condition"]["script"]["source"]=src
 print(json.dumps(d))
 ' "$file"
 }

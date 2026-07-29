@@ -1,0 +1,29 @@
+# {{ ansible_managed }}
+[Unit]
+Description=ALICE trend rollup — 10-minute per-entity aggregates for the trend monitors
+After=network-online.target opensearch.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+Environment=OS_URL=http://localhost:{{ opensearch_http_port }}
+Environment=ROLLUP_INDEX={{ trend_rollup_index }}
+Environment=BUCKET_SECONDS={{ trend_rollup_bucket_seconds }}
+Environment=SETTLE_SECONDS={{ trend_rollup_settle_seconds }}
+Environment=BACKFILL_BUCKETS={{ trend_rollup_backfill_buckets }}
+Environment=PAGE_SIZE={{ trend_rollup_page_size }}
+Environment=MAX_ENTITIES={{ trend_rollup_max_entities }}
+Environment=RETENTION_DAYS={{ trend_rollup_retention_days }}
+Environment=INTERVAL={{ trend_rollup_bucket_seconds }}
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 {{ dashboards_trend_rollup_script }}
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=multi-user.target

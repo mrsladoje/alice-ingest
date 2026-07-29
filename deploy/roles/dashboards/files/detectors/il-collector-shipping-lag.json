@@ -1,6 +1,6 @@
 {
   "name": "il-collector-shipping-lag",
-  "description": "InfoLogger per-collector ingest_lag_ms",
+  "description": "InfoLogger per-collector p95(ingest_lag_ms)",
   "time_field": "collector_time",
   "indices": [
     "infologger"
@@ -10,12 +10,15 @@
   ],
   "feature_attributes": [
     {
-      "feature_name": "avg_shipping_lag",
+      "feature_name": "p95_shipping_lag",
       "feature_enabled": true,
       "aggregation_query": {
-        "avg_shipping_lag": {
-          "avg": {
-            "field": "ingest_lag_ms"
+        "p95_shipping_lag": {
+          "percentiles": {
+            "field": "ingest_lag_ms",
+            "percents": [
+              95
+            ]
           }
         }
       }

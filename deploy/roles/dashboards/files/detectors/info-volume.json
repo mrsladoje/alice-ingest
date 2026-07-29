@@ -32,7 +32,7 @@
   },
   "shingle_size": 8,
   "category_field": [
-    "host"
+    "origin_host"
   ],
   "imputation_option": {
     "method": "ZERO"

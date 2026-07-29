@@ -17,6 +17,7 @@ Environment=FB_TARGETS={% for h in groups['workers'] %}{{ hostvars[h].node_id }}
 Environment=INFO_NODES={% for h in groups['workers'] %}{{ hostvars[h].node_id }}{% if not loop.last %},{% endif %}{% endfor %}
 Environment=METRICS_INDEX={{ cockpit_metrics_index }}
 Environment=INTERVAL={{ cockpit_metrics_interval_seconds }}
+Environment=RETENTION_DAYS={{ cockpit_metrics_retention_days }}
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/python3 {{ dashboards_metrics_script }}
 Restart=on-failure

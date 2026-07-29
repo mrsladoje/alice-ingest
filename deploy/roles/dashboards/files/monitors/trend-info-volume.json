@@ -1,12 +1,12 @@
 {
   "type": "monitor",
   "name": "trend-info-volume",
-  "description": "Warn when generic-log-info per-host doc rate spikes or collapses. Run-start spikes may false-warn until gated. Dwell: fire only if breach sustained across 3 consecutive 10m slices (~30m). Ratio 2x rising (volume also <=0.5x collapse - all three slices same direction). Baseline: 7d excluding last 30m; 24h fallback when 7d empty. Schedule 30m (dwell covers the full 30m, so coverage stays continuous). Throttle 30m per alert key via alice-incluster-alert-sink. Collapse (<=0.5x) additionally requires a non-empty 24h baseline so hosts retired mid-window do not alert forever.",
+  "description": "Warn when generic-log-info per-host log volume share spikes or collapses. Metric is this entity's SHARE of fleet volume (its docs / all docs in the same 10m bucket), so a fleet-wide ramp such as run start cancels out and only a disproportionate host fires. Rising 2x share, collapse <=0.5x share - all three slices the same direction. An entity absent from a slice counts as share 0, so full silence is caught. Rising needs >=50 docs in every slice and collapse needs a 24h baseline averaging >=50 docs per present bucket, which is also the retired-host guard. Reads the trend-rollup 10m rollup, not raw logs: the 7d baseline is a few thousand tiny docs per entity. Dwell: fire only if the breach holds on 3 consecutive 10m rollup buckets (~30m), offset 10m so the newest bucket is always complete. Baseline 7d excluding the last 40m; 24h fallback when 7d is empty. Schedule 10m. Throttle 30m per alert key via alice-incluster-alert-sink.",
   "monitor_type": "bucket_level_monitor",
   "enabled": true,
   "schedule": {
     "period": {
-      "interval": 30,
+      "interval": 10,
       "unit": "MINUTES"
     }
   },
@@ -14,7 +14,7 @@
     {
       "search": {
         "indices": [
-          "generic-log-info-*"
+          "trend-rollup"
         ],
         "query": {
           "size": 0,
@@ -22,8 +22,18 @@
             "bool": {
               "filter": [
                 {
+                  "term": {
+                    "family": "info"
+                  }
+                },
+                {
+                  "term": {
+                    "entity_kind": "host"
+                  }
+                },
+                {
                   "range": {
-                    "collector_time": {
+                    "ts": {
                       "gte": "{{period_end}}||-7d",
                       "lte": "{{period_end}}",
                       "format": "epoch_millis"
@@ -36,12 +46,12 @@
           "aggregations": {
             "composite_agg": {
               "composite": {
-                "size": 1000,
+                "size": 2000,
                 "sources": [
                   {
-                    "host": {
+                    "entity": {
                       "terms": {
-                        "field": "host"
+                        "field": "entity"
                       }
                     }
                   }
@@ -51,10 +61,22 @@
                 "slice0": {
                   "filter": {
                     "range": {
-                      "collector_time": {
-                        "gte": "{{period_end}}||-10m",
-                        "lte": "{{period_end}}",
+                      "ts": {
+                        "gte": "{{period_end}}||-20m",
+                        "lt": "{{period_end}}||-10m",
                         "format": "epoch_millis"
+                      }
+                    }
+                  },
+                  "aggregations": {
+                    "docs": {
+                      "sum": {
+                        "field": "doc_count"
+                      }
+                    },
+                    "fleet": {
+                      "sum": {
+                        "field": "fleet_count"
                       }
                     }
                   }
@@ -62,10 +84,22 @@
                 "slice1": {
                   "filter": {
                     "range": {
-                      "collector_time": {
-                        "gte": "{{period_end}}||-20m",
-                        "lt": "{{period_end}}||-10m",
+                      "ts": {
+                        "gte": "{{period_end}}||-30m",
+                        "lt": "{{period_end}}||-20m",
                         "format": "epoch_millis"
+                      }
+                    }
+                  },
+                  "aggregations": {
+                    "docs": {
+                      "sum": {
+                        "field": "doc_count"
+                      }
+                    },
+                    "fleet": {
+                      "sum": {
+                        "field": "fleet_count"
                       }
                     }
                   }
@@ -73,10 +107,22 @@
                 "slice2": {
                   "filter": {
                     "range": {
-                      "collector_time": {
-                        "gte": "{{period_end}}||-30m",
-                        "lt": "{{period_end}}||-20m",
+                      "ts": {
+                        "gte": "{{period_end}}||-40m",
+                        "lt": "{{period_end}}||-30m",
                         "format": "epoch_millis"
+                      }
+                    }
+                  },
+                  "aggregations": {
+                    "docs": {
+                      "sum": {
+                        "field": "doc_count"
+                      }
+                    },
+                    "fleet": {
+                      "sum": {
+                        "field": "fleet_count"
                       }
                     }
                   }
@@ -84,10 +130,22 @@
                 "baseline_7d": {
                   "filter": {
                     "range": {
-                      "collector_time": {
+                      "ts": {
                         "gte": "{{period_end}}||-7d",
-                        "lt": "{{period_end}}||-30m",
+                        "lt": "{{period_end}}||-40m",
                         "format": "epoch_millis"
+                      }
+                    }
+                  },
+                  "aggregations": {
+                    "docs": {
+                      "sum": {
+                        "field": "doc_count"
+                      }
+                    },
+                    "fleet": {
+                      "sum": {
+                        "field": "fleet_count"
                       }
                     }
                   }
@@ -95,10 +153,22 @@
                 "baseline_24h": {
                   "filter": {
                     "range": {
-                      "collector_time": {
+                      "ts": {
                         "gte": "{{period_end}}||-24h",
-                        "lt": "{{period_end}}||-30m",
+                        "lt": "{{period_end}}||-40m",
                         "format": "epoch_millis"
+                      }
+                    }
+                  },
+                  "aggregations": {
+                    "docs": {
+                      "sum": {
+                        "field": "doc_count"
+                      }
+                    },
+                    "fleet": {
+                      "sum": {
+                        "field": "fleet_count"
                       }
                     }
                   }
@@ -117,15 +187,21 @@
         "severity": "2",
         "condition": {
           "buckets_path": {
-            "slice0": "slice0._count",
-            "slice1": "slice1._count",
-            "slice2": "slice2._count",
-            "baseline_7d": "baseline_7d._count",
-            "baseline_24h": "baseline_24h._count"
+            "s0_docs": "slice0>docs",
+            "s0_fleet": "slice0>fleet",
+            "s1_docs": "slice1>docs",
+            "s1_fleet": "slice1>fleet",
+            "s2_docs": "slice2>docs",
+            "s2_fleet": "slice2>fleet",
+            "b7_docs": "baseline_7d>docs",
+            "b7_fleet": "baseline_7d>fleet",
+            "b24_docs": "baseline_24h>docs",
+            "b24_fleet": "baseline_24h>fleet",
+            "b24_buckets": "baseline_24h._count"
           },
           "parent_bucket_path": "composite_agg",
           "script": {
-            "source": "double sliceMin = 10.0; double base = params.baseline_7d; double baseMin = 10050.0; if (base <= 0) { base = params.baseline_24h; baseMin = 1410.0; } if (base <= 0) { return false; } double baseRate = base / baseMin; double r0 = (params.slice0 / sliceMin) / baseRate; double r1 = (params.slice1 / sliceMin) / baseRate; double r2 = (params.slice2 / sliceMin) / baseRate; boolean hi = r0 >= 2.0 && r1 >= 2.0 && r2 >= 2.0; boolean lo = params.baseline_24h > 0 && r0 <= 0.5 && r1 <= 0.5 && r2 <= 0.5; return hi || lo;",
+            "source": "double minDocs = 50.0; double f0 = params.s0_fleet; double f1 = params.s1_fleet; double f2 = params.s2_fleet; double bd = params.b7_docs; double bf = params.b7_fleet; if (bf <= 0) { bd = params.b24_docs; bf = params.b24_fleet; } if (bf <= 0) { return false; } double base = bd / bf; if (base <= 0) { return false; } double sh0 = f0 > 0 ? params.s0_docs / f0 : 0.0; double sh1 = f1 > 0 ? params.s1_docs / f1 : 0.0; double sh2 = f2 > 0 ? params.s2_docs / f2 : 0.0; double r0 = sh0 / base; double r1 = sh1 / base; double r2 = sh2 / base; boolean hi = params.s0_docs >= minDocs && params.s1_docs >= minDocs && params.s2_docs >= minDocs && r0 >= 2.0 && r1 >= 2.0 && r2 >= 2.0; double liveBuckets = params.b24_buckets; boolean liveBase = params.b24_docs > 0 && liveBuckets > 0 && (params.b24_docs / liveBuckets) >= minDocs; boolean lo = liveBase && r0 <= 0.5 && r1 <= 0.5 && r2 <= 0.5; return hi || lo;",
             "lang": "painless"
           }
         },

@@ -47,6 +47,7 @@ the local dev path (Docker Compose on a single machine — see the root
 │ idempotent bootstrap│   │  3 shards, 2 repl, require.role=storage, balanced across the 3
 │ alice-ops (/ops)   │   │  + cockpit-metrics: 1 shard, 2 repl, storage-pinned
 │ alice-metrics poller   │                    │   │                    │
+│ alice-trend-rollup │   │                    │   │                    │
 │ [alertmanager slot]│   │                    │   │                    │
 └───────────────────┘   └───────────────────┘   └───────────────────┘
   Storage tier runs NO collector and NO producer — it never touches the ingest firehose.
@@ -322,11 +323,12 @@ Expected indices and placement (rendered by the native bootstrap, forked from
 
 | index | shards | replicas | lands on |
 |---|---|---|---|
-| `generic-log-info-node-01` | 1 | **0** | worker node-01 only (`require.box: node-01`) |
-| `generic-log-info-node-02` | 1 | **0** | worker node-02 only (`require.box: node-02`) |
-| `generic-log-other` | 3 | **2** | storage tier only (`require.role: storage`) |
-| `infologger` | 3 | **2** | storage tier only (`require.role: storage`) |
+| `generic-log-info-node-01-*` | 1 | **0** | worker node-01 only (`require.box: node-01`) — write alias `generic-log-info-node-01` |
+| `generic-log-info-node-02-*` | 1 | **0** | worker node-02 only (`require.box: node-02`) — write alias `generic-log-info-node-02` |
+| `generic-log-other-*` | 1 | **2** | storage tier only (`require.role: storage`) — write alias `generic-log-other` |
+| `infologger-*` | 1 | **2** | storage tier only (`require.role: storage`) — write alias `infologger` |
 | `cockpit-metrics` | 1 | **2** | storage tier only (`require.role: storage`) — health samples from the `alice-metrics` poller |
+| `trend-rollup` | 1 | **2** | storage tier only (`require.role: storage`) — 10m per-entity aggregates from the `alice-trend-rollup` service |
 
 The two per-worker `generic-log-info-*` indices are single-shard, zero-replica,
 and hard-pinned to their own VM — if a worker dies its info index is lost with no
@@ -471,43 +473,181 @@ strict verify. Definitions live under
 | `telemetry-silence` | no `cockpit-metrics` docs for 5 min | `alice-metrics` poller dead on control host |
 | `ad-high-grade` | RCF anomaly grade/confidence high | Open Anomaly Detection UI; correlate with Layer 0 |
 
-### Trend monitors (deterministic — log indices, `collector_time`)
+### Trend rollup (`alice-trend-rollup` → `trend-rollup`)
 
-Severity warn. Each monitor runs every **30 min** and evaluates three consecutive
-10-minute slices (`now-10m`, `-20m`, `-30m`) against a baseline of ~7d excluding
-the last 30 min (24h fallback when 7d is empty). The breach must hold on **all
-three** slices — one noisy window cannot fire. Coverage stays continuous because
-the dwell window is exactly the schedule period. Run-start spikes may false-warn
-until run/phase gating exists.
+Every trend monitor reads the **`trend-rollup`** index, never raw logs. The
+`alice-trend-rollup` systemd service on the control node aggregates each closed
+10-minute wall-clock bucket into one small document per entity:
 
-Two guards worth knowing about:
+```
+ts entity family entity_kind doc_count ef_count fleet_count fleet_ef_count
+entity_count p95_entry_lag_ms p95_shipping_lag_ms avg_entry_lag_ms avg_shipping_lag_ms
+```
 
-- **Lag floor.** `collector_time` is stamped by a Fluent Bit Lua filter using
-  `os.time()`, which has **1-second resolution**, so `ingest_lag_ms` carries a
-  ~1 s quantization noise floor. Without a guard a 500 ms → 1000 ms rounding
-  artefact reads as a 2× breach. Lag trend monitors therefore require every slice
-  to exceed **2000 ms** in absolute terms as well as 2× the baseline: they detect
-  multi-second backlogs, not sub-second jitter.
-- **Retired-host guard.** The composite aggregation buckets by entity over the
-  whole 7d window, so a host that stopped logging days ago still produces a bucket
-  with zero recent docs — a permanent collapse breach. The volume monitors' `≤0.5×`
-  branch additionally requires a non-empty 24h baseline.
+Five (family, entity) combinations are rolled up: `infologger`×`origin_host`,
+`infologger`×`node`, `generic-log-other`×`origin_host`,
+`generic-log-info-*`×`origin_host`, `generic-log-info-*`×`node`. Errors are
+counted with one `severity_norm:(error or fatal)` filter across all three
+families — no per-family severity enumeration anywhere in the lane. Document `_id` is deterministic
+(`family.kind.entity.bucket_ts`), so each run re-writes the last
+`trend_rollup_backfill_buckets` (3) buckets idempotently — late-arriving docs get
+folded in and a restart self-heals without duplicates. One `family: _meta`
+heartbeat document per combination per bucket carries `entity_count` and
+`truncated`.
 
-Cost note: each evaluation scans its 7d baseline window live. That is why the
-schedule is 30 min rather than 10 on a 2-vCPU cluster. The proper fix is a
-scheduled transform holding the baseline (see `docs/PLAN.md` Stage 7).
+Why it exists:
 
-| Monitor | Index | Entity | Metric |
-|---|---|---|---|
-| `trend-il-volume` | `infologger` | `hostname` | doc volume |
-| `trend-il-ef` | `infologger` | `hostname` | E/F count |
-| `trend-il-entry-lag` | `infologger` | `hostname` | `avg(enter_system_lag_ms)` |
-| `trend-il-shipping-lag` | `infologger` | `node` | `avg(ingest_lag_ms)` |
-| `trend-other-volume` | `generic-log-other` | `host` | volume |
-| `trend-other-errors` | `generic-log-other` | `host` | error count |
-| `trend-info-volume` | `generic-log-info-*` | `host` | volume |
-| `trend-info-entry-lag` | `generic-log-info-*` | `host` | `avg(enter_system_lag_ms)` |
-| `trend-info-shipping-lag` | `generic-log-info-*` | `node` | `avg(ingest_lag_ms)` |
+- **Cost.** The 7d baseline is now a few thousand rollup docs per entity instead
+  of a live scan over millions of log docs, so the monitors run every **10 min**
+  on 2-vCPU nodes instead of every 30. This is Stage 7.4, built as an in-cluster
+  service rather than an OpenSearch transform — see `docs/PLAN.md` Deviations.
+- **`fleet_count` on every document** is what makes share-of-fleet possible. A
+  bucket-level trigger can only read aggregations *inside* its own entity bucket,
+  so the fleet total has to travel on the entity's own rows.
+- **Retention.** Raw `generic-log-info` is kept 7d, which made a 7d raw baseline
+  marginal. Rollups are tiny and kept `trend_rollup_retention_days` (30d) —
+  pruned **by document** (hourly `_delete_by_query` on `ts`) inside the service,
+  *not* by ISM. Every other index here uses whole-index delete-by-age; doing
+  that to `trend-rollup` would drop the entire 7d baseline in one step every
+  30 days and leave the whole trend lane silently inert for a week while it
+  refilled. This is the one index where that failure mode matters, so it is the
+  one index with doc-level retention.
+
+`trend-rollup-stale` pages if no heartbeat lands for 40 min — a dead rollup
+silently blinds the whole lane, so it is monitored like any other dependency.
+
+### Trend monitors (deterministic — `trend-rollup`)
+
+Severity warn. Each monitor runs every **10 min** and evaluates three consecutive
+10-minute rollup buckets against a baseline of ~7d (24h fallback when 7d is
+empty). The three slices are offset by 10 min (`-20m…-10m`, `-30m…-20m`,
+`-40m…-30m`) so the newest bucket read is always complete; the baseline excludes
+the last 40 min so the anomaly cannot dilute its own reference. The breach must
+hold on **all three** slices in the **same direction** — one noisy window cannot
+fire.
+
+What each monitor actually compares:
+
+- **Volume → share of fleet.** The metric is `sum(doc_count) / sum(fleet_count)`,
+  this entity's share of everything logged in the same buckets. A fleet-wide ramp
+  such as run start moves numerator and denominator together and cancels, so only
+  a *disproportionate* host fires. Window length cancels too — no rate
+  normalisation constants. An entity absent from a slice counts as share 0, so
+  full silence is still caught.
+- **Errors → share of that entity's own volume.** `sum(ef_count)/sum(doc_count)`,
+  not an absolute count. A host that doubles traffic and doubles errors holds a
+  flat error share and stays quiet, instead of double-alerting alongside the
+  volume monitor.
+- **Lag → p95, not mean.** `avg` of the per-bucket `p95_*_lag_ms`. Backlogs show
+  in the tail before they move the average.
+
+Guards:
+
+- **Minimum counts.** Rising volume needs **≥50 docs in every slice**; rising
+  errors need ≥50 docs **and** ≥10 error docs per slice. Without a floor a host
+  whose baseline is a handful of documents trips on almost anything. An entity
+  with no error history is compared against a 0.1% floor rather than dividing by
+  zero.
+- **Retired-host guard.** Collapse additionally requires a 24h baseline averaging
+  ≥50 docs per bucket in which the entity appeared — "was alive yesterday, is
+  quiet now". After 24h of silence a decommissioned host stops alerting by
+  itself.
+- **Lag record floor.** A p95 over a handful of records *is* the maximum, so the
+  lag monitors also require **≥`trend_min_lag_docs` (100) records in every slice**.
+  Without it the tail statistic silently degenerates to an outlier statistic exactly
+  when the entity is quietest.
+- **Lag floor.** `trend_lag_floor_ms` (default **250 ms**), substituted into the
+  trigger scripts at bootstrap. With `collector_time` now stamped at
+  millisecond resolution (see below) the old 2000 ms quantization floor is no
+  longer needed; raise the variable, not the JSON, if the first soak shows
+  residual jitter.
+- **Entity cap.** The rollup pages its composite aggregation but stops at
+  `trend_rollup_max_entities` (2000); each monitor's own composite is capped at
+  2000. `trend-entity-cap` warns at `trend_entity_cap_warn` (1800) or on any
+  `truncated` heartbeat, so silent blindness past the ceiling becomes an alert
+  rather than a surprise.
+
+#### Calibration (measured from the real S3 archive, 2026-07-27)
+
+The floors are not guesses. Counted directly from `s3://epn-backup-logs/infologger-2026/`,
+where **each object is one calendar day** for the whole fleet.
+
+**Daily volume spans 220×.** Sampling only small objects gives a badly wrong picture,
+so the range matters more than any single day:
+
+| object | day | rows | fleet rate | median host per 10 min |
+|---|---|---|---|---|
+| `p104` | 2026-04-01 | 254,003 | 2.9/s | ~2 |
+| `p100` | 2026-03-28 | 426,063 | 4.9/s | ~3 |
+| `p102` | 2026-03-30 | 3,710,214 | 43/s | **112** |
+| `p72` | — | 7,935,449 | 92/s | — |
+| `p149` | — | **55,592,675** | **643/s** | — |
+
+Object sizes: 179 non-empty, median 6.4 MB, p75 17 MB, max 584 MB. Compression varies
+(33k–95k rows per compressed MB), so extrapolating rows from size is only a rough guide.
+
+**The replay pacer mimics a busy day, not a typical one.** `il_replay_rate: 500` sits
+just under the busiest real day (643/s) and ~150× above a quiet one. Anything calibrated
+against the replay is calibrated against data-taking conditions — which is the regime
+worth alerting on.
+
+**The 50-line floor gates by activity, and that is the intent.** On a data-taking day a
+median host produces ~112 lines per 10-minute bucket, comfortably above the floor. On an
+idle day it produces ~2, and the rate rule correctly goes silent — there is genuinely
+nothing to measure. Do **not** widen the bucket to compensate: it would trade fast
+detection during data-taking for a rule that fires on statistical noise while idle. The
+gap that leaves — a host dying while the fleet is quiet — is a *presence* question, not a
+rate question, and wants its own rule.
+
+**The 10-error floor sits at a fleet-typical error rate.** Fleet error share is highly
+variable across days: 3.2 % (`p104`), 23.8 % (`p100`), 7.2 % (`p102`). At ~330 lines per
+bucket, 10 errors is a 3.0 % share — the bottom of that range. That variability is also
+why error share is compared against *this host's own* 7-day history rather than any fixed
+number. The 0.1 % divide-by-zero floor is well below all of it.
+
+**Host count is stable and larger than assumed: 211, 214 and 215** distinct hostnames on
+the three days counted — not the ~31 this project assumed. See the HCAD sizing note under
+Detectors.
+
+**Concentration is a quiet-day artefact.** `epn-infra12` is ~45 % of the stream on quiet
+days but only 6.8 % on the busy one, where load spreads across the EPNs. Share-of-fleet is
+still the right metric — it is what makes a fleet-wide run-start ramp cancel — but not
+because one host dominates.
+
+Generic families do not have this problem: DDS is **2,013 objects, one per EPN, each
+~99 MB**, so per-host volume is near-uniform.
+
+| Monitor | Family | Entity | Metric | Enabled |
+|---|---|---|---|---|
+| `trend-il-volume` | `infologger` | `origin_host` | share of fleet volume | yes |
+| `trend-il-ef` | `infologger` | `origin_host` | error share of own volume | yes |
+| `trend-il-entry-lag` | `infologger` | `origin_host` | p95 `enter_system_lag_ms` | yes (self-gating) |
+| `trend-il-shipping-lag` | `infologger` | `node` | p95 `ingest_lag_ms` | yes |
+| `trend-other-volume` | `generic-log-other` | `origin_host` | share of fleet volume | yes |
+| `trend-other-errors` | `generic-log-other` | `origin_host` | error share of own volume | yes |
+| `trend-info-volume` | `generic-log-info-*` | `origin_host` | share of fleet volume | yes |
+| `trend-info-entry-lag` | `generic-log-info-*` | `origin_host` | p95 `enter_system_lag_ms` | yes (self-gating) |
+| `trend-info-shipping-lag` | `generic-log-info-*` | `node` | p95 `ingest_lag_ms` | yes |
+| `trend-rollup-stale` | — | — | rollup heartbeat absent 40 min | yes |
+| `trend-entity-cap` | — | — | entity ceiling approached | yes |
+
+**Entry-lag monitors gate themselves — no cutover step.** Entry lag is
+`collector_time − @timestamp`: under preserved June replay that is *archive age*,
+about a month, and says nothing about pipeline health. The first design shipped
+these two disabled behind a variable to be flipped at production cutover. That was
+wrong: an alert that must be manually switched on is a silent gap if anyone forgets,
+which is the exact failure mode the rest of this lane is built to avoid.
+
+Instead the rule detects the nonsense itself. Any slice above
+`trend_entry_lag_ceiling_ms` (1 h) cannot be pipeline health, so the trigger returns
+false. Under replay entry lag is ~1 month → always over the ceiling → naturally
+silent. In production entry lag is seconds → never near it → naturally live. Both
+monitors ship **enabled**, and `verify_detection.py` now fails if any trend monitor
+is disabled. Shipping-lag monitors have no ceiling: a multi-hour shipping backlog is
+real and should page.
+
+The matching *detectors* stay on regardless — an anomaly score is advisory and shows
+up on a panel, where noise is cheap; a throttled page is not.
 
 Alerts appear in Dashboards → Alerting and on the Cockpit **Detection** panels.
 `/ops` shows active-alert and anomalies-last-hour counts. No external channel yet
@@ -515,28 +655,78 @@ Alerts appear in Dashboards → Alerting and on the Cockpit **Detection** panels
 
 ### Detectors (Layer 0.5 / 1)
 
-Entity rule: `ingest_lag_ms` → collector `node`; `enter_system_lag_ms` → EPN (`hostname`/`host`). Lag-only detectors have no ZERO imputation. `enter_system_*` AD is valid in production; under preserved replay scores reflect archive age (expected) — detectors still run.
+**Normalized fields (`severity_norm`, `origin_host`).** The collector's last
+filter stamps two fields on every record, so nothing downstream enumerates
+per-family vocabularies any more:
 
-Read the `*-shipping-lag` detectors with the 1-second `collector_time` resolution in
-mind (see the lag-floor note above): on a healthy pipeline `ingest_lag_ms` is mostly
-quantization, so those four detectors are meaningful for **multi-second** backlogs and
-noise below that. Sub-second shipping latency is not measurable from this stack without
-moving the collector stamp out of Lua.
+| raw `severity` | source | `severity_norm` |
+|---|---|---|
+| `I` `W` `E` `F` `D` | infologger | `info` `warning` `error` `fatal` `debug` |
+| `Info` `Warning` `Error` `Fatal` `Sys` | stdout | `info` `warning` `error` `fatal` `system` |
+| `inf` `err` `cout` | dds | `info` `error` `info` |
+| absent (free-form stdout) | stdout | `unknown` |
+
+`origin_host` copies `hostname` (infologger) or `host` (generic) — one field
+meaning "the EPN this log was born on" across all three families. Both are
+mapped explicitly in the component templates; `infologger` is `dynamic: strict`,
+so a missing mapping would reject every document, and `verify_detection.py`
+asserts both fields are present.
+
+`rewrite_tag` routing deliberately still keys on the **raw** `severity`. Routing
+decides which tier a document lands on, and `dds:cout` normalizes to `info`
+while currently routing to `generic-log-other`; switching the rules to
+`severity_norm` would silently move data between the storage and worker tiers.
+That is a separate, deliberate decision — not a side effect of normalization.
+
+
+Entity rule: `ingest_lag_ms` → collector `node`; everything EPN-scoped → `origin_host` (one field on all three families, so the rule no longer branches per family). Lag-only detectors have no ZERO imputation. `enter_system_*` AD is valid in production; under preserved replay scores reflect archive age (expected) — detectors still run.
+
+`collector_time` is stamped **millisecond-resolution** at the head of the Fluent Bit
+filter chain, from the event's own arrival timestamp (`time_as_table`), not from
+`os.time()`. The old whole-second stamp made `ingest_lag_ms` mostly quantization —
+and biased it high by ~500 ms, since truncation put `collector_time` before the true
+accept time — which is why the `*-shipping-lag` detectors and monitors used to be
+meaningful only for multi-second backlogs. Sub-second shipping latency is now
+measurable; the first soak should confirm the distribution is continuous rather
+than clustered on second boundaries.
 
 | Detector | Signal |
 |---|---|
 | `ingest-flow` | collector throughput / errors / retries |
 | `node-health` | heap, CPU, indexing delta, disk |
 | `dashboards-health` | OSD event-loop / latency / requests |
-| `il-per-epn` (+ `-slow`) | InfoLogger per-`hostname` volume, E/F |
-| `il-per-epn-entry-lag` (+ `-slow`) | InfoLogger per-`hostname` `avg(enter_system_lag_ms)` |
-| `il-collector-shipping-lag` (+ `-slow`) | InfoLogger per-`node` `avg(ingest_lag_ms)` |
-| `other-per-epn` (+ `-slow`) | generic-other per-`host` volume / errors |
-| `info-volume` (+ `-slow`) | generic-info per-`host` volume |
-| `info-per-epn-entry-lag` (+ `-slow`) | generic-info per-`host` `avg(enter_system_lag_ms)` |
-| `info-collector-shipping-lag` (+ `-slow`) | generic-info per-`node` `avg(ingest_lag_ms)` |
+| `il-per-epn` (+ `-slow`) | InfoLogger per-`origin_host` volume, error count |
+| `il-per-epn-entry-lag` (+ `-slow`) | InfoLogger per-`origin_host` `p95(enter_system_lag_ms)` |
+| `il-collector-shipping-lag` (+ `-slow`) | InfoLogger per-`node` `p95(ingest_lag_ms)` |
+| `other-per-epn` (+ `-slow`) | generic-other per-`origin_host` volume / errors |
+| `info-volume` (+ `-slow`) | generic-info per-`origin_host` volume |
+| `info-per-epn-entry-lag` (+ `-slow`) | generic-info per-`origin_host` `p95(enter_system_lag_ms)` |
+| `info-collector-shipping-lag` (+ `-slow`) | generic-info per-`node` `p95(ingest_lag_ms)` |
 
 **17** detectors total (3 metrics + 14 log). RCF needs a few hundred intervals before scores are meaningful (~3–5 h at 1 min).
+
+**Lag detectors use real p95.** The eight lag detectors moved from `avg` to a
+`percentiles` aggregation with a single percent. Two constraints make this a trap,
+so don't "tidy" it:
+
+- **Exactly one entry in `percents`.** The plugin reads the *first* percentile from
+  the iterator, and percentiles iterate ascending. Ask for `[50, 95]` and you
+  silently get the median, with no error anywhere.
+- **Never set `"method": "hdr"`.** Only the default TDigest implementation is
+  handled; the HDR one falls through to `Failed to parse aggregation`.
+
+(An earlier version of this section claimed percentiles were impossible as a
+detector feature and used `max` instead. That was wrong — the plugin handles
+`InternalTDigestPercentiles` explicitly. `max` was also the worse signal: one
+garbage-collection pause moves it, so the model learns a wide noisy normal and gets
+less sensitive to the real thing.)
+
+**HCAD sizing — measured, and a real risk.** The archive has **211–214 distinct
+hostnames**, not the ~31 this plan has been assuming. Ten EPN-scoped detectors
+× ~214 entities is well past the ~256-model budget `docs/PLAN.md` estimated.
+Run `_profile` on the first soak *before* trusting any of the log detectors;
+the likely mitigations are dropping the `-slow` twins for EPN-scoped signals, or
+filtering detectors to the hosts that carry meaningful volume.
 Profile: `GET _plugins/_anomaly_detection/detectors/<id>/_profile`.
 
 ### Replay clock
@@ -552,11 +742,68 @@ preserved June timestamps — expected.
   AD works via `collector_time`).
 - Unit default in `group_vars` stays `preserved`.
 
-### Retention (ISM)
+### Retention — rolling window, never a wipe
 
-Whole-index delete by age: info 7d, other 30d, infologger 90d, cockpit-metrics 7d,
-AD result histories 14d, alert history 30d. After info-index delete, `alice-metrics`
-re-creates the box-pinned `generic-log-info-*` indices if missing.
+Every log family writes to a **write alias**, not to a concrete index. `infologger`
+is a nickname pointing at `infologger-000001`; ISM rolls it to `-000002` when the
+current index turns `log_rollover_period` old (or hits `log_rollover_max_size`,
+whichever comes first), and deletes each backing index once *it* passes the
+retention age. Old data falls off the back one index at a time.
+
+Nothing in the stack has to know: writes go to the alias, and reads through the
+alias, a wildcard or a Dashboards index pattern see every backing index. Fluent
+Bit outputs, detectors, monitors and saved objects were not changed.
+
+The guarantee is one subtraction:
+
+> **window you always have = retention − rollover period**
+
+| Index | Rolls | Backing index deleted at | Always have | Shard copies |
+|---|---|---|---|---|
+| `infologger` | 7d / 20 GB | 56d | ≥49d | 8 × 3 = 24 |
+| `generic-log-other` | 7d / 20 GB | 35d | ≥28d | 5 × 3 = 15 |
+| `generic-log-info-<node>` | **1d** / 20 GB | 8d | ≥7d | 8 × 1 per worker |
+| `cockpit-metrics` | — | 7d, **by document** | exactly 7d | 3 |
+| `trend-rollup` | — | 30d, **by document** | exactly 30d | 3 |
+| AD result history | plugin-rolled | 14d | — | small |
+| alert history | plugin-rolled | 30d | — | small |
+
+**The bulk info family rolls daily, not weekly.** Rollover period sets how much
+*extra* data you carry: to guarantee 7 days you must retain `7d + rollover
+period`, so a weekly roll would mean holding up to 14 days of the highest-volume,
+lowest-value family. Rolling it daily (`log_rollover_period_info`) gets the same
+7-day guarantee with a peak of 8 days — nearly halving worker disk. The price is
+8 shards per worker instead of 2, which those nodes can easily afford since they
+hold nothing else. The reverse trade applies to `infologger`: low volume, high
+value, so a weekly roll and its coarser granularity cost almost nothing.
+
+**Why the two small indices prune by document instead.** Deleting a whole index
+is nearly free; deleting documents forces the engine to rewrite data files. That
+makes rollover the right tool for the log firehose and the wrong tool for a small
+index — `trend-rollup` at daily rollover would be 31 indices × 3 copies = 93
+shards to avoid deleting ~40k tiny documents a day. Both small indices prune
+hourly instead (`alice-trend-rollup` and `alice-metrics` each do their own), which
+gives an exact window at no meaningful cost.
+
+**Shard budget is the binding constraint, not disk.** Every index costs heap just
+by existing; the rule of thumb is ~20 shards per GB, so ~60 across the 3-node
+storage tier at 1 GB heap each. That is why `infologger` and `generic-log-other`
+dropped from **3 primaries to 1** — at 3 primaries, eight weekly `infologger`
+indices alone would be 72 shards. Current storage-tier total is ~45. Each extra
+week of `infologger` retention costs 3 more shards.
+
+**Migrating an existing cluster (one-time).** An alias cannot share a name with a
+real index, so a cluster that already has a concrete `infologger` keeps the old
+whole-index-wipe behaviour and the bootstrap prints a loud `WARN`;
+`verify_detection.py` repeats it. Convert once — this **deletes** the old index,
+which is fine here because the data is a replay you can re-run:
+
+```
+make deploy-migrate-rollover
+```
+
+After `generic-log-info-*` indices are deleted, `alice-metrics` recreates the
+box-pinned write alias if it is missing.
 
 ### Re-measure window delay
 

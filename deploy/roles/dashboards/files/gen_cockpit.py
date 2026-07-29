@@ -18,11 +18,11 @@ HEALTH_RANGE = {"from": "now-1h", "to": "now"}
 REFRESH_MS = 30000
 STALE_SECONDS = 90
 
-ERRWARN_Q = "severity:(E or F or W or Error or Fatal or Warning or err)"
+ERRWARN_Q = "severity_norm:(error or fatal or warning)"
 
 INDEX_REF_NAME = "kibanaSavedObjectMeta.searchSourceJSON.index"
 
-DEFAULT_COLUMNS = ["log_source", "severity", "node", "message"]
+DEFAULT_COLUMNS = ["log_source", "severity_norm", "origin_host", "message"]
 
 
 def dql(q):
@@ -174,7 +174,7 @@ def severity_over_time(vid, title):
              "params": {"field": TIME_FIELD, "interval": "auto",
                         "min_doc_count": 1, "drop_partials": False}},
             {"id": "3", "enabled": True, "type": "terms", "schema": "group",
-             "params": {"field": "severity", "orderBy": "1", "order": "desc",
+             "params": {"field": "severity_norm", "orderBy": "1", "order": "desc",
                         "size": 8, "otherBucket": False,
                         "missingBucket": False}},
         ],
@@ -578,8 +578,8 @@ def build():
     objects += [
         saved_search(
             "alice-search-errwarn", "Errors & Warnings — all sources",
-            "Every Error/Warning/Fatal across all three severity encodings "
-            "(infologger E/W/F, stdout Error/Warning/Fatal, dds err).",
+            "Every Error/Warning/Fatal across all three sources, via the "
+            "collector-stamped severity_norm field.",
             ERRWARN_Q),
         saved_search(
             "alice-search-tcp", "TCP / connection issues",
@@ -590,10 +590,10 @@ def build():
             "InfoLogger records for a given detector.",
             "detector:(TPC or ITS or MCH)"),
         saved_search(
-            "alice-search-host", "One host — edit host:epnNNN",
+            "alice-search-host", "One host — edit origin_host:epnNNN",
             "One EPN's whole story; pairs with 'View surrounding documents'. "
-            "host + hostname cover all three sources.",
-            "host:epn* or hostname:epn*"),
+            "origin_host is stamped on all three sources.",
+            "origin_host:epn*"),
         saved_search(
             "alice-search-system", "By subsystem (ODC / DPL)",
             "InfoLogger records for a given O2 subsystem.",
@@ -601,11 +601,11 @@ def build():
         saved_search(
             "alice-search-dds", "DDS problems",
             "Non-info DDS agent/workflow lines.",
-            "log_source:dds and not severity:inf"),
+            "log_source:dds and not severity_norm:info"),
         saved_search(
             "alice-search-stdout", "stdout crashes",
             "Error/Fatal lines from the O2 process stdout family.",
-            "log_source:stdout and severity:(Error or Fatal)"),
+            "log_source:stdout and severity_norm:(error or fatal)"),
     ]
 
     header_md = (
