@@ -1,6 +1,7 @@
 import html
 import json
 import os
+import subprocess
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -10,6 +11,8 @@ OS_URL = os.environ.get("OS_URL", "http://localhost:9200")
 WORKERS = [w for w in os.environ.get("OPS_WORKER_TRIGGERS", "").split(",") if w]
 INFO_NODES = [n for n in os.environ.get("OPS_WORKER_INFO_NODES", "").split(",") if n]
 FAMILIES = os.environ.get("OPS_REPLAY_FAMILIES", "infologger,dds,stdout")
+TEMPLATES_SCRIPT = os.environ.get(
+    "OPS_TEMPLATES_SCRIPT", "/opt/alice-ingest/init/templates.sh")
 COUNT_TARGET = "infologger,generic-log-*"
 
 
@@ -74,16 +77,28 @@ def anomalies_last_hour():
 
 def wipe():
     lines = []
-    indices = ["infologger", "generic-log-other"]
-    indices += [f"generic-log-info-{n}" for n in INFO_NODES]
-    for idx in indices:
-        code, _ = _req("DELETE", f"{OS_URL}/{idx}")
-        lines.append(f"delete {idx}: HTTP {code}")
-    for n in INFO_NODES:
+    patterns = ["infologger-*", "generic-log-other-*"]
+    patterns += [f"generic-log-info-{n}-*" for n in INFO_NODES]
+    for pat in patterns:
         code, _ = _req(
-            "PUT", f"{OS_URL}/generic-log-info-{n}?wait_for_active_shards=0",
-            {"settings": {"index.routing.allocation.require.box": n}})
-        lines.append(f"recreate generic-log-info-{n}: HTTP {code}")
+            "DELETE",
+            f"{OS_URL}/{pat}?ignore_unavailable=true&allow_no_indices=true")
+        lines.append(f"delete {pat}: HTTP {code}")
+    env = dict(os.environ, OS_URL=OS_URL, SEED_EMPTY_INDICES="false")
+    try:
+        proc = subprocess.run(
+            [TEMPLATES_SCRIPT], env=env, capture_output=True, text=True,
+            timeout=300)
+        if proc.returncode == 0:
+            lines.append("rebuilt rollover write aliases and mappings")
+        else:
+            lines.append(
+                f"FAILED to rebuild write aliases (exit {proc.returncode}) — "
+                f"ingest will auto-create plain indices and ROLLOVER WILL BE "
+                f"INACTIVE until the next deploy: "
+                f"{(proc.stdout or proc.stderr or '').strip()[-400:]}")
+    except Exception as e:
+        lines.append(f"FAILED to run {TEMPLATES_SCRIPT}: {e}")
     return lines
 
 
