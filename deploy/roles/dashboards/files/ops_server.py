@@ -2,6 +2,7 @@ import html
 import json
 import os
 import subprocess
+import time
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -146,6 +147,23 @@ def replay_in_flight():
     return busy
 
 
+def stop_replays(workers):
+    lines = []
+    for w in workers:
+        code, body = _req("POST", f"{w}/replay-stop", timeout=15)
+        lines.append(f"stop {w}: HTTP {code} {body.strip()}")
+    return lines
+
+
+def wait_until_idle(timeout=45):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if not replay_in_flight():
+            return True
+        time.sleep(2)
+    return not replay_in_flight()
+
+
 def trigger_workers():
     lines = []
     if not WORKERS:
@@ -154,6 +172,15 @@ def trigger_workers():
         code, resp = _req("POST", f"{w}/replay?family={FAMILIES}")
         lines.append(f"replay {w}: HTTP {code} {resp.strip()}")
     return lines
+
+
+def stop_only():
+    busy = replay_in_flight()
+    if not busy:
+        return ["no replay is running"]
+    return stop_replays(busy) + [
+        "stop requested — the workers finish the record they are on and then "
+        "end the pass; the indices keep everything shipped so far"]
 
 
 def clear_only():
@@ -165,16 +192,20 @@ def run_replay(fresh):
     if fresh:
         busy = replay_in_flight()
         if busy:
-            return [
-                "REFUSED — a replay is still running on "
-                + ", ".join(busy),
-                "Nothing was wiped. A paced load runs for about an hour, and "
-                "the worker will not accept a second one while the first is "
-                "in flight, so wiping now would have emptied the indices "
-                "without starting a reload.",
-                "Wait for it to finish, or restart alice-replay on those "
-                "workers to cancel it, then press Reload data (fresh) again.",
-            ]
+            lines.append(
+                "a replay was already running on " + ", ".join(busy)
+                + " — cancelling it first, since a fresh reload replaces it")
+            lines += stop_replays(busy)
+            if not wait_until_idle():
+                return lines + [
+                    "REFUSED — it did not stop within 45s, so nothing was "
+                    "wiped. Wiping while a load is in flight empties the "
+                    "indices without starting a reload, and lets ingest "
+                    "recreate the log indices with the wrong mapping.",
+                    "Restart alice-replay on those workers, then press "
+                    "Reload data (fresh) again.",
+                ]
+            lines.append("previous replay stopped")
         lines += wipe()
     lines += trigger_workers()
     return lines
@@ -214,10 +245,13 @@ PAGE = """<!doctype html>
 <form method="post" action="replay">
   <button class="append" type="submit">Append replay</button>
 </form>
+<form method="post" action="stop">
+  <button class="append" type="submit">Stop running replay</button>
+</form>
 <form method="post" action="clear" onsubmit="return confirm('Clear all alerts, anomalies and trend baselines? The log data stays.');">
   <button class="clear" type="submit">Clear alerts &amp; anomalies</button>
 </form>
-<p class="muted">Fresh wipes first, then reloads — always a clean load. Append adds another
+<p class="muted">Fresh cancels any load already in flight, wipes, then reloads — always a clean load. Append adds another
 full pass (no dedup), so use it only deliberately. A load runs for about an hour:
 it is paced so the anomaly detectors get enough consecutive one-minute windows to
 finish training. Documents start appearing within seconds and climb throughout.</p>
@@ -271,6 +305,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, render(run_replay(fresh=False)))
         elif path.endswith("/clear"):
             self._send(200, render(clear_only()))
+        elif path.endswith("/stop"):
+            self._send(200, render(stop_only()))
         else:
             self._send(404, render(["not found"]))
 

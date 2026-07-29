@@ -322,20 +322,42 @@ def _write_lines_shifted(lines, out_path, stop, pacer, counter, host, label):
 
 
 def _run_replay_shifted(families, stop):
+    global _CURRENT_STOP
+    _CURRENT_STOP = stop
     results, passes = [], 0
     while True:
         passes += 1
         _init_shifted_clock(replay.s3_client(), families)
         results = _orig_run_replay(families, stop)
         if not REPLAY_LOOP or stop.is_set():
+            if stop.is_set():
+                replay.log("stop requested — replay ending")
             return results
         replay.log(
             f"loop: pass {passes} finished, next pass in "
             f"{REPLAY_LOOP_PAUSE:.0f}s (REPLAY_LOOP=true)")
-        time.sleep(REPLAY_LOOP_PAUSE)
+        waited = 0.0
+        while waited < REPLAY_LOOP_PAUSE and not stop.is_set():
+            time.sleep(min(1.0, REPLAY_LOOP_PAUSE - waited))
+            waited += 1.0
+        if stop.is_set():
+            replay.log("stop requested during the loop pause — replay ending")
+            return results
 
 
+_CURRENT_STOP = None
 _orig_do_GET = replay.Handler.do_GET
+_orig_do_POST = replay.Handler.do_POST
+
+
+def _do_POST_with_stop(self):
+    if replay.urlparse(self.path).path == "/replay-stop":
+        was_running = replay._active.locked()
+        if _CURRENT_STOP is not None:
+            _CURRENT_STOP.set()
+        self._json(202, {"stopping": was_running})
+        return
+    return _orig_do_POST(self)
 
 
 def _do_GET_with_status(self):
@@ -348,6 +370,7 @@ def _do_GET_with_status(self):
 
 
 replay.Handler.do_GET = _do_GET_with_status
+replay.Handler.do_POST = _do_POST_with_stop
 replay.list_objects = _partition_filtered_list_objects
 replay.il_connect = _partition_filtered_il_connect
 replay.json.dumps = _json_dumps_shifted
