@@ -74,6 +74,21 @@ def interval_str(src):
     return f"{n}m"
 
 
+def _has_value(agg):
+    if not isinstance(agg, dict):
+        return False
+    if "value" in agg:
+        return agg["value"] is not None
+    if "values" in agg:
+        vals = agg["values"]
+        if isinstance(vals, dict):
+            return bool(vals) and all(v is not None for v in vals.values())
+        if isinstance(vals, list):
+            return bool(vals) and all(
+                v.get("value") is not None for v in vals)
+    return False
+
+
 def feature_coverage(src, lookback="now-2h"):
     tf = src.get("time_field")
     indices = src.get("indices") or []
@@ -121,7 +136,7 @@ def feature_coverage(src, lookback="now-2h"):
         slots = ((a.get("per_interval") or {}).get("buckets") or [])
     usable = 0
     for b in slots:
-        if all((b.get(name) or {}).get("value") is not None for name in feats):
+        if all(_has_value(b.get(name)) for name in feats):
             usable += 1
     return {"entity": entity, "total": len(slots), "usable": usable,
             "names": list(feats)}
