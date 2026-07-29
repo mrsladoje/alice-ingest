@@ -46,6 +46,77 @@ print(json.dumps(d))
 ' "$file" "$delay"
 }
 
+CMP='
+import json, sys
+
+KEYS = ["name", "description", "time_field", "indices", "shingle_size",
+        "category_field", "detection_interval", "window_delay",
+        "imputation_option", "filter_query", "result_index", "rules"]
+
+NOISE = {"boost": 1.0, "adjust_pure_negative": True}
+
+
+def strip(v):
+    if isinstance(v, dict):
+        out = {}
+        for k, x in v.items():
+            if x is None:
+                continue
+            if k in NOISE and x == NOISE[k]:
+                continue
+            out[k] = strip(x)
+        if list(out) == ["value"]:
+            return out["value"]
+        return out
+    if isinstance(v, list):
+        return [strip(x) for x in v]
+    return v
+
+
+MATCH_ALL = json.dumps(strip({"match_all": {"boost": 1.0}}), sort_keys=True)
+
+
+def feats(d):
+    out = []
+    for f in d.get("feature_attributes") or []:
+        out.append([f.get("feature_name"),
+                    bool(f.get("feature_enabled", True)),
+                    strip(f.get("aggregation_query"))])
+    return out
+
+
+def norm(d, ref):
+    n = {}
+    for k in KEYS:
+        if k not in d:
+            continue
+        v = strip(d[k])
+        if k not in ref:
+            if v in (None, [], {}):
+                continue
+            if k == "filter_query" and json.dumps(v, sort_keys=True) == MATCH_ALL:
+                continue
+        if k in ("indices", "category_field") and isinstance(v, list):
+            v = sorted(v)
+        n[k] = v
+    n["features"] = feats(d)
+    return json.dumps(n, sort_keys=True)
+
+
+desired = json.load(open(sys.argv[1]))
+current = json.load(open(sys.argv[2]))
+det = current.get("anomaly_detector") or {}
+job = current.get("anomaly_detector_job") or {}
+if not det:
+    print("changed")
+elif norm(det, desired) != norm(desired, desired):
+    print("changed")
+elif job.get("enabled"):
+    print("same-running")
+else:
+    print("same-stopped")
+'
+
 stop_detector() {
   id="$1"
   curl -s -o /tmp/ad-stop -w '%{http_code}' \
@@ -67,44 +138,66 @@ start_detector() {
 
 upsert_detector() {
   file="$1"
-  body=$(prepare_body "$file")
-  name=$(printf '%s' "$body" | python3 -c 'import json,sys; print(json.load(sys.stdin)["name"])')
+  prepare_body "$file" > /tmp/ad-desired.json
+  name=$(python3 -c 'import json; print(json.load(open("/tmp/ad-desired.json"))["name"])')
   existing=$(search_detector_id "$name")
-  if [ -n "$existing" ]; then
-    stop_detector "$existing" >/dev/null || true
-    sleep 2
-    code=$(curl -s -o /tmp/ad-resp -w '%{http_code}' \
-      -XPUT "$OS/_plugins/_anomaly_detection/detectors/$existing" \
-      -H 'Content-Type: application/json' -d "$body" || echo 000)
-    if ! put_ok "$code"; then
-      sleep 3
-      stop_detector "$existing" >/dev/null || true
-      sleep 2
-      code=$(curl -s -o /tmp/ad-resp -w '%{http_code}' \
-        -XPUT "$OS/_plugins/_anomaly_detection/detectors/$existing" \
-        -H 'Content-Type: application/json' -d "$body" || echo 000)
-    fi
-    if put_ok "$code"; then
-      echo "[detectors] updated: $name ($existing)"
-      start_detector "$existing"
-    else
-      echo "[detectors] FATAL: update $name -> HTTP $code: $(cat /tmp/ad-resp)"
-      return 1
-    fi
-  else
+
+  if [ -z "$existing" ]; then
     code=$(curl -s -o /tmp/ad-resp -w '%{http_code}' \
       -XPOST "$OS/_plugins/_anomaly_detection/detectors" \
-      -H 'Content-Type: application/json' -d "$body" || echo 000)
+      -H 'Content-Type: application/json' \
+      --data-binary @/tmp/ad-desired.json || echo 000)
     if put_ok "$code"; then
       id=$(python3 -c 'import json; print(json.load(open("/tmp/ad-resp")).get("_id",""))')
       echo "[detectors] created: $name ($id)"
       if [ -n "$id" ]; then
         start_detector "$id"
       fi
-    else
-      echo "[detectors] FATAL: create $name -> HTTP $code: $(cat /tmp/ad-resp)"
-      return 1
+      return 0
     fi
+    echo "[detectors] FATAL: create $name -> HTTP $code: $(cat /tmp/ad-resp)"
+    return 1
+  fi
+
+  curl -s -o /tmp/ad-current.json \
+    "$OS/_plugins/_anomaly_detection/detectors/$existing?job=true" || true
+  state=$(python3 -c "$CMP" /tmp/ad-desired.json /tmp/ad-current.json \
+    2>/dev/null || echo changed)
+
+  case "$state" in
+    same-running)
+      echo "[detectors] unchanged and running, model state preserved: $name ($existing)"
+      return 0
+      ;;
+    same-stopped)
+      echo "[detectors] unchanged but stopped: $name ($existing)"
+      start_detector "$existing"
+      return 0
+      ;;
+  esac
+
+  echo "[detectors] definition changed, restarting (RCF models and init progress reset): $name ($existing)"
+  stop_detector "$existing" >/dev/null || true
+  sleep 2
+  code=$(curl -s -o /tmp/ad-resp -w '%{http_code}' \
+    -XPUT "$OS/_plugins/_anomaly_detection/detectors/$existing" \
+    -H 'Content-Type: application/json' \
+    --data-binary @/tmp/ad-desired.json || echo 000)
+  if ! put_ok "$code"; then
+    sleep 3
+    stop_detector "$existing" >/dev/null || true
+    sleep 2
+    code=$(curl -s -o /tmp/ad-resp -w '%{http_code}' \
+      -XPUT "$OS/_plugins/_anomaly_detection/detectors/$existing" \
+      -H 'Content-Type: application/json' \
+      --data-binary @/tmp/ad-desired.json || echo 000)
+  fi
+  if put_ok "$code"; then
+    echo "[detectors] updated: $name ($existing)"
+    start_detector "$existing"
+  else
+    echo "[detectors] FATAL: update $name -> HTTP $code: $(cat /tmp/ad-resp)"
+    return 1
   fi
 }
 
