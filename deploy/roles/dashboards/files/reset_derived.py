@@ -10,6 +10,7 @@ DIGEST_INDEX = os.environ.get("DIGEST_INDEX", "alice-anomalies")
 
 LOG_FAMILIES = [f.strip() for f in
                 os.environ.get("LOG_FAMILIES", "").split(",") if f.strip()]
+MODE = os.environ.get("MODE", "full").strip().lower()
 
 PURGE = [
     ".opendistro-alerting-alerts",
@@ -86,18 +87,25 @@ def drop_blocking_index(name):
 
 
 def main():
-    log("clearing everything derived from the log data that is being wiped")
     ok = True
-    for family in LOG_FAMILIES:
-        ok = drop_blocking_index(family) and ok
+    if MODE == "full":
+        log("clearing everything derived from the log data being wiped")
+        for family in LOG_FAMILIES:
+            ok = drop_blocking_index(family) and ok
+    else:
+        log("clearing alerts, anomalies and trend baselines; the log data "
+            "itself is left alone")
     for index in (ROLLUP_INDEX, DIGEST_INDEX):
-        ok = drop(index) and ok
+        ok = purge(index) and ok
     for pattern in PURGE:
         ok = purge(pattern) and ok
+    log("the trend baselines went with them, so a monitor that was firing on "
+        "a collapse it can no longer measure will fall silent instead of "
+        "re-firing on its next run")
     log("cockpit-metrics and the anomaly model checkpoints are deliberately "
-        "kept: the first is live cluster telemetry that has nothing to do "
-        "with the replay, the second would cost every detector another 32 "
-        "intervals of retraining")
+        "kept: the first is live cluster telemetry unrelated to the replay, "
+        "the second would cost every detector another 32 intervals of "
+        "retraining")
     return 0 if ok else 1
 
 

@@ -85,11 +85,11 @@ def anomalies_last_hour():
         ]}})
 
 
-def reset_derived():
+def reset_derived(mode="full"):
     try:
         proc = subprocess.run(
             ["/usr/bin/python3", RESET_SCRIPT],
-            env=dict(os.environ, OS_URL=OS_URL,
+            env=dict(os.environ, OS_URL=OS_URL, MODE=mode,
                      LOG_FAMILIES=",".join(LOG_FAMILIES)),
             capture_output=True, text=True, timeout=600)
         lines = [ln for ln in (proc.stdout or "").splitlines() if ln.strip()]
@@ -142,6 +142,10 @@ def trigger_workers():
     return lines
 
 
+def clear_only():
+    return reset_derived(mode="clear")
+
+
 def run_replay(fresh):
     lines = []
     if fresh:
@@ -166,6 +170,7 @@ PAGE = """<!doctype html>
  button{{font-size:1rem;padding:.6rem 1rem;border:0;border-radius:8px;cursor:pointer;margin:.3rem .3rem 0 0}}
  .fresh{{background:#c0392b;color:#fff}}
  .append{{background:#e0e0e0;color:#111}}
+ .clear{{background:#f0ad4e;color:#111}}
  a.dash{{display:inline-block;margin-top:1.2rem;font-weight:600}}
  pre{{background:#f5f5f5;padding:1rem;border-radius:8px;white-space:pre-wrap}}
 </style>
@@ -183,10 +188,17 @@ PAGE = """<!doctype html>
 <form method="post" action="replay">
   <button class="append" type="submit">Append replay</button>
 </form>
+<form method="post" action="clear" onsubmit="return confirm('Clear all alerts, anomalies and trend baselines? The log data stays.');">
+  <button class="clear" type="submit">Clear alerts &amp; anomalies</button>
+</form>
 <p class="muted">Fresh wipes first, then reloads — always a clean load. Append adds another
 full pass (no dedup), so use it only deliberately. A load runs for about an hour:
 it is paced so the anomaly detectors get enough consecutive one-minute windows to
 finish training. Documents start appearing within seconds and climb throughout.</p>
+<p class="muted">Clear removes every alert, anomaly record and trend baseline without
+touching the logs or reloading anything. Use it when the panels are full of findings
+about data you have since replaced. Live cluster telemetry and the trained detector
+models are kept, so detection carries on from the next window.</p>
 <a class="dash" href="/">Open the ALICE Cockpit dashboard</a>
 """
 
@@ -231,6 +243,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, render(run_replay(fresh=True)))
         elif path.endswith("/replay"):
             self._send(200, render(run_replay(fresh=False)))
+        elif path.endswith("/clear"):
+            self._send(200, render(clear_only()))
         else:
             self._send(404, render(["not found"]))
 
