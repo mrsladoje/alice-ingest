@@ -18,6 +18,7 @@ SKIP_INDICES = [i.strip() for i in
                 if i.strip()]
 POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "15"))
 TIMEOUT_MINUTES = int(os.environ.get("TIMEOUT_MINUTES", "45"))
+MAX_WINDOW_HOURS = float(os.environ.get("MAX_WINDOW_HOURS", "24"))
 PAGE = int(os.environ.get("PAGE", "1000"))
 
 AD = "/_plugins/_anomaly_detection/detectors"
@@ -98,7 +99,14 @@ def window(det):
     total = ((body.get("hits") or {}).get("total") or {}).get("value", 0)
     if lo is None or hi is None:
         return None, None, total
-    return int(lo), int(hi), total
+    lo, hi = int(lo), int(hi)
+    cap = int(MAX_WINDOW_HOURS * 3600000)
+    if cap and hi - lo > cap:
+        log(f"  {det['name']}: {(hi - lo) / 3600000.0:.1f}h of history spans "
+            f"several loads; using the most recent {MAX_WINDOW_HOURS:g}h "
+            f"(raise MAX_WINDOW_HOURS to widen)")
+        lo = hi - cap
+    return lo, hi, total
 
 
 def start(det, lo, hi):

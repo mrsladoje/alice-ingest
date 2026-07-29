@@ -9,6 +9,7 @@
     # metrics detectors already run in real time and need no backtest.
     backtest_detectors: ""
     backtest_timeout_minutes: 45
+    backtest_max_window_hours: 24
   tasks:
     - name: Run the backtest
       ansible.builtin.command:
@@ -18,6 +19,7 @@
         DIGEST_INDEX: "{{ anomaly_digest_index }}"
         DETECTORS: "{{ backtest_detectors }}"
         TIMEOUT_MINUTES: "{{ backtest_timeout_minutes }}"
+        MAX_WINDOW_HOURS: "{{ backtest_max_window_hours }}"
       register: _backtest
       changed_when: true
       failed_when: _backtest.rc != 0
