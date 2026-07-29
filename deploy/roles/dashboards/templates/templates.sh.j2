@@ -5,6 +5,7 @@ OS="${OS_URL:-http://opensearch:9200}"
 
 WORKER_NODES="{{ groups['workers'] | map('extract', hostvars, 'node_id') | join(' ') }}"
 MIGRATE_EXISTING="{{ log_rollover_migrate_existing | bool | ternary('true', 'false') }}"
+SEED_EMPTY_INDICES="${SEED_EMPTY_INDICES:-true}"
 
 wait_os() {
   echo "[os-init] waiting for OpenSearch at $OS ..."
@@ -74,6 +75,9 @@ ensure_rollover_index() {
 
 seed_if_empty() {
   alias="$1"
+  if [ "$SEED_EMPTY_INDICES" != "true" ]; then
+    return 0
+  fi
   cnt=$(curl -s "$OS/$alias/_count?ignore_unavailable=true&allow_no_indices=true" \
     | python3 -c '
 import json,sys
@@ -91,7 +95,7 @@ except Exception:
     return 0
   fi
   now=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
-  body=$(printf '{"@timestamp":"%s","collector_time":"%s","log_source":"bootstrap","message":"alice-ingest bootstrap seed. The anomaly-detection plugin refuses to create a detector over an index holding zero documents, and the log indices stay empty until the first replay. This document carries no host, node or severity field, so it forms no entity in any detector or trend-rollup bucket. It ages out with the first rollover."}' "$now" "$now")
+  body=$(printf '{"@timestamp":"%s","collector_time":"%s","log_source":"bootstrap","message":"alice-ingest bootstrap seed. The anomaly-detection plugin refuses to create or update a detector over an index holding zero documents, and the log indices stay empty until the first replay. This document exists only for the moment between index creation and detector provisioning, and the deploy deletes it again once every detector is up. It carries no host, node or severity field, so it forms no entity in any detector or trend-rollup bucket."}' "$now" "$now")
   code=$(curl -s -o /tmp/os-seed -w '%{http_code}' \
     -XPUT "$OS/$alias/_doc/alice-bootstrap-seed?refresh=true" \
     -H 'Content-Type: application/json' -d "$body" || echo 000)

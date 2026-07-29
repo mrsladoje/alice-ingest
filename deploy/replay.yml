@@ -17,11 +17,12 @@
                    | list) }}"
       when: replay_fresh | default(false) | bool
 
-    - name: Re-create the rollover write aliases, templates, mappings and seed documents
+    - name: Re-create the rollover write aliases, templates and mappings (no bootstrap seed — no detector is created or updated here)
       ansible.builtin.command:
         cmd: "{{ bootstrap_root }}/templates.sh"
       environment:
         OS_URL: "http://localhost:{{ opensearch_http_port }}"
+        SEED_EMPTY_INDICES: "false"
       changed_when: true
       when: replay_fresh | default(false) | bool
 
