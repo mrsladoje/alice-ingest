@@ -63,10 +63,23 @@ ensure_rollover_index() {
       echo "[os-init] MIGRATING: '$alias' is a legacy concrete index; deleting so the write alias can take the name"
       del "/$alias" "legacy concrete index $alias"
     else
-      echo "[os-init] WARN: '$alias' is a concrete index, so ROLLOVER IS NOT ACTIVE for it and it will still be"
-      echo "[os-init] WARN: wiped whole when it ages out. Convert once with:"
-      echo "[os-init] WARN:   make deploy-migrate-rollover   (deletes the old index; replay data is re-runnable)"
-      return 0
+      echo "[os-init] FATAL: '$alias' is a concrete index, not a rollover write alias."
+      echo "[os-init] FATAL: Ingest auto-created it before the alias existed, so its fields"
+      echo "[os-init] FATAL: come from dynamic mapping instead of the component template:"
+      echo "[os-init] FATAL: collector_time lands as long instead of date, host as text"
+      echo "[os-init] FATAL: instead of keyword. That breaks the dual-clock mapping applied"
+      echo "[os-init] FATAL: later in this script and every terms aggregation on host, and"
+      echo "[os-init] FATAL: rollover is inactive for the family. This used to be a warning,"
+      echo "[os-init] FATAL: which meant the deploy limped on and died further down with an"
+      echo "[os-init] FATAL: unrelated-looking mapper error. Fix it once with:"
+      echo "[os-init] FATAL:"
+      echo "[os-init] FATAL:   make deploy-migrate-rollover"
+      echo "[os-init] FATAL:"
+      echo "[os-init] FATAL: which deletes '$alias' and rebuilds it properly. The data in it"
+      echo "[os-init] FATAL: is replayable, so this is safe. A fresh replay also self-heals"
+      echo "[os-init] FATAL: this now — reset_derived.py drops any log family that is a"
+      echo "[os-init] FATAL: concrete index before templates.sh runs."
+      return 1
     fi
   fi
   body=$(printf '{"aliases":{"%s":{"is_write_index":true}}%s}' "$alias" "$extra")
