@@ -279,13 +279,15 @@ def anomaly_table(vid, title):
             {"id": "2", "enabled": True, "type": "max", "schema": "metric",
              "params": {"field": "confidence", "customLabel": "confidence"}},
             {"id": "3", "enabled": True, "type": "count", "schema": "metric",
-             "params": {"customLabel": "windows"}},
-            {"id": "4", "enabled": True, "type": "terms", "schema": "bucket",
+             "params": {"customLabel": "times seen"}},
+            {"id": "4", "enabled": True, "type": "max", "schema": "metric",
+             "params": {"field": TIME_FIELD, "customLabel": "last seen"}},
+            {"id": "5", "enabled": True, "type": "terms", "schema": "bucket",
              "params": {"field": "about", "orderBy": "1", "order": "desc",
                         "size": 10, "otherBucket": False,
                         "missingBucket": False,
                         "customLabel": "what looks wrong"}},
-            {"id": "5", "enabled": True, "type": "terms", "schema": "bucket",
+            {"id": "6", "enabled": True, "type": "terms", "schema": "bucket",
              "params": {"field": "scope", "orderBy": "1", "order": "desc",
                         "size": 5, "otherBucket": False,
                         "missingBucket": False, "customLabel": "where"}},
@@ -639,7 +641,7 @@ def build():
             "the detector watches, 'scope' says which host or collector it "
             "was watching.",
             "",
-            columns=["about", "scope", "grade", "confidence", "severity"],
+            columns=["severity", "about", "scope", "grade", "confidence"],
             pattern=ANOMALIES_ID),
     ]
 
@@ -737,11 +739,30 @@ def build():
                          "kind:osd", y_title="ms"),
         markdown("alice-viz-detect-header", "Detection header",
                  "### Detection — live alerts & anomalies\n"
-                 "**Alerts** are hard rules that tripped a fixed threshold. "
-                 "**Anomalies** are windows a learned model scored as unlike "
-                 "recent normal, graded 0–1. The two tables below name the "
-                 "rule and the affected host — open a row to see the full "
-                 "record. Panels pinned to the last hour."),
+                 "An **alert** is a hard rule that crossed a fixed threshold "
+                 "— someone decided in advance what \"too much\" means. An "
+                 "**anomaly** is a time window that a learned model scored as "
+                 "unlike this host's own recent normal; the *grade* is how "
+                 "unusual (0–1) and the *confidence* is how much history the "
+                 "model had to judge it on. A high grade at low confidence is "
+                 "a young model, not an emergency.\n\n"
+                 "The tables summarise; the two panels beneath them list the "
+                 "individual records with their timestamps. All of it is "
+                 "pinned to the last hour and ignores the time picker."),
+        markdown("alice-viz-detect-actions", "Act on this",
+                 "### ⚙️ Act on this\n"
+                 "This dashboard is read-only. To acknowledge, mute or edit "
+                 "a rule:\n\n"
+                 "**[Alerts →](/app/alerting#/dashboard)** — acknowledge an "
+                 "alert so it stops counting as active.\n\n"
+                 "**[Monitors →](/app/alerting#/monitors)** — change a "
+                 "threshold, or disable a rule that is crying wolf.\n\n"
+                 "**[Anomaly detectors →]"
+                 "(/app/anomaly-detection-dashboards#/detectors)** — per-"
+                 "detector history, the feature values behind a grade, and "
+                 "initialisation state.\n\n"
+                 "Acknowledging is not the same as fixing: the rule will fire "
+                 "again on the next window that still breaches it."),
         active_alert_metric("alice-viz-active-alerts", "Active alerts"),
         anomaly_count_metric("alice-viz-anomaly-count",
                              "Hosts with anomalies (grade>0.5)"),
@@ -773,13 +794,14 @@ def build():
         ("visualization", "alice-viz-index-health",   {"x": 0,  "y": 94, "w": 16, "h": 12}, live),
         ("visualization", "alice-viz-node-heap",      {"x": 16, "y": 94, "w": 16, "h": 12}, live),
         ("visualization", "alice-viz-osd-perf",       {"x": 32, "y": 94, "w": 16, "h": 12}, live),
-        ("visualization", "alice-viz-detect-header",  {"x": 0,  "y": 106, "w": 48, "h": 4}),
-        ("visualization", "alice-viz-active-alerts",  {"x": 0,  "y": 110, "w": 8,  "h": 12}, live),
-        ("visualization", "alice-viz-anomaly-count",  {"x": 0,  "y": 122, "w": 8,  "h": 12}, live),
-        ("visualization", "alice-viz-alerts",         {"x": 8,  "y": 110, "w": 20, "h": 12}, live),
-        ("visualization", "alice-viz-anomalies",      {"x": 28, "y": 110, "w": 20, "h": 12}, live),
-        ("search",        "alice-search-active-alerts", {"x": 8,  "y": 122, "w": 20, "h": 12}, live),
-        ("search",        "alice-search-anomalies",     {"x": 28, "y": 122, "w": 20, "h": 12}, live),
+        ("visualization", "alice-viz-detect-header",  {"x": 0,  "y": 106, "w": 48, "h": 8}),
+        ("visualization", "alice-viz-active-alerts",  {"x": 0,  "y": 114, "w": 8,  "h": 7}),
+        ("visualization", "alice-viz-anomaly-count",  {"x": 0,  "y": 121, "w": 8,  "h": 7}, live),
+        ("visualization", "alice-viz-detect-actions", {"x": 0,  "y": 128, "w": 8,  "h": 14}),
+        ("visualization", "alice-viz-alerts",         {"x": 8,  "y": 114, "w": 20, "h": 14}),
+        ("visualization", "alice-viz-anomalies",      {"x": 28, "y": 114, "w": 20, "h": 14}, live),
+        ("search",        "alice-search-active-alerts", {"x": 8,  "y": 128, "w": 20, "h": 14}),
+        ("search",        "alice-search-anomalies",     {"x": 28, "y": 128, "w": 20, "h": 14}, live),
     ]
     objects.append(dashboard(panels))
     return objects

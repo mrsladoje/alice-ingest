@@ -3,6 +3,46 @@
   become: true
   gather_facts: false
   tasks:
+    - name: Check the cockpit services
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - "{{ dashboards_metrics_service_name }}"
+          - "{{ dashboards_trend_rollup_service_name }}"
+          - "{{ dashboards_anomaly_digest_service_name }}"
+          - "{{ dashboards_ops_service_name }}"
+      register: _services
+      changed_when: false
+      failed_when: false
+
+    - name: Print the service states
+      ansible.builtin.debug:
+        msg: "{{ [dashboards_metrics_service_name,
+                  dashboards_trend_rollup_service_name,
+                  dashboards_anomaly_digest_service_name,
+                  dashboards_ops_service_name]
+                 | zip(_services.stdout_lines)
+                 | map('join', ' = ') | list }}"
+
+    - name: Tail the anomaly digest log when it is not running
+      ansible.builtin.command:
+        argv:
+          - journalctl
+          - -u
+          - "{{ dashboards_anomaly_digest_service_name }}"
+          - -n
+          - "30"
+          - --no-pager
+      register: _digest_log
+      changed_when: false
+      failed_when: false
+      when: "'active' not in (_services.stdout_lines[2] | default(''))"
+
+    - name: Print the anomaly digest log
+      ansible.builtin.debug:
+        msg: "{{ _digest_log.stdout_lines | default(['(service is active)']) }}"
+
     - name: Run the detection status probe
       ansible.builtin.script:
         cmd: roles/dashboards/files/detection_status.py
@@ -10,6 +50,8 @@
       environment:
         OS_URL: "http://localhost:{{ opensearch_http_port }}"
         OSD_URL: "http://127.0.0.1:{{ dashboards_internal_port }}"
+        DIGEST_INDEX: "{{ anomaly_digest_index }}"
+        INFO_NODES: "{{ groups['workers'] | map('extract', hostvars, 'node_id') | join(',') }}"
       register: _status
       changed_when: false
 

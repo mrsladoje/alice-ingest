@@ -242,6 +242,50 @@ def detectors_report():
             print(f"  {s}")
 
 
+def family_clocks_report():
+    rule("LOG FAMILY CLOCKS (why a family can vanish from the cockpit)")
+    families = [f for f in os.environ.get(
+        "LOG_FAMILIES", "infologger,generic-log-other").split(",") if f]
+    families += [f"generic-log-info-{n}" for n in
+                 os.environ.get("INFO_NODES", "").split(",") if n]
+    print("the cockpit log panels filter on @timestamp; the detectors use "
+          "collector_time")
+    for fam in families:
+        code, body = req(
+            "POST",
+            f"/{fam}/_search?ignore_unavailable=true&allow_no_indices=true",
+            {"size": 0, "track_total_hits": True,
+             "aggs": {
+                 "ts_lo": {"min": {"field": "@timestamp"}},
+                 "ts_hi": {"max": {"field": "@timestamp"}},
+                 "ct_lo": {"min": {"field": "collector_time"}},
+                 "ct_hi": {"max": {"field": "collector_time"}},
+                 "future": {"filter": {
+                     "range": {"@timestamp": {"gt": "now"}}}},
+                 "before_june": {"filter": {
+                     "range": {"@timestamp": {"lt": "2026-06-01"}}}}}})
+        if code != 200:
+            print(f"  {fam}: unreadable (HTTP {code})")
+            continue
+        total = (body.get("hits", {}).get("total") or {}).get("value", 0)
+        a = body.get("aggregations") or {}
+        print(f"  {fam}: {total} docs")
+        print(f"    @timestamp     {(a.get('ts_lo') or {}).get('value_as_string')}"
+              f"  ..  {(a.get('ts_hi') or {}).get('value_as_string')}")
+        print(f"    collector_time {(a.get('ct_lo') or {}).get('value_as_string')}"
+              f"  ..  {(a.get('ct_hi') or {}).get('value_as_string')}")
+        fut = (a.get("future") or {}).get("doc_count", 0)
+        old = (a.get("before_june") or {}).get("doc_count", 0)
+        if fut:
+            print(f"    {fut} docs are stamped in the FUTURE — the cockpit "
+                  f"time picker ends at 'now', so they are invisible")
+        if old:
+            print(f"    {old} docs predate 2026-06-01 — before the cockpit's "
+                  f"default range start, so they are invisible")
+        if total and not fut and not old:
+            print("    entirely inside the cockpit's default window")
+
+
 def jobs_report():
     rule("ANOMALY DETECTOR JOBS (is the schedule actually running)")
     code, body = req(
@@ -325,6 +369,17 @@ def digest_report():
         print(f"{index} not readable: HTTP {code} — alice-anomaly-digest has "
               f"not run yet")
         return
+    code_all, body_all = req(
+        "POST", f"/{index}/_search?ignore_unavailable=true",
+        {"size": 1, "track_total_hits": True,
+         "sort": [{"@timestamp": "desc"}]})
+    all_rows = ((body_all.get("hits", {}).get("total") or {}).get("value", 0)
+                if code_all == 200 else 0)
+    newest = ""
+    if all_rows:
+        newest = (body_all["hits"]["hits"][0].get("_source", {})
+                  .get("@timestamp", ""))
+    print(f"{all_rows} digest rows in total (any grade); newest {newest}")
     total = (body.get("hits", {}).get("total") or {}).get("value", 0)
     print(f"{total} digest rows above grade 0.5; newest first:")
     for h in body.get("hits", {}).get("hits", []):
@@ -417,6 +472,7 @@ def patterns_report():
 
 def main():
     print(f"detection status against {OS_URL}")
+    family_clocks_report()
     detectors_report()
     jobs_report()
     result_errors_report()
