@@ -16,6 +16,8 @@ REQUIRED = {
                       "output_retries_failed_delta"],
     "alice-ad-results": ["detector_id", "anomaly_grade", "confidence"],
     "alice-alerts": ["monitor_name.keyword", "state"],
+    "alice-anomalies": ["@timestamp", "detector", "about", "scope", "grade",
+                        "confidence", "severity"],
 }
 
 SOFT_REQUIRED = {"alice-ad-results", "alice-alerts"}

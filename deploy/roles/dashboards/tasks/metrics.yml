@@ -22,3 +22,25 @@
     enabled: true
     state: started
     daemon_reload: true
+
+- name: Purge cockpit-metrics samples for Fluent Bit collectors outside the current roster
+  ansible.builtin.uri:
+    url: "http://localhost:{{ opensearch_http_port }}/{{ cockpit_metrics_index }}/_delete_by_query?refresh=true&conflicts=proceed"
+    method: POST
+    body_format: json
+    body:
+      query:
+        bool:
+          filter:
+            - term:
+                kind: fluentbit
+          must_not:
+            - terms:
+                node: "{{ groups['workers'] | map('extract', hostvars, 'node_id') | list }}"
+    status_code: [200, 404]
+  register: _fb_roster_purge
+  changed_when: (_fb_roster_purge.json.deleted | default(0) | int) > 0
+
+- name: Report the purge
+  ansible.builtin.debug:
+    msg: "removed {{ _fb_roster_purge.json.deleted | default(0) }} Fluent Bit samples for collectors not in {{ groups['workers'] | map('extract', hostvars, 'node_id') | list }}"

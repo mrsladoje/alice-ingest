@@ -359,6 +359,44 @@ TREND_ROLLUP_TPL=$(cat <<'JSON'
 JSON
 )
 
+ANOMALY_DIGEST_TPL=$(cat <<'JSON'
+{
+  "index_patterns": ["{{ anomaly_digest_index }}"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 2,
+      "codec": "zstd",
+      "refresh_interval": "30s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "@timestamp":   { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "window_start": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "detector":     { "type": "keyword" },
+        "about":        { "type": "keyword" },
+        "measures":     { "type": "keyword" },
+        "scope_field":  { "type": "keyword" },
+        "scope":        { "type": "keyword" },
+        "grade":        { "type": "double" },
+        "confidence":   { "type": "double" },
+        "severity":     { "type": "keyword" },
+        "detector_id":  { "type": "keyword" }
+      }
+    }
+  },
+  "_meta": {
+    "family": "anomaly-digest",
+    "written_by": "alice-anomaly-digest",
+    "note": "readable projection of .opendistro-anomaly-results — detector name and entity instead of internal ids"
+  }
+}
+JSON
+)
+
 QUERY_INSIGHTS_SETTINGS=$(cat <<'JSON'
 {
   "persistent": {
@@ -431,6 +469,7 @@ put "/_index_template/alice-logs-generic-other" "$GENERIC_OTHER_TPL"    "index t
 put "/_index_template/alice-logs-infologger"    "$INFOLOGGER_INDEX_TPL" "index template alice-logs-infologger"
 put "/_index_template/alice-cockpit-metrics"    "$COCKPIT_METRICS_TPL"  "index template alice-cockpit-metrics"
 put "/_index_template/alice-trend-rollup"       "$TREND_ROLLUP_TPL"     "index template alice-trend-rollup"
+put "/_index_template/alice-anomaly-digest"     "$ANOMALY_DIGEST_TPL"   "index template alice-anomaly-digest"
 
 for wn in $WORKER_NODES; do
   put "/_index_template/alice-logs-generic-info-$wn" "$(generic_info_tpl "$wn")" \
@@ -447,6 +486,7 @@ ensure_rollover_index "infologger" ""
 ensure_rollover_index "generic-log-other" ""
 ensure_index "{{ cockpit_metrics_index }}" '{}'
 ensure_index "{{ trend_rollup_index }}" '{}'
+ensure_index "{{ anomaly_digest_index }}" '{}'
 
 put "/infologger*/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on infologger"
 put "/generic-log-other*/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on generic-log-other"

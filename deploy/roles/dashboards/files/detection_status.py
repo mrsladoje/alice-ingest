@@ -313,6 +313,30 @@ def results_index_report():
         print(f"  grade >= {b['key']:.1f}: {b['doc_count']}")
 
 
+def digest_report():
+    rule("ANOMALY DIGEST (what the cockpit shows)")
+    index = os.environ.get("DIGEST_INDEX", "alice-anomalies")
+    code, body = req(
+        "POST", f"/{index}/_search?ignore_unavailable=true",
+        {"size": 10, "track_total_hits": True,
+         "sort": [{"@timestamp": "desc"}],
+         "query": {"range": {"grade": {"gt": 0.5}}}})
+    if code != 200:
+        print(f"{index} not readable: HTTP {code} — alice-anomaly-digest has "
+              f"not run yet")
+        return
+    total = (body.get("hits", {}).get("total") or {}).get("value", 0)
+    print(f"{total} digest rows above grade 0.5; newest first:")
+    for h in body.get("hits", {}).get("hits", []):
+        s = h.get("_source", {})
+        print(f"  {s.get('@timestamp')}  {s.get('severity', '?'):<6} "
+              f"grade={s.get('grade')} conf={s.get('confidence')}  "
+              f"{s.get('about')} @ {s.get('scope')}")
+    if not total:
+        print("  (none — either no detector has scored above 0.5, or the "
+              "digest service is not running)")
+
+
 def alerts_report():
     rule("ALERTS")
     code, body = req(
@@ -374,7 +398,7 @@ def patterns_report():
     rule("DASHBOARDS INDEX PATTERNS (field catalog)")
     osd = os.environ.get("OSD_URL", "http://127.0.0.1:5602")
     for pid in ("alice-unified", "alice-metrics", "alice-ad-results",
-                "alice-alerts"):
+                "alice-alerts", "alice-anomalies"):
         try:
             r = urllib.request.Request(
                 f"{osd}/api/saved_objects/index-pattern/{pid}",
@@ -397,6 +421,7 @@ def main():
     jobs_report()
     result_errors_report()
     results_index_report()
+    digest_report()
     alerts_report()
     monitors_report()
     rollup_report()

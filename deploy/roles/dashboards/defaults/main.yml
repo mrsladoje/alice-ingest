@@ -36,5 +36,8 @@ dashboards_metrics_script: /opt/alice-ingest/metrics_poller.py
 dashboards_trend_rollup_service_name: alice-trend-rollup
 dashboards_trend_rollup_script: /opt/alice-ingest/trend_rollup.py
 
+dashboards_anomaly_digest_service_name: alice-anomaly-digest
+dashboards_anomaly_digest_script: /opt/alice-ingest/anomaly_digest.py
+
 expected_monitors: 22
 expected_detectors: 17

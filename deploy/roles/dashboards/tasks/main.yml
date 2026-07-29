@@ -27,3 +27,6 @@
 
 - name: Detection layer (anomaly detectors + verify) — after the metrics poller, which fills their source index
   ansible.builtin.import_tasks: detection.yml
+
+- name: Anomaly digest service (readable anomaly records) — after the detectors it names
+  ansible.builtin.import_tasks: digest.yml
