@@ -79,10 +79,30 @@ cockpit_metrics_retention_days: 7
 
 dds_replay_rate: 400
 il_replay_rate: 500
+stdout_replay_rate: 400
 dds_max_objects: 0
 il_max_objects: 15
 stdout_max_objects: 0
 replay_max_object_bytes: 157286400
+
+# Paced replay. The rates above drain the archive in roughly ten minutes, which
+# is shorter than the 32 detection intervals a one-minute detector needs before
+# it can leave Initializing, so every log detector freezes half-trained. The
+# rates below stretch the same archive over roughly an hour instead. Nothing
+# about the data changes — only how many distinct one-minute windows contain
+# it. Measured basis: ~338k InfoLogger rows parsed per worker and ~73k tarball
+# lines per worker, so 338000/3600 ~= 94 rows/s and 73000/2/3600 ~= 10 lines/s
+# per family. Re-derive these if il_max_objects or the run tag changes.
+il_replay_rate_paced: 94
+dds_replay_rate_paced: 10
+stdout_replay_rate_paced: 10
+
+# When true, the replay starts over as soon as it finishes, re-sampling the
+# shifted-clock offset each pass, so collector_time never stalls and the
+# detectors stay Running indefinitely. Off by default: a looping replay never
+# returns, which is wrong for a one-shot data load.
+replay_loop: false
+replay_loop_pause_seconds: 30
 
 producers_venv_path: /opt/alice-ingest/venv
 producers_app_root: /opt/alice-ingest/app

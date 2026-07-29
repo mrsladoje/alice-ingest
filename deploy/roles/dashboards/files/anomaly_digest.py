@@ -147,6 +147,7 @@ def harvest(catalog):
             "confidence": round(float(src.get("confidence") or 0), 4),
             "severity": severity(float(grade)),
             "detector_id": did,
+            "run": "realtime",
         }
         lines.append(json.dumps(
             {"index": {"_index": DIGEST_INDEX, "_id": doc_id}}))

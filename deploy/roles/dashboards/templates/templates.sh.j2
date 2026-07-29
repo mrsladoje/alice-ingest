@@ -359,6 +359,22 @@ TREND_ROLLUP_TPL=$(cat <<'JSON'
 JSON
 )
 
+# The digest index template maps dynamic:false, so a field added to a later
+# release of anomaly_digest.py would be dropped silently on an index that
+# already exists — the template is not retro-applied. This block is PUT to the
+# live index on every run so new fields become searchable there too. Adding
+# fields to an existing mapping is non-breaking; changing one is not, and would
+# need a reindex.
+ANOMALY_DIGEST_FIELDS=$(cat <<'JSON'
+{
+  "properties": {
+    "scope_kind": { "type": "keyword" },
+    "run":        { "type": "keyword" }
+  }
+}
+JSON
+)
+
 ANOMALY_DIGEST_TPL=$(cat <<'JSON'
 {
   "index_patterns": ["{{ anomaly_digest_index }}"],
@@ -385,7 +401,8 @@ ANOMALY_DIGEST_TPL=$(cat <<'JSON'
         "grade":        { "type": "double" },
         "confidence":   { "type": "double" },
         "severity":     { "type": "keyword" },
-        "detector_id":  { "type": "keyword" }
+        "detector_id":  { "type": "keyword" },
+        "run":          { "type": "keyword" }
       }
     }
   },
@@ -488,6 +505,7 @@ ensure_rollover_index "generic-log-other" ""
 ensure_index "{{ cockpit_metrics_index }}" '{}'
 ensure_index "{{ trend_rollup_index }}" '{}'
 ensure_index "{{ anomaly_digest_index }}" '{}'
+put "/{{ anomaly_digest_index }}/_mapping" "$ANOMALY_DIGEST_FIELDS" "mapping scope_kind/run on {{ anomaly_digest_index }}"
 
 put "/infologger*/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on infologger"
 put "/generic-log-other*/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on generic-log-other"

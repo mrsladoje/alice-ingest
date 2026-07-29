@@ -30,7 +30,22 @@
   hosts: workers
   become: true
   gather_facts: false
+  vars:
+    # paced (default) stretches the archive over ~1h so the log detectors get
+    # the 32 consecutive one-minute windows they need; fast is the old
+    # ten-minute dump, for when you only want the data loaded.
+    replay_pace: paced
+    _paced: "{{ replay_pace == 'paced' }}"
+    _il_rate: "{{ il_replay_rate_paced if _paced | bool else il_replay_rate }}"
+    _dds_rate: "{{ dds_replay_rate_paced if _paced | bool else dds_replay_rate }}"
+    _stdout_rate: "{{ stdout_replay_rate_paced if _paced | bool else stdout_replay_rate }}"
   tasks:
+    - name: Refuse an unknown replay_pace rather than silently running full speed
+      ansible.builtin.assert:
+        that: replay_pace in ['paced', 'fast']
+        fail_msg: "replay_pace must be 'paced' or 'fast', got '{{ replay_pace }}'"
+
+
     - name: Ensure alice-replay clock drop-in directory exists
       ansible.builtin.file:
         path: /etc/systemd/system/{{ producer_service_name | default('alice-replay') }}.service.d
@@ -39,7 +54,7 @@
         group: root
         mode: "0755"
 
-    - name: Install alice-replay clock-mode drop-in
+    - name: Install alice-replay clock, pace and loop drop-in
       ansible.builtin.copy:
         dest: /etc/systemd/system/{{ producer_service_name | default('alice-replay') }}.service.d/clock.conf
         owner: root
@@ -48,6 +63,11 @@
         content: |
           [Service]
           Environment=REPLAY_CLOCK={{ replay_clock | default('preserved') }}
+          Environment=IL_REPLAY_RATE={{ _il_rate }}
+          Environment=DDS_REPLAY_RATE={{ _dds_rate }}
+          Environment=STDOUT_REPLAY_RATE={{ _stdout_rate }}
+          Environment=REPLAY_LOOP={{ replay_loop | string | lower }}
+          Environment=REPLAY_LOOP_PAUSE_SECONDS={{ replay_loop_pause_seconds }}
 
     - name: Restart alice-replay with the selected clock mode
       ansible.builtin.systemd:
@@ -68,4 +88,10 @@
 
     - name: Report the trigger result for this worker
       ansible.builtin.debug:
-        msg: "{{ node_id }} ({{ inventory_hostname }}) clock={{ replay_clock | default('preserved') }} -> HTTP {{ _replay.status }}: {{ _replay.content }}"
+        msg: >-
+          {{ node_id }} ({{ inventory_hostname }})
+          clock={{ replay_clock | default('preserved') }}
+          pace={{ replay_pace }}
+          (il={{ _il_rate }}/s dds={{ _dds_rate }}/s stdout={{ _stdout_rate }}/s)
+          loop={{ replay_loop | string | lower }}
+          -> HTTP {{ _replay.status }}: {{ _replay.content }}

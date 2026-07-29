@@ -59,7 +59,7 @@ endif
 volume volumes:
 	@:
 
-.PHONY: bootstrap provision deploy replay replay-fresh replay-preserved teardown status
+.PHONY: bootstrap provision deploy replay replay-fresh replay-fast replay-loop replay-preserved backtest teardown status
 
 # Control-node toolchain lives in a self-contained venv (override with VENV=...).
 # The deploy targets prefer it, but fall back to an already-activated venv on PATH
@@ -82,14 +82,33 @@ deploy:
 deploy-migrate-rollover:
 	cd deploy && $(ANSIBLE_PLAYBOOK) site.yml --ask-vault-pass -e log_rollover_migrate_existing=true
 
+# Paced by default: the archive is stretched over roughly an hour so the log
+# detectors get the 32 consecutive one-minute windows they need to finish
+# training. Use replay-fast for the old ten-minute dump when you only want the
+# data loaded and do not care about the detection lane.
 replay:
 	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_clock=shifted
 
 replay-fresh:
 	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_fresh=true -e replay_clock=shifted
 
+replay-fast:
+	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_clock=shifted -e replay_pace=fast
+
+# Never returns on its own: each pass is followed by another, so collector_time
+# never stalls and the detectors stay Running. Stop it with
+# `systemctl restart alice-replay` on the workers.
+replay-loop:
+	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_clock=shifted -e replay_loop=true
+
 replay-preserved:
 	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_clock=preserved
+
+# Runs each log detector over the window already sitting in the indices and
+# writes what it finds into the cockpit's anomaly index. Does not touch the
+# real-time detectors.
+backtest:
+	cd deploy && $(ANSIBLE_PLAYBOOK) backtest.yml $(ANSIBLE_EXTRA)
 
 status:
 	cd deploy && $(ANSIBLE_PLAYBOOK) status.yml

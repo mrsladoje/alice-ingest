@@ -17,7 +17,8 @@ REQUIRED = {
     "alice-ad-results": ["detector_id", "anomaly_grade", "confidence"],
     "alice-alerts": ["monitor_name.keyword", "state"],
     "alice-anomalies": ["@timestamp", "detector", "about", "scope",
-                        "scope_kind", "grade", "confidence", "severity"],
+                        "scope_kind", "grade", "confidence", "severity",
+                        "run"],
 }
 
 SOFT_REQUIRED = {"alice-ad-results", "alice-alerts"}

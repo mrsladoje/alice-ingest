@@ -1,0 +1,27 @@
+- name: Run historical analysis over the replayed window and project the findings into the cockpit
+  hosts: control
+  become: true
+  gather_facts: false
+  vars_files:
+    - roles/dashboards/defaults/main.yml
+  vars:
+    # Empty means every detector whose index is not cockpit-metrics — the
+    # metrics detectors already run in real time and need no backtest.
+    backtest_detectors: ""
+    backtest_timeout_minutes: 45
+  tasks:
+    - name: Run the backtest
+      ansible.builtin.command:
+        cmd: "python3 {{ dashboards_backtest_script }}"
+      environment:
+        OS_URL: "http://localhost:{{ opensearch_http_port }}"
+        DIGEST_INDEX: "{{ anomaly_digest_index }}"
+        DETECTORS: "{{ backtest_detectors }}"
+        TIMEOUT_MINUTES: "{{ backtest_timeout_minutes }}"
+      register: _backtest
+      changed_when: true
+      failed_when: _backtest.rc != 0
+
+    - name: Print the backtest report
+      ansible.builtin.debug:
+        msg: "{{ _backtest.stdout_lines }}"

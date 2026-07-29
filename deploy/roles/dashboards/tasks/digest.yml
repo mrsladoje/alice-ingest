@@ -7,6 +7,14 @@
     mode: "0755"
   notify: restart alice-anomaly-digest
 
+- name: Install the historical-analysis backtest runner (imports anomaly_digest, so it lives beside it)
+  ansible.builtin.copy:
+    src: backtest.py
+    dest: "{{ dashboards_backtest_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Template the alice-anomaly-digest systemd unit
   ansible.builtin.template:
     src: alice-anomaly-digest.service.j2

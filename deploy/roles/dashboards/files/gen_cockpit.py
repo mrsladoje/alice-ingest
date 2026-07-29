@@ -812,12 +812,12 @@ def build():
         ("visualization", "alice-viz-osd-perf",       {"x": 32, "y": 94, "w": 16, "h": 12}, live),
         ("visualization", "alice-viz-detect-header",  {"x": 0,  "y": 106, "w": 48, "h": 13}),
         ("visualization", "alice-viz-active-alerts",  {"x": 0,  "y": 119, "w": 8,  "h": 7}),
-        ("visualization", "alice-viz-anomaly-count",  {"x": 0,  "y": 126, "w": 8,  "h": 9}, live),
+        ("visualization", "alice-viz-anomaly-count",  {"x": 0,  "y": 126, "w": 8,  "h": 9}),
         ("visualization", "alice-viz-detect-actions", {"x": 0,  "y": 135, "w": 8,  "h": 12}),
         ("visualization", "alice-viz-alerts",         {"x": 8,  "y": 119, "w": 20, "h": 14}),
-        ("visualization", "alice-viz-anomalies",      {"x": 28, "y": 119, "w": 20, "h": 14}, live),
+        ("visualization", "alice-viz-anomalies",      {"x": 28, "y": 119, "w": 20, "h": 14}),
         ("search",        "alice-search-active-alerts", {"x": 8,  "y": 133, "w": 20, "h": 14}),
-        ("search",        "alice-search-anomalies",     {"x": 28, "y": 133, "w": 20, "h": 14}, live),
+        ("search",        "alice-search-anomalies",     {"x": 28, "y": 133, "w": 20, "h": 14}),
     ]
     objects.append(dashboard(panels))
     return objects

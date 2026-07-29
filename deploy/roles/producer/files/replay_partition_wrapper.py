@@ -43,6 +43,14 @@ two extension points:
      replay.py's il_connect() retrying forever against a hostname ("node-02"
      etc.) that doesn't resolve on this VM.
 
+Cardboard-only REPLAY_LOOP is applied here too: run_replay is wrapped so that
+when it is set, each completed pass is followed by another one (the HTTP
+handler's _active lock stays held for the whole loop, so a second POST /replay
+still gets 409). Every pass re-samples the shifted-clock offset, so each pass
+ships with fresh collector_time. Pass RATE knobs stay replay.py's own
+(IL_REPLAY_RATE / DDS_REPLAY_RATE / STDOUT_REPLAY_RATE) — pacing is
+configuration, not code.
+
 Cardboard-only REPLAY_CLOCK=shifted is also applied here (never in images/):
 offset = now − sampled earliest event time; IL timestamps, DDS line prefixes,
 and stdout filename-derived times are slid forward. Default preserved leaves
@@ -94,6 +102,12 @@ except ValueError:
     MAX_OBJECT_BYTES = 0
 
 REPLAY_CLOCK = os.environ.get("REPLAY_CLOCK", "preserved").strip().lower()
+REPLAY_LOOP = os.environ.get("REPLAY_LOOP", "false").strip().lower() in (
+    "1", "true", "yes", "on")
+try:
+    REPLAY_LOOP_PAUSE = float(os.environ.get("REPLAY_LOOP_PAUSE_SECONDS", "30"))
+except ValueError:
+    REPLAY_LOOP_PAUSE = 30.0
 _CLOCK_OFFSET_SEC = 0.0
 _DDS_TS_RE = re.compile(rb"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)")
 _IL_KEYS = set(replay.IL_COLUMNS)
@@ -308,8 +322,17 @@ def _write_lines_shifted(lines, out_path, stop, pacer, counter, host, label):
 
 
 def _run_replay_shifted(families, stop):
-    _init_shifted_clock(replay.s3_client(), families)
-    return _orig_run_replay(families, stop)
+    results, passes = [], 0
+    while True:
+        passes += 1
+        _init_shifted_clock(replay.s3_client(), families)
+        results = _orig_run_replay(families, stop)
+        if not REPLAY_LOOP or stop.is_set():
+            return results
+        replay.log(
+            f"loop: pass {passes} finished, next pass in "
+            f"{REPLAY_LOOP_PAUSE:.0f}s (REPLAY_LOOP=true)")
+        time.sleep(REPLAY_LOOP_PAUSE)
 
 
 replay.list_objects = _partition_filtered_list_objects
