@@ -52,9 +52,10 @@ def detector_catalog():
     out = {}
     for h in body.get("hits", {}).get("hits", []):
         src = h.get("_source", {})
+        name = src.get("name") or h.get("_id")
         out[h.get("_id")] = {
-            "detector": src.get("name") or h.get("_id"),
-            "about": src.get("description") or "",
+            "detector": name,
+            "about": (src.get("description") or "").strip() or name,
             "measures": [f.get("feature_name")
                          for f in (src.get("feature_attributes") or [])
                          if f.get("feature_name")],

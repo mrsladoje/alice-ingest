@@ -15,7 +15,7 @@ ANOMALIES_TITLE = "alice-anomalies"
 TIME_FIELD = "@timestamp"
 PANEL_VERSION = "3.7.0"
 
-LOG_TIME_FROM = "2026-06-01T00:00:00.000Z"
+LOG_TIME_FROM = "now-1y"
 HEALTH_RANGE = {"from": "now-1h", "to": "now"}
 REFRESH_MS = 30000
 STALE_SECONDS = 90
@@ -356,7 +356,8 @@ def anomaly_count_metric(vid, title):
         ],
         "params": _metric_params(48),
     }
-    return viz(vid, title, state, query=dql("grade > 0.5"),
+    return viz(vid, title, state,
+               query=dql("grade > 0.5 and scope_field:*"),
                pattern=ANOMALIES_ID)
 
 
@@ -650,10 +651,11 @@ def build():
         "Unified view over **InfoLogger**, **DDS** and **stdout**. Two "
         "clocks on one page: **health panels are live** (pinned to the last "
         "hour, auto-refresh 30 s) — **log panels follow the time picker**, "
-        "preset to the replayed June 2026 event time. Open the "
-        "**[unified Discover](/app/data-explorer/discover)** for "
-        "*surrounding documents*, or use the *log_source* filter to focus "
-        "one family."
+        "preset to the last year because the replayed archives do not share "
+        "an event period: InfoLogger is March 2026, DDS and stdout are June "
+        "2026. Open the **[unified Discover](/app/data-explorer/discover)** "
+        "for *surrounding documents*, or use the *log_source* filter to "
+        "focus one family."
     )
     health_links_md = (
         "### \U0001F50E Drill down\n"
@@ -748,7 +750,11 @@ def build():
                  "a young model, not an emergency.\n\n"
                  "The tables summarise; the two panels beneath them list the "
                  "individual records with their timestamps. All of it is "
-                 "pinned to the last hour and ignores the time picker."),
+                 "pinned to the last hour and ignores the time picker.\n\n"
+                 "*Where* is the host or collector the model was watching. "
+                 "Some detectors watch the cluster as one stream and have no "
+                 "host — those read **whole fleet**, and the host counter to "
+                 "the left deliberately does not count them."),
         markdown("alice-viz-detect-actions", "Act on this",
                  "### ⚙️ Act on this\n"
                  "This dashboard is read-only. To acknowledge, mute or edit "
@@ -794,14 +800,14 @@ def build():
         ("visualization", "alice-viz-index-health",   {"x": 0,  "y": 94, "w": 16, "h": 12}, live),
         ("visualization", "alice-viz-node-heap",      {"x": 16, "y": 94, "w": 16, "h": 12}, live),
         ("visualization", "alice-viz-osd-perf",       {"x": 32, "y": 94, "w": 16, "h": 12}, live),
-        ("visualization", "alice-viz-detect-header",  {"x": 0,  "y": 106, "w": 48, "h": 8}),
-        ("visualization", "alice-viz-active-alerts",  {"x": 0,  "y": 114, "w": 8,  "h": 7}),
-        ("visualization", "alice-viz-anomaly-count",  {"x": 0,  "y": 121, "w": 8,  "h": 7}, live),
-        ("visualization", "alice-viz-detect-actions", {"x": 0,  "y": 128, "w": 8,  "h": 14}),
-        ("visualization", "alice-viz-alerts",         {"x": 8,  "y": 114, "w": 20, "h": 14}),
-        ("visualization", "alice-viz-anomalies",      {"x": 28, "y": 114, "w": 20, "h": 14}, live),
-        ("search",        "alice-search-active-alerts", {"x": 8,  "y": 128, "w": 20, "h": 14}),
-        ("search",        "alice-search-anomalies",     {"x": 28, "y": 128, "w": 20, "h": 14}, live),
+        ("visualization", "alice-viz-detect-header",  {"x": 0,  "y": 106, "w": 48, "h": 13}),
+        ("visualization", "alice-viz-active-alerts",  {"x": 0,  "y": 119, "w": 8,  "h": 7}),
+        ("visualization", "alice-viz-anomaly-count",  {"x": 0,  "y": 126, "w": 8,  "h": 7}, live),
+        ("visualization", "alice-viz-detect-actions", {"x": 0,  "y": 133, "w": 8,  "h": 14}),
+        ("visualization", "alice-viz-alerts",         {"x": 8,  "y": 119, "w": 20, "h": 14}),
+        ("visualization", "alice-viz-anomalies",      {"x": 28, "y": 119, "w": 20, "h": 14}, live),
+        ("search",        "alice-search-active-alerts", {"x": 8,  "y": 133, "w": 20, "h": 14}),
+        ("search",        "alice-search-anomalies",     {"x": 28, "y": 133, "w": 20, "h": 14}, live),
     ]
     objects.append(dashboard(panels))
     return objects
