@@ -59,6 +59,7 @@ def detector_catalog():
             "measures": [f.get("feature_name")
                          for f in (src.get("feature_attributes") or [])
                          if f.get("feature_name")],
+            "indices": src.get("indices") or [],
         }
     return out
 
@@ -86,6 +87,19 @@ def scope_of(src):
     if not values:
         return "", "whole fleet"
     return ",".join(names), ",".join(values)
+
+
+def kind_of(scope_field, indices):
+    if not scope_field:
+        return "fleet-wide"
+    if scope_field == "origin_host":
+        return "EPN host"
+    if scope_field == "node":
+        for i in indices:
+            if i.startswith("cockpit-metrics"):
+                return "cluster node"
+        return "collector"
+    return scope_field
 
 
 def harvest(catalog):
@@ -128,6 +142,7 @@ def harvest(catalog):
             "measures": meta["measures"],
             "scope_field": scope_field,
             "scope": scope,
+            "scope_kind": kind_of(scope_field, meta["indices"]),
             "grade": round(float(grade), 4),
             "confidence": round(float(src.get("confidence") or 0), 4),
             "severity": severity(float(grade)),

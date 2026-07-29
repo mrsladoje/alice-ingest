@@ -345,19 +345,29 @@ def active_alert_metric(vid, title):
     return viz(vid, title, state, query=dql("state:ACTIVE"), pattern=ALERTS_ID)
 
 
-def anomaly_count_metric(vid, title):
+def scope_kind_table(vid, title):
     state = {
         "title": title,
-        "type": "metric",
+        "type": "table",
         "aggs": [
             {"id": "1", "enabled": True, "type": "cardinality",
              "schema": "metric",
-             "params": {"field": "scope", "customLabel": "affected hosts"}}
+             "params": {"field": "scope", "customLabel": "how many"}},
+            {"id": "2", "enabled": True, "type": "terms", "schema": "bucket",
+             "params": {"field": "scope_kind", "orderBy": "1", "order": "desc",
+                        "size": 6, "otherBucket": False,
+                        "missingBucket": False, "customLabel": "what kind"}},
         ],
-        "params": _metric_params(48),
+        "params": {
+            "perPage": 6,
+            "showPartialRows": False,
+            "showMetricsAtAllLevels": False,
+            "showTotal": False,
+            "totalFunc": "sum",
+            "percentageCol": "",
+        },
     }
-    return viz(vid, title, state,
-               query=dql("grade > 0.5 and scope_field:*"),
+    return viz(vid, title, state, query=dql("grade > 0.5"),
                pattern=ANOMALIES_ID)
 
 
@@ -770,8 +780,8 @@ def build():
                  "Acknowledging is not the same as fixing: the rule will fire "
                  "again on the next window that still breaches it."),
         active_alert_metric("alice-viz-active-alerts", "Active alerts"),
-        anomaly_count_metric("alice-viz-anomaly-count",
-                             "Hosts with anomalies (grade>0.5)"),
+        scope_kind_table("alice-viz-anomaly-count",
+                         "What is affected (grade>0.5)"),
         alerts_table("alice-viz-alerts", "Active alerts by rule"),
         anomaly_table("alice-viz-anomalies", "Anomalies by what looks wrong"),
     ]
@@ -802,8 +812,8 @@ def build():
         ("visualization", "alice-viz-osd-perf",       {"x": 32, "y": 94, "w": 16, "h": 12}, live),
         ("visualization", "alice-viz-detect-header",  {"x": 0,  "y": 106, "w": 48, "h": 13}),
         ("visualization", "alice-viz-active-alerts",  {"x": 0,  "y": 119, "w": 8,  "h": 7}),
-        ("visualization", "alice-viz-anomaly-count",  {"x": 0,  "y": 126, "w": 8,  "h": 7}, live),
-        ("visualization", "alice-viz-detect-actions", {"x": 0,  "y": 133, "w": 8,  "h": 14}),
+        ("visualization", "alice-viz-anomaly-count",  {"x": 0,  "y": 126, "w": 8,  "h": 9}, live),
+        ("visualization", "alice-viz-detect-actions", {"x": 0,  "y": 135, "w": 8,  "h": 12}),
         ("visualization", "alice-viz-alerts",         {"x": 8,  "y": 119, "w": 20, "h": 14}),
         ("visualization", "alice-viz-anomalies",      {"x": 28, "y": 119, "w": 20, "h": 14}, live),
         ("search",        "alice-search-active-alerts", {"x": 8,  "y": 133, "w": 20, "h": 14}),
