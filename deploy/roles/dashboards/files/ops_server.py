@@ -299,11 +299,10 @@ $result
   <button class="clear" type="submit">Clear alerts &amp; anomalies</button>
 </form>
 
-<p class="muted">A load takes about ten minutes and spends its first minute or two reading
-from S3 before the first record ships, so the counters above stay flat at the start —
-they refresh by themselves every 5 seconds while a replay is running. For the slow
-version that lets the anomaly detectors finish training, run <code>make replay</code>
-from the control node instead; that one runs for an hour.
+<p class="muted">A load runs for about an hour. It is paced on purpose, so the anomaly
+detectors get the 32 consecutive one-minute windows they need to finish training — the
+counters below climb steadily rather than all at once. They refresh by themselves every
+5 seconds, and the first records land within seconds of pressing the button.
 <strong>Reload fresh</strong> cancels anything already in flight, then wipes the logs,
 alerts, anomalies and trend baselines before reloading.
 <strong>Clear</strong> purges those findings without touching the logs.</p>

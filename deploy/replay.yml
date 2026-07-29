@@ -57,10 +57,10 @@
     # the 32 consecutive one-minute windows they need; fast is the old
     # ten-minute dump, for when you only want the data loaded.
     replay_pace: paced
-    _paced: "{{ replay_pace == 'paced' }}"
-    _il_rate: "{{ il_replay_rate_paced if _paced | bool else il_replay_rate }}"
-    _dds_rate: "{{ dds_replay_rate_paced if _paced | bool else dds_replay_rate }}"
-    _stdout_rate: "{{ stdout_replay_rate_paced if _paced | bool else stdout_replay_rate }}"
+    _fast: "{{ replay_pace == 'fast' }}"
+    _il_rate: "{{ il_replay_rate_fast if _fast | bool else il_replay_rate }}"
+    _dds_rate: "{{ dds_replay_rate_fast if _fast | bool else dds_replay_rate }}"
+    _stdout_rate: "{{ stdout_replay_rate_fast if _fast | bool else stdout_replay_rate }}"
   tasks:
     - name: Refuse an unknown replay_pace rather than silently running full speed
       ansible.builtin.assert:

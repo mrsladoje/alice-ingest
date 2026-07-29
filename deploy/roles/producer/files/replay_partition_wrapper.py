@@ -102,6 +102,16 @@ except ValueError:
     MAX_OBJECT_BYTES = 0
 
 REPLAY_CLOCK = os.environ.get("REPLAY_CLOCK", "preserved").strip().lower()
+CLOCK_CACHE = os.environ.get(
+    "REPLAY_CLOCK_CACHE", "/var/log/node/.replay-earliest-event").strip()
+try:
+    CLOCK_SCAN_TARBALLS = int(os.environ.get("REPLAY_CLOCK_SCAN_TARBALLS", "3"))
+except ValueError:
+    CLOCK_SCAN_TARBALLS = 3
+try:
+    CLOCK_SCAN_MEMBERS = int(os.environ.get("REPLAY_CLOCK_SCAN_MEMBERS", "8"))
+except ValueError:
+    CLOCK_SCAN_MEMBERS = 8
 REPLAY_LOOP = os.environ.get("REPLAY_LOOP", "false").strip().lower() in (
     "1", "true", "yes", "on")
 try:
@@ -216,12 +226,48 @@ def _shift_dds_line(raw):
     return new_ts + raw[m.end(1):]
 
 
+def _read_cached_earliest():
+    if not CLOCK_CACHE:
+        return None
+    try:
+        with open(CLOCK_CACHE) as f:
+            return float(f.read().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _write_cached_earliest(earliest):
+    if not CLOCK_CACHE:
+        return
+    try:
+        os.makedirs(os.path.dirname(CLOCK_CACHE), exist_ok=True)
+        with open(CLOCK_CACHE, "w") as f:
+            f.write(repr(float(earliest)))
+    except OSError as e:
+        replay.log(f"clock: could not cache the earliest event time: {e}")
+
+
 def _init_shifted_clock(s3, families):
     global _CLOCK_OFFSET_SEC
     _CLOCK_OFFSET_SEC = 0.0
     if REPLAY_CLOCK != "shifted":
         replay.log(f"clock: mode={REPLAY_CLOCK} (timestamps preserved)")
         return
+
+    cached = _read_cached_earliest()
+    if cached is not None:
+        _CLOCK_OFFSET_SEC = time.time() - cached
+        replay.log(
+            f"clock: mode=shifted offset_sec={_CLOCK_OFFSET_SEC:.3f} "
+            f"earliest={_format_wall_ts(cached)} (from {CLOCK_CACHE}; "
+            f"delete that file to rescan)")
+        return
+
+    scan_started = time.time()
+    replay.log(
+        "clock: scanning S3 for the archive's earliest event time. This runs "
+        "ONCE — the result is cached and every later load reuses it. No "
+        "records ship until it finishes.")
     earliest = None
 
     if "infologger" in families:
@@ -257,17 +303,21 @@ def _init_shifted_clock(s3, families):
         prefix = f"dds/{replay.RUN_TAG}_"
         checked = 0
         for key, size in replay.list_objects(s3, prefix):
-            if checked >= 12:
+            if checked >= CLOCK_SCAN_TARBALLS:
                 break
             m = replay._HOST_RE.search(key)
             if not m:
                 continue
             checked += 1
             body = s3.get_object(Bucket=replay.S3_BUCKET, Key=key)["Body"]
+            sampled = 0
             with tarfile.open(fileobj=body, mode="r|gz") as tar:
                 for member in tar:
+                    if sampled >= CLOCK_SCAN_MEMBERS:
+                        break
                     if not member.isfile():
                         continue
+                    sampled += 1
                     name = member.name
                     if re.search(
                             r"/dds_\d{4}-\d{2}-\d{2}\.\d+\.log$", "/" + name):
@@ -291,15 +341,18 @@ def _init_shifted_clock(s3, families):
                             earliest = (
                                 ts if earliest is None else min(earliest, ts))
 
+    elapsed = time.time() - scan_started
     if earliest is None:
         replay.log(
-            "clock: shifted requested but no event timestamps found; "
-            "leaving preserved")
+            f"clock: shifted requested but no event timestamps found after "
+            f"{elapsed:.0f}s; leaving preserved")
         return
+    _write_cached_earliest(earliest)
     _CLOCK_OFFSET_SEC = time.time() - earliest
     replay.log(
         f"clock: mode=shifted offset_sec={_CLOCK_OFFSET_SEC:.3f} "
-        f"earliest={_format_wall_ts(earliest)}")
+        f"earliest={_format_wall_ts(earliest)} (scan took {elapsed:.0f}s, "
+        f"cached in {CLOCK_CACHE})")
 
 
 def _json_dumps_shifted(obj, *args, **kwargs):

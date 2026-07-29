@@ -89,27 +89,30 @@ cockpit_metrics_retention_days: 7
 # what the ops page's replay button gets — that button POSTs straight at the
 # worker trigger and never goes through Ansible.
 #
-# The default is FAST (~10 minutes for the whole archive) because the button is
-# the demo path: someone presses it to show the dashboard filling up, and an
-# hour of waiting with nothing on screen is the wrong answer there.
+# The default is PACED: the archive is stretched over roughly an hour so the log
+# detectors get the 32 consecutive one-minute windows an RCF model needs before
+# it can leave Initializing. A ten-minute load only ever offers ten. Nothing
+# about the data changes — only how many distinct one-minute windows contain it.
 #
-# The _paced rates stretch the same archive over roughly an hour. That is what
-# the log detectors need: an RCF model wants 32 consecutive detection intervals
-# before it leaves Initializing, and a ten-minute load only ever offers ten.
-# Nothing about the data changes — only how many distinct one-minute windows
-# contain it. `make replay` uses these; `make replay-fast` and the ops button
-# use the defaults above.
+# This is what the ops page button runs, deliberately: the paced path is the
+# one that has to work, so it is the one that gets exercised. The _fast rates
+# are the old ten-minute dump, reachable only via `make replay-fast`.
 #
 # Measured basis: ~338k InfoLogger rows parsed per worker and ~73k tarball lines
 # per worker, so 338000/3600 ~= 94 rows/s, and 73000 split over two families
 # /3600 ~= 10 lines/s each. Re-derive if il_max_objects or run_tag changes.
-il_replay_rate: 500
-dds_replay_rate: 400
-stdout_replay_rate: 400
+il_replay_rate: 94
+dds_replay_rate: 10
+stdout_replay_rate: 10
 
-il_replay_rate_paced: 94
-dds_replay_rate_paced: 10
-stdout_replay_rate_paced: 10
+il_replay_rate_fast: 500
+dds_replay_rate_fast: 400
+stdout_replay_rate_fast: 400
+
+# Cache for the shifted-clock scan. The earliest event in the archive never
+# changes, so it is found once and reused; without this every load re-streams
+# whole DDS tarballs out of S3 before shipping its first record.
+replay_clock_cache: /var/log/node/.replay-earliest-event
 
 dds_max_objects: 0
 il_max_objects: 15
