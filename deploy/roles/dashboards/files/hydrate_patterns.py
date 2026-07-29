@@ -15,7 +15,7 @@ REQUIRED = {
                       "heap_percent", "fb_up", "fb_healthy", "osd_state",
                       "output_retries_failed_delta"],
     "alice-ad-results": ["detector_id", "anomaly_grade", "confidence"],
-    "alice-alerts": ["monitor_name", "state"],
+    "alice-alerts": ["monitor_name.keyword", "state"],
 }
 
 SOFT_REQUIRED = {"alice-ad-results", "alice-alerts"}
@@ -24,15 +24,19 @@ META_FIELDS = ["_id", "_index", "_score", "_source", "_type"]
 
 PLUGIN_SCHEMAS = {
     "alice-alerts": {
-        "keyword": ["monitor_id", "monitor_name", "trigger_id", "trigger_name",
-                    "state", "severity", "error_message", "execution_id",
-                    "finding_ids", "related_doc_ids"],
+        "keyword": ["monitor_id", "trigger_id", "state", "severity",
+                    "execution_id", "id", "workflow_id", "workflow_name"],
+        "text_keyword": ["monitor_name", "trigger_name", "finding_ids",
+                         "related_doc_ids", "associated_alert_ids",
+                         "clusters"],
+        "text": ["error_message", "query"],
         "date": ["start_time", "end_time", "last_notification_time",
                  "acknowledged_time"],
-        "long": ["monitor_version", "schema_version"],
+        "long": ["monitor_version", "version", "schema_version"],
     },
     "alice-ad-results": {
-        "keyword": ["detector_id", "task_id", "model_id", "error"],
+        "keyword": ["detector_id", "task_id", "model_id"],
+        "text": ["error"],
         "date": ["data_start_time", "data_end_time", "execution_start_time",
                  "execution_end_time", "approx_anomaly_start_time"],
         "double": ["anomaly_score", "anomaly_grade", "confidence",
@@ -42,15 +46,18 @@ PLUGIN_SCHEMAS = {
     },
 }
 
-OSD_TYPE = {"keyword": "string", "date": "date", "double": "number",
-            "long": "number", "boolean": "boolean"}
+OSD_TYPE = {"keyword": "string", "text": "string", "date": "date",
+            "double": "number", "long": "number", "boolean": "boolean"}
 
 
-def _field(name, es_type):
+def _field(name, es_type, parent=None):
     aggregatable = es_type != "text"
-    return {"name": name, "type": OSD_TYPE[es_type], "esTypes": [es_type],
-            "count": 0, "scripted": False, "searchable": True,
-            "aggregatable": aggregatable, "readFromDocValues": True}
+    f = {"name": name, "type": OSD_TYPE[es_type], "esTypes": [es_type],
+         "count": 0, "scripted": False, "searchable": True,
+         "aggregatable": aggregatable, "readFromDocValues": aggregatable}
+    if parent:
+        f["subType"] = {"multi": {"parent": parent}}
+    return f
 
 
 def _meta_field(name):
@@ -66,7 +73,12 @@ def plugin_catalog(pattern_id):
         return []
     out = [_meta_field(m) for m in META_FIELDS]
     for es_type, names in schema.items():
-        out.extend(_field(n, es_type) for n in names)
+        if es_type == "text_keyword":
+            for n in names:
+                out.append(_field(n, "text"))
+                out.append(_field(f"{n}.keyword", "keyword", parent=n))
+        else:
+            out.extend(_field(n, es_type) for n in names)
     return out
 
 

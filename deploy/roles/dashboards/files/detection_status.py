@@ -61,6 +61,72 @@ def data_window(indices, time_field):
     }
 
 
+def interval_str(src):
+    p = (src.get("detection_interval") or {}).get("period") or {}
+    n = p.get("interval", 1)
+    unit = str(p.get("unit", "MINUTES")).upper()
+    if unit.startswith("MIN"):
+        return f"{n}m"
+    if unit.startswith("HOUR"):
+        return f"{n}h"
+    if unit.startswith("SEC"):
+        return f"{n}s"
+    return f"{n}m"
+
+
+def feature_coverage(src, lookback="now-2h"):
+    tf = src.get("time_field")
+    indices = src.get("indices") or []
+    if not tf or not indices:
+        return None
+    feats = {}
+    for fa in src.get("feature_attributes") or []:
+        if fa.get("feature_enabled") is False:
+            continue
+        for k, v in (fa.get("aggregation_query") or {}).items():
+            feats[k] = v
+    if not feats:
+        return None
+    hist = {"date_histogram": {"field": tf, "fixed_interval": interval_str(src),
+                               "min_doc_count": 0},
+            "aggs": feats}
+    cat = (src.get("category_field") or [None])[0]
+    if cat:
+        aggs = {"ent": {"terms": {"field": cat, "size": 1,
+                                  "order": {"_count": "desc"}},
+                        "aggs": {"per_interval": hist}}}
+    else:
+        aggs = {"per_interval": hist}
+    q = src.get("filter_query") or {"match_all": {}}
+    body = {"size": 0,
+            "query": {"bool": {"filter": [
+                q, {"range": {tf: {"gte": lookback}}}]}},
+            "aggs": aggs}
+    code, resp = req(
+        "POST",
+        f"/{','.join(indices)}/_search"
+        "?ignore_unavailable=true&allow_no_indices=true", body)
+    if code != 200:
+        return {"error": f"HTTP {code}: {json.dumps(resp)[:300]}"}
+    a = resp.get("aggregations") or {}
+    entity = None
+    if cat:
+        buckets = ((a.get("ent") or {}).get("buckets") or [])
+        if not buckets:
+            return {"entity": None, "total": 0, "usable": 0,
+                    "names": list(feats)}
+        entity = buckets[0].get("key")
+        slots = ((buckets[0].get("per_interval") or {}).get("buckets") or [])
+    else:
+        slots = ((a.get("per_interval") or {}).get("buckets") or [])
+    usable = 0
+    for b in slots:
+        if all((b.get(name) or {}).get("value") is not None for name in feats):
+            usable += 1
+    return {"entity": entity, "total": len(slots), "usable": usable,
+            "names": list(feats)}
+
+
 def results_for(detector_id):
     code, body = req(
         "POST",
@@ -143,6 +209,15 @@ def detectors_report():
                 stuck.append(
                     f"{name}: only {win['span_min']:.0f} min of data, needs "
                     f"{MIN_SAMPLES} intervals to leave INIT")
+        cov = feature_coverage(src)
+        if cov and cov.get("error"):
+            print(f"  feature query FAILS: {cov['error']}")
+        elif cov:
+            scope = (f"entity {cov['entity']}" if cov.get("entity")
+                     else "whole stream")
+            print(f"  feature coverage ({scope}, last 2h): "
+                  f"{cov['usable']}/{cov['total']} intervals have a value for "
+                  f"all of {cov['names']}")
         if err:
             print(f"  error: {err}")
         print()
@@ -150,6 +225,53 @@ def detectors_report():
         rule("WHY DETECTORS HAVE NOT PRODUCED ANOMALIES")
         for s in stuck:
             print(f"  {s}")
+
+
+def jobs_report():
+    rule("ANOMALY DETECTOR JOBS (is the schedule actually running)")
+    code, body = req(
+        "POST",
+        "/.opendistro-anomaly-detector-jobs/_search?ignore_unavailable=true",
+        {"size": 200, "query": {"match_all": {}}})
+    if code != 200:
+        print(f"cannot read the job index: HTTP {code} — no detector has ever "
+              f"been started")
+        return
+    hits = body.get("hits", {}).get("hits", [])
+    if not hits:
+        print("job index is empty — every detector is configured but STOPPED")
+        return
+    for h in sorted(hits, key=lambda x: (x.get("_source", {})
+                                         .get("name") or "")):
+        s = h.get("_source", {})
+        sched = ((s.get("schedule") or {}).get("interval") or {})
+        print(f"  {s.get('name', h.get('_id')):<34} enabled={s.get('enabled')} "
+              f"every {sched.get('period')}{str(sched.get('unit', ''))[:3].lower()} "
+              f"enabled_at={s.get('enabled_time')}")
+
+
+def result_errors_report():
+    rule("ANOMALY RESULTS CARRYING AN ERROR")
+    code, body = req(
+        "POST",
+        "/.opendistro-anomaly-results*/_search"
+        "?ignore_unavailable=true&allow_no_indices=true",
+        {"size": 20, "track_total_hits": True,
+         "query": {"bool": {"must": [{"exists": {"field": "error"}}]}},
+         "sort": [{"execution_end_time": "desc"}]})
+    if code != 200:
+        print(f"cannot read results: HTTP {code}")
+        return
+    total = (body.get("hits", {}).get("total") or {}).get("value", 0)
+    if not total:
+        print("none")
+        return
+    print(f"{total} result document(s) carry an error; newest first:")
+    for h in body.get("hits", {}).get("hits", []):
+        s = h.get("_source", {})
+        print(f"  detector={s.get('detector_id')} "
+              f"at={s.get('execution_end_time')}")
+        print(f"    {str(s.get('error'))[:400]}")
 
 
 def results_index_report():
@@ -257,6 +379,8 @@ def patterns_report():
 def main():
     print(f"detection status against {OS_URL}")
     detectors_report()
+    jobs_report()
+    result_errors_report()
     results_index_report()
     alerts_report()
     monitors_report()
