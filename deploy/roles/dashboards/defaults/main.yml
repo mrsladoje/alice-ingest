@@ -42,3 +42,4 @@ dashboards_anomaly_digest_script: /opt/alice-ingest/anomaly_digest.py
 expected_monitors: 22
 expected_detectors: 17
 dashboards_backtest_script: /opt/alice-ingest/backtest.py
+dashboards_reset_derived_script: /opt/alice-ingest/reset_derived.py

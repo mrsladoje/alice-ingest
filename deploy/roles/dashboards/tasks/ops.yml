@@ -15,6 +15,14 @@
     mode: "0755"
   notify: restart alice-ops
 
+- name: Install the fresh-replay reset script (used by both make replay-fresh and the ops page button)
+  ansible.builtin.copy:
+    src: reset_derived.py
+    dest: "{{ dashboards_reset_derived_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Template the alice-ops systemd unit
   ansible.builtin.template:
     src: alice-ops.service.j2

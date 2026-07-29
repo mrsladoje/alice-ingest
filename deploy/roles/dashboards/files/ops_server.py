@@ -13,7 +13,17 @@ INFO_NODES = [n for n in os.environ.get("OPS_WORKER_INFO_NODES", "").split(",") 
 FAMILIES = os.environ.get("OPS_REPLAY_FAMILIES", "infologger,dds,stdout")
 TEMPLATES_SCRIPT = os.environ.get(
     "OPS_TEMPLATES_SCRIPT", "/opt/alice-ingest/init/templates.sh")
+RESET_SCRIPT = os.environ.get(
+    "OPS_RESET_SCRIPT", "/opt/alice-ingest/reset_derived.py")
 COUNT_TARGET = "infologger,generic-log-*"
+
+
+def _log_families():
+    return ["infologger", "generic-log-other"] + [
+        f"generic-log-info-{n}" for n in INFO_NODES]
+
+
+LOG_FAMILIES = _log_families()
 
 
 def _req(method, url, data=None, timeout=20):
@@ -75,6 +85,25 @@ def anomalies_last_hour():
         ]}})
 
 
+def reset_derived():
+    try:
+        proc = subprocess.run(
+            ["/usr/bin/python3", RESET_SCRIPT],
+            env=dict(os.environ, OS_URL=OS_URL,
+                     LOG_FAMILIES=",".join(LOG_FAMILIES)),
+            capture_output=True, text=True, timeout=600)
+        lines = [ln for ln in (proc.stdout or "").splitlines() if ln.strip()]
+        if proc.returncode != 0:
+            lines.append(
+                f"reset finished with exit {proc.returncode} — stale alerts "
+                f"or rollup rows may survive this reload: "
+                f"{(proc.stderr or '').strip()[-300:]}")
+        return lines
+    except Exception as e:
+        return [f"FAILED to run {RESET_SCRIPT}: {e} — old alerts, anomalies "
+                f"and trend-rollup rows are still there"]
+
+
 def wipe():
     lines = []
     patterns = ["infologger-*", "generic-log-other-*"]
@@ -84,6 +113,7 @@ def wipe():
             "DELETE",
             f"{OS_URL}/{pat}?ignore_unavailable=true&allow_no_indices=true")
         lines.append(f"delete {pat}: HTTP {code}")
+    lines += reset_derived()
     env = dict(os.environ, OS_URL=OS_URL, SEED_EMPTY_INDICES="false")
     try:
         proc = subprocess.run(

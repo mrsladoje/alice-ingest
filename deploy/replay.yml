@@ -2,6 +2,8 @@
   hosts: control
   become: true
   gather_facts: false
+  vars_files:
+    - roles/dashboards/defaults/main.yml
   vars:
     bootstrap_root: /opt/alice-ingest/init
   tasks:
@@ -16,6 +18,26 @@
                    | map('regex_replace', '^(.*)$', 'generic-log-info-\\1-*')
                    | list) }}"
       when: replay_fresh | default(false) | bool
+
+    - name: Clear everything derived from the log data being wiped (rollup, digest, alerts, anomaly results)
+      ansible.builtin.command:
+        cmd: "python3 {{ dashboards_reset_derived_script }}"
+      environment:
+        OS_URL: "http://localhost:{{ opensearch_http_port }}"
+        ROLLUP_INDEX: "{{ trend_rollup_index }}"
+        DIGEST_INDEX: "{{ anomaly_digest_index }}"
+        LOG_FAMILIES: "{{ (['infologger', 'generic-log-other']
+                           + (groups['workers']
+                              | map('extract', hostvars, 'node_id')
+                              | map('regex_replace', '^(.*)$', 'generic-log-info-\\1')
+                              | list)) | join(',') }}"
+      register: _reset
+      changed_when: true
+      when: replay_fresh | default(false) | bool
+
+    - name: Report what the reset cleared
+      ansible.builtin.debug:
+        msg: "{{ _reset.stdout_lines | default(['(not a fresh replay — nothing cleared)']) }}"
 
     - name: Re-create the rollover write aliases, templates and mappings (no bootstrap seed — no detector is created or updated here)
       ansible.builtin.command:

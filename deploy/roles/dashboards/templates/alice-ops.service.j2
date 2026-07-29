@@ -14,6 +14,9 @@ Environment=OPS_WORKER_TRIGGERS={% for h in groups['workers'] %}http://{{ hostva
 Environment=OPS_WORKER_INFO_NODES={{ groups['workers'] | map('extract', hostvars, 'node_id') | join(',') }}
 Environment=OPS_REPLAY_FAMILIES=infologger,dds,stdout
 Environment=OPS_TEMPLATES_SCRIPT={{ dashboards_bootstrap_templates_script }}
+Environment=OPS_RESET_SCRIPT={{ dashboards_reset_derived_script }}
+Environment=ROLLUP_INDEX={{ trend_rollup_index }}
+Environment=DIGEST_INDEX={{ anomaly_digest_index }}
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/python3 {{ dashboards_ops_script }}
 Restart=on-failure
