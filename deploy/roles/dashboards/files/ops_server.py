@@ -154,7 +154,9 @@ PAGE = """<!doctype html>
   <button class="append" type="submit">Append replay</button>
 </form>
 <p class="muted">Fresh wipes first, then reloads — always a clean load. Append adds another
-full pass (no dedup), so use it only deliberately. A load takes a few minutes.</p>
+full pass (no dedup), so use it only deliberately. A load runs for about an hour:
+it is paced so the anomaly detectors get enough consecutive one-minute windows to
+finish training. Documents start appearing within seconds and climb throughout.</p>
 <a class="dash" href="/">Open the ALICE Cockpit dashboard</a>
 """
 

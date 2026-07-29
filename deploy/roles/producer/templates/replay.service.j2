@@ -41,6 +41,8 @@ Environment=NODES_ROOT={{ producer_nodes_root }}
 Environment=DDS_REPLAY_RATE={{ dds_replay_rate }}
 Environment=IL_REPLAY_RATE={{ il_replay_rate }}
 Environment=STDOUT_REPLAY_RATE={{ stdout_replay_rate }}
+Environment=REPLAY_LOOP={{ replay_loop | string | lower }}
+Environment=REPLAY_LOOP_PAUSE_SECONDS={{ replay_loop_pause_seconds }}
 Environment=DDS_MAX_OBJECTS={{ dds_max_objects }}
 Environment=IL_MAX_OBJECTS={{ il_max_objects }}
 Environment=STDOUT_MAX_OBJECTS={{ stdout_max_objects }}
