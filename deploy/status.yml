@@ -1,0 +1,18 @@
+- name: Report live detection-layer status from the control node
+  hosts: control
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Run the detection status probe
+      ansible.builtin.script:
+        cmd: roles/dashboards/files/detection_status.py
+        executable: /usr/bin/python3
+      environment:
+        OS_URL: "http://localhost:{{ opensearch_http_port }}"
+        OSD_URL: "http://127.0.0.1:{{ dashboards_internal_port }}"
+      register: _status
+      changed_when: false
+
+    - name: Print it
+      ansible.builtin.debug:
+        msg: "{{ _status.stdout_lines }}"

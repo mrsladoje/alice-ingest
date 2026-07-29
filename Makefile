@@ -59,7 +59,7 @@ endif
 volume volumes:
 	@:
 
-.PHONY: bootstrap provision deploy replay replay-fresh replay-preserved teardown
+.PHONY: bootstrap provision deploy replay replay-fresh replay-preserved teardown status
 
 # Control-node toolchain lives in a self-contained venv (override with VENV=...).
 # The deploy targets prefer it, but fall back to an already-activated venv on PATH
@@ -90,6 +90,9 @@ replay-fresh:
 
 replay-preserved:
 	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_clock=preserved
+
+status:
+	cd deploy && $(ANSIBLE_PLAYBOOK) status.yml
 
 teardown:
 	cd deploy && $(ANSIBLE_PLAYBOOK) teardown.yml
