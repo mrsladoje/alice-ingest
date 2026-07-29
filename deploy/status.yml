@@ -2,6 +2,8 @@
   hosts: control
   become: true
   gather_facts: false
+  vars_files:
+    - roles/dashboards/defaults/main.yml
   tasks:
     - name: Check the cockpit services
       ansible.builtin.command:
