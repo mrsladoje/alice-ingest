@@ -736,15 +736,22 @@ log AD and a valid `ingest_lag_ms` (collector → OpenSearch) on preserved repla
 `enter_system_lag_ms` is implemented for production but is archive-age (huge) under
 preserved June timestamps — expected.
 
-- `make replay` / `make replay-fresh` → `replay_clock=shifted` (Discover “live
-  stream” cosmetics, **and** the only mode in which `enter_system_lag_ms` — and
-  so the four `*-entry-lag` detectors — carries a real signal rather than
-  archive age).
-- `make replay-preserved` → historical June `@timestamp` (Discover / backtests;
-  AD still works via `collector_time`).
-- Unit default in `group_vars` is now `shifted`, so the ops page's replay button
-  — which POSTs the worker trigger directly and never goes through Ansible —
-  behaves the same as `make replay-fresh` instead of quietly differing.
+- `make replay` / `make replay-fresh` → `replay_clock=preserved`: the archive's
+  own March/June `@timestamp`, which is what production looks like. AD is
+  unaffected — all 17 detectors key on `collector_time` or a metrics document's
+  `@timestamp`, both stamped in this stack, so they see a live stream either way.
+- `make replay-shifted` → every event timestamp slid forward by one constant
+  offset so `@timestamp` lands near now. Two costs, both real: it collapses
+  `enter_system_lag_ms` (= `collector_time - @timestamp`, the EPN → collector
+  latency) to a constant, so the four `*-entry-lag` detectors train on nothing;
+  and a constant offset preserves the archive's span, so its later months land
+  in the **future** and fall outside any cockpit window ending at `now`.
+- Unit default in `group_vars` is `preserved`, so the ops page's replay button —
+  which POSTs the worker trigger directly and never goes through Ansible —
+  matches `make replay-fresh`.
+- The detectors carry a month-scale latency guard precisely so preserved
+  timestamps do not fire alerts during replay while the signal stays valid in
+  production.
 
 ### Retention — rolling window, never a wipe
 

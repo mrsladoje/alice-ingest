@@ -303,6 +303,8 @@ $result
 detectors get the 32 consecutive one-minute windows they need to finish training — the
 counters below climb steadily rather than all at once. They refresh by themselves every
 5 seconds, and the first records land within seconds of pressing the button.
+Records keep the archive's own event times, so the log panels need a time range that
+spans it; the detectors are unaffected, they run on collector_time.
 <strong>Reload fresh</strong> cancels anything already in flight, then wipes the logs,
 alerts, anomalies and trend baselines before reloading.
 <strong>Clear</strong> purges those findings without touching the logs.</p>

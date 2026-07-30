@@ -159,6 +159,12 @@
     group: root
     mode: "0755"
 
+- name: Drop the cached earliest-event time unless the configured clock is shifted
+  ansible.builtin.file:
+    path: "{{ replay_clock_cache }}"
+    state: absent
+  when: replay_clock | default('preserved') != 'shifted'
+
 - name: Install alice-replay clock-mode drop-in from group_vars
   ansible.builtin.copy:
     dest: /etc/systemd/system/{{ producer_service_name }}.service.d/clock.conf

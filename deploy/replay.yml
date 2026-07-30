@@ -68,6 +68,12 @@
         fail_msg: "replay_pace must be 'paced' or 'fast', got '{{ replay_pace }}'"
 
 
+    - name: Drop the cached earliest-event time unless this load is shifted
+      ansible.builtin.file:
+        path: "{{ replay_clock_cache }}"
+        state: absent
+      when: replay_clock | default('preserved') != 'shifted'
+
     - name: Ensure alice-replay clock drop-in directory exists
       ansible.builtin.file:
         path: /etc/systemd/system/{{ producer_service_name | default('alice-replay') }}.service.d

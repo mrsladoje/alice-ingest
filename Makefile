@@ -59,7 +59,7 @@ endif
 volume volumes:
 	@:
 
-.PHONY: bootstrap provision deploy replay replay-fresh replay-fast replay-loop replay-preserved backtest teardown status
+.PHONY: bootstrap provision deploy replay replay-fresh replay-fast replay-loop replay-shifted backtest teardown status
 
 # Control-node toolchain lives in a self-contained venv (override with VENV=...).
 # The deploy targets prefer it, but fall back to an already-activated venv on PATH
@@ -87,22 +87,25 @@ deploy-migrate-rollover:
 # training. Use replay-fast for the old ten-minute dump when you only want the
 # data loaded and do not care about the detection lane.
 replay:
-	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_clock=shifted
+	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml
 
 replay-fresh:
-	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_fresh=true -e replay_clock=shifted
+	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_fresh=true
 
 replay-fast:
-	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_clock=shifted -e replay_pace=fast
+	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_pace=fast
 
 # Never returns on its own: each pass is followed by another, so collector_time
 # never stalls and the detectors stay Running. Stop it with
 # `systemctl restart alice-replay` on the workers.
 replay-loop:
-	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_clock=shifted -e replay_loop=true
+	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_loop=true
 
-replay-preserved:
-	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_clock=preserved
+# Rewrites every event timestamp so @timestamp lands near now. Costs you the
+# EPN -> collector latency measurement and pushes the archive's later months
+# into the future. Not needed for detection — see replay_clock in group_vars.
+replay-shifted:
+	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_clock=shifted
 
 # Runs each log detector over the window already sitting in the indices and
 # writes what it finds into the cockpit's anomaly index. Does not touch the
