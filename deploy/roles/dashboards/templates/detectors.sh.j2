@@ -109,6 +109,9 @@ det = current.get("anomaly_detector") or {}
 job = current.get("anomaly_detector_job") or {}
 if not det:
     print("changed")
+elif sorted(strip(det.get("category_field") or [])) != sorted(
+        strip(desired.get("category_field") or [])):
+    print("changed-immutable")
 elif norm(det, desired) != norm(desired, desired):
     print("changed")
 elif job.get("enabled"):
@@ -136,6 +139,24 @@ start_detector() {
   esac
 }
 
+create_detector() {
+  name="$1"
+  code=$(curl -s -o /tmp/ad-resp -w '%{http_code}' \
+    -XPOST "$OS/_plugins/_anomaly_detection/detectors" \
+    -H 'Content-Type: application/json' \
+    --data-binary @/tmp/ad-desired.json || echo 000)
+  if put_ok "$code"; then
+    id=$(python3 -c 'import json; print(json.load(open("/tmp/ad-resp")).get("_id",""))')
+    echo "[detectors] created: $name ($id)"
+    if [ -n "$id" ]; then
+      start_detector "$id"
+    fi
+    return 0
+  fi
+  echo "[detectors] FATAL: create $name -> HTTP $code: $(cat /tmp/ad-resp)"
+  return 1
+}
+
 upsert_detector() {
   file="$1"
   prepare_body "$file" > /tmp/ad-desired.json
@@ -143,20 +164,8 @@ upsert_detector() {
   existing=$(search_detector_id "$name")
 
   if [ -z "$existing" ]; then
-    code=$(curl -s -o /tmp/ad-resp -w '%{http_code}' \
-      -XPOST "$OS/_plugins/_anomaly_detection/detectors" \
-      -H 'Content-Type: application/json' \
-      --data-binary @/tmp/ad-desired.json || echo 000)
-    if put_ok "$code"; then
-      id=$(python3 -c 'import json; print(json.load(open("/tmp/ad-resp")).get("_id",""))')
-      echo "[detectors] created: $name ($id)"
-      if [ -n "$id" ]; then
-        start_detector "$id"
-      fi
-      return 0
-    fi
-    echo "[detectors] FATAL: create $name -> HTTP $code: $(cat /tmp/ad-resp)"
-    return 1
+    create_detector "$name"
+    return
   fi
 
   curl -s -o /tmp/ad-current.json \
@@ -165,6 +174,12 @@ upsert_detector() {
     2>/dev/null || echo changed)
 
   case "$state" in
+    changed-immutable)
+      echo "[detectors] immutable category field changed, recreating: $name ($existing)"
+      delete_detector_by_name "$name"
+      create_detector "$name"
+      return
+      ;;
     same-running)
       echo "[detectors] unchanged and running, model state preserved: $name ($existing)"
       return 0

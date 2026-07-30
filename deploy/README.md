@@ -498,6 +498,12 @@ therefore do not require pushed heartbeats. After the collector role installs
 and restarts Fluent Bit, a separate control-host gate waits for a fresh
 heartbeat from every rostered collector and reruns the complete verifier with
 the push contract enabled.
+Detector provisioning updates changed definitions in place so unchanged IDs and
+model state survive ordinary redeploys. OpenSearch deliberately forbids changing
+an existing detector's category field, so a category migration is classified
+separately: only that detector is stopped, deleted, recreated and started. This
+is the required one-time path for the `ingest-flow` `node → collector_id` and
+`node-health` `node → os_node` cutovers.
 
 **Identity.** `node` was ambiguous by design: it meant the collector on
 `kind:fluentbit` documents and the OpenSearch node on `kind:node` documents,

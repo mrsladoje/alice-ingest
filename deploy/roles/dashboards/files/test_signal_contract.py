@@ -1,6 +1,8 @@
 import json
 import os
+import subprocess
 import sys
+import tempfile
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 
@@ -829,6 +831,60 @@ def test_push_heartbeat_gate_runs_after_collector_cutover():
     check("EXPECT_PUSH_HEARTBEATS: \"{{ collector_health_push_enabled"
           in post,
           "the final verifier does not enforce the pushed-heartbeat contract")
+
+
+def test_detector_category_migration_recreates_instead_of_updating():
+    here = os.path.dirname(os.path.abspath(__file__))
+    script = None
+    for _ in range(7):
+        candidate = os.path.join(
+            here, "roles", "dashboards", "templates", "detectors.sh.j2")
+        if os.path.exists(candidate):
+            script = open(candidate).read()
+            break
+        here = os.path.dirname(here)
+    if script is None:
+        print("[signal-contract] "
+              "test_detector_category_migration_recreates_instead_of_updating"
+              ": skipped, detectors.sh.j2 not beside this checkout")
+        return
+    marker = "CMP='\n"
+    end = "\n'\n\nstop_detector"
+    check(marker in script and end in script,
+          "the detector comparator cannot be isolated for migration testing")
+    if marker not in script or end not in script:
+        return
+    comparator = script.split(marker, 1)[1].split(end, 1)[0]
+    desired = {
+        "name": "ingest-flow",
+        "category_field": ["collector_id"],
+        "feature_attributes": [],
+    }
+    current = {
+        "anomaly_detector": {
+            "name": "ingest-flow",
+            "category_field": ["node"],
+            "feature_attributes": [],
+        },
+        "anomaly_detector_job": {"enabled": False},
+    }
+    with tempfile.NamedTemporaryFile("w") as desired_file:
+        with tempfile.NamedTemporaryFile("w") as current_file:
+            json.dump(desired, desired_file)
+            json.dump(current, current_file)
+            desired_file.flush()
+            current_file.flush()
+            result = subprocess.run(
+                [sys.executable, "-c", comparator, desired_file.name,
+                 current_file.name],
+                check=True, capture_output=True, text=True)
+    check(result.stdout.strip() == "changed-immutable",
+          "a category-field migration is not classified as immutable")
+    branch = script.split("case \"$state\" in", 1)[1]
+    immutable = branch.split(";;", 1)[0]
+    check('delete_detector_by_name "$name"' in immutable
+          and 'create_detector "$name"' in immutable,
+          "an immutable detector migration still attempts update-in-place")
 
 
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
