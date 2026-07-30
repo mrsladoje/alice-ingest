@@ -492,6 +492,12 @@ that created it (`collector_metrics_scrape_open: false`).
 absence documents. `FB_TARGETS` is gone, and so is the info-index recreate,
 which belonged to bootstrap rather than to health sampling — `templates.sh`
 already rebuilds those aliases, including on the ops page's fresh reload.
+The first deploy bootstraps the metrics index, monitors, detectors and
+projector before configuring the workers. Those early verification passes
+therefore do not require pushed heartbeats. After the collector role installs
+and restarts Fluent Bit, a separate control-host gate waits for a fresh
+heartbeat from every rostered collector and reruns the complete verifier with
+the push contract enabled.
 
 **Identity.** `node` was ambiguous by design: it meant the collector on
 `kind:fluentbit` documents and the OpenSearch node on `kind:node` documents,

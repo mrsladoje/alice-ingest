@@ -104,5 +104,5 @@
     LANE_STATE_INDEX: "{{ lane_state_index }}"
     SIGNAL_CATALOG: "{{ dashboards_bootstrap_signal_catalog }}"
     ALERTING_MAX_ACTIONABLE_ALERT_COUNT: "{{ alerting_max_actionable_alert_count }}"
-    EXPECT_PUSH_HEARTBEATS: "{{ collector_health_push_enabled | bool | ternary('true', 'false') }}"
+    EXPECT_PUSH_HEARTBEATS: "false"
   changed_when: false

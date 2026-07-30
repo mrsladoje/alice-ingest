@@ -56,6 +56,15 @@
   roles:
     - collector
 
+- name: Post-collector detection gate (control host only)
+  hosts: control
+  become: true
+  tasks:
+    - name: Verify pushed heartbeats and roster-derived absence after collector cutover
+      ansible.builtin.include_role:
+        name: dashboards
+        tasks_from: post_collector.yml
+
 - name: S3-replay producers (worker VMs only)
   hosts: workers
   become: true

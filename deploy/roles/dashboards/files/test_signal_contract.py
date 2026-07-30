@@ -792,6 +792,45 @@ def test_injected_pipeline_preserves_the_real_one():
               "ingest_time and both lag fields")
 
 
+def test_push_heartbeat_gate_runs_after_collector_cutover():
+    here = os.path.dirname(os.path.abspath(__file__))
+    site = None
+    role = None
+    for _ in range(7):
+        candidate = os.path.join(here, "site.yml")
+        task_dir = os.path.join(
+            here, "roles", "dashboards", "tasks")
+        if os.path.exists(candidate) and os.path.isdir(task_dir):
+            site = open(candidate).read()
+            role = task_dir
+            break
+        here = os.path.dirname(here)
+    if site is None:
+        print("[signal-contract] "
+              "test_push_heartbeat_gate_runs_after_collector_cutover"
+              ": skipped, site.yml not beside this checkout")
+        return
+    detection = open(os.path.join(role, "detection.yml")).read()
+    projector = open(os.path.join(role, "projector.yml")).read()
+    post = open(os.path.join(role, "post_collector.yml")).read()
+    collector_at = site.find("- name: Fluent Bit collector")
+    gate_at = site.find("- name: Post-collector detection gate")
+    check(collector_at >= 0 and gate_at > collector_at,
+          "the pushed-heartbeat gate runs before the collector role installs "
+          "the heartbeat producer")
+    check("Wait for the collectors to push" not in detection,
+          "detector bootstrap still blocks on heartbeats before collector "
+          "cutover")
+    check('EXPECT_PUSH_HEARTBEATS: \"false\"' in detection
+          and 'EXPECT_PUSH_HEARTBEATS: \"false\"' in projector,
+          "a pre-collector verifier still requires pushed heartbeats")
+    check("loop: \"{{ groups['workers'] }}\"" in post,
+          "the post-collector gate does not wait for every worker")
+    check("EXPECT_PUSH_HEARTBEATS: \"{{ collector_health_push_enabled"
+          in post,
+          "the final verifier does not enforce the pushed-heartbeat contract")
+
+
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
 
 
