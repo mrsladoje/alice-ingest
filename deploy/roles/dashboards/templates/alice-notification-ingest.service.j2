@@ -1,0 +1,26 @@
+# {{ ansible_managed }}
+[Unit]
+Description=ALICE notification ingest — durable receiver for Alertmanager and the break-glass path
+After=network-online.target opensearch.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+Environment=OS_URL=http://localhost:{{ opensearch_http_port }}
+Environment=INGEST_PORT={{ notification_ingest_port }}
+Environment=INGEST_BIND=127.0.0.1
+Environment=NOTIFICATIONS_INDEX={{ notifications_index }}
+Environment=CLUSTER_ID={{ cluster_id }}
+Environment=INGEST_TOKEN={{ notification_ingest_token }}
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 {{ dashboards_notification_ingest_script }}
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

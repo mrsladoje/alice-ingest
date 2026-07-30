@@ -5,7 +5,7 @@ service:
   storage.path: {{ fluent_bit_storage_path }}/
   storage.max_chunks_up: 64
   http_server: on
-  http_listen: 0.0.0.0
+  http_listen: {{ fluent_bit_http_listen }}
   http_port: {{ fluent_bit_http_port }}
   health_check: on
   hc_errors_count: 1
@@ -63,9 +63,41 @@ pipeline:
       format: json
       storage.type: filesystem
 
+    - name: exec
+      tag: health
+      command: COLLECTOR_ID={{ node_id }} FB_HTTP_PORT={{ fluent_bit_http_port }} FB_EMIT_LEGACY_NODE={{ health_metrics_emit_legacy_node | bool | ternary('true', 'false') }} /usr/bin/python3 {{ collector_health_script }}
+      interval_sec: {{ collector_health_interval_seconds }}
+      parser: fb_health_json
+      buf_size: 32k
+
   filters:
     - name: lua
-      match: '*'
+      match: health
+      call: health_deltas
+      code: |
+        local prev = {}
+        local COUNTERS = {
+          'input_records', 'output_records', 'output_errors',
+          'output_retries', 'output_retries_failed', 'output_dropped'
+        }
+        function health_deltas(tag, ts, record)
+          for i = 1, #COUNTERS do
+            local key = COUNTERS[i]
+            local value = record[key]
+            if value ~= nil then
+              local previous = prev[key]
+              local delta = 0
+              if previous ~= nil and value > previous then
+                delta = value - previous
+              end
+              record[key .. '_delta'] = delta
+              prev[key] = value
+            end
+          end
+          return 1, ts, record
+        end
+    - name: lua
+      match_regex: ^(dds|stdout|infologger|family\.(info|other))$
       call: stamp_collector_time
       time_as_table: true
       type_int_key: collector_time
@@ -169,7 +201,7 @@ pipeline:
       rule: $message ^.*$  family.other false
       emitter_name: stdout_router
     - name: lua
-      match: '*'
+      match_regex: ^(dds|stdout|infologger|family\.(info|other))$
       call: normalize_fields
       code: |
         local SEVERITY_NORM = {
@@ -225,3 +257,14 @@ pipeline:
       trace_error: true
       storage.total_limit_size: 1M
       retry_limit: 2
+
+    - name: opensearch
+      match: health
+      host: localhost
+      port: {{ opensearch_http_port }}
+      index: {{ cockpit_metrics_index }}
+      suppress_type_name: true
+      trace_error: true
+      storage.total_limit_size: 512K
+      retry_limit: 5
+      workers: 0

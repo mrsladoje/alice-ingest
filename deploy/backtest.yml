@@ -17,6 +17,8 @@
       environment:
         OS_URL: "http://localhost:{{ opensearch_http_port }}"
         DIGEST_INDEX: "{{ anomaly_digest_index }}"
+        SIGNAL_CATALOG: "{{ dashboards_bootstrap_signal_catalog }}"
+        GRADE_FLOOR: "{{ anomaly_grade_floor }}"
         DETECTORS: "{{ backtest_detectors }}"
         TIMEOUT_MINUTES: "{{ backtest_timeout_minutes }}"
         MAX_WINDOW_HOURS: "{{ backtest_max_window_hours }}"

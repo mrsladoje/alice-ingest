@@ -1,6 +1,7 @@
 {
   "type": "monitor",
   "name": "ad-high-grade",
+  "description": "Fleet-wide tripwire on a high real-time anomaly grade. Deliberately a higher, non-canonical floor than the projection lane, and restricted to real-time results (must_not exists task_id) so a historical analysis run now can never page.",
   "monitor_type": "query_level_monitor",
   "enabled": true,
   "schedule": {
@@ -36,6 +37,13 @@
                     }
                   }
                 }
+              ],
+              "must_not": [
+                {
+                  "exists": {
+                    "field": "task_id"
+                  }
+                }
               ]
             }
           },
@@ -52,33 +60,35 @@
   ],
   "triggers": [
     {
-      "name": "ad-high-grade",
-      "severity": "1",
-      "condition": {
-        "script": {
-          "source": "ctx.results[0].hits.total.value > 0 && ctx.results[0].aggregations.max_anomaly_grade.value > 0.7 && ctx.results[0].hits.hits[0]._source.confidence > 0.7",
-          "lang": "painless"
-        }
-      },
-      "actions": [
-        {
-          "name": "notify",
-          "destination_id": "alice-incluster-alert-sink",
-          "subject_template": {
-            "source": "{{ctx.monitor.name}}",
-            "lang": "mustache"
-          },
-          "message_template": {
-            "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_end\":\"{{ctx.periodEnd}}\"}",
-            "lang": "mustache"
-          },
-          "throttle_enabled": true,
-          "throttle": {
-            "value": 30,
-            "unit": "MINUTES"
+      "query_level_trigger": {
+        "name": "ad-high-grade",
+        "severity": "1",
+        "condition": {
+          "script": {
+            "source": "ctx.results[0].hits.total.value > 0 && ctx.results[0].aggregations.max_anomaly_grade.value > 0.7 && ctx.results[0].hits.hits[0]._source.confidence > 0.7",
+            "lang": "painless"
           }
-        }
-      ]
+        },
+        "actions": [
+          {
+            "name": "notify",
+            "destination_id": "alice-incluster-alert-sink",
+            "subject_template": {
+              "source": "{{ctx.monitor.name}}",
+              "lang": "mustache"
+            },
+            "message_template": {
+              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_start\":\"{{ctx.periodStart}}\",\"period_end\":\"{{ctx.periodEnd}}\",\"entity_kind\":\"fleet\",\"notification_scope\":\"fleet\",\"feed\":\"anomaly\",\"delivery_path\":\"alertmanager\",\"entity\":\"all\"}",
+              "lang": "mustache"
+            },
+            "throttle_enabled": true,
+            "throttle": {
+              "value": 30,
+              "unit": "MINUTES"
+            }
+          }
+        ]
+      }
     }
   ]
 }

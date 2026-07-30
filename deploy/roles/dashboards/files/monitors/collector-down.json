@@ -1,6 +1,7 @@
 {
   "type": "monitor",
   "name": "collector-down",
+  "description": "Page when a rostered collector stops heartbeating. After the Fluent Bit push cutover a dead collector emits nothing at all, so this reads the absence documents the thin poller derives from the published roster (kind:fleet, heartbeat_missing) rather than an observed fb_up:0 sample, which no longer exists. Every action payload names its entity, so a fleet-wide breach is attributable even when the plugin rewrites per_alert to per_execution above the actionable-alert limit.",
   "monitor_type": "bucket_level_monitor",
   "enabled": true,
   "schedule": {
@@ -22,7 +23,7 @@
               "filter": [
                 {
                   "term": {
-                    "kind": "fluentbit"
+                    "kind": "fleet"
                   }
                 },
                 {
@@ -40,20 +41,21 @@
           "aggregations": {
             "composite_agg": {
               "composite": {
+                "size": 1000,
                 "sources": [
                   {
-                    "node": {
+                    "collector_id": {
                       "terms": {
-                        "field": "node"
+                        "field": "collector_id"
                       }
                     }
                   }
                 ]
               },
               "aggregations": {
-                "max_fb_up": {
+                "max_missing": {
                   "max": {
-                    "field": "fb_up"
+                    "field": "heartbeat_missing"
                   }
                 }
               }
@@ -70,11 +72,11 @@
         "severity": "1",
         "condition": {
           "buckets_path": {
-            "max_fb_up": "max_fb_up"
+            "max_missing": "max_missing"
           },
           "parent_bucket_path": "composite_agg",
           "script": {
-            "source": "params.max_fb_up == 0",
+            "source": "params.max_missing == 1",
             "lang": "painless"
           }
         },
@@ -87,7 +89,7 @@
               "lang": "mustache"
             },
             "message_template": {
-              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_end\":\"{{ctx.periodEnd}}\"}",
+              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_start\":\"{{ctx.periodStart}}\",\"period_end\":\"{{ctx.periodEnd}}\",\"entity_kind\":\"collector\",\"notification_scope\":\"collector\",\"feed\":\"fleet-fb\",\"delivery_path\":\"alertmanager\",\"entity\":\"{{#ctx.newAlerts}}{{{bucket_keys}}} {{/ctx.newAlerts}}\"}",
               "lang": "mustache"
             },
             "throttle_enabled": true,

@@ -1,0 +1,78 @@
+- name: Create the alertmanager system user
+  ansible.builtin.user:
+    name: "{{ alertmanager_system_user }}"
+    system: true
+    shell: /sbin/nologin
+    home: "{{ alertmanager_data_dir }}"
+    create_home: false
+
+- name: Create the alertmanager directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.owner }}"
+    mode: "0755"
+  loop:
+    - {path: "{{ alertmanager_install_root }}", owner: root}
+    - {path: "{{ alertmanager_config_dir }}", owner: root}
+    - {path: "{{ alertmanager_data_dir }}", owner: "{{ alertmanager_system_user }}"}
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Check whether the pinned alertmanager is already installed
+  ansible.builtin.command:
+    cmd: "{{ alertmanager_binary }} --version"
+  register: _am_version
+  changed_when: false
+  failed_when: false
+
+- name: Download and unpack alertmanager {{ alertmanager_version }}
+  ansible.builtin.unarchive:
+    src: "{{ alertmanager_download_url }}"
+    dest: "{{ alertmanager_install_root }}"
+    remote_src: true
+    extra_opts:
+      - --strip-components=1
+    owner: root
+    group: root
+  when: alertmanager_version not in (_am_version.stderr | default('')) + (_am_version.stdout | default(''))
+  notify: restart alertmanager
+
+- name: Template the alertmanager configuration (routes, grouping, approved inhibition rules)
+  ansible.builtin.template:
+    src: alertmanager.yml.j2
+    dest: "{{ alertmanager_config_file }}"
+    owner: root
+    group: "{{ alertmanager_system_user }}"
+    mode: "0640"
+    validate: "{{ alertmanager_install_root }}/amtool check-config %s"
+  notify: restart alertmanager
+
+- name: Template the alertmanager systemd unit
+  ansible.builtin.template:
+    src: alertmanager.service.j2
+    dest: /etc/systemd/system/{{ alertmanager_service_name }}.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart alertmanager
+
+- name: Enable and start alertmanager
+  ansible.builtin.systemd:
+    name: "{{ alertmanager_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Apply any pending alertmanager restart before the projector is asserted against it
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for alertmanager to become ready
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ alertmanager_port }}/-/ready"
+    status_code: [200]
+  register: _am_ready
+  retries: 12
+  delay: 5
+  until: _am_ready.status == 200

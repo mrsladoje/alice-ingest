@@ -36,6 +36,12 @@
       retries: 60
       delay: 5
 
+- name: Alertmanager (control host only, behind the existing nginx seam)
+  hosts: control
+  become: true
+  roles:
+    - alertmanager
+
 - name: OpenSearch Dashboards + nginx proxy + cluster bootstrap (control host only)
   hosts: control
   become: true

@@ -1,0 +1,108 @@
+- name: Stage the signal contract test beside the projector it exercises
+  ansible.builtin.copy:
+    src: test_signal_contract.py
+    dest: "{{ dashboards_signal_contract_test }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the notification ingest service script
+  ansible.builtin.copy:
+    src: notification_ingest.py
+    dest: "{{ dashboards_notification_ingest_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: restart alice-notification-ingest
+
+- name: Template the alice-notification-ingest systemd unit
+  ansible.builtin.template:
+    src: alice-notification-ingest.service.j2
+    dest: /etc/systemd/system/{{ dashboards_notification_ingest_service_name }}.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart alice-notification-ingest
+
+- name: Enable and start alice-notification-ingest
+  ansible.builtin.systemd:
+    name: "{{ dashboards_notification_ingest_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Install the signal projector script
+  ansible.builtin.copy:
+    src: signal_projector.py
+    dest: "{{ dashboards_signal_projector_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: restart alice-signal-projector
+
+- name: Template the alice-signal-projector systemd unit
+  ansible.builtin.template:
+    src: alice-signal-projector.service.j2
+    dest: /etc/systemd/system/{{ dashboards_signal_projector_service_name }}.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart alice-signal-projector
+
+- name: Enable and start alice-signal-projector
+  ansible.builtin.systemd:
+    name: "{{ dashboards_signal_projector_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Flush handlers so the asserted processes are the restarted ones
+  ansible.builtin.meta: flush_handlers
+
+- name: Assert the notification path stayed up (a dead receiver silently drops every notification)
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+  register: _notify_state
+  retries: 6
+  delay: 5
+  until: _notify_state.status.ActiveState == "active"
+  loop:
+    - "{{ dashboards_notification_ingest_service_name }}"
+    - "{{ dashboards_signal_projector_service_name }}"
+
+- name: Assert the notification receiver durably accepts a probe
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ notification_ingest_port }}/healthz"
+    status_code: [200]
+  register: _ingest_health
+  retries: 6
+  delay: 5
+  until: _ingest_health.status == 200
+
+- name: Prove the emitted-signal contract without waiting for a live signal
+  ansible.builtin.command:
+    cmd: "python3 {{ dashboards_signal_contract_test }}"
+  environment:
+    SIGNAL_CATALOG: "{{ dashboards_bootstrap_signal_catalog }}"
+    CLUSTER_ID: "{{ cluster_id }}"
+  changed_when: false
+
+- name: Re-verify the signal layer now that the projector exists
+  ansible.builtin.command:
+    cmd: "python3 {{ dashboards_bootstrap_verify_script }}"
+  environment:
+    OS_URL: "http://localhost:{{ opensearch_http_port }}"
+    EXPECTED_MONITORS: "{{ expected_monitors }}"
+    EXPECTED_DETECTORS: "{{ expected_detectors }}"
+    ROLLUP_INDEX: "{{ trend_rollup_index }}"
+    METRICS_INDEX: "{{ cockpit_metrics_index }}"
+    ROSTER_INDEX: "{{ fleet_roster_index }}"
+    DIGEST_INDEX: "{{ anomaly_digest_index }}"
+    SIGNALS_INDEX: "{{ signals_index }}"
+    INCIDENTS_INDEX: "{{ incidents_index }}"
+    NOTIFICATIONS_INDEX: "{{ notifications_index }}"
+    LANE_STATE_INDEX: "{{ lane_state_index }}"
+    SIGNAL_CATALOG: "{{ dashboards_bootstrap_signal_catalog }}"
+    ALERTING_MAX_ACTIONABLE_ALERT_COUNT: "{{ alerting_max_actionable_alert_count }}"
+    EXPECT_PUSH_HEARTBEATS: "{{ collector_health_push_enabled | bool | ternary('true', 'false') }}"
+  changed_when: false

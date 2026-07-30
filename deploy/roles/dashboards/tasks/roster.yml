@@ -1,0 +1,47 @@
+- name: Publish an immutable fleet roster snapshot (content-addressed, append-only)
+  ansible.builtin.command:
+    cmd: "python3 {{ dashboards_roster_publish_script }}"
+  environment:
+    OS_URL: "http://localhost:{{ opensearch_http_port }}"
+    ROSTER_INDEX: "{{ fleet_roster_index }}"
+    CLUSTER_ID: "{{ cluster_id }}"
+    COLLECTORS: "{{ groups['workers'] | map('extract', hostvars, 'node_id') | join(',') }}"
+    ASSIGNMENTS: "{{ roster_assignments | to_json }}"
+  register: _roster_publish
+  changed_when: "'published topology_version' in _roster_publish.stdout"
+
+- name: Report the roster publication
+  ansible.builtin.debug:
+    msg: "{{ _roster_publish.stdout_lines }}"
+
+- name: Read back the effective roster the absence monitor will use
+  ansible.builtin.uri:
+    url: "http://localhost:{{ opensearch_http_port }}/{{ fleet_roster_index }}/_search"
+    method: POST
+    body_format: json
+    body:
+      size: 1
+      sort:
+        - effective_from: desc
+      query:
+        bool:
+          filter:
+            - term:
+                doc_kind: roster
+    status_code: [200]
+  register: _roster_effective
+
+- name: Assert exactly one effective roster and that it names every worker
+  ansible.builtin.assert:
+    that:
+      - _roster_effective.json.hits.hits | length == 1
+      - (_roster_effective.json.hits.hits[0]._source.collectors | sort)
+        == (groups['workers'] | map('extract', hostvars, 'node_id') | list | sort)
+    fail_msg: >-
+      the effective roster does not match the workers group; health monitors
+      select only the latest snapshot and would page for retired collectors or
+      miss live ones
+    success_msg: >-
+      effective topology_version={{ _roster_effective.json.hits.hits[0]._source.topology_version }}
+      collectors={{ _roster_effective.json.hits.hits[0]._source.collectors }}
+      assignments={{ _roster_effective.json.hits.hits[0]._source.assignment_count }}

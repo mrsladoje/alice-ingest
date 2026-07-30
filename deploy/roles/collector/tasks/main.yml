@@ -12,7 +12,11 @@
     name: "{{ collector_service_name }}-{{ fluent_bit_version }}"
     state: present
 
-- name: Open the Fluent Bit metrics endpoint ({{ fluent_bit_http_port }}/tcp) to the control node
+- name: >-
+    {{ 'Open' if collector_metrics_scrape_open else 'Close' }} the Fluent Bit
+    metrics endpoint ({{ fluent_bit_http_port }}/tcp) to the control node —
+    after the push cutover nothing scrapes it, so the rule is removed and the
+    endpoint is loopback-only
   ansible.posix.firewalld:
     rich_rule: >-
       rule family="ipv4"
@@ -21,7 +25,24 @@
       accept
     permanent: true
     immediate: true
-    state: enabled
+    state: "{{ 'enabled' if collector_metrics_scrape_open else 'disabled' }}"
+
+- name: Ensure the collector app root exists
+  ansible.builtin.file:
+    path: "{{ collector_health_script | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the Fluent Bit self-health sampler (run by the exec input, not by a second daemon)
+  ansible.builtin.copy:
+    src: fb_health.py
+    dest: "{{ collector_health_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: restart fluent-bit
 
 - name: Create log_root and its dds/stdout subdirectories (local producers write here, this collector tails them)
   ansible.builtin.file:

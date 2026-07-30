@@ -1,0 +1,55 @@
+# {{ ansible_managed }}
+global:
+  resolve_timeout: {{ alertmanager_resolve_timeout }}
+
+route:
+  receiver: alice-notification-ingest
+  group_by: ['cluster_id', 'alertname']
+  group_wait: {{ alertmanager_group_wait }}
+  group_interval: {{ alertmanager_group_interval }}
+  repeat_interval: {{ alertmanager_repeat_interval }}
+  routes:
+    - matchers:
+        - notification_scope =~ "collector:.+"
+      receiver: alice-notification-ingest
+      group_by: ['cluster_id', 'alertname', 'notification_scope']
+      group_wait: {{ alertmanager_group_wait }}
+      group_interval: {{ alertmanager_group_interval }}
+      repeat_interval: {{ alertmanager_repeat_interval }}
+
+inhibit_rules:
+{% if 'collector-down' in alertmanager_proven_inhibit_rules %}
+  - source_matchers:
+      - alertname = "collector-down"
+      - severity = "page"
+    target_matchers:
+      - alertname =~ "collector-unhealthy|data-loss|shipping-breaking|ingest-flow|il-collector-shipping-lag|il-collector-shipping-lag-slow|info-collector-shipping-lag|info-collector-shipping-lag-slow|trend-il-shipping-lag|trend-info-shipping-lag"
+    equal: ['cluster_id', 'collector_id']
+{% endif %}
+{% if 'telemetry-silence' in alertmanager_proven_inhibit_rules %}
+  - source_matchers:
+      - alertname = "telemetry-silence"
+    target_matchers:
+      - alertname =~ "cluster-red|shards-stuck|disk-cliff-warn|disk-cliff-page|heap-spiral|node-health|dashboards-health"
+    equal: ['cluster_id']
+{% endif %}
+{% if 'fleet-fb-silence' in alertmanager_proven_inhibit_rules %}
+  - source_matchers:
+      - alertname = "fleet-fb-silence"
+    target_matchers:
+      - alertname =~ "collector-down|collector-unhealthy|data-loss|shipping-breaking|ingest-flow"
+    equal: ['cluster_id']
+{% endif %}
+
+receivers:
+  - name: alice-notification-ingest
+    webhook_configs:
+      - url: http://127.0.0.1:{{ notification_ingest_port }}/notifications
+        send_resolved: true
+        max_alerts: 0
+{% if notification_ingest_token | length > 0 %}
+        http_config:
+          authorization:
+            type: Bearer
+            credentials: {{ notification_ingest_token }}
+{% endif %}

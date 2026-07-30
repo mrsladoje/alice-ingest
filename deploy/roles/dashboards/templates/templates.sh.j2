@@ -280,6 +280,23 @@ COCKPIT_METRICS_TPL=$(cat <<'JSON'
         "@timestamp":            { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
         "kind":                  { "type": "keyword" },
         "node":                  { "type": "keyword" },
+        "collector_id":          { "type": "keyword" },
+        "os_node":               { "type": "keyword" },
+        "heartbeat_missing":     { "type": "short" },
+        "heartbeat_age_ms":      { "type": "long" },
+        "roster_size":           { "type": "integer" },
+        "roster_missing":        { "type": "integer" },
+        "topology_version":      { "type": "keyword" },
+        "am_up":                 { "type": "short" },
+        "am_latency_ms":         { "type": "long" },
+        "signals_open":          { "type": "integer" },
+        "incidents_open":        { "type": "integer" },
+        "projector_cycle_ok":    { "type": "short" },
+        "projector_cycle_ms":    { "type": "long" },
+        "stale_episodes":        { "type": "integer" },
+        "stale_dwell_p50_ms":    { "type": "long" },
+        "stale_dwell_p95_ms":    { "type": "long" },
+        "alertname":             { "type": "keyword" },
         "index_name":            { "type": "keyword" },
         "cluster_status":        { "type": "keyword" },
         "cluster_status_code":   { "type": "short" },
@@ -357,6 +374,17 @@ TREND_ROLLUP_TPL=$(cat <<'JSON'
         "entity_count":          { "type": "integer" },
         "truncated":             { "type": "boolean" },
         "bucket_seconds":        { "type": "integer" },
+        "complete":              { "type": "boolean" },
+        "committed_at":          { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "expected_cohorts":      { "type": "keyword" },
+        "expected_cohort_count": { "type": "integer" },
+        "observed_cohort_count": { "type": "integer" },
+        "commit_cohorts":        { "properties": {
+          "cohort":       { "type": "keyword" },
+          "entity_count": { "type": "integer" },
+          "doc_count":    { "type": "long" },
+          "truncated":    { "type": "boolean" }
+        } },
         "p95_entry_lag_ms":      { "type": "double" },
         "p95_shipping_lag_ms":   { "type": "double" },
         "avg_entry_lag_ms":      { "type": "double" },
@@ -372,17 +400,64 @@ TREND_ROLLUP_TPL=$(cat <<'JSON'
 JSON
 )
 
-# The digest index template maps dynamic:false, so a field added to a later
-# release of anomaly_digest.py would be dropped silently on an index that
-# already exists — the template is not retro-applied. This block is PUT to the
-# live index on every run so new fields become searchable there too. Adding
-# fields to an existing mapping is non-breaking; changing one is not, and would
-# need a reindex.
 ANOMALY_DIGEST_FIELDS=$(cat <<'JSON'
 {
   "properties": {
-    "scope_kind": { "type": "keyword" },
-    "run":        { "type": "keyword" }
+    "scope_kind":          { "type": "keyword" },
+    "run":                 { "type": "keyword" },
+    "entity_kind":         { "type": "keyword" },
+    "entity_id":           { "type": "keyword" },
+    "entity_field":        { "type": "keyword" },
+    "family":              { "type": "keyword" },
+    "execution_end_time":  { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+    "source_index":        { "type": "keyword" },
+    "source_id":           { "type": "keyword" },
+    "source_uid":          { "type": "keyword" },
+    "task_id":             { "type": "keyword" }
+  }
+}
+JSON
+)
+
+COCKPIT_IDENTITY_FIELDS=$(cat <<'JSON'
+{
+  "properties": {
+    "collector_id":       { "type": "keyword" },
+    "os_node":            { "type": "keyword" },
+    "heartbeat_missing":  { "type": "short" },
+    "heartbeat_age_ms":   { "type": "long" },
+    "roster_size":        { "type": "integer" },
+    "roster_missing":     { "type": "integer" },
+    "topology_version":   { "type": "keyword" },
+    "am_up":              { "type": "short" },
+    "am_latency_ms":      { "type": "long" },
+    "signals_open":       { "type": "integer" },
+    "incidents_open":     { "type": "integer" },
+    "projector_cycle_ok": { "type": "short" },
+    "projector_cycle_ms": { "type": "long" },
+    "stale_episodes":     { "type": "integer" },
+    "stale_dwell_p50_ms": { "type": "long" },
+    "stale_dwell_p95_ms": { "type": "long" },
+    "alertname":          { "type": "keyword" }
+  }
+}
+JSON
+)
+
+TREND_COMMIT_FIELDS=$(cat <<'JSON'
+{
+  "properties": {
+    "complete":              { "type": "boolean" },
+    "committed_at":          { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+    "expected_cohorts":      { "type": "keyword" },
+    "expected_cohort_count": { "type": "integer" },
+    "observed_cohort_count": { "type": "integer" },
+    "commit_cohorts":        { "properties": {
+      "cohort":       { "type": "keyword" },
+      "entity_count": { "type": "integer" },
+      "doc_count":    { "type": "long" },
+      "truncated":    { "type": "boolean" }
+    } }
   }
 }
 JSON
@@ -403,19 +478,28 @@ ANOMALY_DIGEST_TPL=$(cat <<'JSON'
     "mappings": {
       "dynamic": false,
       "properties": {
-        "@timestamp":   { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
-        "window_start": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "@timestamp":         { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "window_start":       { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "execution_end_time": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
         "detector":     { "type": "keyword" },
         "about":        { "type": "keyword" },
         "measures":     { "type": "keyword" },
         "scope_field":  { "type": "keyword" },
         "scope":        { "type": "keyword" },
         "scope_kind":   { "type": "keyword" },
+        "entity_kind":  { "type": "keyword" },
+        "entity_id":    { "type": "keyword" },
+        "entity_field": { "type": "keyword" },
+        "family":       { "type": "keyword" },
         "grade":        { "type": "double" },
         "confidence":   { "type": "double" },
         "severity":     { "type": "keyword" },
         "detector_id":  { "type": "keyword" },
-        "run":          { "type": "keyword" }
+        "run":          { "type": "keyword" },
+        "source_index": { "type": "keyword" },
+        "source_id":    { "type": "keyword" },
+        "source_uid":   { "type": "keyword" },
+        "task_id":      { "type": "keyword" }
       }
     }
   },
@@ -424,6 +508,228 @@ ANOMALY_DIGEST_TPL=$(cat <<'JSON'
     "written_by": "alice-anomaly-digest",
     "note": "readable projection of .opendistro-anomaly-results — detector name and entity instead of internal ids"
   }
+}
+JSON
+)
+
+FLEET_ROSTER_TPL=$(cat <<'JSON'
+{
+  "index_patterns": ["{{ fleet_roster_index }}"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 2,
+      "codec": "zstd",
+      "refresh_interval": "5s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "doc_kind":          { "type": "keyword" },
+        "topology_version":  { "type": "keyword" },
+        "effective_from":    { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "published_at":      { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "collectors":        { "type": "keyword" },
+        "collector_count":   { "type": "integer" },
+        "assignment_count":  { "type": "integer" },
+        "supersedes":        { "type": "keyword" },
+        "cluster_id":        { "type": "keyword" },
+        "published_by":      { "type": "keyword" },
+        "assignments":       { "properties": {
+          "origin_host":  { "type": "keyword" },
+          "collector_id": { "type": "keyword" }
+        } }
+      }
+    }
+  },
+  "_meta": {
+    "family": "fleet-roster",
+    "written_by": "ansible roster publisher",
+    "note": "immutable, append-only topology snapshots; deliberately NOT in cockpit-metrics so roster history does not inherit metrics retention"
+  }
+}
+JSON
+)
+
+LANE_STATE_TPL=$(cat <<'JSON'
+{
+  "index_patterns": ["{{ lane_state_index }}"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 2,
+      "codec": "zstd",
+      "refresh_interval": "1s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "lane":         { "type": "keyword" },
+        "watermark_ms": { "type": "long" },
+        "updated_at":   { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "note":         { "type": "keyword" }
+      }
+    }
+  },
+  "_meta": { "family": "lane-state", "note": "traversal watermarks; advanced only after a complete PIT traversal" }
+}
+JSON
+)
+
+SIGNALS_TPL=$(cat <<'JSON'
+{
+  "index_patterns": ["{{ signals_index }}"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 2,
+      "codec": "zstd",
+      "refresh_interval": "5s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "@timestamp":         { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "source_id":          { "type": "keyword" },
+        "source_kind":        { "type": "keyword" },
+        "source_index":       { "type": "keyword" },
+        "source_uid":         { "type": "keyword" },
+        "alertname":          { "type": "keyword" },
+        "state":              { "type": "keyword" },
+        "severity":           { "type": "keyword" },
+        "cluster_id":         { "type": "keyword" },
+        "entity_kind":        { "type": "keyword" },
+        "entity_id":          { "type": "keyword" },
+        "collector_id":       { "type": "keyword" },
+        "family":             { "type": "keyword" },
+        "notification_scope": { "type": "keyword" },
+        "feed":               { "type": "keyword" },
+        "run":                { "type": "keyword" },
+        "topology_version":   { "type": "keyword" },
+        "incident_id":        { "type": "keyword" },
+        "episode_id":         { "type": "keyword" },
+        "suppressed_by":      { "type": "keyword" },
+        "first_seen":         { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "last_seen":          { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "start_time":         { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "end_time":           { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "monitor_id":         { "type": "keyword" },
+        "detector_id":        { "type": "keyword" },
+        "grade":              { "type": "double" },
+        "confidence":         { "type": "double" },
+        "episode_state":      { "type": "keyword" },
+        "healthy_windows":    { "type": "integer" },
+        "evidence":           { "properties": {
+          "bucket_keys":    { "type": "keyword" },
+          "member_count":   { "type": "integer" },
+          "entity_samples": { "type": "keyword" },
+          "period_end":     { "type": "keyword" },
+          "note":           { "type": "keyword" }
+        } }
+      }
+    }
+  },
+  "_meta": { "family": "signals", "written_by": "alice-signal-projector", "note": "one lossless row per source signal; the drill-down target behind alice-incidents" }
+}
+JSON
+)
+
+INCIDENTS_TPL=$(cat <<'JSON'
+{
+  "index_patterns": ["{{ incidents_index }}"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 2,
+      "codec": "zstd",
+      "refresh_interval": "5s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "@timestamp":         { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "incident_id":        { "type": "keyword" },
+        "class":              { "type": "keyword" },
+        "alertname":          { "type": "keyword" },
+        "state":              { "type": "keyword" },
+        "severity":           { "type": "keyword" },
+        "cluster_id":         { "type": "keyword" },
+        "entity_kind":        { "type": "keyword" },
+        "collector_id":       { "type": "keyword" },
+        "family":             { "type": "keyword" },
+        "notification_scope": { "type": "keyword" },
+        "topology_version":   { "type": "keyword" },
+        "source_kind":        { "type": "keyword" },
+        "entity_id":          { "type": "keyword" },
+        "feed":               { "type": "keyword" },
+        "episode_state":      { "type": "keyword" },
+        "episode_id":         { "type": "keyword" },
+        "episode_start":      { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "healthy_windows":    { "type": "integer" },
+        "last_evaluation":    { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "last_breach_window": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "last_healthy_window": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "stale_since":        { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "member_count_truncated": { "type": "boolean" },
+        "supersedes_version": { "type": "keyword" },
+        "opened_at":          { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "resolved_at":        { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "last_seen":          { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "member_count":       { "type": "integer" },
+        "suppressed_count":   { "type": "integer" },
+        "entity_samples":     { "type": "keyword" },
+        "signal_ids":         { "type": "keyword" }
+      }
+    }
+  },
+  "_meta": { "family": "incidents", "written_by": "alice-signal-projector", "note": "one stateful episode; Alertmanager is the delivery layer, this is the record" }
+}
+JSON
+)
+
+NOTIFICATIONS_TPL=$(cat <<'JSON'
+{
+  "index_patterns": ["{{ notifications_index }}"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 2,
+      "codec": "zstd",
+      "refresh_interval": "5s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "@timestamp":         { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "record_kind":        { "type": "keyword" },
+        "status":             { "type": "keyword" },
+        "receiver":           { "type": "keyword" },
+        "group_key":          { "type": "keyword" },
+        "alertname":          { "type": "keyword" },
+        "cluster_id":         { "type": "keyword" },
+        "entity_kind":        { "type": "keyword" },
+        "notification_scope": { "type": "keyword" },
+        "delivery_path":      { "type": "keyword" },
+        "alert_count":        { "type": "integer" },
+        "labels_kv":          { "type": "keyword" },
+        "signal_ids":         { "type": "keyword" },
+        "episode_ids":        { "type": "keyword" },
+        "signal_ids_truncated": { "type": "boolean" },
+        "body":               { "type": "text" }
+      }
+    }
+  },
+  "_meta": { "family": "notifications", "written_by": "alice-notification-ingest", "note": "record_kind notification comes from the ordinary webhook; record_kind event comes from the experimental Alertmanager event recorder and is AUDIT EVIDENCE ONLY, never incident truth" }
 }
 JSON
 )
@@ -521,6 +827,11 @@ put "/_index_template/alice-logs-infologger"    "$INFOLOGGER_INDEX_TPL" "index t
 put "/_index_template/alice-cockpit-metrics"    "$COCKPIT_METRICS_TPL"  "index template alice-cockpit-metrics"
 put "/_index_template/alice-trend-rollup"       "$TREND_ROLLUP_TPL"     "index template alice-trend-rollup"
 put "/_index_template/alice-anomaly-digest"     "$ANOMALY_DIGEST_TPL"   "index template alice-anomaly-digest"
+put "/_index_template/alice-fleet-roster"       "$FLEET_ROSTER_TPL"     "index template alice-fleet-roster"
+put "/_index_template/alice-lane-state"         "$LANE_STATE_TPL"       "index template alice-lane-state"
+put "/_index_template/alice-signals"            "$SIGNALS_TPL"          "index template alice-signals"
+put "/_index_template/alice-incidents"          "$INCIDENTS_TPL"        "index template alice-incidents"
+put "/_index_template/alice-notifications"      "$NOTIFICATIONS_TPL"    "index template alice-notifications"
 
 for wn in $WORKER_NODES; do
   put "/_index_template/alice-logs-generic-info-$wn" "$(generic_info_tpl "$wn")" \
@@ -538,7 +849,39 @@ ensure_rollover_index "generic-log-other" ""
 ensure_index "{{ cockpit_metrics_index }}" '{}'
 ensure_index "{{ trend_rollup_index }}" '{}'
 ensure_index "{{ anomaly_digest_index }}" '{}'
-put "/{{ anomaly_digest_index }}/_mapping" "$ANOMALY_DIGEST_FIELDS" "mapping scope_kind/run on {{ anomaly_digest_index }}"
+ensure_index "{{ fleet_roster_index }}" '{}'
+ensure_index "{{ lane_state_index }}" '{}'
+ensure_index "{{ signals_index }}" '{}'
+ensure_index "{{ incidents_index }}" '{}'
+ensure_index "{{ notifications_index }}" '{}'
+
+put "/{{ anomaly_digest_index }}/_mapping" "$ANOMALY_DIGEST_FIELDS" "live mapping: provenance + identity fields on {{ anomaly_digest_index }}"
+put "/{{ cockpit_metrics_index }}/_mapping" "$COCKPIT_IDENTITY_FIELDS" "live mapping: collector_id/os_node + fleet/projector fields on {{ cockpit_metrics_index }}"
+put "/{{ trend_rollup_index }}/_mapping" "$TREND_COMMIT_FIELDS" "live mapping: bucket-commit fields on {{ trend_rollup_index }}"
+
+for idx_tpl in \
+  "{{ fleet_roster_index }}:alice-fleet-roster" \
+  "{{ lane_state_index }}:alice-lane-state" \
+  "{{ signals_index }}:alice-signals" \
+  "{{ incidents_index }}:alice-incidents" \
+  "{{ notifications_index }}:alice-notifications"; do
+  idx="${idx_tpl%%:*}"
+  tpl="${idx_tpl##*:}"
+  props=$(curl -s "$OS/_index_template/$tpl" | python3 -c '
+import json,sys
+try:
+    tpl=json.load(sys.stdin)["index_templates"][0]["index_template"]["template"]
+    print(json.dumps({"properties": tpl["mappings"]["properties"]}))
+except Exception:
+    print("")
+')
+  if [ -n "$props" ]; then
+    put "/$idx/_mapping" "$props" "live mapping: $tpl fields on $idx"
+  else
+    echo "[os-init] FATAL: could not read $tpl to apply its live mapping on $idx"
+    exit 1
+  fi
+done
 
 put "/infologger*/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on infologger"
 put "/generic-log-other*/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on generic-log-other"

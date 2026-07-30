@@ -12,6 +12,10 @@ ALERTS_ID = "alice-alerts"
 ALERTS_TITLE = ".opendistro-alerting-alerts*"
 ANOMALIES_ID = "alice-anomalies"
 ANOMALIES_TITLE = "alice-anomalies"
+INCIDENTS_ID = "alice-incidents"
+INCIDENTS_TITLE = "alice-incidents"
+SIGNALS_ID = "alice-signals"
+SIGNALS_TITLE = "alice-signals"
 TIME_FIELD = "@timestamp"
 PANEL_VERSION = "3.7.0"
 
@@ -21,6 +25,8 @@ REFRESH_MS = 30000
 STALE_SECONDS = 90
 
 ERRWARN_Q = "severity_norm:(error or fatal or warning)"
+REALTIME_Q = "run:realtime"
+ANOMALY_FLOOR_Q = "run:realtime and grade > 0.5"
 
 INDEX_REF_NAME = "kibanaSavedObjectMeta.searchSourceJSON.index"
 
@@ -301,7 +307,7 @@ def anomaly_table(vid, title):
             "percentageCol": "",
         },
     }
-    return viz(vid, title, state, query=dql("grade > 0.5"),
+    return viz(vid, title, state, query=dql(ANOMALY_FLOOR_Q),
                pattern=ANOMALIES_ID)
 
 
@@ -345,6 +351,56 @@ def active_alert_metric(vid, title):
     return viz(vid, title, state, query=dql("state:ACTIVE"), pattern=ALERTS_ID)
 
 
+def open_incident_metric(vid, title):
+    state = {
+        "title": title,
+        "type": "metric",
+        "aggs": [
+            {"id": "1", "enabled": True, "type": "count",
+             "schema": "metric", "params": {"customLabel": "open incidents"}}
+        ],
+        "params": _metric_params(48),
+    }
+    return viz(vid, title, state, query=dql("state:firing"),
+               pattern=INCIDENTS_ID)
+
+
+def incident_table(vid, title):
+    state = {
+        "title": title,
+        "type": "table",
+        "aggs": [
+            {"id": "1", "enabled": True, "type": "max", "schema": "metric",
+             "params": {"field": "member_count",
+                        "customLabel": "signals covered"}},
+            {"id": "2", "enabled": True, "type": "max", "schema": "metric",
+             "params": {"field": "last_seen", "customLabel": "last seen"}},
+            {"id": "3", "enabled": True, "type": "terms", "schema": "bucket",
+             "params": {"field": "alertname", "orderBy": "1", "order": "desc",
+                        "size": 10, "otherBucket": False,
+                        "missingBucket": False, "customLabel": "what broke"}},
+            {"id": "4", "enabled": True, "type": "terms", "schema": "bucket",
+             "params": {"field": "notification_scope", "orderBy": "1",
+                        "order": "desc", "size": 5, "otherBucket": False,
+                        "missingBucket": False, "customLabel": "who owns it"}},
+            {"id": "5", "enabled": True, "type": "terms", "schema": "bucket",
+             "params": {"field": "class", "orderBy": "1", "order": "desc",
+                        "size": 5, "otherBucket": False,
+                        "missingBucket": False, "customLabel": "class"}},
+        ],
+        "params": {
+            "perPage": 10,
+            "showPartialRows": False,
+            "showMetricsAtAllLevels": False,
+            "showTotal": False,
+            "totalFunc": "sum",
+            "percentageCol": "",
+        },
+    }
+    return viz(vid, title, state, query=dql("state:firing"),
+               pattern=INCIDENTS_ID)
+
+
 def scope_kind_table(vid, title):
     state = {
         "title": title,
@@ -367,7 +423,7 @@ def scope_kind_table(vid, title):
             "percentageCol": "",
         },
     }
-    return viz(vid, title, state, query=dql("grade > 0.5"),
+    return viz(vid, title, state, query=dql(ANOMALY_FLOOR_Q),
                pattern=ANOMALIES_ID)
 
 
@@ -430,7 +486,7 @@ def status_strip(vid, title):
                  "expr": "time(toDate(datum._source['@timestamp']))"},
                 {"type": "formula", "as": "key",
                  "expr": "datum._source.kind + "
-                         "(datum._source.node ? ':' + datum._source.node "
+                         "(datum._source.collector_id ? ':' + datum._source.collector_id "
                          ": '')"},
                 {"type": "window", "groupby": ["key"],
                  "sort": {"field": "ts", "order": "descending"},
@@ -451,7 +507,7 @@ def status_strip(vid, title):
                 {"type": "formula", "as": "label",
                  "expr": "datum._source.kind == 'cluster' ? 'CLUSTER' : "
                          "datum._source.kind == 'osd' ? 'DASHBOARDS' : "
-                         "'FLUENT BIT ' + datum._source.node"},
+                         "'FLUENT BIT ' + datum._source.collector_id"},
                 {"type": "formula", "as": "display",
                  "expr": "datum.stale ? 'STALE ' + format(datum.age, '.0f') "
                          "+ 's' : datum.state"},
@@ -608,6 +664,20 @@ def build():
         "references": [],
     })
 
+    objects.append({
+        "type": "index-pattern",
+        "id": INCIDENTS_ID,
+        "attributes": {"title": INCIDENTS_TITLE, "timeFieldName": TIME_FIELD},
+        "references": [],
+    })
+
+    objects.append({
+        "type": "index-pattern",
+        "id": SIGNALS_ID,
+        "attributes": {"title": SIGNALS_TITLE, "timeFieldName": TIME_FIELD},
+        "references": [],
+    })
+
     objects += [
         saved_search(
             "alice-search-errwarn", "Errors & Warnings — all sources",
@@ -650,10 +720,20 @@ def build():
             "alice-search-anomalies", "Anomalies — what looks wrong, and where",
             "One row per anomalous window, newest first. 'about' says what "
             "the detector watches, 'scope' says which host or collector it "
-            "was watching.",
-            "",
-            columns=["severity", "about", "scope", "grade", "confidence"],
+            "was watching. Real-time results only — a historical analysis "
+            "run now would otherwise be counted as something happening now.",
+            REALTIME_Q,
+            columns=["severity", "about", "entity_kind", "entity_id",
+                     "grade", "confidence"],
             pattern=ANOMALIES_ID),
+        saved_search(
+            "alice-search-signals", "Signals — every raw row behind an incident",
+            "One lossless row per source signal. Grouping never destroys "
+            "these: an incident references them, it does not replace them.",
+            "",
+            columns=["alertname", "state", "severity", "entity_kind",
+                     "entity_id", "collector_id", "incident_id"],
+            pattern=SIGNALS_ID),
     ]
 
     header_md = (
@@ -703,7 +783,8 @@ def build():
                       label="unassigned"),
         latest_metric("alice-viz-osd-status", "Dashboards health",
                       "osd_state", "kind:osd", label="state"),
-        latest_table("alice-viz-fb-status", "Fluent Bit by node", "node",
+        latest_table("alice-viz-fb-status", "Fluent Bit by collector",
+                     "collector_id",
                      [("fb_up", "max", "up (1=yes)"),
                       ("fb_healthy", "max", "healthy (1=yes)"),
                       ("output_records", "max", "records shipped"),
@@ -725,14 +806,14 @@ def build():
         metric_timechart("alice-viz-fb-throughput",
                          "Fluent Bit records shipped per node",
                          [("sum", "output_records_delta", "records")],
-                         "kind:fluentbit", group_field="node",
+                         "kind:fluentbit", group_field="collector_id",
                          y_title="records / 30 s"),
         metric_timechart("alice-viz-fb-trouble",
                          "Fluent Bit errors / retries / drops",
                          [("sum", "output_errors_delta", "errors"),
                           ("sum", "output_retries_delta", "retries"),
                           ("sum", "output_dropped_delta", "dropped")],
-                         "kind:fluentbit", group_field="node",
+                         "kind:fluentbit", group_field="collector_id",
                          y_title="events / 30 s"),
         latest_table("alice-viz-index-health", "Indices now", "index_name",
                      [("index_health", "concat", "health"),
@@ -743,7 +824,7 @@ def build():
                      "kind:index"),
         metric_timechart("alice-viz-node-heap", "Node JVM heap %",
                          [("avg", "heap_percent", "heap %")],
-                         "kind:node", group_field="node",
+                         "kind:node", group_field="os_node",
                          y_title="%"),
         metric_timechart("alice-viz-osd-perf", "Dashboards response time",
                          [("avg", "response_avg_ms", "avg ms"),
@@ -779,9 +860,24 @@ def build():
                  "initialisation state.\n\n"
                  "Acknowledging is not the same as fixing: the rule will fire "
                  "again on the next window that still breaches it."),
+        markdown("alice-viz-incident-header", "Incidents header",
+                 "### 🎯 Incidents — the headline\n"
+                 "An **incident** is one episode: the signals that share a "
+                 "cause, counted and named. It is the record, not the "
+                 "notification — Alertmanager decides when to tell someone, "
+                 "`alice-incidents` decides what is true.\n\n"
+                 "Grouping never destroys a signal. Every raw alert and "
+                 "anomaly behind an incident is still a row in "
+                 "`alice-signals`, in the panel below, with the "
+                 "`incident_id` that ties it back here.\n\n"
+                 "`unknown-mass-silence` means the fleet went quiet and "
+                 "nothing authoritative said a run ended. It pages on "
+                 "purpose."),
+        open_incident_metric("alice-viz-open-incidents", "Open incidents"),
+        incident_table("alice-viz-incidents", "Open incidents by cause"),
         active_alert_metric("alice-viz-active-alerts", "Active alerts"),
         scope_kind_table("alice-viz-anomaly-count",
-                         "What is affected (grade>0.5)"),
+                         "What is affected (realtime, grade>0.5)"),
         alerts_table("alice-viz-alerts", "Active alerts by rule"),
         anomaly_table("alice-viz-anomalies", "Anomalies by what looks wrong"),
     ]
@@ -810,14 +906,18 @@ def build():
         ("visualization", "alice-viz-index-health",   {"x": 0,  "y": 94, "w": 16, "h": 12}, live),
         ("visualization", "alice-viz-node-heap",      {"x": 16, "y": 94, "w": 16, "h": 12}, live),
         ("visualization", "alice-viz-osd-perf",       {"x": 32, "y": 94, "w": 16, "h": 12}, live),
-        ("visualization", "alice-viz-detect-header",  {"x": 0,  "y": 106, "w": 48, "h": 13}),
-        ("visualization", "alice-viz-active-alerts",  {"x": 0,  "y": 119, "w": 8,  "h": 7}),
-        ("visualization", "alice-viz-anomaly-count",  {"x": 0,  "y": 126, "w": 8,  "h": 9}),
-        ("visualization", "alice-viz-detect-actions", {"x": 0,  "y": 135, "w": 8,  "h": 12}),
-        ("visualization", "alice-viz-alerts",         {"x": 8,  "y": 119, "w": 20, "h": 14}),
-        ("visualization", "alice-viz-anomalies",      {"x": 28, "y": 119, "w": 20, "h": 14}),
-        ("search",        "alice-search-active-alerts", {"x": 8,  "y": 133, "w": 20, "h": 14}),
-        ("search",        "alice-search-anomalies",     {"x": 28, "y": 133, "w": 20, "h": 14}),
+        ("visualization", "alice-viz-incident-header", {"x": 0,  "y": 106, "w": 48, "h": 11}, live),
+        ("visualization", "alice-viz-open-incidents",  {"x": 0,  "y": 117, "w": 8,  "h": 9}, live),
+        ("visualization", "alice-viz-incidents",       {"x": 8,  "y": 117, "w": 40, "h": 9}, live),
+        ("search",        "alice-search-signals",      {"x": 0,  "y": 126, "w": 48, "h": 14}, live),
+        ("visualization", "alice-viz-detect-header",  {"x": 0,  "y": 140, "w": 48, "h": 13}),
+        ("visualization", "alice-viz-active-alerts",  {"x": 0,  "y": 153, "w": 8,  "h": 7}),
+        ("visualization", "alice-viz-anomaly-count",  {"x": 0,  "y": 160, "w": 8,  "h": 9}),
+        ("visualization", "alice-viz-detect-actions", {"x": 0,  "y": 169, "w": 8,  "h": 12}),
+        ("visualization", "alice-viz-alerts",         {"x": 8,  "y": 153, "w": 20, "h": 14}),
+        ("visualization", "alice-viz-anomalies",      {"x": 28, "y": 153, "w": 20, "h": 14}),
+        ("search",        "alice-search-active-alerts", {"x": 8,  "y": 167, "w": 20, "h": 14}),
+        ("search",        "alice-search-anomalies",     {"x": 28, "y": 167, "w": 20, "h": 14}),
     ]
     objects.append(dashboard(panels))
     return objects

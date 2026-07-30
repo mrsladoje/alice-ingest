@@ -1,7 +1,7 @@
 {
   "type": "monitor",
   "name": "trend-entity-cap",
-  "description": "Warn when the trend lane is close to its entity ceiling. The rollup pages its composite aggregation but stops at trend_rollup_max_entities, and each trend monitor's own composite is capped at 2000; past that, entities are silently unmonitored. Fires when any rollup bucket in the last hour reports entity_count at or above the cap (substituted from trend_entity_cap_warn at bootstrap) or flags itself truncated.",
+  "description": "Warn when the trend lane is close to its entity ceiling. The rollup pages its composite aggregation but stops at trend_rollup_max_entities, and each trend monitor's own composite is capped at 2000; past that, entities are silently unmonitored. Fires when any cohort metadata row in the last hour reports entity_count at or above the cap (substituted from trend_entity_cap_warn at bootstrap) or flags itself truncated. Truncated cohorts still publish diagnostic metadata here, but they can never publish a complete bucket commit.",
   "monitor_type": "query_level_monitor",
   "enabled": true,
   "schedule": {
@@ -76,23 +76,13 @@
               "lang": "mustache"
             },
             "message_template": {
-              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_end\":\"{{ctx.periodEnd}}\"}",
+              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_start\":\"{{ctx.periodStart}}\",\"period_end\":\"{{ctx.periodEnd}}\",\"entity_kind\":\"service\",\"notification_scope\":\"fleet\",\"feed\":\"self\",\"delivery_path\":\"alertmanager\",\"entity\":\"alice-trend-rollup\"}",
               "lang": "mustache"
             },
             "throttle_enabled": true,
             "throttle": {
               "value": 30,
               "unit": "MINUTES"
-            },
-            "action_execution_policy": {
-              "action_execution_scope": {
-                "per_alert": {
-                  "actionable_alerts": [
-                    "DEDUPED",
-                    "NEW"
-                  ]
-                }
-              }
             }
           }
         ]

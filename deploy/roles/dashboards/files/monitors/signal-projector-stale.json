@@ -1,0 +1,91 @@
+{
+  "type": "monitor",
+  "name": "signal-projector-stale",
+  "description": "Page when alice-signal-projector stops running. It is the only writer of alice-signals and the only thing re-sending active alerts to Alertmanager, so a stalled projector silently resolves live incidents. This monitor cannot page through the projector that just died, so its action posts straight to alice-notification-ingest, tagged delivery_path breakglass. That bypass is limited to this monitor and alertmanager-down.",
+  "monitor_type": "query_level_monitor",
+  "enabled": true,
+  "schedule": {
+    "period": {
+      "interval": 1,
+      "unit": "MINUTES"
+    }
+  },
+  "inputs": [
+    {
+      "search": {
+        "indices": [
+          "cockpit-metrics"
+        ],
+        "query": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "term": {
+                    "kind": "projector"
+                  }
+                },
+                {
+                  "range": {
+                    "@timestamp": {
+                      "gte": "{{period_end}}||-1440m",
+                      "lte": "{{period_end}}",
+                      "format": "epoch_millis"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "aggregations": {
+            "recent": {
+              "filter": {
+                "range": {
+                  "@timestamp": {
+                    "gte": "{{period_end}}||-10m",
+                    "lte": "{{period_end}}",
+                    "format": "epoch_millis"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "triggers": [
+    {
+      "query_level_trigger": {
+        "name": "signal-projector-stale",
+        "severity": "1",
+        "condition": {
+          "script": {
+            "source": "def r = ctx.results[0]; if (r.hits.total.value == 0) { return false; } return r.aggregations.recent.doc_count == 0;",
+            "lang": "painless"
+          }
+        },
+        "actions": [
+          {
+            "name": "notify",
+            "destination_id": "alice-breakglass-sink",
+            "subject_template": {
+              "source": "{{ctx.monitor.name}}",
+              "lang": "mustache"
+            },
+            "message_template": {
+              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_start\":\"{{ctx.periodStart}}\",\"period_end\":\"{{ctx.periodEnd}}\",\"entity_kind\":\"service\",\"notification_scope\":\"fleet\",\"feed\":\"self\",\"delivery_path\":\"breakglass\",\"entity\":\"alice-signal-projector\"}",
+              "lang": "mustache"
+            },
+            "throttle_enabled": true,
+            "throttle": {
+              "value": 30,
+              "unit": "MINUTES"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

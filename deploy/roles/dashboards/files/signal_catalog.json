@@ -1,0 +1,421 @@
+{
+  "version": 3,
+  "sentinels": {
+    "entity_id": "none",
+    "collector_id": "none",
+    "family": "none",
+    "topology_version": "none",
+    "run_id": "none",
+    "episode_state": "OPEN"
+  },
+  "monitors": {
+    "collector-down": {
+      "entity_kind": "collector",
+      "entity_source": "bucket_key",
+      "family": "none",
+      "notification_scope": "collector",
+      "feed": "fleet-fb"
+    },
+    "collector-unhealthy": {
+      "entity_kind": "collector",
+      "entity_source": "bucket_key",
+      "family": "none",
+      "notification_scope": "collector",
+      "feed": "fleet-fb"
+    },
+    "data-loss": {
+      "entity_kind": "collector",
+      "entity_source": "bucket_key",
+      "family": "none",
+      "notification_scope": "collector",
+      "feed": "fleet-fb"
+    },
+    "shipping-breaking": {
+      "entity_kind": "collector",
+      "entity_source": "bucket_key",
+      "family": "none",
+      "notification_scope": "collector",
+      "feed": "fleet-fb"
+    },
+    "disk-cliff-warn": {
+      "entity_kind": "os_node",
+      "entity_source": "bucket_key",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane"
+    },
+    "disk-cliff-page": {
+      "entity_kind": "os_node",
+      "entity_source": "bucket_key",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane"
+    },
+    "heap-spiral": {
+      "entity_kind": "os_node",
+      "entity_source": "bucket_key",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane"
+    },
+    "cluster-red": {
+      "entity_kind": "cluster",
+      "entity_source": "constant",
+      "entity_id": "alice-logs",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane"
+    },
+    "shards-stuck": {
+      "entity_kind": "cluster",
+      "entity_source": "constant",
+      "entity_id": "alice-logs",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane"
+    },
+    "telemetry-silence": {
+      "entity_kind": "service",
+      "entity_source": "constant",
+      "entity_id": "alice-metrics",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "self"
+    },
+    "fleet-fb-silence": {
+      "entity_kind": "fleet",
+      "entity_source": "constant",
+      "entity_id": "all",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "self"
+    },
+    "ad-high-grade": {
+      "entity_kind": "fleet",
+      "entity_source": "constant",
+      "entity_id": "all",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "anomaly"
+    },
+    "trend-rollup-stale": {
+      "entity_kind": "service",
+      "entity_source": "constant",
+      "entity_id": "alice-trend-rollup",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "self"
+    },
+    "trend-entity-cap": {
+      "entity_kind": "service",
+      "entity_source": "constant",
+      "entity_id": "alice-trend-rollup",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "self"
+    },
+    "signal-projector-stale": {
+      "entity_kind": "service",
+      "entity_source": "constant",
+      "entity_id": "alice-signal-projector",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "self"
+    },
+    "alertmanager-down": {
+      "entity_kind": "service",
+      "entity_source": "constant",
+      "entity_id": "alertmanager",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "self"
+    },
+    "trend-il-volume": {
+      "entity_kind": "epn",
+      "entity_source": "bucket_key",
+      "family": "infologger",
+      "notification_scope": "fleet",
+      "feed": "logs"
+    },
+    "trend-il-ef": {
+      "entity_kind": "epn",
+      "entity_source": "bucket_key",
+      "family": "infologger",
+      "notification_scope": "fleet",
+      "feed": "logs"
+    },
+    "trend-il-entry-lag": {
+      "entity_kind": "epn",
+      "entity_source": "bucket_key",
+      "family": "infologger",
+      "notification_scope": "fleet",
+      "feed": "logs"
+    },
+    "trend-il-shipping-lag": {
+      "entity_kind": "collector",
+      "entity_source": "bucket_key",
+      "family": "infologger",
+      "notification_scope": "collector",
+      "feed": "logs"
+    },
+    "trend-other-volume": {
+      "entity_kind": "epn",
+      "entity_source": "bucket_key",
+      "family": "other",
+      "notification_scope": "fleet",
+      "feed": "logs"
+    },
+    "trend-other-errors": {
+      "entity_kind": "epn",
+      "entity_source": "bucket_key",
+      "family": "other",
+      "notification_scope": "fleet",
+      "feed": "logs"
+    },
+    "trend-info-volume": {
+      "entity_kind": "epn",
+      "entity_source": "bucket_key",
+      "family": "info",
+      "notification_scope": "fleet",
+      "feed": "logs"
+    },
+    "trend-info-entry-lag": {
+      "entity_kind": "epn",
+      "entity_source": "bucket_key",
+      "family": "info",
+      "notification_scope": "fleet",
+      "feed": "logs"
+    },
+    "trend-info-shipping-lag": {
+      "entity_kind": "collector",
+      "entity_source": "bucket_key",
+      "family": "info",
+      "notification_scope": "collector",
+      "feed": "logs"
+    }
+  },
+  "detectors": {
+    "ingest-flow": {
+      "entity_kind": "collector",
+      "category_field": "collector_id",
+      "family": "none",
+      "notification_scope": "collector",
+      "feed": "fleet-fb",
+      "silence_policy": "failure",
+      "eligibility_evidence": "roster heartbeat cadence for this collector_id in cockpit-metrics",
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 3,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "node-health": {
+      "entity_kind": "os_node",
+      "category_field": "os_node",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane",
+      "silence_policy": "failure",
+      "eligibility_evidence": "alice-metrics kind:node samples for this os_node",
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 3,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "dashboards-health": {
+      "entity_kind": "service",
+      "category_field": null,
+      "entity_id": "opensearch-dashboards",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane",
+      "silence_policy": "failure",
+      "eligibility_evidence": "alice-metrics kind:osd samples",
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 3,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "il-per-epn": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "infologger",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 5,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "il-per-epn-slow": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "infologger",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 30,
+      "maximum_lateness_minutes": 35,
+      "healthy_windows_required": 2,
+      "close_threshold": 0.0
+    },
+    "il-per-epn-entry-lag": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "infologger",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 5,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "il-per-epn-entry-lag-slow": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "infologger",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 30,
+      "maximum_lateness_minutes": 35,
+      "healthy_windows_required": 2,
+      "close_threshold": 0.0
+    },
+    "il-collector-shipping-lag": {
+      "entity_kind": "collector",
+      "category_field": "node",
+      "family": "infologger",
+      "notification_scope": "collector",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 5,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "il-collector-shipping-lag-slow": {
+      "entity_kind": "collector",
+      "category_field": "node",
+      "family": "infologger",
+      "notification_scope": "collector",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 30,
+      "maximum_lateness_minutes": 35,
+      "healthy_windows_required": 2,
+      "close_threshold": 0.0
+    },
+    "other-per-epn": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "other",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 5,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "other-per-epn-slow": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "other",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 30,
+      "maximum_lateness_minutes": 35,
+      "healthy_windows_required": 2,
+      "close_threshold": 0.0
+    },
+    "info-volume": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "info",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 5,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "info-volume-slow": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "info",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 30,
+      "maximum_lateness_minutes": 35,
+      "healthy_windows_required": 2,
+      "close_threshold": 0.0
+    },
+    "info-per-epn-entry-lag": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "info",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 5,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "info-per-epn-entry-lag-slow": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "info",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 30,
+      "maximum_lateness_minutes": 35,
+      "healthy_windows_required": 2,
+      "close_threshold": 0.0
+    },
+    "info-collector-shipping-lag": {
+      "entity_kind": "collector",
+      "category_field": "node",
+      "family": "info",
+      "notification_scope": "collector",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 5,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "info-collector-shipping-lag-slow": {
+      "entity_kind": "collector",
+      "category_field": "node",
+      "family": "info",
+      "notification_scope": "collector",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 30,
+      "maximum_lateness_minutes": 35,
+      "healthy_windows_required": 2,
+      "close_threshold": 0.0
+    }
+  }
+}

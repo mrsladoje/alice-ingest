@@ -39,7 +39,21 @@ dashboards_trend_rollup_script: /opt/alice-ingest/trend_rollup.py
 dashboards_anomaly_digest_service_name: alice-anomaly-digest
 dashboards_anomaly_digest_script: /opt/alice-ingest/anomaly_digest.py
 
-expected_monitors: 22
+expected_monitors: 25
 expected_detectors: 17
 dashboards_backtest_script: /opt/alice-ingest/backtest.py
 dashboards_reset_derived_script: /opt/alice-ingest/reset_derived.py
+
+dashboards_app_root: /opt/alice-ingest
+dashboards_os_cursor_script: /opt/alice-ingest/os_cursor.py
+dashboards_signal_identity_script: /opt/alice-ingest/signal_identity.py
+dashboards_roster_publish_script: /opt/alice-ingest/roster_publish.py
+dashboards_discover_roster_script: /opt/alice-ingest/discover_roster.py
+dashboards_bootstrap_signal_catalog: "{{ dashboards_bootstrap_root }}/signal_catalog.json"
+
+dashboards_signal_projector_service_name: alice-signal-projector
+dashboards_signal_projector_script: /opt/alice-ingest/signal_projector.py
+dashboards_notification_ingest_service_name: alice-notification-ingest
+dashboards_notification_ingest_script: /opt/alice-ingest/notification_ingest.py
+dashboards_score_injection_script: /opt/alice-ingest/score_injection.py
+dashboards_signal_contract_test: /opt/alice-ingest/test_signal_contract.py

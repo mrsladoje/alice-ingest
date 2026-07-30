@@ -1,0 +1,85 @@
+{
+  "type": "monitor",
+  "name": "alertmanager-down",
+  "description": "Page when the projector cannot reach Alertmanager. Alertmanager does not persist alerts, so a dead one loses every active notification until the next re-send succeeds. Break-glass delivery for the same reason as signal-projector-stale: the ordinary path runs through the component being reported dead.",
+  "monitor_type": "query_level_monitor",
+  "enabled": true,
+  "schedule": {
+    "period": {
+      "interval": 1,
+      "unit": "MINUTES"
+    }
+  },
+  "inputs": [
+    {
+      "search": {
+        "indices": [
+          "cockpit-metrics"
+        ],
+        "query": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "term": {
+                    "kind": "alertmanager"
+                  }
+                },
+                {
+                  "range": {
+                    "@timestamp": {
+                      "gte": "{{period_end}}||-5m",
+                      "lte": "{{period_end}}",
+                      "format": "epoch_millis"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "aggregations": {
+            "max_up": {
+              "max": {
+                "field": "am_up"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "triggers": [
+    {
+      "query_level_trigger": {
+        "name": "alertmanager-down",
+        "severity": "1",
+        "condition": {
+          "script": {
+            "source": "def r = ctx.results[0]; if (r.hits.total.value == 0) { return false; } def v = r.aggregations.max_up.value; return v != null && v == 0;",
+            "lang": "painless"
+          }
+        },
+        "actions": [
+          {
+            "name": "notify",
+            "destination_id": "alice-breakglass-sink",
+            "subject_template": {
+              "source": "{{ctx.monitor.name}}",
+              "lang": "mustache"
+            },
+            "message_template": {
+              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_start\":\"{{ctx.periodStart}}\",\"period_end\":\"{{ctx.periodEnd}}\",\"entity_kind\":\"service\",\"notification_scope\":\"fleet\",\"feed\":\"self\",\"delivery_path\":\"breakglass\",\"entity\":\"alertmanager\"}",
+              "lang": "mustache"
+            },
+            "throttle_enabled": true,
+            "throttle": {
+              "value": 30,
+              "unit": "MINUTES"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -59,7 +59,7 @@ endif
 volume volumes:
 	@:
 
-.PHONY: bootstrap provision deploy replay replay-fresh replay-fast replay-loop replay-shifted backtest teardown status
+.PHONY: bootstrap provision deploy replay replay-fresh replay-fast replay-loop replay-shifted backtest teardown status inject roster-discover monitors contract
 
 # Control-node toolchain lives in a self-contained venv (override with VENV=...).
 # The deploy targets prefer it, but fall back to an already-activated venv on PATH
@@ -112,6 +112,21 @@ replay-shifted:
 # real-time detectors.
 backtest:
 	cd deploy && $(ANSIBLE_PLAYBOOK) backtest.yml $(ANSIBLE_EXTRA)
+
+SCENARIO ?= kill-fluent-bit
+OBSERVE  ?= 45
+inject:
+	cd deploy && $(ANSIBLE_PLAYBOOK) inject.yml \
+	  -e scenario=$(SCENARIO) -e observe_minutes=$(OBSERVE) $(ANSIBLE_EXTRA)
+
+roster-discover:
+	cd deploy && $(ANSIBLE_PLAYBOOK) roster_discover.yml $(ANSIBLE_EXTRA)
+
+monitors:
+	python3 deploy/roles/dashboards/files/gen_monitors.py
+
+contract:
+	python3 deploy/roles/dashboards/files/test_signal_contract.py
 
 status:
 	cd deploy && $(ANSIBLE_PLAYBOOK) status.yml

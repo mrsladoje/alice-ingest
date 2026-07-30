@@ -1,7 +1,7 @@
 {
   "type": "monitor",
   "name": "trend-il-entry-lag",
-  "description": "Warn when InfoLogger per-host p95 enter_system_lag_ms rises. Metric is the per-bucket p95 of enter_system_lag_ms, not the mean: backlogs show in the tail first. The baseline averages ~1000 per-bucket p95 values, so a slice p95 is compared against a typical bucket's p95 - like against like. Needs >=100 records in every slice, because a p95 over a handful of records is just the maximum. Floor 250 ms absolute as well as 2x baseline (both substituted at bootstrap). Reads the trend-rollup 10m rollup, not raw logs: the 7d baseline is a few thousand tiny docs per entity. Dwell: fire only if the breach holds on 3 consecutive 10m rollup buckets (~30m), offset 10m so the newest bucket is always complete. Baseline 7d excluding the last 40m; 24h fallback when 7d is empty. Schedule 10m. Throttle 30m per alert key via alice-incluster-alert-sink. Self-gating instead of flag-gated: a slice above the ceiling (trend_entry_lag_ceiling_ms, 1h) is archive age, not pipeline health, so under preserved June replay - where entry lag is about a month - this monitor is naturally silent, and in production - where entry lag is seconds - it is naturally live. Nothing to switch on at cutover.",
+  "description": "Warn when InfoLogger per-host p95 enter_system_lag_ms rises. Metric is the per-bucket p95 of enter_system_lag_ms, not the mean: backlogs show in the tail first. The baseline averages ~1000 per-bucket p95 values, so a slice p95 is compared against a typical bucket's p95 - like against like. Needs >=100 records in every slice, because a p95 over a handful of records is just the maximum. Floor 250 ms absolute as well as 2x baseline (both substituted at bootstrap). Reads the trend-rollup 10m rollup, not raw logs: the 7d baseline is a few thousand tiny docs per entity. Dwell: fire only if the breach holds on 3 consecutive 10m rollup buckets (~30m), offset 10m so the newest bucket is always complete. Baseline 7d excluding the last 40m; 24h fallback when 7d is empty. Schedule 10m. Throttle 30m per alert key via alice-incluster-alert-sink. Every action payload names its entity, so a fleet-wide breach is attributable even when the plugin rewrites per_alert to per_execution above the actionable-alert limit. Self-gating instead of flag-gated: a slice above the ceiling (trend_entry_lag_ceiling_ms, 1h) is archive age, not pipeline health, so under preserved June replay - where entry lag is about a month - this monitor is naturally silent, and in production - where entry lag is seconds - it is naturally live. Nothing to switch on at cutover.",
   "monitor_type": "bucket_level_monitor",
   "enabled": true,
   "schedule": {
@@ -211,7 +211,7 @@
               "lang": "mustache"
             },
             "message_template": {
-              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_end\":\"{{ctx.periodEnd}}\"}",
+              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_start\":\"{{ctx.periodStart}}\",\"period_end\":\"{{ctx.periodEnd}}\",\"entity_kind\":\"epn\",\"notification_scope\":\"fleet\",\"feed\":\"logs\",\"delivery_path\":\"alertmanager\",\"entity\":\"{{#ctx.newAlerts}}{{{bucket_keys}}} {{/ctx.newAlerts}}\"}",
               "lang": "mustache"
             },
             "throttle_enabled": true,

@@ -7,6 +7,11 @@ import urllib.request
 OS_URL = os.environ.get("OS_URL", "http://localhost:9200")
 ROLLUP_INDEX = os.environ.get("ROLLUP_INDEX", "trend-rollup")
 DIGEST_INDEX = os.environ.get("DIGEST_INDEX", "alice-anomalies")
+SIGNALS_INDEX = os.environ.get("SIGNALS_INDEX", "alice-signals")
+INCIDENTS_INDEX = os.environ.get("INCIDENTS_INDEX", "alice-incidents")
+NOTIFICATIONS_INDEX = os.environ.get(
+    "NOTIFICATIONS_INDEX", "alice-notifications")
+LANE_STATE_INDEX = os.environ.get("LANE_STATE_INDEX", "alice-lane-state")
 
 LOG_FAMILIES = [f.strip() for f in
                 os.environ.get("LOG_FAMILIES", "").split(",") if f.strip()]
@@ -95,10 +100,15 @@ def main():
     else:
         log("clearing alerts, anomalies and trend baselines; the log data "
             "itself is left alone")
-    for index in (ROLLUP_INDEX, DIGEST_INDEX):
+    for index in (ROLLUP_INDEX, DIGEST_INDEX, SIGNALS_INDEX,
+                  INCIDENTS_INDEX, NOTIFICATIONS_INDEX, LANE_STATE_INDEX):
         ok = purge(index) and ok
     for pattern in PURGE:
         ok = purge(pattern) and ok
+    log("the traversal watermarks went too, so the projector and the digest "
+        "re-read their overlap window from scratch instead of skipping the "
+        "results that were just deleted; the fleet roster is deliberately "
+        "kept, because it is topology history, not derived state")
     log("the trend baselines went with them, so a monitor that was firing on "
         "a collapse it can no longer measure will fall silent instead of "
         "re-firing on its next run")

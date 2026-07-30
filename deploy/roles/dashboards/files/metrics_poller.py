@@ -7,21 +7,21 @@ import urllib.request
 
 OS_URL = os.environ.get("OS_URL", "http://localhost:9200")
 OSD_URL = os.environ.get("OSD_URL", "http://127.0.0.1:5602")
-FB_TARGETS = [
-    t.split("=", 1) for t in os.environ.get("FB_TARGETS", "").split(",") if t
-]
 METRICS_INDEX = os.environ.get("METRICS_INDEX", "cockpit-metrics")
+ROSTER_INDEX = os.environ.get("ROSTER_INDEX", "cockpit-fleet")
 INTERVAL = int(os.environ.get("INTERVAL", "30"))
 RETENTION_DAYS = int(os.environ.get("RETENTION_DAYS", "7"))
 PRUNE_EVERY_SECONDS = int(os.environ.get("PRUNE_EVERY_SECONDS", "3600"))
 MAX_BULK_FAILURES = int(os.environ.get("MAX_BULK_FAILURES", "20"))
-INFO_NODES = [n for n in os.environ.get("INFO_NODES", "").split(",") if n]
+HEARTBEAT_GRACE_SECONDS = int(
+    os.environ.get("HEARTBEAT_GRACE_SECONDS", "90"))
+EMIT_LEGACY_NODE = os.environ.get(
+    "EMIT_LEGACY_NODE", "false").lower() == "true"
 
 STATE_CODES = {"green": 0, "yellow": 1, "red": 2}
 
 _prev = {}
 _bulk_failures = 0
-_info_ensured = False
 
 
 def log(msg):
@@ -60,32 +60,86 @@ def delta(key, value):
     return max(0, value - prev)
 
 
-def ensure_info_indices():
-    global _info_ensured
-    if _info_ensured or not INFO_NODES:
-        return
-    for node in INFO_NODES:
-        idx = f"generic-log-info-{node}"
-        status, _ = fetch(f"{OS_URL}/{idx}", timeout=5)
-        if status == 200:
-            continue
-        body = json.dumps({
-            "aliases": {idx: {"is_write_index": True}},
-            "settings": {
-                "index.routing.allocation.require.box": node,
-                "index.plugins.index_state_management.rollover_alias": idx,
-            }
-        }).encode()
-        req = urllib.request.Request(
-            f"{OS_URL}/{idx}-000001", data=body, method="PUT",
-            headers={"Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(req, timeout=10) as r:
-                log(f"recreated {idx}-000001 behind write alias {idx}: "
-                    f"HTTP {r.status}")
-        except Exception as e:
-            log(f"could not recreate {idx}-000001: {e}")
-    _info_ensured = True
+def post_json(path, payload, timeout=20):
+    body = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        f"{OS_URL}{path}", data=body, method="POST",
+        headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status, json.load(r)
+    except urllib.error.HTTPError as e:
+        return e.code, {}
+    except Exception as e:
+        log(f"POST {path} failed: {e}")
+        return 0, {}
+
+
+def latest_roster():
+    status, body = post_json(
+        f"/{ROSTER_INDEX}/_search?ignore_unavailable=true"
+        f"&allow_no_indices=true",
+        {"size": 1,
+         "sort": [{"effective_from": "desc"}],
+         "query": {"bool": {"filter": [{"term": {"doc_kind": "roster"}}]}}})
+    if status != 200:
+        return None
+    hits = ((body.get("hits") or {}).get("hits") or [])
+    if not hits:
+        return None
+    return hits[0].get("_source") or None
+
+
+def observed_collectors():
+    status, body = post_json(
+        f"/{METRICS_INDEX}/_search?ignore_unavailable=true"
+        f"&allow_no_indices=true",
+        {"size": 0,
+         "track_total_hits": False,
+         "query": {"bool": {"filter": [
+             {"term": {"kind": "fluentbit"}},
+             {"range": {"@timestamp": {
+                 "gte": f"now-{HEARTBEAT_GRACE_SECONDS}s"}}}]}},
+         "aggregations": {"seen": {
+             "terms": {"field": "collector_id", "size": 10000},
+             "aggregations": {"last": {"max": {"field": "@timestamp"}}}}}})
+    if status != 200:
+        return None
+    buckets = (((body.get("aggregations") or {}).get("seen") or {})
+               .get("buckets") or [])
+    return {b["key"]: (b.get("last") or {}).get("value") for b in buckets}
+
+
+def fleet_docs(now_ms):
+    roster = latest_roster()
+    if not roster:
+        log(f"no roster snapshot in {ROSTER_INDEX} — publishing no absence "
+            f"documents rather than guessing who should be heartbeating; "
+            f"collector-down stays silent until the deploy publishes one")
+        return []
+    seen = observed_collectors()
+    if seen is None:
+        log("heartbeat aggregation failed; skipping absence documents this "
+            "tick rather than manufacturing a fleet-wide outage")
+        return []
+    collectors = roster.get("collectors") or []
+    version = roster.get("topology_version", "none")
+    missing_total = sum(1 for c in collectors if c not in seen)
+    docs = []
+    for collector in collectors:
+        last = seen.get(collector)
+        doc = {
+            "kind": "fleet",
+            "collector_id": collector,
+            "heartbeat_missing": 0 if collector in seen else 1,
+            "topology_version": version,
+            "roster_size": len(collectors),
+            "roster_missing": missing_total,
+        }
+        if last:
+            doc["heartbeat_age_ms"] = max(0, now_ms - int(last))
+        docs.append(doc)
+    return docs
 
 
 def cluster_docs():
@@ -147,9 +201,9 @@ def node_docs():
         avail = fs.get("available_in_bytes") or 0
         used_pct = round(100 * (total - avail) / total, 1) if total else 0
         indexing = n.get("indices", {}).get("indexing", {}).get("index_total", 0)
-        docs.append({
+        doc = {
             "kind": "node",
-            "node": name,
+            "os_node": name,
             "heap_percent": n.get("jvm", {}).get("mem", {}).get(
                 "heap_used_percent", 0),
             "cpu_percent": n.get("os", {}).get("cpu", {}).get("percent", 0),
@@ -159,45 +213,10 @@ def node_docs():
                 "size_in_bytes", 0),
             "indexing_total": indexing,
             "indexing_delta": delta(("node", name), indexing),
-        })
-    return docs
-
-
-def fluentbit_docs():
-    docs = []
-    for node, url in FB_TARGETS:
-        m = get_json(f"{url}/api/v1/metrics", timeout=5)
-        if m is None:
-            docs.append({"kind": "fluentbit", "node": node, "fb_up": 0,
-                         "fb_healthy": 0})
-            continue
-        health_status, _ = fetch(f"{url}/api/v2/health", timeout=5)
-        inp = sum(v.get("records", 0) for v in m.get("input", {}).values())
-        outs = m.get("output", {}).values()
-        out = sum(v.get("proc_records", 0) for v in outs)
-        errors = sum(v.get("errors", 0) for v in outs)
-        retries = sum(v.get("retries", 0) for v in outs)
-        retries_failed = sum(v.get("retries_failed", 0) for v in outs)
-        dropped = sum(v.get("dropped_records", 0) for v in outs)
-        docs.append({
-            "kind": "fluentbit",
-            "node": node,
-            "fb_up": 1,
-            "fb_healthy": 1 if health_status == 200 else 0,
-            "input_records": inp,
-            "input_records_delta": delta(("fb_in", node), inp),
-            "output_records": out,
-            "output_records_delta": delta(("fb_out", node), out),
-            "output_errors": errors,
-            "output_errors_delta": delta(("fb_err", node), errors),
-            "output_retries": retries,
-            "output_retries_delta": delta(("fb_retry", node), retries),
-            "output_retries_failed": retries_failed,
-            "output_retries_failed_delta": delta(
-                ("fb_retry_fail", node), retries_failed),
-            "output_dropped": dropped,
-            "output_dropped_delta": delta(("fb_drop", node), dropped),
-        })
+        }
+        if EMIT_LEGACY_NODE:
+            doc["node"] = name
+        docs.append(doc)
     return docs
 
 
@@ -286,18 +305,21 @@ def prune():
 
 
 def main():
-    log(f"polling every {INTERVAL}s -> {METRICS_INDEX} "
-        f"(fb_targets={FB_TARGETS}, retention={RETENTION_DAYS}d)")
+    log(f"thin control-plane poller: cluster/index/node/osd every {INTERVAL}s "
+        f"-> {METRICS_INDEX}, plus roster-derived collector absence from "
+        f"{ROSTER_INDEX} (grace {HEARTBEAT_GRACE_SECONDS}s, retention "
+        f"{RETENTION_DAYS}d). Fluent Bit telemetry is pushed by the "
+        f"collectors themselves and is not scraped from here.")
     last_prune = 0.0
     while True:
         started = time.time()
         if started - last_prune >= PRUNE_EVERY_SECONDS:
             last_prune = started
             prune()
-        ensure_info_indices()
+        now_ms = int(started * 1000)
         ts = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
         docs = (cluster_docs() + index_docs() + node_docs()
-                + fluentbit_docs() + osd_docs())
+                + osd_docs() + fleet_docs(now_ms))
         push(docs, ts)
         time.sleep(max(1, INTERVAL - (time.time() - started)))
 

@@ -11,15 +11,32 @@ ENTITY_CAP="${TREND_ENTITY_CAP:-1800}"
 MIN_SLICE_DOCS="${TREND_MIN_SLICE_DOCS:-50}"
 MIN_SLICE_ERRORS="${TREND_MIN_SLICE_ERRORS:-10}"
 MIN_LAG_DOCS="${TREND_MIN_LAG_DOCS:-100}"
+FLEET_SILENCE_FRACTION="${FLEET_SILENCE_FRACTION:-0.5}"
 SINK_ID="${ALERT_SINK_ID:-alice-incluster-alert-sink}"
 SINK_URL="${ALERT_SINK_URL:-http://127.0.0.1:9200/alice-alert-actions/_doc}"
 SINK_INDEX="${ALERT_SINK_INDEX:-alice-alert-actions}"
+BREAKGLASS_ID="${BREAKGLASS_SINK_ID:-alice-breakglass-sink}"
+BREAKGLASS_URL="${BREAKGLASS_SINK_URL:-http://127.0.0.1:8091/notifications}"
+MAX_ACTIONABLE="${ALERTING_MAX_ACTIONABLE_ALERT_COUNT:-50}"
 
 put_ok() {
   case "$1" in
     200|201) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+pin_actionable_limit() {
+  code=$(curl -s -o /tmp/alert-limit -w '%{http_code}' \
+    -XPUT "$OS/_cluster/settings" -H 'Content-Type: application/json' \
+    -d "{\"persistent\":{\"plugins.alerting.max_actionable_alert_count\":$MAX_ACTIONABLE}}" \
+    || echo 000)
+  if put_ok "$code"; then
+    echo "[alerting] pinned plugins.alerting.max_actionable_alert_count=$MAX_ACTIONABLE"
+  else
+    echo "[alerting] FATAL: pin actionable-alert limit -> HTTP $code: $(cat /tmp/alert-limit)"
+    return 1
+  fi
 }
 
 ensure_alert_sink_index() {
@@ -54,16 +71,35 @@ ensure_alert_sink_index() {
       return 1
       ;;
   esac
+  code=$(curl -s -o /tmp/alert-sink-map -w '%{http_code}' \
+    -XPUT "$OS/$SINK_INDEX/_mapping" -H 'Content-Type: application/json' \
+    -d '{
+      "properties": {
+        "entity": {"type": "keyword"},
+        "entity_kind": {"type": "keyword"},
+        "notification_scope": {"type": "keyword"},
+        "feed": {"type": "keyword"},
+        "delivery_path": {"type": "keyword"},
+        "period_start": {"type": "keyword"}
+      }
+    }' || echo 000)
+  if put_ok "$code"; then
+    echo "[alerting] live mapping applied on $SINK_INDEX (entity + scope fields)"
+  else
+    echo "[alerting] FATAL: mapping $SINK_INDEX -> HTTP $code: $(cat /tmp/alert-sink-map)"
+    return 1
+  fi
 }
 
-upsert_alert_sink_channel() {
-  body=$(SINK_ID="$SINK_ID" SINK_URL="$SINK_URL" python3 -c '
+upsert_channel() {
+  SINK_ID="$1"; SINK_URL="$2"; SINK_DESC="$3"
+  body=$(SINK_ID="$SINK_ID" SINK_URL="$SINK_URL" SINK_DESC="$SINK_DESC" python3 -c '
 import json,os
 print(json.dumps({
   "config_id": os.environ["SINK_ID"],
   "config": {
     "name": os.environ["SINK_ID"],
-    "description": "In-cluster webhook sink for alert action throttle (indexes into alice-alert-actions)",
+    "description": os.environ["SINK_DESC"],
     "config_type": "webhook",
     "is_enabled": True,
     "webhook": {
@@ -122,20 +158,28 @@ prepare_body() {
   GRADE="$GRADE" CONF="$CONF" LAG_FLOOR="$LAG_FLOOR" \
   ENTITY_CAP="$ENTITY_CAP" LAG_CEILING="$LAG_CEILING" \
   MIN_SLICE_DOCS="$MIN_SLICE_DOCS" MIN_SLICE_ERRORS="$MIN_SLICE_ERRORS" \
-  MIN_LAG_DOCS="$MIN_LAG_DOCS" \
+  MIN_LAG_DOCS="$MIN_LAG_DOCS" FLEET_SILENCE_FRACTION="$FLEET_SILENCE_FRACTION" \
   python3 -c '
 import json,os,re,sys
 d=json.load(open(sys.argv[1]))
 name=d.get("name")
+if name=="fleet-fb-silence":
+    frac=float(os.environ["FLEET_SILENCE_FRACTION"])
+    trig=d["triggers"][0]["query_level_trigger"]
+    trig["condition"]["script"]["source"]=re.sub(
+        r"double fleetSilenceFraction = [0-9.]+;",
+        "double fleetSilenceFraction = %r;" % frac,
+        trig["condition"]["script"]["source"])
 if name=="ad-high-grade":
     grade=os.environ["GRADE"]
     conf=os.environ["CONF"]
-    src=d["triggers"][0]["condition"]["script"]["source"]
+    trig=d["triggers"][0]["query_level_trigger"]
+    src=trig["condition"]["script"]["source"]
     src=re.sub(r"max_anomaly_grade\.value > [0-9.]+",
                "max_anomaly_grade.value > "+grade, src)
     src=re.sub(r"confidence > [0-9.]+",
                "confidence > "+conf, src)
-    d["triggers"][0]["condition"]["script"]["source"]=src
+    trig["condition"]["script"]["source"]=src
 if name and name.startswith("trend-"):
     floor=float(os.environ["LAG_FLOOR"])
     cap=float(os.environ["ENTITY_CAP"])
@@ -193,9 +237,13 @@ upsert_monitor() {
   fi
 }
 
-echo "[alerting] provisioning alert sink + monitors from $MONITORS_DIR"
+echo "[alerting] provisioning alert sinks + monitors from $MONITORS_DIR"
+pin_actionable_limit
 ensure_alert_sink_index
-upsert_alert_sink_channel
+upsert_channel "$SINK_ID" "$SINK_URL" \
+  "In-cluster webhook sink for alert action throttle (indexes into alice-alert-actions)"
+upsert_channel "$BREAKGLASS_ID" "$BREAKGLASS_URL" \
+  "Break-glass sink for the two dead-man monitors only (signal-projector-stale, alertmanager-down). It deliberately bypasses the projector and Alertmanager, because those are the components it reports dead. Nothing else may use it."
 count=0
 for f in "$MONITORS_DIR"/*.json; do
   [ -f "$f" ] || continue

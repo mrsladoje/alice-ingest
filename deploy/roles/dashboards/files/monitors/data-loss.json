@@ -1,6 +1,7 @@
 {
   "type": "monitor",
   "name": "data-loss",
+  "description": "Page when a collector drops records. Bucketed on collector_id. Every action payload names its entity, so a fleet-wide breach is attributable even when the plugin rewrites per_alert to per_execution above the actionable-alert limit.",
   "monitor_type": "bucket_level_monitor",
   "enabled": true,
   "schedule": {
@@ -40,11 +41,12 @@
           "aggregations": {
             "composite_agg": {
               "composite": {
+                "size": 1000,
                 "sources": [
                   {
-                    "node": {
+                    "collector_id": {
                       "terms": {
-                        "field": "node"
+                        "field": "collector_id"
                       }
                     }
                   }
@@ -87,7 +89,7 @@
               "lang": "mustache"
             },
             "message_template": {
-              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_end\":\"{{ctx.periodEnd}}\"}",
+              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_start\":\"{{ctx.periodStart}}\",\"period_end\":\"{{ctx.periodEnd}}\",\"entity_kind\":\"collector\",\"notification_scope\":\"collector\",\"feed\":\"fleet-fb\",\"delivery_path\":\"alertmanager\",\"entity\":\"{{#ctx.newAlerts}}{{{bucket_keys}}} {{/ctx.newAlerts}}\"}",
               "lang": "mustache"
             },
             "throttle_enabled": true,

@@ -48,7 +48,8 @@ the local dev path (Docker Compose on a single machine — see the root
 │ alice-ops (/ops)   │   │  + cockpit-metrics: 1 shard, 2 repl, storage-pinned
 │ alice-metrics poller   │                    │   │                    │
 │ alice-trend-rollup │   │                    │   │                    │
-│ [alertmanager slot]│   │                    │   │                    │
+│ alertmanager       │   │                    │   │                    │
+│ alice-signal-projector · alice-notification-ingest                    │
 └───────────────────┘   └───────────────────┘   └───────────────────┘
   Storage tier runs NO collector and NO producer — it never touches the ingest firehose.
 ```
@@ -120,9 +121,15 @@ index pre-creates, Dashboards index patterns).
   1 GB heap leaves ~2.5 GB for OS/page cache/Fluent Bit and raises the AD
   model memory budget (10% of heap). See `deploy/group_vars/all.yml`
   `opensearch_heap_size`.
-- **Alertmanager is a reserved seam, not built.** The nginx vhost leaves an
-  explicit "when it lands, it's another control-host-only service behind this
-  nginx" seam. Nothing elsewhere needs to change to add it later.
+- **Alertmanager is built, in the seam that was reserved for it.** The nginx
+  vhost's "another control-host-only service behind this nginx" slot is now
+  wired: `alertmanager_port` is a real variable, the service is control-host
+  only and loopback-bound, and it is reachable at `/alertmanager/` behind the
+  same TLS and basic-auth. It owns notification semantics only — grouping
+  timers, inhibition matching, silences, routing. It is **not** the incident
+  database: it does not persist alerts across a restart and expects the sender
+  to keep re-sending, which is why the projector's re-send contract is
+  load-bearing and has its own dead-man monitor.
 
 ---
 
@@ -404,9 +411,10 @@ CERN network access and real quota.
 
 ## 8. Open items
 
-- **Alertmanager** — reserved seam only (`alertmanager_port` commented out in
-  `group_vars/all.yml`; the dashboards role's nginx vhost has an explicit
-  "when it lands" comment block). Not built, by design (LOCKED topology).
+- **Alertmanager** — built (`roles/alertmanager`, single instance, no gossip
+  HA: a restart is self-healing because the projector re-sends). External
+  receivers are still absent by design; adding one is a receiver config change,
+  not an architecture change.
 - **`dds-other` value (out to Lubos).** The bootstrap folds `dds-other` into
   `generic-log-other` → storage tier (the safe default: keeping a possibly-valuable
   log is a cheaper mistake than trashing it). If dds turns out worthless
@@ -458,20 +466,101 @@ Provisioned every `make deploy` by `bootstrap.yml`: monitors, detectors, ISM,
 strict verify. Definitions live under
 `roles/dashboards/files/{monitors,detectors}/`.
 
+### Platform health is pushed, not scraped
+
+`kind:fluentbit` documents are produced **by the collector itself**. Fluent Bit
+runs a small `exec` input every 30 s that reads its own `:2020` metrics and
+health endpoints over loopback, a Lua filter turns the cumulative counters into
+the same `*_delta` fields the poller used to emit, and the existing OpenSearch
+output writes the document into `cockpit-metrics`. Nothing scrapes worker
+`:2020` from the control host any more; `fluent_bit_http_listen` is `127.0.0.1`
+and the firewall rule that used to open the port is removed by the same task
+that created it (`collector_metrics_scrape_open: false`).
+
+> **Deviation from `HEALTH_METRICS_PLAN.md` § 3.1.** That section named two
+> candidate inputs, `fluentbit_metrics` and `prometheus_scrape`, and left the
+> choice to a Stage A implementability gate. Both emit *metric* chunks, which
+> Lua filters do not process and which the OpenSearch output would ship in a
+> metrics shape rather than the flat `cockpit-metrics` schema the cockpit,
+> monitors and detectors already consume. The `exec` input emits an ordinary
+> log record, so the whole existing filter/output chain applies unchanged and
+> the schema contract in § 2 is genuinely preserved. It is still one daemon on
+> the node and still the log ship path — the plan's actual argument.
+
+`alice-metrics` on the control host keeps only the cluster-scoped kinds
+(`cluster` / `index` / `node` / `osd`) plus the roster-derived `kind:fleet`
+absence documents. `FB_TARGETS` is gone, and so is the info-index recreate,
+which belonged to bootstrap rather than to health sampling — `templates.sh`
+already rebuilds those aliases, including on the ops page's fresh reload.
+
+**Identity.** `node` was ambiguous by design: it meant the collector on
+`kind:fluentbit` documents and the OpenSearch node on `kind:node` documents,
+and on a worker VM both were `node-01`. Any label match on `node` alone would
+have cross-suppressed unrelated conditions. `kind:fluentbit` now carries
+`collector_id`, `kind:node` carries `os_node`, every monitor and detector reads
+the explicit field, and `node` is no longer written to new metric documents.
+Set `health_metrics_emit_legacy_node: true` to dual-write it during a staged
+comparison window; nothing shipped reads it.
+
+**Roster.** `make deploy` publishes an immutable topology snapshot into
+`cockpit-fleet`: `collectors`, `assignments`, `topology_version` (a content
+hash) and `effective_from`. Publication compares the computed version against
+the *currently effective* snapshot: identical means no-op, different means a
+new snapshot is appended with `_id = <effective_from>-<topology_version>` and a
+`supersedes` pointer. Keying the document on the version alone would have been
+wrong — going A → B → A would have collided with A's original document, kept
+its old `effective_from`, and left B as the newest snapshot, so every later
+signal would have been enriched against the wrong assignment map. Health monitors read only the latest effective snapshot;
+the projector selects the snapshot effective at each signal's own event time
+and never re-enriches an old signal from a newer roster. Nothing anywhere
+recomputes a parent from `epn_num % NODE_COUNT` — that is replay placement, and
+going from two collectors to three re-assigns two-thirds of hosts.
+
+`roster_assignments` is configuration, not a live query, so that an unchanged
+redeploy cannot mint a new version the first time a new EPN appears. Populate
+it once from a real cluster:
+
+```
+make roster-discover        # prints YAML to review and commit into deploy/group_vars/control.yml
+```
+
+Until it is populated the assignment map is empty and every collector-scoped
+decision falls closed to the `none` sentinel — no collector-scoped inhibition
+is applied.
+
 ### Monitors (Layer 0 — `cockpit-metrics`)
 
 | Monitor | Meaning | Action |
 |---|---|---|
-| `collector-down` | Fluent Bit `fb_up=0` on a worker | Check `fluent-bit` on that node; restart if dead |
-| `collector-unhealthy` | `fb_healthy=0` for 2 min | Inspect Fluent Bit `/api/v2/health` and storage backlog |
+| `collector-down` | a **rostered** collector stopped heartbeating (absence, not an observed `fb_up:0`) | Check `fluent-bit` on that node; restart if dead |
+| `collector-unhealthy` | `fb_healthy=0` for 2 min on a `collector_id` | Inspect Fluent Bit `/api/v2/health` and storage backlog |
 | `cluster-red` | OpenSearch cluster status red | Check `_cluster/health` and unassigned shards |
 | `shards-stuck` | `unassigned_shards > 0` for 5 min | Allocation explain; disk / node attrition |
-| `data-loss` | `output_dropped_delta > 0` | Collector dropping — backpressure or OS down |
+| `data-loss` | `output_dropped_delta > 0` on a `collector_id` | Collector dropping — backpressure or OS down |
 | `shipping-breaking` | `output_retries_failed_delta > 0` | OpenSearch reject/timeout path |
-| `disk-cliff-warn` / `disk-cliff-page` | disk > 85% / > 92% | Free disk on named node before read-only lock |
-| `heap-spiral` | heap > 90% for 5 min | GC death spiral risk; check load / queries |
-| `telemetry-silence` | no `cockpit-metrics` docs for 5 min | `alice-metrics` poller dead on control host |
-| `ad-high-grade` | RCF anomaly grade/confidence high | Open Anomaly Detection UI; correlate with Layer 0 |
+| `disk-cliff-warn` / `disk-cliff-page` | disk > 85% / > 92% on an `os_node` | Free disk on named node before read-only lock |
+| `heap-spiral` | heap > 90% for 5 min on an `os_node` | GC death spiral risk; check load / queries |
+| `telemetry-silence` | no `kind:cluster` **and** no `kind:osd` docs for 5 min | `alice-metrics` poller dead on control host |
+| `fleet-fb-silence` | ≥ 50% of the roster missing heartbeats at once | Whole-fleet cause: credentials, network, OpenSearch rejecting writes |
+| `ad-high-grade` | real-time RCF anomaly grade/confidence high | Open Anomaly Detection UI; correlate with Layer 0 |
+| `signal-projector-stale` | `alice-signal-projector` stopped | **Break-glass** page. Nothing is re-sending to Alertmanager, so live incidents are resolving themselves |
+| `alertmanager-down` | the projector cannot reach Alertmanager | **Break-glass** page. Alertmanager does not persist alerts |
+
+**`telemetry-silence` is deliberately narrower than it used to be.** It used to
+mean "zero `cockpit-metrics` documents", which after the push cutover is no
+longer a meaningful question: collectors push their own heartbeats and keep
+writing while the poller is dead. It now means exactly *the control-plane
+sampler is dead*, and `fleet-fb-silence` means exactly *the fleet stopped
+heartbeating*. One undifferentiated silence alert could scope neither
+inhibition rule.
+
+**`collector-down` is absence, not observation.** A dead Fluent Bit emits
+nothing, so there is no `fb_up: 0` sample to find. The thin poller reads the
+published roster, compares it against heartbeats seen in the last
+`heartbeat_grace_seconds` (90 s), and writes one `kind:fleet` document per
+rostered collector carrying `heartbeat_missing`. The monitor buckets those on
+`collector_id`. The poller never manufactures `fb_up: 0` — that would put the
+old single blind spot straight back.
 
 ### Trend rollup (`alice-trend-rollup` → `trend-rollup`)
 
@@ -650,8 +739,10 @@ The matching *detectors* stay on regardless — an anomaly score is advisory and
 up on a panel, where noise is cheap; a throttled page is not.
 
 Alerts appear in Dashboards → Alerting and on the Cockpit **Detection** panels.
-`/ops` shows active-alert and anomalies-last-hour counts. No external channel yet
-(nginx alertmanager slot remains the future seam).
+`/ops` headlines open incidents and signals firing, with active-alert and
+anomalies-last-hour counts beside them. Notifications go through Alertmanager
+to `alice-notification-ingest`; no external channel yet, which is now a
+receiver config change rather than an architecture change.
 
 ### Detectors (Layer 0.5 / 1)
 
@@ -815,6 +906,188 @@ make deploy-migrate-rollover
 
 After `generic-log-info-*` indices are deleted, `alice-metrics` recreates the
 box-pinned write alias if it is missing.
+
+### Signals, incidents and notification
+
+```
+  alert current + history indices  ─┐
+  .opendistro-anomaly-results*     ─┤   (the alerting API is a reconciliation
+  cockpit-fleet roster snapshots   ─┘    oracle, never the ingest path)
+                 │
+                 ▼
+       alice-signal-projector          ← domain semantics
+          │              │
+          ▼              ▼
+    alice-signals   alice-incidents     ← the durable record
+          │
+          ▼ (re-sends every active signal on a cadence under resolve_timeout)
+     Alertmanager                       ← notification semantics only
+          │
+          └──► alice-notification-ingest ──► alice-notifications
+```
+
+**What an episode is.** An *incident* is one episode: the signals that share a
+cause, with a count, entity samples and references back to every constituent
+row. It is the record. `incident_id` is the stable key for a
+(source, alertname, entity, scope); each time that condition re-opens after
+resolving, a new **episode** is appended, identified by `episode_id =
+<incident_id>.<episode_start>` where `episode_start` is the event time the
+episode opened. That key is derived from event time rather than from a counter
+deliberately: a counter would have to be read from whatever state happened to
+be loaded, and the fifteen-minute history overlap re-reads the same rows every
+thirty seconds — so a counter churned out a new incident document per cycle,
+and reset to 1 once the previous terminal alert aged out of the window. Signals
+and Alertmanager annotations both carry `episode_id`, so a notification for a
+resolved episode can never mark a still-firing one as covered.
+
+Rows are assigned to episodes by **time boundary**, never by "whichever episode
+is currently open": the projector loads each incident's episode timeline and
+picks the episode whose `episode_start` is the greatest not after the row's own
+event time. Assigning to the newest open episode instead would restamp an older
+breach onto a newer one every time the overlap re-read it — and because
+`alice-signals` uses deterministic source ids, that overwrite is silent.
+
+**Membership is idempotent.** Current alerts are fully re-scanned every cycle
+and the anomaly overlap window deliberately re-reads results, so both lanes
+dedupe: `member_count` is the size of the deduped `signal_ids` set, a replayed
+firing row does not re-count, and a replayed *healthy* result does not advance
+recovery — `last_healthy_window` and `last_breach_window` make the state
+machine advance only on windows it has not already consumed. Without that, the
+three-minute overlap alone would manufacture the K healthy windows needed to
+resolve an episode. Alertmanager decides *when someone is told*;
+`alice-incidents` decides *what is true*. Alertmanager does not persist alerts
+and never becomes the database.
+
+**How to see an incident's members.** `/ops` headlines open incidents; the
+cockpit's Incidents panel does the same and the `alice-signals` saved search
+sits directly beneath it. Every signal row carries the `incident_id` that ties
+it back. Grouping never destroys a row — that is the property the S3 scorecard
+calls *signal reconciliation*, and it is scored on every injection run.
+
+**How to tell a suppressed signal from an absent one — partially.** A signal
+that was suppressed is still present in `alice-signals` with its
+`incident_id`; a signal that is absent from that index at all is a bug in the
+projection lane, and `make inject` scores exactly that as *signal
+reconciliation*. What is **not implemented** is attributing a suppression to
+the rule that caused it: `suppressed_by` and `suppressed_count` are written as
+the sentinel and zero, and nothing populates them. The ordinary Alertmanager
+webhook reports notification *batches* and carries no indication of what was
+silenced or inhibited; the only source that does is Alertmanager's
+**experimental, feature-flagged** event recorder. The receiver exposes an
+`/events` endpoint that would store such records as `record_kind: event`, but
+nothing is configured to send to it, and an experimental facility must not
+become the source of record. Until that gap is closed, read a suppression by
+comparing the incident's members against what the notification covered — and
+note that with inhibition off by default (below) nothing is being suppressed
+in the first place.
+
+**How to place a silence before maintenance.** Alertmanager is reachable behind
+the same nginx vhost at `/alertmanager/` (same basic-auth as Dashboards). Place
+a silence there — matching e.g. `cluster_id="alice-logs"` — before a
+`make replay-fresh`, a deploy, or a press of the ops page's clear button.
+Those are all windows where alerts are expected and should be muted
+deliberately rather than ignored by habit.
+
+**Inhibition ships OFF, because nothing has been demonstrated yet.**
+`alertmanager_proven_inhibit_rules` is `[]`, so Alertmanager runs with an empty
+`inhibit_rules` block and mutes nothing. S6 admits one rule at a time and only
+after an injection run has shown its direction, its timing and a
+false-inhibition score of zero, and zero injection runs have happened. Three
+rule bodies are written and gated in the role template — `collector-down`
+inhibits its own children on `equal: [cluster_id, collector_id]`; control-plane
+silence inhibits the monitors fed by `cluster`/`index`/`node`/`osd` samples;
+fleet FB silence inhibits the `kind:fluentbit`-fed ones — and each is enabled
+by adding its name to that list once `make inject` has produced the evidence. `cluster-red` and `data-loss` are deliberately **not**
+suppressors: `data-loss` is usually an impact rather than a cause, and disk
+pressure can *produce* cluster-red, so the presumed causal direction is
+reversible and a rule pointing the wrong way mutes the alert you needed. Every
+label is always present with an explicit value (`none` / `all`, never omitted),
+because Alertmanager treats a missing label and an empty one as the same thing
+and an `equal:` rule applies when all its listed labels are absent from both
+alerts.
+
+**Break-glass.** `signal-projector-stale` and `alertmanager-down` cannot page
+*through* the components they report dead, so those two monitors — and only
+those two — post straight to `alice-notification-ingest`, tagged
+`delivery_path: breakglass`. Nothing else may use that sink. The injection
+scorer validates this path separately from ordinary Alertmanager notifications:
+those two alert names are allowed without an episode link, any other name on the
+break-glass path fails the run, and `stop-projector` requires a
+`signal-projector-stale` delivery.
+
+**Mass silence pages.** Fleet-wide silence cannot by itself distinguish "the run
+ended" from "the farm is gone". The projector classes it
+`unknown-mass-silence` and it pages. A firing `fleet-fb-silence` implies that
+class on its own — its predicate already establishes that at least
+`fleet_silence_fraction` of the roster is quiet — while individual
+`collector-down` rows are counted against roster size. Folding the fleet alert's
+constant `entity_id: all` into that count made the class depend on roster size
+and disappear above two collectors. Only authoritative `run_id` / `run_active`
+/ `phase` telemetry may downgrade it, and that telemetry does not exist yet.
+
+### Fault injection — where the numbers come from
+
+Every grouping and inhibition threshold is a percentage or a delay over storm
+behaviour, so it is measured, not chosen:
+
+```
+make inject SCENARIO=kill-fluent-bit        # scenario 1 — sets group_wait
+make inject SCENARIO=drop-epn-stream -e independent_entity=epn001
+                                            # scenario 2 — independent-event recall
+make inject SCENARIO=cpu-stress-worker      # scenario 3 — collector -> child direction
+make inject SCENARIO=stop-alice-metrics     # scenario 5 — suppressor precedence
+make inject SCENARIO=replay-end             # scenario 4 — mass-silence classification
+make inject SCENARIO=stop-projector         # the S5 re-send gate
+```
+
+Each run injects, observes, restores, and prints a seven-metric scorecard —
+signal reconciliation, independent-event recall, incident purity,
+fragmentation, time-to-notify, time-to-resolve, false inhibition. **The
+scorecard gates: a lossy reconciliation, an impure incident, fragmentation, a
+non-zero false-inhibition score, or an absorbed independent event exits
+non-zero and fails the play.** Pass `-e injection_strict=false` to report
+without gating. Run each scenario at least twice and paste the scorecards under
+§ Calibration below. Notification-volume reduction alone is not a pass: that
+number rewards suppressing everything, which is why it is reported but never
+gated on. A page remains accountable after it resolves: `alice-signals` is a
+deterministic upsert whose final state may be terminal by scoring time, but the
+alert still had to reach a human while it was firing. The `stop-projector`
+scenario also waits for a `projector_cycle_ok: 1` heartbeat newer than the
+restart boundary before scoring; a running process without a completed catch-up
+cycle is not recovery.
+
+> **Deviation on scenario 2.** `GROUPING_PLAN.md` words it as "drop one EPN's
+> file mid-replay". A file-level drop is not usable here: `replay.py`'s
+> `_write_lines` has no per-host error handling, so a failed write kills the
+> whole dds+stdout family rather than one host, and simply deleting the file
+> makes Fluent Bit re-read the recreated inode from the head — duplication, not
+> silence. `drop-epn-stream` instead installs a temporary ingest pipeline that
+> drops records whose `origin_host` is the named EPN, which produces the
+> specified observable exactly — that host silent, the rest of the fleet
+> unaffected — and reverses cleanly.
+
+#### Calibration — absence-era timings and storm shapes
+
+> **Not yet measured.** No gate in this section has been observed on the real
+> VMs. The detection layer's own first soak (`docs/PLAN.md` § 0) has not run
+> either, so nothing below can be filled in honestly yet. The values currently
+> shipped are **design-derived placeholders**, and they are marked as such in
+> `group_vars/all.yml`. Do not treat them as measurements, and do not carry any
+> pull-era number across the push cutover.
+
+| Quantity | Shipped value | Basis | Measured |
+|---|---|---|---|
+| `heartbeat_grace_seconds` | 90 s | one poller interval plus margin, inside the ~2 min page budget | — |
+| kill-FB → `collector-down` page | ≤ ~2 min by design | grace (90 s) + poller tick (30 s) + monitor schedule (60 s) | — |
+| kill-FB → first child symptom | unknown | children are the 10-minute trend monitors | — |
+| `alertmanager_group_wait` | 3 m | worst-case absence lag, so the inhibiting alert arrives first | — |
+| `alertmanager_group_interval` | 10 m | matches the `trend-*` monitor schedule | — |
+| `alertmanager_resolve_timeout` | 5 m | set explicitly; the projector's 30 s re-send is derived from it | — |
+| `fleet_silence_fraction` | 0.5 | half the roster | — |
+| `plugins.alerting.max_actionable_alert_count` | 50 | pinned so the per_alert → per_execution rewrite point is known | — |
+| throttle behaviour under `per_execution` | unknown | read in upstream source, never observed here | — |
+| S3 scenario shapes (×5) | unknown | `make inject` produces them | — |
+| seven-metric scorecard (×5) | unknown | requires the projector, so Phase 4 not Phase 3 | — |
 
 ### Re-measure window delay
 

@@ -1,6 +1,7 @@
 {
   "type": "monitor",
   "name": "cluster-red",
+  "description": "Page when the cluster reports red. Entity is constant \u2014 the deployment itself \u2014 so the payload templates a literal scope rather than a bucket key.",
   "monitor_type": "query_level_monitor",
   "enabled": true,
   "schedule": {
@@ -48,33 +49,35 @@
   ],
   "triggers": [
     {
-      "name": "cluster-red",
-      "severity": "1",
-      "condition": {
-        "script": {
-          "source": "ctx.results[0].hits.total.value > 0",
-          "lang": "painless"
-        }
-      },
-      "actions": [
-        {
-          "name": "notify",
-          "destination_id": "alice-incluster-alert-sink",
-          "subject_template": {
-            "source": "{{ctx.monitor.name}}",
-            "lang": "mustache"
-          },
-          "message_template": {
-            "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_end\":\"{{ctx.periodEnd}}\"}",
-            "lang": "mustache"
-          },
-          "throttle_enabled": true,
-          "throttle": {
-            "value": 30,
-            "unit": "MINUTES"
+      "query_level_trigger": {
+        "name": "cluster-red",
+        "severity": "1",
+        "condition": {
+          "script": {
+            "source": "ctx.results[0].hits.total.value > 0",
+            "lang": "painless"
           }
-        }
-      ]
+        },
+        "actions": [
+          {
+            "name": "notify",
+            "destination_id": "alice-incluster-alert-sink",
+            "subject_template": {
+              "source": "{{ctx.monitor.name}}",
+              "lang": "mustache"
+            },
+            "message_template": {
+              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_start\":\"{{ctx.periodStart}}\",\"period_end\":\"{{ctx.periodEnd}}\",\"entity_kind\":\"cluster\",\"notification_scope\":\"fleet\",\"feed\":\"control-plane\",\"delivery_path\":\"alertmanager\",\"entity\":\"alice-logs\"}",
+              "lang": "mustache"
+            },
+            "throttle_enabled": true,
+            "throttle": {
+              "value": 30,
+              "unit": "MINUTES"
+            }
+          }
+        ]
+      }
     }
   ]
 }

@@ -18,6 +18,9 @@ TEMPLATES_SCRIPT = os.environ.get(
 RESET_SCRIPT = os.environ.get(
     "OPS_RESET_SCRIPT", "/opt/alice-ingest/reset_derived.py")
 COUNT_TARGET = "infologger,generic-log-*"
+INCIDENTS_INDEX = os.environ.get("INCIDENTS_INDEX", "alice-incidents")
+SIGNALS_INDEX = os.environ.get("SIGNALS_INDEX", "alice-signals")
+GRADE_FLOOR = float(os.environ.get("GRADE_FLOOR", "0.5"))
 
 
 def _log_families():
@@ -78,13 +81,51 @@ def active_alerts():
         {"term": {"state": "ACTIVE"}})
 
 
+def open_incidents():
+    return _search_count(
+        INCIDENTS_INDEX,
+        {"bool": {"filter": [{"term": {"state": "firing"}}]}})
+
+
+def open_signals():
+    return _search_count(
+        SIGNALS_INDEX,
+        {"bool": {"filter": [{"term": {"state": "firing"}}]}})
+
+
 def anomalies_last_hour():
     return _search_count(
         ".opendistro-anomaly-results*",
-        {"bool": {"filter": [
-            {"range": {"execution_end_time": {"gte": "now-1h"}}},
-            {"range": {"anomaly_grade": {"gt": 0.5}}},
-        ]}})
+        {"bool": {
+            "filter": [
+                {"range": {"execution_end_time": {"gte": "now-1h"}}},
+                {"range": {"anomaly_grade": {"gt": GRADE_FLOOR}}},
+            ],
+            "must_not": [{"exists": {"field": "task_id"}}]}})
+
+
+def incident_rows(limit=8):
+    code, body = _req(
+        "POST",
+        f"{OS_URL}/{INCIDENTS_INDEX}/_search"
+        "?ignore_unavailable=true&allow_no_indices=true",
+        {"size": limit,
+         "sort": [{"last_seen": "desc"}],
+         "query": {"bool": {"filter": [{"term": {"state": "firing"}}]}}})
+    if code != 200:
+        return []
+    rows = []
+    for hit in json.loads(body).get("hits", {}).get("hits", []):
+        src = hit.get("_source") or {}
+        rows.append({
+            "alertname": src.get("alertname", "?"),
+            "severity": src.get("severity", "?"),
+            "scope": src.get("notification_scope", "?"),
+            "members": src.get("member_count", 0),
+            "samples": ", ".join((src.get("entity_samples") or [])[:3]),
+            "klass": src.get("class", "single"),
+        })
+    return rows
 
 
 def reset_derived(mode="full"):
@@ -170,6 +211,9 @@ def snapshot():
         "count": doc_count(),
         "active_alerts": active_alerts(),
         "anomalies_last_hour": anomalies_last_hour(),
+        "open_incidents": open_incidents(),
+        "open_signals": open_signals(),
+        "incidents": incident_rows(),
         "replay_running": bool(busy),
         "replay_workers": len(busy),
         "families": family_counts(),
@@ -279,9 +323,15 @@ PAGE = Template("""<!doctype html>
 <table class="fam" id="fam">$families</table>
 
 <div class="row">
+  <div class="stat"><p class="muted">Open incidents</p><div class="count" id="incidents">$incidents</div></div>
+  <div class="stat"><p class="muted">Signals firing</p><div class="count" id="signals">$signals</div></div>
   <div class="stat"><p class="muted">Active alerts</p><div class="count" id="alerts">$alerts</div></div>
   <div class="stat"><p class="muted">Anomalies (last hour)</p><div class="count" id="anom">$anomalies</div></div>
 </div>
+
+<p class="muted">Open incidents — an episode groups the signals that share one cause;
+the signal rows behind it are never destroyed, they are in <code>alice-signals</code>.</p>
+<table class="fam" id="inclist">$incident_rows</table>
 
 <div id="busy"><span class="spin"></span><span id="busytext">Working…</span></div>
 $result
@@ -323,6 +373,16 @@ function paint(s) {
   document.getElementById('total').textContent = s.count;
   document.getElementById('alerts').textContent = s.active_alerts;
   document.getElementById('anom').textContent = s.anomalies_last_hour;
+  document.getElementById('incidents').textContent = s.open_incidents;
+  document.getElementById('signals').textContent = s.open_signals;
+  var inc = '';
+  for (var j = 0; j < s.incidents.length; j++) {
+    var r = s.incidents[j];
+    inc += '<tr><td>' + r.alertname + '</td><td>' + r.severity + '</td><td>'
+        + r.scope + '</td><td class="n">' + r.members + '</td><td>'
+        + r.samples + '</td></tr>';
+  }
+  document.getElementById('inclist').innerHTML = inc;
   var pill = document.getElementById('pill');
   if (s.replay_running) {
     pill.className = 'pill live';
@@ -355,6 +415,16 @@ def _family_rows(families):
         for f, n in families)
 
 
+def _incident_rows(rows):
+    return "".join(
+        f'<tr><td>{html.escape(str(r["alertname"]))}</td>'
+        f'<td>{html.escape(str(r["severity"]))}</td>'
+        f'<td>{html.escape(str(r["scope"]))}</td>'
+        f'<td class="n">{r["members"]}</td>'
+        f'<td>{html.escape(str(r["samples"]))}</td></tr>'
+        for r in rows)
+
+
 def render(result_lines=None):
     result = ""
     if result_lines:
@@ -366,6 +436,9 @@ def render(result_lines=None):
         count=html.escape(str(snap["count"])),
         alerts=html.escape(str(snap["active_alerts"])),
         anomalies=html.escape(str(snap["anomalies_last_hour"])),
+        incidents=html.escape(str(snap["open_incidents"])),
+        signals=html.escape(str(snap["open_signals"])),
+        incident_rows=_incident_rows(snap["incidents"]),
         families=_family_rows(snap["families"]),
         pill_class="live" if running else "idle",
         pill_text=(f"Replay running on {snap['replay_workers']} worker(s)"

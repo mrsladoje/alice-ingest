@@ -74,10 +74,10 @@ def req(method, path, payload=None, timeout=60):
         return 0, {}
 
 
-def bulk(lines, timeout=60):
+def bulk(lines, timeout=60, refresh="false"):
     payload = "".join(lines).encode()
     r = urllib.request.Request(
-        f"{OS_URL}/_bulk", data=payload, method="POST",
+        f"{OS_URL}/_bulk?refresh={refresh}", data=payload, method="POST",
         headers={"Content-Type": "application/x-ndjson"})
     try:
         with urllib.request.urlopen(r, timeout=timeout) as resp:
@@ -204,7 +204,22 @@ def collect(combo, start_ms, end_ms):
     return entities, truncated
 
 
-def build_docs(combo, start_ms, entities, truncated):
+def cohort_name(combo):
+    return f"{combo['family']}.{combo['entity_kind']}"
+
+
+def bulk_failures(status, body):
+    if status not in (200, 201):
+        return [{"reason": f"bulk HTTP {status}"}]
+    return [
+        (i.get("index") or {})
+        for i in body.get("items", [])
+        if (i.get("index") or {}).get("error")
+        or int((i.get("index") or {}).get("status", 500)) >= 300
+    ]
+
+
+def entity_docs(combo, start_ms, entities):
     fleet_count = sum(e["doc_count"] for e in entities)
     fleet_ef_count = sum(e["ef_count"] for e in entities)
     entity_count = len(entities)
@@ -232,11 +247,16 @@ def build_docs(combo, start_ms, entities, truncated):
             {"index": {"_index": ROLLUP_INDEX, "_id": doc_id}}) + "\n")
         lines.append(json.dumps(doc) + "\n")
 
+    return lines, entity_count, fleet_count, fleet_ef_count
+
+
+def meta_docs(combo, start_ms, entity_count, fleet_count, fleet_ef_count,
+              truncated):
     meta = {
         "ts": start_ms,
         "family": "_meta",
         "entity_kind": "_meta",
-        "entity": f"{combo['family']}.{combo['entity_kind']}",
+        "entity": cohort_name(combo),
         "doc_count": fleet_count,
         "ef_count": fleet_ef_count,
         "fleet_count": fleet_count,
@@ -245,41 +265,107 @@ def build_docs(combo, start_ms, entities, truncated):
         "truncated": truncated,
         "bucket_seconds": BUCKET_SECONDS,
     }
-    meta_id = (f"_meta.{combo['family']}.{combo['entity_kind']}.{start_ms}")
-    lines.append(json.dumps(
-        {"index": {"_index": ROLLUP_INDEX, "_id": meta_id}}) + "\n")
-    lines.append(json.dumps(meta) + "\n")
-    return lines, entity_count, fleet_count
+    meta_id = f"_meta.{combo['family']}.{combo['entity_kind']}.{start_ms}"
+    return [
+        json.dumps({"index": {"_index": ROLLUP_INDEX, "_id": meta_id}}) + "\n",
+        json.dumps(meta) + "\n",
+    ]
+
+
+def commit_docs(start_ms, stats, complete, truncated):
+    commit = {
+        "ts": start_ms,
+        "family": "_commit",
+        "entity_kind": "_commit",
+        "entity": "global",
+        "complete": complete,
+        "truncated": truncated,
+        "expected_cohorts": [cohort_name(c) for c in COMBOS],
+        "expected_cohort_count": len(COMBOS),
+        "observed_cohort_count": len(stats),
+        "commit_cohorts": stats,
+        "entity_count": sum(s["entity_count"] for s in stats),
+        "doc_count": sum(s["doc_count"] for s in stats),
+        "committed_at": int(time.time() * 1000),
+        "bucket_seconds": BUCKET_SECONDS,
+    }
+    commit_id = f"_commit.{start_ms}"
+    return [
+        json.dumps(
+            {"index": {"_index": ROLLUP_INDEX, "_id": commit_id}}) + "\n",
+        json.dumps(commit) + "\n",
+    ]
+
+
+def refresh_rollup():
+    status, _ = req("POST", f"/{ROLLUP_INDEX}/_refresh", timeout=60)
+    return status == 200
 
 
 def roll_bucket(start_ms, end_ms):
-    lines = []
-    summary = []
+    collected = []
     for combo in COMBOS:
         entities, truncated = collect(combo, start_ms, end_ms)
         if entities is None:
-            continue
-        combo_lines, n, total = build_docs(
-            combo, start_ms, entities, truncated)
-        lines.extend(combo_lines)
-        summary.append(
-            f"{combo['family']}.{combo['entity_kind']}={n}e/{total}d")
-    if not lines:
-        log(f"bucket {start_ms}: nothing to write")
-        return
-    status, body = bulk(lines)
-    if status not in (200, 201):
-        log(f"bucket {start_ms}: bulk HTTP {status}")
-        return
-    if body.get("errors"):
-        failed = [
-            i.get("index", {}).get("error", {}).get("reason")
-            for i in body.get("items", [])
-            if i.get("index", {}).get("error")
-        ]
-        log(f"bucket {start_ms}: {len(failed)} doc failures, "
-            f"first={failed[0] if failed else None}")
-    log(f"bucket {start_ms}: {' '.join(summary)}")
+            log(f"bucket {start_ms}: cohort {cohort_name(combo)} query failed "
+                f"— abandoning this bucket attempt, no metadata and no commit "
+                f"are published, and the existing three-bucket backfill will "
+                f"retry it deterministically")
+            return False
+        collected.append((combo, entities, truncated))
+
+    entity_lines = []
+    stats = []
+    summary = []
+    for combo, entities, truncated in collected:
+        lines, n, total, ef_total = entity_docs(combo, start_ms, entities)
+        entity_lines.extend(lines)
+        stats.append({
+            "cohort": cohort_name(combo),
+            "entity_count": n,
+            "doc_count": total,
+            "truncated": truncated,
+        })
+        summary.append(f"{cohort_name(combo)}={n}e/{total}d")
+
+    if entity_lines:
+        failures = bulk_failures(*bulk(entity_lines))
+        if failures:
+            log(f"bucket {start_ms}: {len(failures)} entity documents "
+                f"rejected, first={json.dumps(failures[0])[:200]} — a partial "
+                f"bulk is a failed attempt, so no metadata and no commit are "
+                f"published")
+            return False
+
+    meta_lines = []
+    for (combo, entities, truncated), stat in zip(collected, stats):
+        fleet_ef = sum(e["ef_count"] for e in entities)
+        meta_lines.extend(meta_docs(
+            combo, start_ms, stat["entity_count"], stat["doc_count"],
+            fleet_ef, truncated))
+    failures = bulk_failures(*bulk(meta_lines))
+    if failures:
+        log(f"bucket {start_ms}: {len(failures)} metadata rows rejected, "
+            f"first={json.dumps(failures[0])[:200]} — no commit published")
+        return False
+
+    if not refresh_rollup():
+        log(f"bucket {start_ms}: refresh failed — no commit published, "
+            f"because a commit must never be searchable before the rows it "
+            f"claims are complete")
+        return False
+
+    truncated_any = any(s["truncated"] for s in stats)
+    complete = not truncated_any
+    failures = bulk_failures(
+        *bulk(commit_docs(start_ms, stats, complete, truncated_any)))
+    if failures:
+        log(f"bucket {start_ms}: commit rejected, "
+            f"first={json.dumps(failures[0])[:200]}")
+        return False
+    state = "complete" if complete else "INCOMPLETE (truncated cohort)"
+    log(f"bucket {start_ms}: {' '.join(summary)} -> {state} commit")
+    return complete
 
 
 def prune():

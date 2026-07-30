@@ -20,6 +20,8 @@ downloads/
 # Agent skills etc etc
 .claude/
 
+/thanasis/
+
 # Teaching workspace (/teach skill)
 MISSION.md
 RESOURCES.md

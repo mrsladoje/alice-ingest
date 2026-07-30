@@ -14,10 +14,27 @@
   delay: 6
   loop:
     - node
-    - fluentbit
     - osd
   loop_control:
     label: "kind={{ item }}"
+
+- name: Wait for the collectors to push their own Fluent Bit heartbeats (no scrape from here any more)
+  ansible.builtin.uri:
+    url: "http://localhost:{{ opensearch_http_port }}/{{ cockpit_metrics_index }}/_count"
+    method: POST
+    body_format: json
+    body:
+      query:
+        bool:
+          filter:
+            - term:
+                kind: fluentbit
+    status_code: [200, 404]
+  register: _fb_pushed
+  until: (_fb_pushed.json.count | default(0) | int) > 0
+  retries: 20
+  delay: 6
+  when: collector_health_push_enabled | bool
 
 - name: Upsert and start anomaly detectors (idempotent by name, every run)
   ansible.builtin.command:
@@ -61,5 +78,15 @@
     EXPECTED_MONITORS: "{{ expected_monitors }}"
     EXPECTED_DETECTORS: "{{ expected_detectors }}"
     ROLLUP_INDEX: "{{ trend_rollup_index }}"
+    METRICS_INDEX: "{{ cockpit_metrics_index }}"
+    ROSTER_INDEX: "{{ fleet_roster_index }}"
+    DIGEST_INDEX: "{{ anomaly_digest_index }}"
+    SIGNALS_INDEX: "{{ signals_index }}"
+    INCIDENTS_INDEX: "{{ incidents_index }}"
+    NOTIFICATIONS_INDEX: "{{ notifications_index }}"
+    LANE_STATE_INDEX: "{{ lane_state_index }}"
+    SIGNAL_CATALOG: "{{ dashboards_bootstrap_signal_catalog }}"
+    ALERTING_MAX_ACTIONABLE_ALERT_COUNT: "{{ alerting_max_actionable_alert_count }}"
+    EXPECT_PUSH_HEARTBEATS: "{{ collector_health_push_enabled | bool | ternary('true', 'false') }}"
     DETECTORS_DIR: "{{ dashboards_bootstrap_detectors_dir }}"
   changed_when: false

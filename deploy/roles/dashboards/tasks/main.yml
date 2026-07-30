@@ -19,6 +19,9 @@
 - name: Cluster bootstrap (templates, indices, patterns, cockpit import, hydration)
   ansible.builtin.import_tasks: bootstrap.yml
 
+- name: Publish the immutable fleet roster — before the poller, which reads it to derive collector absence
+  ansible.builtin.import_tasks: roster.yml
+
 - name: Metrics poller service (cockpit health panels) — after bootstrap so cockpit-metrics exists first
   ansible.builtin.import_tasks: metrics.yml
 
@@ -30,3 +33,6 @@
 
 - name: Anomaly digest service (readable anomaly records) — after the detectors it names
   ansible.builtin.import_tasks: digest.yml
+
+- name: Signal projector and notification ingest — after the monitors and detectors whose signals they normalize
+  ansible.builtin.import_tasks: projector.yml

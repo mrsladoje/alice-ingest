@@ -62,6 +62,43 @@
     group: root
     mode: "0640"
 
+- name: Stage the signal identity catalog (one explicit per-monitor and per-detector classifier, never inferred from an index name)
+  ansible.builtin.copy:
+    src: signal_catalog.json
+    dest: "{{ dashboards_bootstrap_signal_catalog }}"
+    owner: root
+    group: root
+    mode: "0640"
+
+- name: Ensure the control-node app root exists
+  ansible.builtin.file:
+    path: "{{ dashboards_app_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Stage the shared PIT/search_after cursor and identity modules beside the services that import them
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - {src: os_cursor.py, dest: "{{ dashboards_os_cursor_script }}"}
+    - {src: signal_identity.py, dest: "{{ dashboards_signal_identity_script }}"}
+    - {src: roster_publish.py, dest: "{{ dashboards_roster_publish_script }}"}
+    - {src: discover_roster.py, dest: "{{ dashboards_discover_roster_script }}"}
+    - {src: score_injection.py, dest: "{{ dashboards_score_injection_script }}"}
+  loop_control:
+    label: "{{ item.dest }}"
+  notify:
+    - restart alice-metrics
+    - restart alice-trend-rollup
+    - restart alice-anomaly-digest
+    - restart alice-signal-projector
+
 - name: Stage the detection-layer verify script
   ansible.builtin.copy:
     src: verify_detection.py
@@ -196,4 +233,7 @@
     TREND_MIN_SLICE_DOCS: "{{ trend_min_slice_docs }}"
     TREND_MIN_SLICE_ERRORS: "{{ trend_min_slice_errors }}"
     TREND_MIN_LAG_DOCS: "{{ trend_min_lag_docs }}"
+    FLEET_SILENCE_FRACTION: "{{ fleet_silence_fraction }}"
+    ALERTING_MAX_ACTIONABLE_ALERT_COUNT: "{{ alerting_max_actionable_alert_count }}"
+    BREAKGLASS_SINK_URL: "http://127.0.0.1:{{ notification_ingest_port }}/notifications"
   changed_when: true

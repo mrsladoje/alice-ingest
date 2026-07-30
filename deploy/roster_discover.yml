@@ -1,0 +1,24 @@
+- name: Print the observed host -> collector assignments as committable group_vars
+  hosts: control
+  become: true
+  gather_facts: false
+  vars_files:
+    - roles/dashboards/defaults/main.yml
+
+  tasks:
+    - name: Query the log families for distinct origin_host / node pairs
+      ansible.builtin.command:
+        cmd: "python3 {{ dashboards_discover_roster_script }}"
+      environment:
+        OS_URL: "http://localhost:{{ opensearch_http_port }}"
+        LOOKBACK: "{{ roster_discover_lookback | default('now-7d') }}"
+      register: _discovered
+      changed_when: false
+
+    - name: Print the YAML to review and commit as deploy/group_vars/roster.yml
+      ansible.builtin.debug:
+        msg: "{{ _discovered.stdout_lines }}"
+
+    - name: Print the warnings the discovery raised
+      ansible.builtin.debug:
+        msg: "{{ _discovered.stderr_lines }}"

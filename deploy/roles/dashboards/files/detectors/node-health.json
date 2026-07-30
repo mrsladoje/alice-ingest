@@ -65,7 +65,7 @@
   },
   "shingle_size": 8,
   "category_field": [
-    "node"
+    "os_node"
   ],
   "filter_query": {
     "bool": {

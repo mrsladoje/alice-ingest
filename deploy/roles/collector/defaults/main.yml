@@ -5,3 +5,6 @@ collector_service_name: fluent-bit
 collector_binary_path: /opt/fluent-bit/bin/fluent-bit
 collector_config_dir: /etc/fluent-bit
 collector_systemd_dropin_dir: /etc/systemd/system/fluent-bit.service.d
+
+collector_health_script: /opt/alice-ingest/fb_health.py
+collector_health_interval_seconds: "{{ cockpit_metrics_interval_seconds }}"

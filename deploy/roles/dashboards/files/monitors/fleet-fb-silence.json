@@ -1,0 +1,90 @@
+{
+  "type": "monitor",
+  "name": "fleet-fb-silence",
+  "description": "Page when a large fraction of the rostered collectors stop heartbeating at once \u2014 the fleet-wide counterpart of collector-down, so an everyone-lost-credentials failure surfaces as one alert instead of waiting for N per-collector pages. Fires only while the poller is alive enough to write absence documents; total darkness is telemetry-silence.",
+  "monitor_type": "query_level_monitor",
+  "enabled": true,
+  "schedule": {
+    "period": {
+      "interval": 1,
+      "unit": "MINUTES"
+    }
+  },
+  "inputs": [
+    {
+      "search": {
+        "indices": [
+          "cockpit-metrics"
+        ],
+        "query": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "term": {
+                    "kind": "fleet"
+                  }
+                },
+                {
+                  "range": {
+                    "@timestamp": {
+                      "gte": "{{period_end}}||-2m",
+                      "lte": "{{period_end}}",
+                      "format": "epoch_millis"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "aggregations": {
+            "missing": {
+              "sum": {
+                "field": "heartbeat_missing"
+              }
+            },
+            "rostered": {
+              "value_count": {
+                "field": "heartbeat_missing"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "triggers": [
+    {
+      "query_level_trigger": {
+        "name": "fleet-fb-silence",
+        "severity": "1",
+        "condition": {
+          "script": {
+            "source": "double fleetSilenceFraction = 0.5; def agg = ctx.results[0].aggregations; double rostered = agg.rostered.value; if (rostered <= 0) { return false; } return (agg.missing.value / rostered) >= fleetSilenceFraction;",
+            "lang": "painless"
+          }
+        },
+        "actions": [
+          {
+            "name": "notify",
+            "destination_id": "alice-incluster-alert-sink",
+            "subject_template": {
+              "source": "{{ctx.monitor.name}}",
+              "lang": "mustache"
+            },
+            "message_template": {
+              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_start\":\"{{ctx.periodStart}}\",\"period_end\":\"{{ctx.periodEnd}}\",\"entity_kind\":\"fleet\",\"notification_scope\":\"fleet\",\"feed\":\"self\",\"delivery_path\":\"alertmanager\",\"entity\":\"all\"}",
+              "lang": "mustache"
+            },
+            "throttle_enabled": true,
+            "throttle": {
+              "value": 30,
+              "unit": "MINUTES"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

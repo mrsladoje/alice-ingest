@@ -54,7 +54,7 @@
   },
   "shingle_size": 8,
   "category_field": [
-    "node"
+    "collector_id"
   ],
   "filter_query": {
     "bool": {

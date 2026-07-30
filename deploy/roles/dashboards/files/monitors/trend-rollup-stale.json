@@ -1,7 +1,7 @@
 {
   "type": "monitor",
   "name": "trend-rollup-stale",
-  "description": "Page when the alice-trend-rollup service stops writing. Every trend-* monitor reads the trend-rollup index, so a dead rollup silently blinds the whole trend lane. Fires when the rollup wrote _meta heartbeats at some point in the last 24h but none in the last 40m (four rollup periods). The 24h precondition is what keeps a fresh deploy - where the index is legitimately empty until the service first runs - from paging on its own bootstrap.",
+  "description": "Page when the alice-trend-rollup service stops publishing COMPLETE bucket commits. A commit is written only after every required cohort query succeeded, every entity bulk item was accepted and every per-cohort metadata row landed, so this watchdog can no longer report a healthy lane while some cohorts are silently missing. Fires when complete commits existed at some point in the last 24h but none landed in the last 40m; the 24h precondition keeps a fresh deploy from paging on its own bootstrap.",
   "monitor_type": "query_level_monitor",
   "enabled": true,
   "schedule": {
@@ -23,7 +23,12 @@
               "filter": [
                 {
                   "term": {
-                    "family": "_meta"
+                    "family": "_commit"
+                  }
+                },
+                {
+                  "term": {
+                    "complete": true
                   }
                 },
                 {
@@ -75,23 +80,13 @@
               "lang": "mustache"
             },
             "message_template": {
-              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_end\":\"{{ctx.periodEnd}}\"}",
+              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_start\":\"{{ctx.periodStart}}\",\"period_end\":\"{{ctx.periodEnd}}\",\"entity_kind\":\"service\",\"notification_scope\":\"fleet\",\"feed\":\"self\",\"delivery_path\":\"alertmanager\",\"entity\":\"alice-trend-rollup\"}",
               "lang": "mustache"
             },
             "throttle_enabled": true,
             "throttle": {
               "value": 30,
               "unit": "MINUTES"
-            },
-            "action_execution_policy": {
-              "action_execution_scope": {
-                "per_alert": {
-                  "actionable_alerts": [
-                    "DEDUPED",
-                    "NEW"
-                  ]
-                }
-              }
             }
           }
         ]

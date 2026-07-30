@@ -1,6 +1,6 @@
 # {{ ansible_managed }}
 [Unit]
-Description=ALICE Cockpit anomaly digest — readable anomaly records for the cockpit
+Description=ALICE Cockpit anomaly digest — lossless realtime projection of the AD results
 After=network-online.target opensearch.service
 Wants=network-online.target
 
@@ -13,9 +13,13 @@ ProtectHome=true
 PrivateTmp=true
 Environment=OS_URL=http://localhost:{{ opensearch_http_port }}
 Environment=DIGEST_INDEX={{ anomaly_digest_index }}
+Environment=STATE_INDEX={{ lane_state_index }}
+Environment=SIGNAL_CATALOG={{ dashboards_bootstrap_signal_catalog }}
 Environment=INTERVAL={{ anomaly_digest_interval_seconds }}
-Environment=LOOKBACK={{ anomaly_digest_lookback }}
-Environment=GRADE_FLOOR={{ anomaly_digest_grade_floor }}
+Environment=GRADE_FLOOR={{ anomaly_grade_floor }}
+Environment=OVERLAP_MINUTES={{ anomaly_digest_overlap_minutes }}
+Environment=INITIAL_LOOKBACK_MINUTES={{ anomaly_digest_initial_lookback_minutes }}
+Environment=PAGE={{ anomaly_digest_page }}
 Environment=RETENTION_DAYS={{ anomaly_digest_retention_days }}
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/python3 {{ dashboards_anomaly_digest_script }}

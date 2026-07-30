@@ -7,10 +7,13 @@ import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from anomaly_digest import kind_of, scope_of, severity  # noqa: E402
+import os_cursor  # noqa: E402
+import signal_identity  # noqa: E402
+from anomaly_digest import project  # noqa: E402
 
 OS_URL = os.environ.get("OS_URL", "http://localhost:9200")
 DIGEST_INDEX = os.environ.get("DIGEST_INDEX", "alice-anomalies")
+GRADE_FLOOR = float(os.environ.get("GRADE_FLOOR", "0.5"))
 ONLY = [d.strip() for d in os.environ.get("DETECTORS", "").split(",")
         if d.strip()]
 SKIP_INDICES = [i.strip() for i in
@@ -148,75 +151,38 @@ def wait(det):
     return {"state": "TIMEOUT", "task_id": task.get("task_id")}
 
 
-def project(det, task_id):
-    written, after = 0, None
-    while True:
-        query = {"bool": {"filter": [
-            {"term": {"task_id": task_id}},
-            {"range": {"anomaly_grade": {"gt": 0}}}]}}
-        payload = {
-            "size": PAGE,
-            "sort": [{"data_end_time": "asc"}, {"_id": "asc"}],
-            "_source": ["detector_id", "anomaly_grade", "confidence",
-                        "data_end_time", "data_start_time", "entity"],
-            "query": query,
-        }
-        if after:
-            payload["search_after"] = after
-        code, body = req(
-            "POST",
-            "/.opendistro-anomaly-results*/_search"
-            "?ignore_unavailable=true&allow_no_indices=true", payload)
-        if code != 200:
-            log(f"  {det['name']}: cannot read results: HTTP {code}")
-            return written
-        hits = body.get("hits", {}).get("hits", [])
-        if not hits:
-            return written
-        after = hits[-1].get("sort")
-        lines = []
-        for h in hits:
-            src = h.get("_source", {})
-            grade = src.get("anomaly_grade")
-            if grade is None:
-                continue
-            scope_field, scope = scope_of(src)
-            end = src.get("data_end_time")
-            doc_id = f"{det['id']}:{end}:{scope}"
-            doc = {
-                "@timestamp": end,
-                "window_start": src.get("data_start_time"),
-                "detector": det["name"],
-                "about": det["about"],
-                "measures": det["measures"],
-                "scope_field": scope_field,
-                "scope": scope,
-                "scope_kind": kind_of(scope_field, det["indices"]),
-                "grade": round(float(grade), 4),
-                "confidence": round(float(src.get("confidence") or 0), 4),
-                "severity": severity(float(grade)),
-                "detector_id": det["id"],
-                "run": "backtest",
-            }
-            lines.append(json.dumps(
-                {"index": {"_index": DIGEST_INDEX, "_id": doc_id}}))
-            lines.append(json.dumps(doc))
-        if not lines:
-            continue
-        code, resp = req("POST", "/_bulk?refresh=false",
-                         raw="\n".join(lines) + "\n",
-                         ctype="application/x-ndjson")
-        if code != 200:
-            log(f"  {det['name']}: bulk failed HTTP {code}")
-            return written
-        failed = [i for i in resp.get("items", [])
-                  if (i.get("index") or {}).get("error")]
-        if failed:
-            log(f"  {det['name']}: {len(failed)} rejected; first: "
-                f"{json.dumps(failed[0])[:200]}")
-        written += len(lines) // 2 - len(failed)
-        if len(hits) < PAGE:
-            return written
+def project_task(det, task_id):
+    meta = {"detector": det["name"], "about": det["about"],
+            "measures": det["measures"]}
+    query = {"bool": {"filter": [
+        {"term": {"task_id": task_id}},
+        {"range": {"anomaly_grade": {"gt": GRADE_FLOOR}}}]}}
+    written = 0
+    try:
+        for hits in os_cursor.scan(
+                OS_URL, ".opendistro-anomaly-results*",
+                query, "data_end_time",
+                source=["detector_id", "anomaly_grade", "confidence",
+                        "data_end_time", "data_start_time",
+                        "execution_end_time", "entity", "task_id"],
+                page=PAGE):
+            lines = []
+            for h in hits:
+                doc_id, doc = project(h, meta, "backtest")
+                if doc is None:
+                    continue
+                lines.append(json.dumps(
+                    {"index": {"_index": DIGEST_INDEX, "_id": doc_id}}))
+                lines.append(json.dumps(doc))
+            ok, failures = os_cursor.bulk(OS_URL, lines)
+            written += ok
+            if failures:
+                log(f"  {det['name']}: {len(failures)} rejected; first: "
+                    f"{json.dumps(failures[0])[:200]}")
+                return written
+    except (os_cursor.CursorError, signal_identity.UnknownSignal) as e:
+        log(f"  {det['name']}: historical projection aborted: {e}")
+    return written
 
 
 def main():
@@ -254,7 +220,7 @@ def main():
         if state != "FINISHED":
             log(f"  {det['name']}: ended {state} "
                 f"{task.get('error') or ''}".rstrip())
-        found = project(det, tid) if tid else 0
+        found = project_task(det, tid) if tid else 0
         log(f"  {det['name']}: {state}, {found} anomalies written to "
             f"{DIGEST_INDEX}")
         summary.append((det["name"], state, found, int(intervals)))

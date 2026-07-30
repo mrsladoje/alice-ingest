@@ -36,7 +36,7 @@
                 kind: fluentbit
           must_not:
             - terms:
-                node: "{{ groups['workers'] | map('extract', hostvars, 'node_id') | list }}"
+                collector_id: "{{ groups['workers'] | map('extract', hostvars, 'node_id') | list }}"
     status_code: [200, 404]
   register: _fb_roster_purge
   changed_when: (_fb_roster_purge.json.deleted | default(0) | int) > 0
