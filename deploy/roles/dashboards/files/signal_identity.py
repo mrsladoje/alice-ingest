@@ -7,6 +7,208 @@ DEFAULT_PATH = os.environ.get(
 _cache = {}
 
 
+# Operator-facing language belongs beside the signal identity contract.  Rule
+# names are stable machine keys; they are not diagnoses.  Keep every source
+# covered here so the incident projector can write a useful episode document
+# without making the dashboard reverse-engineer monitor scripts.
+MONITOR_PRESENTATION = {
+    "collector-down": (
+        "Collector stopped heartbeating",
+        "No heartbeat arrived from rostered collector {entity} in the last "
+        "two minutes.",
+        "Check the host and Fluent Bit service, then its network path to the "
+        "control node."),
+    "collector-unhealthy": (
+        "Collector health check is failing",
+        "Collector {entity} is still heartbeating, but Fluent Bit reported "
+        "itself unhealthy during the last two minutes.",
+        "Inspect the Fluent Bit health endpoint and service journal on "
+        "{entity}."),
+    "data-loss": (
+        "Collector dropped log records",
+        "Collector {entity} reported one or more dropped output records in "
+        "the last two minutes; those records cannot be recovered here.",
+        "Inspect Fluent Bit output errors, retries, and destination capacity "
+        "on {entity}."),
+    "shipping-breaking": (
+        "Collector exhausted output retries",
+        "Collector {entity} reported at least one output retry that could not "
+        "be completed in the last two minutes.",
+        "Check OpenSearch reachability and the Fluent Bit output log on "
+        "{entity}."),
+    "disk-cliff-warn": (
+        "OpenSearch disk is above 85%",
+        "OpenSearch node {entity} used more than 85% and at most 92% of disk "
+        "during the last two minutes.",
+        "Free space or move shards before the node reaches the read-only "
+        "watermark."),
+    "disk-cliff-page": (
+        "OpenSearch disk is above 92%",
+        "OpenSearch node {entity} used more than 92% of disk during the last "
+        "two minutes and is close to becoming read-only.",
+        "Free space or move shards immediately; check for read-only index "
+        "blocks."),
+    "heap-spiral": (
+        "OpenSearch heap stayed above 90%",
+        "OpenSearch node {entity} remained above 90% JVM heap for five "
+        "minutes.",
+        "Inspect hot queries, indexing pressure, and garbage collection on "
+        "{entity}."),
+    "cluster-red": (
+        "OpenSearch cluster is red",
+        "The alice-logs cluster reported RED during the last two minutes, so "
+        "at least one primary shard is unavailable.",
+        "Open Index Management, identify unassigned primaries, and restore "
+        "allocation or the failed node."),
+    "shards-stuck": (
+        "Shards remained unassigned",
+        "One or more OpenSearch shards remained unassigned throughout the "
+        "last five minutes.",
+        "Use allocation explain to identify the blocking disk, replica, or "
+        "node constraint."),
+    "telemetry-silence": (
+        "Control-plane telemetry stopped",
+        "No cluster or Dashboards health sample was written for five "
+        "minutes; alice-metrics is probably not completing cycles.",
+        "Check alice-metrics and its access to OpenSearch and Dashboards."),
+    "fleet-fb-silence": (
+        "At least half the collector fleet is silent",
+        "At least 50% of rostered collectors were missing heartbeats in the "
+        "last two minutes.",
+        "Look for a shared credential, network, destination, or deployment "
+        "failure before treating collectors individually."),
+    "ad-high-grade": (
+        "High-confidence fleet anomaly",
+        "A real-time anomaly exceeded grade 0.7 and confidence 0.7 during the "
+        "last two minutes.",
+        "Open the episode's detector evidence and identify the affected "
+        "feature before escalating."),
+    "trend-rollup-stale": (
+        "Trend rollup stopped committing",
+        "The rollup had completed before, but no complete all-cohort commit "
+        "landed in the last 40 minutes.",
+        "Check alice-trend-rollup logs and failed cohort or bulk-write "
+        "diagnostics."),
+    "trend-entity-cap": (
+        "Trend monitoring reached its entity cap",
+        "A rollup cohort was truncated or reported at least 1,800 entities "
+        "during the last hour, so some entities may be unmonitored.",
+        "Inspect cohort metadata, then raise capacity or reduce the intended "
+        "roster before relying on trend coverage."),
+    "signal-projector-stale": (
+        "Incident projector stopped",
+        "alice-signal-projector had run before but wrote no successful "
+        "heartbeat for ten minutes.",
+        "Check alice-signal-projector immediately; incident state and "
+        "Alertmanager re-sends are no longer trustworthy."),
+    "alertmanager-down": (
+        "Alertmanager is unreachable",
+        "The projector reported Alertmanager unavailable during the last "
+        "five minutes.",
+        "Restore Alertmanager and verify active episode re-sends arrive."),
+    "trend-il-volume": (
+        "InfoLogger volume share changed persistently",
+        "{entity}'s share of fleet InfoLogger volume stayed at least 2x its "
+        "baseline or at most half its baseline for three complete 10-minute "
+        "buckets.",
+        "Compare this EPN with its peers and inspect whether production "
+        "started, stopped, or became stuck."),
+    "trend-il-ef": (
+        "InfoLogger error share rose persistently",
+        "{entity}'s InfoLogger error fraction stayed at least 2x baseline for "
+        "three complete 10-minute buckets, with at least 50 records and 10 "
+        "errors in each bucket.",
+        "Inspect the dominant InfoLogger errors for {entity} and the service "
+        "that emits them."),
+    "trend-il-entry-lag": (
+        "InfoLogger entry lag rose persistently",
+        "{entity}'s p95 event-to-collector delay stayed at least 250 ms and "
+        "2x baseline for three complete 10-minute buckets (archive-age "
+        "values above one hour are excluded).",
+        "Check the producer and collector path for queueing before logs enter "
+        "the ingest system."),
+    "trend-il-shipping-lag": (
+        "InfoLogger shipping lag rose persistently",
+        "Collector {entity}'s p95 collector-to-OpenSearch delay stayed at "
+        "least 250 ms and 2x baseline for three complete 10-minute buckets.",
+        "Inspect Fluent Bit buffering, retries, network latency, and "
+        "OpenSearch indexing pressure on {entity}."),
+    "trend-other-volume": (
+        "generic-log-other volume share changed persistently",
+        "{entity}'s share of generic-log-other volume stayed at least 2x its "
+        "baseline or at most half its baseline for three complete 10-minute "
+        "buckets.",
+        "Compare this EPN with its peers and inspect the processes producing "
+        "generic-log-other."),
+    "trend-other-errors": (
+        "generic-log-other error share rose persistently",
+        "{entity}'s generic-log-other error fraction stayed at least 2x "
+        "baseline for three complete 10-minute buckets, with at least 50 "
+        "records and 10 errors in each bucket.",
+        "Inspect the dominant generic-log-other errors for {entity}."),
+    "trend-info-volume": (
+        "generic-log-info volume share changed persistently",
+        "{entity}'s share of generic-log-info volume stayed at least 2x its "
+        "baseline or at most half its baseline for three complete 10-minute "
+        "buckets.",
+        "Compare this EPN with its peers and inspect the processes producing "
+        "generic-log-info."),
+    "trend-info-entry-lag": (
+        "generic-log-info entry lag rose persistently",
+        "{entity}'s p95 event-to-collector delay stayed at least 250 ms and "
+        "2x baseline for three complete 10-minute buckets (archive-age "
+        "values above one hour are excluded).",
+        "Check the producer and collector path for queueing before logs enter "
+        "the ingest system."),
+    "trend-info-shipping-lag": (
+        "generic-log-info shipping lag rose persistently",
+        "Collector {entity}'s p95 collector-to-OpenSearch delay stayed at "
+        "least 250 ms and 2x baseline for three complete 10-minute buckets.",
+        "Inspect Fluent Bit buffering, retries, network latency, and "
+        "OpenSearch indexing pressure on {entity}."),
+}
+
+
+DETECTOR_PRESENTATION = {
+    "ingest-flow": ("Unusual collector ingest flow",
+                    "throughput, output errors, or output retries"),
+    "node-health": ("Unusual OpenSearch node health",
+                    "heap, CPU, indexing rate, or disk use"),
+    "dashboards-health": ("Unusual Dashboards health",
+                          "event-loop delay, response latency, or requests"),
+    "il-per-epn": ("Unusual InfoLogger EPN behaviour",
+                   "volume or error/fatal count"),
+    "il-per-epn-slow": ("Long-window InfoLogger EPN anomaly",
+                        "30-minute volume or error/fatal count"),
+    "il-per-epn-entry-lag": ("Unusual InfoLogger entry lag",
+                             "event-to-collector p95 delay"),
+    "il-per-epn-entry-lag-slow": ("Long-window InfoLogger entry-lag anomaly",
+                                  "30-minute event-to-collector p95 delay"),
+    "il-collector-shipping-lag": ("Unusual InfoLogger shipping lag",
+                                  "collector-to-OpenSearch p95 delay"),
+    "il-collector-shipping-lag-slow": (
+        "Long-window InfoLogger shipping-lag anomaly",
+        "30-minute collector-to-OpenSearch p95 delay"),
+    "other-per-epn": ("Unusual generic-log-other EPN behaviour",
+                      "volume or error count"),
+    "other-per-epn-slow": ("Long-window generic-log-other anomaly",
+                           "30-minute volume or error count"),
+    "info-volume": ("Unusual generic-log-info volume", "volume"),
+    "info-volume-slow": ("Long-window generic-log-info volume anomaly",
+                         "30-minute volume"),
+    "info-per-epn-entry-lag": ("Unusual generic-log-info entry lag",
+                               "event-to-collector p95 delay"),
+    "info-per-epn-entry-lag-slow": (
+        "Long-window generic-log-info entry-lag anomaly",
+        "30-minute event-to-collector p95 delay"),
+    "info-collector-shipping-lag": ("Unusual generic-log-info shipping lag",
+                                    "collector-to-OpenSearch p95 delay"),
+    "info-collector-shipping-lag-slow": (
+        "Long-window generic-log-info shipping-lag anomaly",
+        "30-minute collector-to-OpenSearch p95 delay"),
+}
+
+
 class UnknownSignal(Exception):
     pass
 
@@ -48,6 +250,31 @@ def detector_names(path=None):
 
 def monitor_names(path=None):
     return set((load(path).get("monitors") or {}).keys())
+
+
+def presentation(name, path=None):
+    if name in MONITOR_PRESENTATION:
+        title, diagnosis, action = MONITOR_PRESENTATION[name]
+        return {"title": title, "diagnosis": diagnosis, "action": action}
+    if name in DETECTOR_PRESENTATION:
+        # Calling detector() is deliberate: a presentation entry must never
+        # make an undeclared detector appear valid.
+        detector(name, path)
+        title, features = DETECTOR_PRESENTATION[name]
+        return {
+            "title": title,
+            "diagnosis": (
+                "The learned model found {features} for {entity} outside its "
+                "recent baseline (grade above {grade_floor}).").format(
+                    features=features, entity="{entity}",
+                    grade_floor="{grade_floor}"),
+            "action": (
+                "Open the anomaly detector for this episode and inspect its "
+                "feature values and direction before escalating."),
+        }
+    raise UnknownSignal(
+        f"signal {name!r} has no operator presentation; every incident must "
+        f"say what is wrong and what to inspect next")
 
 
 def entity_pairs(source):

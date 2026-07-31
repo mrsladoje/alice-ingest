@@ -659,6 +659,11 @@ INCIDENTS_TPL=$(cat <<'JSON'
         "incident_id":        { "type": "keyword" },
         "class":              { "type": "keyword" },
         "alertname":          { "type": "keyword" },
+        "title":              { "type": "keyword" },
+        "diagnosis":          { "type": "text" },
+        "operator_action":    { "type": "text" },
+        "affected":           { "type": "keyword" },
+        "source_label":       { "type": "keyword" },
         "state":              { "type": "keyword" },
         "severity":           { "type": "keyword" },
         "cluster_id":         { "type": "keyword" },
@@ -685,6 +690,9 @@ INCIDENTS_TPL=$(cat <<'JSON'
         "last_seen":          { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
         "member_count":       { "type": "integer" },
         "suppressed_count":   { "type": "integer" },
+        "latest_grade":       { "type": "double" },
+        "worst_grade":        { "type": "double" },
+        "latest_confidence":  { "type": "double" },
         "entity_samples":     { "type": "keyword" },
         "signal_ids":         { "type": "keyword" }
       }

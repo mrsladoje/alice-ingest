@@ -191,6 +191,75 @@ def test_every_label_is_present_and_explicit():
               f"{row['alertname']}: source label is {labels['source']!r}")
 
 
+def test_every_signal_has_an_operator_diagnosis():
+    declared = signal_identity.monitor_names() | signal_identity.detector_names()
+    presented = (set(signal_identity.MONITOR_PRESENTATION)
+                 | set(signal_identity.DETECTOR_PRESENTATION))
+    check(declared == presented,
+          f"operator presentation drift: missing={sorted(declared-presented)} "
+          f"undeclared={sorted(presented-declared)}")
+    for name in sorted(declared):
+        item = signal_identity.presentation(name)
+        for field in ("title", "diagnosis", "action"):
+            check(bool(item.get(field)),
+                  f"{name} has no operator-facing {field}")
+
+    stub_roster(["node-01"], {})
+    row = sp.alert_signal(
+        alert_hit("diagnosis-1", sp.ALERTS_CURRENT, "ACTIVE",
+                  "collector-down", ["node-01"]),
+        sp.ALERTS_CURRENT)
+    row["incident_id"] = sp.incident_id(row)
+    episode = sp.blank_incident(
+        row, row["incident_id"], row["first_seen"])
+    check(episode["title"] == "Collector stopped heartbeating",
+          f"episode title is not human-facing: {episode.get('title')!r}")
+    check("node-01" in episode["diagnosis"]
+          and episode["affected"] == "collector node-01",
+          "episode diagnosis does not state the affected collector")
+    check("Fluent Bit" in episode["operator_action"],
+          "episode does not tell the operator what to inspect next")
+
+
+def test_cockpit_headlines_episodes_not_raw_detector_exhaust():
+    generator = _checkout_file(
+        "roles", "dashboards", "files", "gen_cockpit.py")
+    if not generator:
+        print("[signal-contract] "
+              "test_cockpit_headlines_episodes_not_raw_detector_exhaust: "
+              "skipped, generator not beside this checkout")
+        return
+    proc = subprocess.run(
+        [sys.executable, generator], capture_output=True, text=True,
+        timeout=30)
+    check(proc.returncode == 0,
+          f"cockpit generator failed: {proc.stderr[-500:]}")
+    if proc.returncode:
+        return
+    objects = [json.loads(line) for line in proc.stdout.splitlines()
+               if line.strip()]
+    dashboard = next(o for o in objects if o.get("type") == "dashboard")
+    references = {r["id"] for r in dashboard.get("references", [])}
+    check({"alice-viz-open-incidents", "alice-viz-incidents"} <= references,
+          "cockpit does not headline the incident episode summary and board")
+    raw_panels = {
+        "alice-viz-active-alerts", "alice-viz-anomaly-count",
+        "alice-viz-alerts", "alice-viz-anomalies",
+        "alice-search-active-alerts", "alice-search-anomalies",
+        "alice-search-signals",
+    }
+    check(not (raw_panels & references),
+          "raw alerts/anomaly windows are still dashboard panels: "
+          f"{sorted(raw_panels & references)}")
+    board = next(o for o in objects
+                 if o.get("id") == "alice-viz-incidents")
+    board_state = json.loads(board["attributes"]["visState"])
+    check(board_state.get("type") == "vega"
+          and "diagnosis" in board_state["params"]["spec"]
+          and "operator_action" in board_state["params"]["spec"],
+          "episode board does not render diagnosis and next action")
+
+
 def test_epn_parent_comes_from_the_roster_not_from_arithmetic():
     stub_roster(["node-01", "node-02"], {"epn001": "node-02"})
     row = sp.anomaly_row(

@@ -416,8 +416,40 @@ def episode_id(key, episode_start):
     return f"{key}.{int(episode_start)}"
 
 
+def affected_label(doc):
+    kind = doc.get("entity_kind") or "entity"
+    entity = doc.get("entity_id") or sentinel("entity_id")
+    if kind == "fleet" or entity in ("all", sentinel("entity_id")):
+        return "whole fleet"
+    labels = {
+        "collector": "collector",
+        "epn": "EPN",
+        "os_node": "OpenSearch node",
+        "service": "service",
+        "cluster": "cluster",
+    }
+    return f"{labels.get(kind, kind)} {entity}"
+
+
+def decorate_incident(ep):
+    presentation = signal_identity.presentation(ep["alertname"])
+    values = {
+        "entity": ep.get("entity_id") or sentinel("entity_id"),
+        "collector": ep.get("collector_id") or sentinel("collector_id"),
+        "family": ep.get("family") or sentinel("family"),
+        "grade_floor": f"{GRADE_FLOOR:g}",
+    }
+    ep["title"] = presentation["title"].format(**values)
+    ep["diagnosis"] = presentation["diagnosis"].format(**values)
+    ep["operator_action"] = presentation["action"].format(**values)
+    ep["affected"] = affected_label(ep)
+    ep["source_label"] = ("threshold rule" if ep.get("source_kind") == "monitor"
+                          else "learned anomaly")
+    return ep
+
+
 def blank_incident(doc, key, episode_start):
-    return {
+    ep = {
         "incident_id": key,
         "episode_start": int(episode_start),
         "episode_id": episode_id(key, episode_start),
@@ -447,6 +479,11 @@ def blank_incident(doc, key, episode_start):
         "entity_samples": [],
         "signal_ids": [],
     }
+    if doc.get("grade") is not None:
+        ep["latest_grade"] = float(doc["grade"])
+        ep["worst_grade"] = float(doc["grade"])
+        ep["latest_confidence"] = float(doc.get("confidence") or 0)
+    return decorate_incident(ep)
 
 
 def register_member(ep, doc):
@@ -564,6 +601,10 @@ def apply_detector(episodes, rows, timelines, stored):
             ep["episode_start"] = int(start)
             ep["episode_id"] = eid
             doc["episode_id"] = eid
+            ep["latest_grade"] = float(doc["grade"])
+            ep["worst_grade"] = max(
+                float(ep.get("worst_grade", 0)), float(doc["grade"]))
+            ep["latest_confidence"] = float(doc.get("confidence") or 0)
 
             if int(doc["last_seen"]) > int(ep.get("last_evaluation", 0)):
                 ep["last_evaluation"] = int(doc["last_seen"])
@@ -679,6 +720,7 @@ def write_incidents(incidents, mass_class):
                 and ep.get("alertname") in ("fleet-fb-silence",
                                             "collector-down"):
             ep["class"] = mass_class
+        decorate_incident(ep)
         ep["@timestamp"] = ep.get("opened_at", now_ms())
         lines.append(json.dumps(
             {"index": {"_index": INCIDENTS_INDEX, "_id": key}}))
@@ -725,6 +767,10 @@ def alertmanager_payload(incidents):
                 "entity_samples": ",".join(ep.get("entity_samples") or []),
                 "topology_version": ep.get("topology_version", "none"),
                 "class": ep.get("class", "single"),
+                "title": ep.get("title", ep["alertname"]),
+                "diagnosis": ep.get("diagnosis", ""),
+                "operator_action": ep.get("operator_action", ""),
+                "affected": ep.get("affected", affected_label(ep)),
                 "run_id": sentinel("run_id"),
             },
             "startsAt": iso(ep.get("opened_at", now_ms())),

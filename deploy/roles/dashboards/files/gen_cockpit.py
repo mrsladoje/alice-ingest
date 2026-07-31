@@ -401,6 +401,236 @@ def incident_table(vid, title):
                pattern=INCIDENTS_ID)
 
 
+def incident_summary_strip(vid, title):
+    open_q = {"term": {"state": "firing"}}
+    spec = {
+        "$schema": "https://vega.github.io/schema/vega/v5.json",
+        "autosize": {"type": "fit", "contains": "padding"},
+        "background": "#0B1727",
+        "padding": 8,
+        "data": [{
+            "name": "stats",
+            "url": {
+                "index": INCIDENTS_TITLE,
+                "body": {
+                    "size": 0,
+                    "aggs": {"stats": {"filters": {"filters": [
+                        open_q,
+                        {"bool": {"filter": [open_q,
+                                               {"term": {"severity": "page"}}]}},
+                        {"bool": {"filter": [open_q,
+                                               {"term": {"severity": "warn"}}]}},
+                        {"bool": {"filter": [open_q, {"terms": {
+                            "episode_state": ["STALE", "RECOVERING"]}}]}},
+                    ]}}},
+                },
+            },
+            "format": {"property": "aggregations.stats.buckets"},
+            "transform": [
+                {"type": "window", "ops": ["row_number"], "as": ["rank"]},
+                {"type": "formula", "as": "label",
+                 "expr": "datum.rank == 1 ? 'OPEN EPISODES' : "
+                         "datum.rank == 2 ? 'PAGE' : "
+                         "datum.rank == 3 ? 'WARNING' : 'STALE / RECOVERING'"},
+                {"type": "formula", "as": "color",
+                 "expr": "datum.rank == 1 ? '#42B8A5' : "
+                         "datum.rank == 2 ? '#FF5A67' : "
+                         "datum.rank == 3 ? '#F4B740' : '#8EA5BD'"},
+            ],
+        }],
+        "scales": [{
+            "name": "cards", "type": "band",
+            "domain": {"data": "stats", "field": "rank"},
+            "range": "width", "padding": 0.08,
+        }],
+        "marks": [
+            {"type": "rect", "from": {"data": "stats"},
+             "encode": {"update": {
+                 "x": {"scale": "cards", "field": "rank"},
+                 "width": {"scale": "cards", "band": 1},
+                 "y": {"value": 0}, "y2": {"signal": "height"},
+                 "fill": {"value": "#14263A"},
+                 "stroke": {"value": "#243B53"},
+                 "cornerRadius": {"value": 8},
+             }}},
+            {"type": "rect", "from": {"data": "stats"},
+             "encode": {"update": {
+                 "x": {"scale": "cards", "field": "rank"},
+                 "width": {"value": 5},
+                 "y": {"value": 0}, "y2": {"signal": "height"},
+                 "fill": {"field": "color"},
+                 "cornerRadius": {"value": 8},
+             }}},
+            {"type": "text", "from": {"data": "stats"},
+             "encode": {"update": {
+                 "x": {"scale": "cards", "field": "rank", "offset": 18},
+                 "y": {"signal": "height * 0.32"},
+                 "text": {"field": "label"},
+                 "fill": {"value": "#9FB3C8"},
+                 "font": {"value": "Inter, system-ui, sans-serif"},
+                 "fontSize": {"value": 11},
+                 "fontWeight": {"value": "bold"},
+             }}},
+            {"type": "text", "from": {"data": "stats"},
+             "encode": {"update": {
+                 "x": {"scale": "cards", "field": "rank", "offset": 18},
+                 "y": {"signal": "height * 0.72"},
+                 "text": {"field": "doc_count"},
+                 "fill": {"field": "color"},
+                 "font": {"value": "Inter, system-ui, sans-serif"},
+                 "fontSize": {"value": 28},
+                 "fontWeight": {"value": "bold"},
+             }}},
+        ],
+    }
+    state = {"title": title, "type": "vega", "aggs": [],
+             "params": {"spec": json.dumps(spec)}}
+    return viz(vid, title, state, index_ref_on=False)
+
+
+def incident_episode_board(vid, title):
+    spec = {
+        "$schema": "https://vega.github.io/schema/vega/v5.json",
+        "autosize": {"type": "fit", "contains": "padding"},
+        "background": "#0B1727",
+        "padding": 8,
+        "signals": [
+            {"name": "gap", "value": 10},
+            {"name": "cardWidth", "update": "width"},
+            {"name": "cardRows",
+             "update": "max(1, length(data('episodes')))"},
+            {"name": "cardHeight",
+             "update": "max(84, (height - gap * (cardRows - 1)) / cardRows)"},
+        ],
+        "data": [{
+            "name": "episodes",
+            "url": {
+                "index": INCIDENTS_TITLE,
+                "body": {
+                    "size": 8,
+                    "sort": [{"last_seen": {"order": "desc"}}],
+                    "query": {"term": {"state": "firing"}},
+                    "_source": ["title", "diagnosis", "operator_action",
+                                "affected", "severity", "episode_state",
+                                "opened_at", "last_seen", "member_count",
+                                "source_label", "worst_grade",
+                                "latest_confidence"],
+                },
+            },
+            "format": {"property": "hits.hits"},
+            "transform": [
+                {"type": "formula", "as": "severityRank",
+                 "expr": "datum._source.severity == 'page' ? 0 : 1"},
+                {"type": "formula", "as": "last",
+                 "expr": "time(toDate(datum._source.last_seen))"},
+                {"type": "collect", "sort": {
+                    "field": ["severityRank", "last"],
+                    "order": ["ascending", "descending"]}},
+                {"type": "window", "ops": ["row_number"], "as": ["rank"]},
+                {"type": "formula", "as": "row",
+                 "expr": "datum.rank - 1"},
+                {"type": "formula", "as": "accent",
+                 "expr": "datum._source.severity == 'page' ? '#FF5A67' : "
+                         "datum._source.episode_state == 'STALE' ? '#8EA5BD' : "
+                         "datum._source.episode_state == 'RECOVERING' ? "
+                         "'#42B8A5' : '#F4B740'"},
+                {"type": "formula", "as": "meta",
+                 "expr": "upper(datum._source.severity) + '  ·  ' + "
+                         "datum._source.episode_state + '  ·  ' + "
+                         "datum._source.affected + '  ·  ' + "
+                         "datum._source.member_count + ' signals  ·  since ' + "
+                         "timeFormat(toDate(datum._source.opened_at), "
+                         "'%b %d %H:%M')"},
+                {"type": "formula", "as": "score",
+                 "expr": "datum._source.worst_grade == null ? '' : "
+                         "'  ·  worst grade ' + "
+                         "format(datum._source.worst_grade, '.3f') + "
+                         "' / confidence ' + "
+                         "format(datum._source.latest_confidence, '.3f')"},
+            ],
+        }],
+        "marks": [
+            {"type": "rect", "from": {"data": "episodes"},
+             "encode": {"update": {
+                 "x": {"value": 0},
+                 "y": {"signal": "datum.row * (cardHeight + gap)"},
+                 "width": {"signal": "cardWidth"},
+                 "height": {"signal": "cardHeight"},
+                 "fill": {"value": "#14263A"},
+                 "stroke": {"value": "#243B53"},
+                 "cornerRadius": {"value": 8},
+             }}},
+            {"type": "rect", "from": {"data": "episodes"},
+             "encode": {"update": {
+                 "x": {"value": 0},
+                 "y": {"signal": "datum.row * (cardHeight + gap)"},
+                 "width": {"value": 5},
+                 "height": {"signal": "cardHeight"},
+                 "fill": {"field": "accent"},
+                 "cornerRadius": {"value": 8},
+             }}},
+            {"type": "text", "from": {"data": "episodes"},
+             "encode": {"update": {
+                 "x": {"value": 16},
+                 "y": {"signal": "datum.row * (cardHeight + gap) + 20"},
+                 "text": {"field": "_source.title"},
+                 "fill": {"value": "#F3F7FA"},
+                 "font": {"value": "Inter, system-ui, sans-serif"},
+                 "fontSize": {"value": 14},
+                 "fontWeight": {"value": "bold"},
+                 "limit": {"signal": "cardWidth - 32"},
+             }}},
+            {"type": "text", "from": {"data": "episodes"},
+             "encode": {"update": {
+                 "x": {"value": 16},
+                 "y": {"signal": "datum.row * (cardHeight + gap) + 39"},
+                 "text": {"signal": "datum.meta + datum.score"},
+                 "fill": {"field": "accent"},
+                 "font": {"value": "Inter, system-ui, sans-serif"},
+                 "fontSize": {"value": 10},
+                 "fontWeight": {"value": "bold"},
+                 "limit": {"signal": "cardWidth - 32"},
+             }}},
+            {"type": "text", "from": {"data": "episodes"},
+             "encode": {"update": {
+                 "x": {"value": 16},
+                 "y": {"signal": "datum.row * (cardHeight + gap) + 59"},
+                 "text": {"field": "_source.diagnosis"},
+                 "fill": {"value": "#C8D5E0"},
+                 "font": {"value": "Inter, system-ui, sans-serif"},
+                 "fontSize": {"value": 11},
+                 "limit": {"signal": "cardWidth - 32"},
+             }}},
+            {"type": "text", "from": {"data": "episodes"},
+             "encode": {"update": {
+                 "x": {"value": 16},
+                 "y": {"signal": "datum.row * (cardHeight + gap) + 78"},
+                 "text": {"signal": "'NEXT  ' + datum._source.operator_action"},
+                 "fill": {"value": "#86D9CC"},
+                 "font": {"value": "Inter, system-ui, sans-serif"},
+                 "fontSize": {"value": 10},
+                 "limit": {"signal": "cardWidth - 32"},
+                 "opacity": {"signal": "cardHeight >= 92 ? 1 : 0"},
+             }}},
+            {"type": "text", "encode": {"update": {
+                 "x": {"signal": "width / 2"},
+                 "y": {"signal": "height / 2"},
+                 "text": {"value": "NO OPEN EPISODES"},
+                 "align": {"value": "center"},
+                 "baseline": {"value": "middle"},
+                 "fill": {"value": "#42B8A5"},
+                 "font": {"value": "Inter, system-ui, sans-serif"},
+                 "fontSize": {"value": 18},
+                 "fontWeight": {"value": "bold"},
+                 "opacity": {"signal": "length(data('episodes')) ? 0 : 1"},
+            }}},
+        ],
+    }
+    state = {"title": title, "type": "vega", "aggs": [],
+             "params": {"spec": json.dumps(spec)}}
+    return viz(vid, title, state, index_ref_on=False)
+
+
 def scope_kind_table(vid, title):
     state = {
         "title": title,
@@ -734,13 +964,33 @@ def build():
             columns=["alertname", "state", "severity", "entity_kind",
                      "entity_id", "collector_id", "incident_id"],
             pattern=SIGNALS_ID),
+        saved_search(
+            "alice-search-open-incidents", "Open episodes — complete detail",
+            "One row per deduplicated open episode. Raw alerts and anomaly "
+            "windows are evidence in alice-signals, not separate operational "
+            "problems.",
+            "state:firing",
+            columns=["severity", "title", "affected", "diagnosis",
+                     "episode_state", "member_count", "opened_at",
+                     "last_seen", "operator_action", "episode_id"],
+            pattern=INCIDENTS_ID, sort_field="last_seen"),
+        saved_search(
+            "alice-search-recent-incidents", "Recent resolved episodes",
+            "Deduplicated episodes that have recovered, newest first.",
+            "state:resolved",
+            columns=["severity", "title", "affected", "diagnosis",
+                     "member_count", "opened_at", "resolved_at",
+                     "episode_id"],
+            pattern=INCIDENTS_ID, sort_field="resolved_at"),
     ]
 
     header_md = (
         "## \U0001F6F0️ ALICE Cockpit\n"
-        "Unified view over **InfoLogger**, **DDS** and **stdout**. Two "
-        "clocks on one page: **health panels are live** (pinned to the last "
-        "hour, auto-refresh 30 s) — **log panels follow the time picker**, "
+        "The operational headline is the **deduplicated incident episode** "
+        "board below. Health panels are live (last hour, refresh 30 s); "
+        "raw alerts and anomaly windows are deliberately kept out of the "
+        "headline and remain available only as episode evidence. "
+        "**Log panels follow the time picker**, "
         "preset to the last year because the replayed archives do not share "
         "an event period: InfoLogger is March 2026, DDS and stdout are June "
         "2026. Open the **[unified Discover](/app/data-explorer/discover)** "
@@ -760,6 +1010,12 @@ def build():
         "Sampled every 30 s by `alice-metrics` into `cockpit-metrics`. "
         "These panels ignore the time picker."
     )
+    log_detail_md = (
+        "### Raw log evidence — secondary\n"
+        "Use this section after an episode tells you where to look. These "
+        "panels follow the global time picker and intentionally do not count "
+        "as separate incidents."
+    )
     objects += [
         markdown("alice-viz-header", "Cockpit header", header_md),
         status_strip("alice-viz-status-strip", "Live status"),
@@ -776,6 +1032,8 @@ def build():
                       "system"),
         markdown("alice-viz-health-header", "Platform health header",
                  health_detail_md),
+        markdown("alice-viz-log-header", "Log evidence header",
+                 log_detail_md),
         latest_metric("alice-viz-cluster-status", "Cluster status",
                       "cluster_status", "kind:cluster", label="status"),
         latest_metric("alice-viz-unassigned", "Unassigned shards",
@@ -830,22 +1088,18 @@ def build():
                          [("avg", "response_avg_ms", "avg ms"),
                           ("max", "response_max_ms", "max ms")],
                          "kind:osd", y_title="ms"),
-        markdown("alice-viz-detect-header", "Detection header",
-                 "### Detection — live alerts & anomalies\n"
-                 "An **alert** is a hard rule that crossed a fixed threshold "
-                 "— someone decided in advance what \"too much\" means. An "
-                 "**anomaly** is a time window that a learned model scored as "
-                 "unlike this host's own recent normal; the *grade* is how "
-                 "unusual (0–1) and the *confidence* is how much history the "
-                 "model had to judge it on. A high grade at low confidence is "
-                 "a young model, not an emergency.\n\n"
-                 "The tables summarise; the two panels beneath them list the "
-                 "individual records with their timestamps. All of it is "
-                 "pinned to the last hour and ignores the time picker.\n\n"
-                 "*Where* is the host or collector the model was watching. "
-                 "Some detectors watch the cluster as one stream and have no "
-                 "host — those read **whole fleet**, and the host counter to "
-                 "the left deliberately does not count them."),
+        markdown("alice-viz-detect-header", "Detection drill-down",
+                 "### Evidence, not another problem list\n"
+                 "The cockpit shows **episodes**, not every alert evaluation "
+                 "or anomalous time window. One episode may contain many raw "
+                 "signals; `member_count` says how many were folded into it. "
+                 "Use **[open episode detail →]"
+                 "(/app/data-explorer/discover#/view/alice-search-open-incidents)** "
+                 "for every field, **[raw signal evidence →]"
+                 "(/app/data-explorer/discover#/view/alice-search-signals)** "
+                 "only while investigating, and **[resolved episodes →]"
+                 "(/app/data-explorer/discover#/view/alice-search-recent-incidents)** "
+                 "for recent history."),
         markdown("alice-viz-detect-actions", "Act on this",
                  "### ⚙️ Act on this\n"
                  "This dashboard is read-only. To acknowledge, mute or edit "
@@ -861,20 +1115,17 @@ def build():
                  "Acknowledging is not the same as fixing: the rule will fire "
                  "again on the next window that still breaches it."),
         markdown("alice-viz-incident-header", "Incidents header",
-                 "### 🎯 Incidents — the headline\n"
-                 "An **incident** is one episode: the signals that share a "
-                 "cause, counted and named. It is the record, not the "
-                 "notification — Alertmanager decides when to tell someone, "
-                 "`alice-incidents` decides what is true.\n\n"
-                 "Grouping never destroys a signal. Every raw alert and "
-                 "anomaly behind an incident is still a row in "
-                 "`alice-signals`, in the panel below, with the "
-                 "`incident_id` that ties it back here.\n\n"
-                 "`unknown-mass-silence` means the fleet went quiet and "
-                 "nothing authoritative said a run ended. It pages on "
-                 "purpose."),
-        open_incident_metric("alice-viz-open-incidents", "Open incidents"),
-        incident_table("alice-viz-incidents", "Open incidents by cause"),
+                 "## Live incident episodes\n"
+                 "One card is one deduplicated episode. It says **what is "
+                 "wrong, what is affected, the exact rule/model meaning, and "
+                 "what to inspect next**. PAGE is urgent; WARNING needs "
+                 "attention; STALE means the model stopped evaluating and is "
+                 "not evidence of recovery. This board ignores the global "
+                 "time picker, so an old-but-open episode cannot disappear."),
+        incident_summary_strip("alice-viz-open-incidents",
+                               "Episode summary"),
+        incident_episode_board("alice-viz-incidents",
+                               "Open episodes — deduplicated and actionable"),
         active_alert_metric("alice-viz-active-alerts", "Active alerts"),
         scope_kind_table("alice-viz-anomaly-count",
                          "What is affected (realtime, grade>0.5)"),
@@ -884,40 +1135,33 @@ def build():
 
     live = {"timeRange": HEALTH_RANGE}
     panels = [
-        ("visualization", "alice-viz-header",         {"x": 0,  "y": 0,  "w": 48, "h": 6}),
-        ("visualization", "alice-viz-status-strip",   {"x": 0,  "y": 6,  "w": 48, "h": 5}),
-        ("visualization", "alice-viz-cluster-status", {"x": 0,  "y": 11, "w": 8,  "h": 8}, live),
-        ("visualization", "alice-viz-unassigned",     {"x": 8,  "y": 11, "w": 8,  "h": 8}, live),
-        ("visualization", "alice-viz-osd-status",     {"x": 16, "y": 11, "w": 8,  "h": 8}, live),
-        ("visualization", "alice-viz-fb-status",      {"x": 24, "y": 11, "w": 14, "h": 8}, live),
-        ("visualization", "alice-viz-health-links",   {"x": 38, "y": 11, "w": 10, "h": 8}),
-        ("visualization", "alice-viz-total",          {"x": 0,  "y": 19, "w": 16, "h": 8}),
-        ("visualization", "alice-viz-errwarn",        {"x": 16, "y": 19, "w": 16, "h": 8}),
-        ("visualization", "alice-viz-bysource",       {"x": 32, "y": 19, "w": 16, "h": 8}),
-        ("visualization", "alice-viz-sev-time",       {"x": 0,  "y": 27, "w": 48, "h": 12}),
-        ("visualization", "alice-viz-top-hosts",      {"x": 0,  "y": 39, "w": 24, "h": 12}),
-        ("visualization", "alice-viz-top-systems",    {"x": 24, "y": 39, "w": 24, "h": 12}),
-        ("search",        "alice-search-errwarn",     {"x": 0,  "y": 51, "w": 48, "h": 16}),
-        ("visualization", "alice-viz-health-header",  {"x": 0,  "y": 67, "w": 48, "h": 3}),
-        ("visualization", "alice-viz-ingest-rate",    {"x": 0,  "y": 70, "w": 24, "h": 12}, live),
-        ("visualization", "alice-viz-index-size",     {"x": 24, "y": 70, "w": 24, "h": 12}, live),
-        ("visualization", "alice-viz-fb-throughput",  {"x": 0,  "y": 82, "w": 24, "h": 12}, live),
-        ("visualization", "alice-viz-fb-trouble",     {"x": 24, "y": 82, "w": 24, "h": 12}, live),
-        ("visualization", "alice-viz-index-health",   {"x": 0,  "y": 94, "w": 16, "h": 12}, live),
-        ("visualization", "alice-viz-node-heap",      {"x": 16, "y": 94, "w": 16, "h": 12}, live),
-        ("visualization", "alice-viz-osd-perf",       {"x": 32, "y": 94, "w": 16, "h": 12}, live),
-        ("visualization", "alice-viz-incident-header", {"x": 0,  "y": 106, "w": 48, "h": 11}, live),
-        ("visualization", "alice-viz-open-incidents",  {"x": 0,  "y": 117, "w": 8,  "h": 9}, live),
-        ("visualization", "alice-viz-incidents",       {"x": 8,  "y": 117, "w": 40, "h": 9}, live),
-        ("search",        "alice-search-signals",      {"x": 0,  "y": 126, "w": 48, "h": 14}, live),
-        ("visualization", "alice-viz-detect-header",  {"x": 0,  "y": 140, "w": 48, "h": 13}),
-        ("visualization", "alice-viz-active-alerts",  {"x": 0,  "y": 153, "w": 8,  "h": 7}),
-        ("visualization", "alice-viz-anomaly-count",  {"x": 0,  "y": 160, "w": 8,  "h": 9}),
-        ("visualization", "alice-viz-detect-actions", {"x": 0,  "y": 169, "w": 8,  "h": 12}),
-        ("visualization", "alice-viz-alerts",         {"x": 8,  "y": 153, "w": 20, "h": 14}),
-        ("visualization", "alice-viz-anomalies",      {"x": 28, "y": 153, "w": 20, "h": 14}),
-        ("search",        "alice-search-active-alerts", {"x": 8,  "y": 167, "w": 20, "h": 14}),
-        ("search",        "alice-search-anomalies",     {"x": 28, "y": 167, "w": 20, "h": 14}),
+        ("visualization", "alice-viz-header",          {"x": 0,  "y": 0, "w": 48, "h": 6}),
+        ("visualization", "alice-viz-status-strip",    {"x": 0,  "y": 6, "w": 48, "h": 5}),
+        ("visualization", "alice-viz-incident-header", {"x": 0,  "y": 11, "w": 48, "h": 6}),
+        ("visualization", "alice-viz-open-incidents",  {"x": 0,  "y": 17, "w": 48, "h": 6}),
+        ("visualization", "alice-viz-incidents",       {"x": 0,  "y": 23, "w": 48, "h": 36}),
+        ("visualization", "alice-viz-detect-header",   {"x": 0,  "y": 59, "w": 48, "h": 5}),
+        ("visualization", "alice-viz-health-header",   {"x": 0,  "y": 64, "w": 48, "h": 3}),
+        ("visualization", "alice-viz-cluster-status",  {"x": 0,  "y": 67, "w": 8, "h": 8}, live),
+        ("visualization", "alice-viz-unassigned",      {"x": 8,  "y": 67, "w": 8, "h": 8}, live),
+        ("visualization", "alice-viz-osd-status",      {"x": 16, "y": 67, "w": 8, "h": 8}, live),
+        ("visualization", "alice-viz-fb-status",       {"x": 24, "y": 67, "w": 14, "h": 8}, live),
+        ("visualization", "alice-viz-health-links",    {"x": 38, "y": 67, "w": 10, "h": 8}),
+        ("visualization", "alice-viz-ingest-rate",     {"x": 0,  "y": 75, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-index-size",      {"x": 24, "y": 75, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-fb-throughput",   {"x": 0,  "y": 87, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-fb-trouble",      {"x": 24, "y": 87, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-index-health",    {"x": 0,  "y": 99, "w": 16, "h": 12}, live),
+        ("visualization", "alice-viz-node-heap",       {"x": 16, "y": 99, "w": 16, "h": 12}, live),
+        ("visualization", "alice-viz-osd-perf",        {"x": 32, "y": 99, "w": 16, "h": 12}, live),
+        ("visualization", "alice-viz-log-header",      {"x": 0,  "y": 111, "w": 48, "h": 4}),
+        ("visualization", "alice-viz-total",           {"x": 0,  "y": 115, "w": 16, "h": 8}),
+        ("visualization", "alice-viz-errwarn",         {"x": 16, "y": 115, "w": 16, "h": 8}),
+        ("visualization", "alice-viz-bysource",        {"x": 32, "y": 115, "w": 16, "h": 8}),
+        ("visualization", "alice-viz-sev-time",        {"x": 0,  "y": 123, "w": 48, "h": 12}),
+        ("visualization", "alice-viz-top-hosts",       {"x": 0,  "y": 135, "w": 24, "h": 12}),
+        ("visualization", "alice-viz-top-systems",     {"x": 24, "y": 135, "w": 24, "h": 12}),
+        ("search",        "alice-search-errwarn",      {"x": 0,  "y": 147, "w": 48, "h": 16}),
     ]
     objects.append(dashboard(panels))
     return objects
