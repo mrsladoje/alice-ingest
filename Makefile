@@ -59,7 +59,7 @@ endif
 volume volumes:
 	@:
 
-.PHONY: bootstrap provision deploy replay replay-fresh replay-fast replay-loop replay-shifted backtest teardown status inject roster-discover monitors contract
+.PHONY: bootstrap provision deploy replay replay-fresh replay-fast replay-loop replay-shifted poison poison-replay posion-replay poison-status poison-stop backtest teardown status inject roster-discover monitors contract
 
 # Control-node toolchain lives in a self-contained venv (override with VENV=...).
 # The deploy targets prefer it, but fall back to an already-activated venv on PATH
@@ -107,6 +107,26 @@ replay-loop:
 replay-shifted:
 	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_clock=shifted
 
+# Starts a background calibration run on the control VM. The real paced replay
+# supplies/trains the baseline; the harness waits for all ten one-minute
+# detectors, injects labelled outlier windows into already-modelled entities,
+# and scores native AD results, projected episodes, and probe monitors. The
+# seven 30-minute detectors are deliberately excluded.
+poison-replay:
+	cd deploy && $(ANSIBLE_PLAYBOOK) poison_replay.yml $(ANSIBLE_EXTRA)
+
+# Short operator-facing spelling.
+poison: poison-replay
+
+# Keep the spelling from the original operator request as a harmless alias.
+posion-replay: poison-replay
+
+poison-status:
+	cd deploy && $(ANSIBLE_PLAYBOOK) poison_status.yml $(ANSIBLE_EXTRA)
+
+poison-stop:
+	cd deploy && $(ANSIBLE_PLAYBOOK) poison_stop.yml $(ANSIBLE_EXTRA)
+
 # Runs each log detector over the window already sitting in the indices and
 # writes what it finds into the cockpit's anomaly index. Does not touch the
 # real-time detectors.
@@ -126,6 +146,7 @@ monitors:
 	python3 deploy/roles/dashboards/files/gen_monitors.py
 
 contract:
+	python3 deploy/roles/dashboards/files/test_poison_replay.py
 	python3 deploy/roles/dashboards/files/test_signal_contract.py
 
 status:

@@ -20,6 +20,10 @@ TEMPLATES_SCRIPT = os.environ.get(
     "OPS_TEMPLATES_SCRIPT", "/opt/alice-ingest/init/templates.sh")
 RESET_SCRIPT = os.environ.get(
     "OPS_RESET_SCRIPT", "/opt/alice-ingest/reset_derived.py")
+POISON_SERVICE = os.environ.get(
+    "OPS_POISON_SERVICE", "alice-poison-replay")
+POISON_STATUS = os.environ.get(
+    "OPS_POISON_STATUS", "/var/lib/alice-poison-replay/status.json")
 COUNT_TARGET = "infologger,generic-log-*"
 INCIDENTS_INDEX = os.environ.get("INCIDENTS_INDEX", "alice-incidents")
 SIGNALS_INDEX = os.environ.get("SIGNALS_INDEX", "alice-signals")
@@ -228,6 +232,82 @@ def replay_in_flight():
     return busy
 
 
+def _service_active(name):
+    try:
+        proc = subprocess.run(
+            ["/usr/bin/systemctl", "is-active", "--quiet", name],
+            timeout=5, check=False)
+        return proc.returncode == 0
+    except Exception:
+        return False
+
+
+def poison_status():
+    running = _service_active(POISON_SERVICE)
+    status = {"state": "never-run", "running": running}
+    try:
+        with open(POISON_STATUS) as handle:
+            loaded = json.load(handle)
+        if isinstance(loaded, dict):
+            status.update(loaded)
+    except FileNotFoundError:
+        pass
+    except Exception as exc:
+        status["status_error"] = str(exc)
+    if not running and status.get("state") in {
+            "starting", "warming", "injecting", "observing", "stopping"}:
+        status["interrupted_state"] = status["state"]
+        status["state"] = "interrupted"
+    status["running"] = running
+    return status
+
+
+def start_poison():
+    if _service_active(POISON_SERVICE):
+        return [
+            "REFUSED — a poison replay is already running. Follow its live "
+            "matrix below or stop it before starting another one."
+        ]
+    try:
+        subprocess.run(
+            ["/usr/bin/systemctl", "reset-failed", POISON_SERVICE],
+            capture_output=True, text=True, timeout=10, check=False)
+        proc = subprocess.run(
+            ["/usr/bin/systemctl", "--no-block", "start", POISON_SERVICE],
+            capture_output=True, text=True, timeout=10, check=False)
+    except Exception as exc:
+        return [f"FAILED to start {POISON_SERVICE}: {exc}"]
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "unknown systemd error").strip()
+        return [f"FAILED to start {POISON_SERVICE}: {detail}"]
+    return [
+        "poison replay started in the background",
+        "it will start/continue the paced S3 replay, wait until all ten "
+        "one-minute detectors are trained, inject labelled outlier windows, "
+        "and score native results plus projected episodes",
+        "the 30-minute detectors are deliberately excluded; progress updates "
+        "on this page every five seconds",
+    ]
+
+
+def stop_poison():
+    if not _service_active(POISON_SERVICE):
+        return ["no poison replay is running"]
+    try:
+        proc = subprocess.run(
+            ["/usr/bin/systemctl", "stop", POISON_SERVICE],
+            capture_output=True, text=True, timeout=45, check=False)
+    except Exception as exc:
+        return [f"FAILED to stop {POISON_SERVICE}: {exc}"]
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "unknown systemd error").strip()
+        return [f"FAILED to stop {POISON_SERVICE}: {detail}"]
+    return [
+        "poison replay stopped; its already-indexed labelled evidence remains "
+        "available for audit and expires with the normal index retention"
+    ]
+
+
 def family_counts():
     out = []
     for fam in LOG_FAMILIES:
@@ -255,6 +335,7 @@ def snapshot():
         "incidents": incident_rows(),
         "replay_running": bool(busy),
         "replay_workers": len(busy),
+        "poison": poison_status(),
         "families": family_counts(),
     }
 
@@ -401,7 +482,7 @@ PAGE = Template("""<!doctype html>
  .meta b{color:var(--dim);font-weight:600}
  .pbody{padding:18px}
 
- .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+ .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
  form{margin:0}
  button{
    display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;
@@ -587,6 +668,18 @@ PAGE = Template("""<!doctype html>
               <span class="button-spinner" aria-hidden="true"></span>
             </button>
           </form>
+          <form method="post" action="poison-replay" data-busy="Starting the background detector calibration run." data-confirm="Inject labelled synthetic outliers into trained production detector lanes? The evidence remains until normal index retention removes it.">
+            <button id="poison-start" class="warning" type="submit" data-loading-label="Starting poison…">
+              <span><span class="button-label">Poison replay</span><span id="poison-status" class="button-sub">$poison_text</span></span>
+              <span class="button-spinner" aria-hidden="true"></span>
+            </button>
+          </form>
+          <form method="post" action="poison-stop" data-busy="Stopping the poison calibration process cleanly.">
+            <button id="poison-stop" class="neutral" type="submit" data-loading-label="Stopping poison…"$poison_stop_disabled>
+              <span><span class="button-label">Stop poison</span><span class="button-sub">Cancels warm-up or observation. Indexed evidence stays labelled.</span></span>
+              <span class="button-spinner" aria-hidden="true"></span>
+            </button>
+          </form>
         </div>
         <div id="busy" class="busy" role="status" aria-live="polite">
           <span class="spinner" aria-hidden="true"></span><span id="busytext">Working…</span>
@@ -627,7 +720,8 @@ PAGE = Template("""<!doctype html>
     <p>A paced load runs for about an hour. One-minute detectors need 32 consecutive windows before they
       leave initialization. Records keep their archive event time, while detection reads the field
       <code>collector_time</code> instead. <strong>Every action reports its result after a refresh-safe
-      redirect, so a page reload never repeats it.</strong></p>
+      redirect, so a page reload never repeats it.</strong> Poison replay uses only already-modelled
+      entities and reports native result and projected-episode evidence separately.</p>
     <div id="connection" class="clock"><span id="last-updated">Live status connected</span></div>
   </footer>
 </main>
@@ -731,6 +825,23 @@ function paint(s) {
     pill.textContent = 'Replay idle';
   }
   document.body.dataset.replay = s.replay_running ? 'on' : 'off';
+
+  var poison = s.poison || {};
+  var poisonState = String(poison.state || 'never-run');
+  var poisonText = poisonState.replace(/-/g, ' ');
+  if (poison.running && poison.current_burst) {
+    poisonText += ' · burst ' + poison.current_burst;
+  }
+  if (poison.running && (poison.missing_detectors || poison.missing_monitors)) {
+    poisonText += ' · missing ' + (poison.missing_detectors || []).length +
+      ' detector / ' + (poison.missing_monitors || []).length + ' monitor';
+  } else if (!poison.running && poison.verdict) {
+    poisonText += ' · ' + poison.verdict.detectors_with_raw_and_projected_evidence +
+      '/' + poison.verdict.detectors_expected + ' detectors';
+  }
+  document.getElementById('poison-status').textContent = poisonText;
+  document.getElementById('poison-start').disabled = !!poison.running;
+  document.getElementById('poison-stop').disabled = !poison.running;
 
   document.getElementById('connection').className = 'clock';
   document.getElementById('last-updated').textContent =
@@ -841,6 +952,18 @@ def _incident_rows(rows):
     return "".join(out)
 
 
+def _poison_text(status):
+    state = str(status.get("state") or "never-run").replace("-", " ")
+    if status.get("running") and status.get("current_burst"):
+        state += f" · burst {status['current_burst']}"
+    verdict = status.get("verdict") or {}
+    if not status.get("running") and verdict:
+        state += (
+            f" · {verdict.get('detectors_with_raw_and_projected_evidence', 0)}"
+            f"/{verdict.get('detectors_expected', 10)} detectors")
+    return html.escape(state)
+
+
 def render(result_lines=None):
     result = ""
     if result_lines:
@@ -858,6 +981,7 @@ def render(result_lines=None):
     running = snap["replay_running"]
     workers = snap["replay_workers"]
     incidents = snap["incidents"]
+    poison = snap.get("poison") or {"state": "never-run", "running": False}
     configured = len(WORKERS)
     return PAGE.substitute(
         body_state="on" if running else "off",
@@ -878,6 +1002,8 @@ def render(result_lines=None):
         family_total=_fmt(sum(n for _, n in snap["families"])),
         worker_meta=(f"{configured} worker" + ("" if configured == 1 else "s")
                      if configured else "No workers configured"),
+        poison_text=_poison_text(poison),
+        poison_stop_disabled="" if poison.get("running") else " disabled",
         pill_class="live" if running else "idle",
         pill_text=(f"Replay active · {workers} worker"
                    + ("" if workers == 1 else "s")
@@ -919,7 +1045,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?", 1)[0].rstrip("/")
-        if path.endswith("/replay-fresh"):
+        if path.endswith("/poison-replay"):
+            self._redirect_to_result(start_poison())
+        elif path.endswith("/poison-stop"):
+            self._redirect_to_result(stop_poison())
+        elif path.endswith("/replay-fresh"):
             self._redirect_to_result(run_replay(fresh=True))
         elif path.endswith("/replay"):
             self._redirect_to_result(run_replay(fresh=False))

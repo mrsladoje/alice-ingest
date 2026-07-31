@@ -1,0 +1,19 @@
+- name: Stop the controlled poison-replay calibration
+  hosts: control
+  become: true
+  gather_facts: false
+  vars_files:
+    - roles/dashboards/defaults/main.yml
+
+  tasks:
+    - name: Stop poison replay and let it publish a cancelled result
+      ansible.builtin.systemd:
+        name: "{{ dashboards_poison_replay_service_name }}"
+        state: stopped
+
+    - name: Report retention of already-injected evidence
+      ansible.builtin.debug:
+        msg: >-
+          Poison replay is stopped. Already-indexed documents remain labelled
+          with poison_run_id and expire under the ordinary index retention;
+          the latest status and archived run report remain on the control VM.

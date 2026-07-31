@@ -147,6 +147,10 @@ GENERIC_MAPPINGS=$(cat <<'JSON'
         "severity":   { "type": "keyword" },
         "severity_norm": { "type": "keyword" },
         "origin_host":   { "type": "keyword" },
+        "synthetic":     { "type": "boolean" },
+        "poison_run_id": { "type": "keyword" },
+        "poison_stage":  { "type": "keyword" },
+        "poison_targets": { "type": "keyword" },
         "host":       { "type": "keyword" },
         "source":     { "type": "keyword" },
         "tid":        { "type": "keyword" },
@@ -179,6 +183,10 @@ INFOLOGGER_MAPPINGS=$(cat <<'JSON'
         "severity":   { "type": "keyword" },
         "severity_norm": { "type": "keyword" },
         "origin_host":   { "type": "keyword" },
+        "synthetic":     { "type": "boolean" },
+        "poison_run_id": { "type": "keyword" },
+        "poison_stage":  { "type": "keyword" },
+        "poison_targets": { "type": "keyword" },
         "level":      { "type": "short" },
         "hostname":   { "type": "keyword" },
         "rolename":   { "type": "keyword" },
@@ -297,6 +305,10 @@ COCKPIT_METRICS_TPL=$(cat <<'JSON'
         "stale_dwell_p50_ms":    { "type": "long" },
         "stale_dwell_p95_ms":    { "type": "long" },
         "alertname":             { "type": "keyword" },
+        "synthetic":             { "type": "boolean" },
+        "poison_run_id":         { "type": "keyword" },
+        "poison_stage":          { "type": "keyword" },
+        "poison_targets":        { "type": "keyword" },
         "index_name":            { "type": "keyword" },
         "cluster_status":        { "type": "keyword" },
         "cluster_status_code":   { "type": "short" },
@@ -800,6 +812,18 @@ RETRIES_FAILED_DELTA_MAPPING=$(cat <<'JSON'
 JSON
 )
 
+POISON_MAPPING=$(cat <<'JSON'
+{
+  "properties": {
+    "synthetic":      { "type": "boolean" },
+    "poison_run_id":  { "type": "keyword" },
+    "poison_stage":   { "type": "keyword" },
+    "poison_targets": { "type": "keyword" }
+  }
+}
+JSON
+)
+
 wait_os
 
 # Forbid OpenSearch from auto-creating an index named exactly after a log
@@ -903,6 +927,12 @@ for wn in $WORKER_NODES; do
   put "/generic-log-info-$wn*/_mapping" "$NORM_MAPPING" "mapping severity_norm/origin_host on generic-log-info-$wn"
 done
 put "/{{ cockpit_metrics_index }}/_mapping" "$RETRIES_FAILED_DELTA_MAPPING" "mapping output_retries_failed_delta on cockpit-metrics"
+put "/infologger*/_mapping" "$POISON_MAPPING" "mapping labelled poison-replay evidence on infologger"
+put "/generic-log-other*/_mapping" "$POISON_MAPPING" "mapping labelled poison-replay evidence on generic-log-other"
+for wn in $WORKER_NODES; do
+  put "/generic-log-info-$wn*/_mapping" "$POISON_MAPPING" "mapping labelled poison-replay evidence on generic-log-info-$wn"
+done
+put "/{{ cockpit_metrics_index }}/_mapping" "$POISON_MAPPING" "mapping labelled poison-replay evidence on cockpit-metrics"
 
 seed_if_empty "infologger"
 seed_if_empty "generic-log-other"

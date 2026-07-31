@@ -86,12 +86,21 @@ essentials:
 make provision     # create the 5 OpenStack VMs (idempotent) — needs OpenStack auth
 make deploy        # configure the cluster — prompts for the vault password
 make replay        # load real logs (the "replay button" — no vault needed)
+make poison        # background calibration of every one-minute detector
 ```
 
 `make deploy` **arms** the pipeline but ingests nothing; `make replay` is the
 deliberate load step (POSTs `/replay` to each worker). Because replay has no dedup,
 use `make replay-fresh` to wipe and reload cleanly rather than a second `make
 replay`. See [`docs/CARDBOARD-AIRPLANE-V3.md`](docs/CARDBOARD-AIRPLANE-V3.md).
+
+`make poison` (alias: `make poison-replay`) starts or continues that paced baseline, waits until all
+ten one-minute RCF detectors are actually trained, and then injects labelled
+outlier windows into entities already modelled by the live replay. It follows
+each injection through native AD results, projected incident episodes, and
+seven deterministic monitor paths. The seven 30-minute detectors are excluded.
+Use `make poison-status` to poll it and `make poison-stop` to cancel it. The
+original misspelling `make posion-replay` is accepted as an alias.
 
 **View.** Dashboards on the control VM: `https://<control-VM>:5601`, user `alice`
 (the vault password), self-signed cert. From outside CERN, tunnel through lxplus:
@@ -106,8 +115,9 @@ itself) below — or Discover on the default `infologger,generic-log-*` pattern
 with the seven seed saved searches (which apply their query on open, the v4 fix). For a browser-driven load without the CLI, the control node also
 serves an ops page at **`https://<control-VM>:5601/ops`** (same basic-auth) with
 safe post/redirect/get actions for **Reload data (fresh)** / **Append replay** /
-**Stop replay** / **Clear findings**, live button progress, and live detection
-counts. Refreshing an action result never submits the action again. Data is
+**Stop replay** / **Clear findings** / **Poison replay** / **Stop poison**, live
+button progress, and live detection counts. Refreshing an action result never
+submits the action again. Data is
 historical (~June 2026, pinned by `RUN_TAG`) — if Discover looks empty, widen
 the time range rather than assuming no data.
 

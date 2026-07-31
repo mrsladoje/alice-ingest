@@ -1,0 +1,60 @@
+- name: Read the current poison-replay calibration state
+  hosts: control
+  become: true
+  gather_facts: false
+  vars_files:
+    - roles/dashboards/defaults/main.yml
+
+  tasks:
+    - name: Read systemd state
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - "{{ dashboards_poison_replay_service_name }}"
+          - --property=ActiveState,SubState,Result,ExecMainStatus
+      register: _poison_unit
+      changed_when: false
+      failed_when: false
+
+    - name: Check for a published status matrix
+      ansible.builtin.stat:
+        path: "{{ dashboards_poison_replay_status }}"
+      register: _poison_status_file
+
+    - name: Read the published status matrix
+      ansible.builtin.slurp:
+        path: "{{ dashboards_poison_replay_status }}"
+      register: _poison_status
+      when: _poison_status_file.stat.isreg | default(false)
+
+    - name: Read recent calibration log lines
+      ansible.builtin.command:
+        argv:
+          - journalctl
+          - -u
+          - "{{ dashboards_poison_replay_service_name }}"
+          - -n
+          - "40"
+          - --no-pager
+          - -o
+          - cat
+      register: _poison_log
+      changed_when: false
+      failed_when: false
+
+    - name: Print systemd state
+      ansible.builtin.debug:
+        msg: "{{ _poison_unit.stdout_lines | default([]) }}"
+
+    - name: Print detector and monitor matrix
+      ansible.builtin.debug:
+        msg: >-
+          {{ (_poison_status.content | b64decode | from_json)
+             if (_poison_status.content is defined)
+             else {'state': 'never-run',
+                   'note': 'no status file has been published yet'} }}
+
+    - name: Print recent progress lines
+      ansible.builtin.debug:
+        msg: "{{ _poison_log.stdout_lines | default([]) }}"

@@ -30,6 +30,12 @@ dashboards_ops_service_name: alice-ops
 dashboards_ops_script: /opt/alice-ingest/ops_server.py
 ops_internal_port: 8090
 
+dashboards_poison_replay_service_name: alice-poison-replay
+dashboards_poison_replay_script: /opt/alice-ingest/poison_replay.py
+dashboards_poison_replay_state_dir: /var/lib/alice-poison-replay
+dashboards_poison_replay_status: "{{ dashboards_poison_replay_state_dir }}/status.json"
+dashboards_poison_replay_report_dir: "{{ dashboards_poison_replay_state_dir }}/runs"
+
 dashboards_metrics_service_name: alice-metrics
 dashboards_metrics_script: /opt/alice-ingest/metrics_poller.py
 

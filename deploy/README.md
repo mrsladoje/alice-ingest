@@ -1078,6 +1078,57 @@ cycle is not recovery.
 > specified observable exactly — that host silent, the rest of the fleet
 > unaffected — and reverses cleanly.
 
+### Poison replay — one-minute detector calibration
+
+`make poison-replay` is the complementary **data-plane** calibration. It runs
+as `alice-poison-replay` on the control VM so neither Ansible nor the Ops HTTP
+request stays open for the 32-window RCF warm-up:
+
+```
+make poison          # start in the background (poison-replay also works)
+make poison-status   # safe, repeatable status + detector/monitor matrix
+make poison-stop     # SIGTERM, publish CANCELLED, keep evidence
+```
+
+The same controls are on `/ops`. If no replay pass is active, the harness starts
+one. It then refuses to inject until all **ten one-minute detectors** report
+`RUNNING`, have no shingles left to initialize, and clean recent source rows are
+available. It selects common `origin_host`, collector, and OpenSearch-node values
+from those clean rows; inventing a new entity would only train a new HCAD model
+and would not test the production baseline. The exact selected entity must have
+an active trained model, and its target detector/monitor lanes must have no
+pre-existing firing episode that could absorb or misattribute the injection.
+All seven 30-minute detector definitions are deliberately excluded.
+
+Each burst writes through the production log aliases and `cockpit-metrics`, but
+uses `pipeline=_none` and explicitly supplies both lag fields. This is required
+for a controlled shipping-lag fault: the record must remain in the current
+`collector_time` window while its virtual `ingest_time` represents a 15-minute
+delay. Every row is marked `synthetic:true`, `poison_run_id`, `poison_stage`, and
+`poison_targets`; Bulk item failures abort the run. The injector adapts up to
+three bursts (`1x`, `3x`, `9x`) and never equates a successful HTTP write with a
+detector pass.
+
+The strict pass is:
+
+- all ten fast detectors have a real-time native result above
+  `anomaly_grade_floor` for the selected trained entity;
+- all ten have a corresponding projected `alice-incidents` episode; and
+- projected episodes exist for `ad-high-grade`, `cluster-red`,
+  `collector-down`, `data-loss`, `disk-cliff-page`, `fleet-fb-silence`, and
+  `shipping-breaking`.
+
+The latest machine-readable state is
+`/var/lib/alice-poison-replay/status.json`; immutable per-run reports are under
+`/var/lib/alice-poison-replay/runs/`. Injected documents remain as labelled audit
+evidence and expire through the normal family/metrics retention policies.
+
+This does **not** replace `make inject`. Direct documents validate feature
+aggregation → RCF → AD result → projector episode and deterministic monitor
+queries. They cannot validate parsers, Fluent Bit failure, or absence/min-over-
+time dead-man semantics; those remain the physical `kill-fluent-bit`,
+`stop-alice-metrics`, `stop-projector`, and `replay-end` scenarios above.
+
 #### Calibration — absence-era timings and storm shapes
 
 > **Not yet measured.** No gate in this section has been observed on the real

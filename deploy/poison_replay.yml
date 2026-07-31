@@ -1,0 +1,66 @@
+- name: Start the controlled poison-replay calibration in the background
+  hosts: control
+  become: true
+  gather_facts: false
+  vars_files:
+    - roles/dashboards/defaults/main.yml
+
+  tasks:
+    - name: Check whether poison replay is already active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - --quiet
+          - "{{ dashboards_poison_replay_service_name }}"
+      register: _poison_active
+      changed_when: false
+      failed_when: false
+
+    - name: Refuse overlapping calibration runs
+      ansible.builtin.assert:
+        that: _poison_active.rc != 0
+        fail_msg: >-
+          {{ dashboards_poison_replay_service_name }} is already active. Run
+          make poison-status to follow it or make poison-stop to cancel it.
+
+    - name: Verify the deployed poison-replay script exists
+      ansible.builtin.stat:
+        path: "{{ dashboards_poison_replay_script }}"
+      register: _poison_script
+
+    - name: Require a deploy containing the calibration harness
+      ansible.builtin.assert:
+        that: _poison_script.stat.isreg | default(false)
+        fail_msg: >-
+          {{ dashboards_poison_replay_script }} is not installed. Run make
+          deploy before starting poison replay.
+
+    - name: Clear a prior failed unit result
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - reset-failed
+          - "{{ dashboards_poison_replay_service_name }}"
+      changed_when: false
+      failed_when: false
+
+    - name: Start poison replay without holding the Ansible connection open
+      ansible.builtin.systemd:
+        name: "{{ dashboards_poison_replay_service_name }}"
+        state: started
+        daemon_reload: true
+        no_block: true
+
+    - name: Report the monitoring seam
+      ansible.builtin.debug:
+        msg:
+          - >-
+            {{ dashboards_poison_replay_service_name }} started. It may spend
+            up to {{ poison_warmup_timeout_seconds }} seconds warming the real
+            one-minute detector models before the first labelled injection.
+          - "Poll safely with: make poison-status"
+          - "Cancel safely with: make poison-stop"
+          - >-
+            Ops shows the same status at /ops; reports are retained under
+            {{ dashboards_poison_replay_report_dir }}.

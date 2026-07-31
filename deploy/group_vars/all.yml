@@ -176,6 +176,19 @@ replay_max_object_bytes: 157286400
 replay_loop: false
 replay_loop_pause_seconds: 30
 
+# Controlled detector calibration. poison-replay waits for the real paced S3
+# replay to train every one-minute detector, then injects labelled outliers into
+# already-modelled entities. It never targets the 30-minute detector lane.
+poison_warmup_timeout_seconds: 4200
+poison_warmup_poll_seconds: 120
+poison_observe_seconds: 330
+poison_observe_poll_seconds: 30
+poison_max_bursts: 3
+poison_volume_multiplier: 12
+poison_min_log_docs: 300
+poison_max_log_docs: 3000
+poison_metric_docs: 30
+
 producers_venv_path: /opt/alice-ingest/venv
 producers_app_root: /opt/alice-ingest/app
 
