@@ -328,268 +328,413 @@ PAGE = Template("""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#07111f">
-<title>ALICE Cockpit — Operations</title>
+<meta name="theme-color" content="#0a0b0d">
+<title>ALICE — Operations</title>
 <style>
+ *,*::before,*::after{box-sizing:border-box}
+ [hidden]{display:none!important}
  :root{
    color-scheme:dark;
-   --bg:#07111f;--surface:#0d1b2a;--surface-2:#112338;
-   --line:#20364d;--text:#f4f8fc;--muted:#93a8bd;
-   --cyan:#4dd9e8;--blue:#5b8cff;--green:#35d07f;
-   --amber:#f7b955;--red:#ff6b6b;--shadow:0 20px 60px rgba(0,0,0,.28)
+   --bg:#0a0b0d;--panel:#101216;--panel-2:#15181d;--sunk:#0c0e11;
+   --hair:#242830;--hair-2:#191c21;
+   --text:#e9ebee;--dim:#98a0ab;--faint:#666d78;
+   --ok:#5cba8a;--warn:#d8a244;--crit:#e0645d;
+   --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+   --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif
  }
- *{box-sizing:border-box}
+ html{-webkit-text-size-adjust:100%}
  body{
-   margin:0;min-height:100vh;color:var(--text);
-   font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-   background:
-     radial-gradient(circle at 8% 0%,rgba(77,217,232,.13),transparent 30rem),
-     radial-gradient(circle at 100% 20%,rgba(91,140,255,.12),transparent 34rem),
-     var(--bg)
+   margin:0;min-height:100vh;background:var(--bg);color:var(--text);
+   font:400 13px/1.55 var(--sans);-webkit-font-smoothing:antialiased
  }
- body:before{
-   content:"";position:fixed;inset:0;pointer-events:none;opacity:.32;
-   background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),
-     linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
-   background-size:32px 32px;mask-image:linear-gradient(to bottom,#000,transparent 75%)
- }
- .shell{position:relative;width:min(1120px,calc(100% - 32px));margin:0 auto;padding:42px 0 64px}
- .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:24px}
- .eyebrow{margin:0 0 8px;color:var(--cyan);font-size:.72rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase}
- h1{margin:0;font-size:clamp(2rem,4vw,3.35rem);line-height:1;letter-spacing:-.045em}
- .lede{max-width:650px;margin:14px 0 0;color:var(--muted);line-height:1.6}
- .dash{
-   display:inline-flex;align-items:center;gap:8px;flex:none;padding:10px 14px;
-   border:1px solid var(--line);border-radius:12px;color:var(--text);
-   background:rgba(13,27,42,.72);font-size:.88rem;font-weight:700;text-decoration:none;
-   transition:border-color .2s,transform .2s,background .2s
- }
- .dash:hover{transform:translateY(-1px);border-color:#3e617f;background:var(--surface-2)}
- .dash:after{content:"↗";color:var(--cyan)}
- .panel{
-   border:1px solid var(--line);border-radius:20px;background:rgba(13,27,42,.88);
-   box-shadow:var(--shadow);backdrop-filter:blur(16px)
- }
- .hero{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,.75fr);overflow:hidden;margin-bottom:18px}
- .hero-main{padding:28px 30px}
- .hero-side{padding:26px 28px;border-left:1px solid var(--line);background:rgba(17,35,56,.58)}
- .section-label{margin:0 0 8px;color:var(--muted);font-size:.72rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
- .total{margin:0;font-size:clamp(3rem,7vw,5.2rem);font-weight:780;line-height:1;letter-spacing:-.055em;font-variant-numeric:tabular-nums}
- .total-caption{margin:10px 0 0;color:var(--muted);font-size:.88rem}
+ .wrap{width:min(1180px,100% - 44px);margin:0 auto}
+ .rail{position:fixed;top:0;left:0;right:0;height:2px;background:var(--hair-2);overflow:hidden;z-index:9}
+ .rail:after{content:"";position:absolute;top:0;bottom:0;left:0;width:22%;background:var(--ok);opacity:0}
+ body[data-replay="on"] .rail:after{opacity:1;animation:sweep 2.8s linear infinite}
+
+ .mast{border-bottom:1px solid var(--hair);background:var(--sunk)}
+ .mast-in{display:flex;align-items:center;gap:16px;min-height:58px;padding:11px 0;flex-wrap:wrap}
+ .mark{margin:0;font:600 12px/1 var(--mono);letter-spacing:.24em;text-transform:uppercase}
+ .mark span{color:var(--faint);font-weight:400}
+ .mast-sub{margin:0;padding-left:16px;border-left:1px solid var(--hair);color:var(--dim);font-size:12px}
+ .mast-act{display:flex;align-items:center;gap:10px;margin-left:auto}
  .pill{
-   display:inline-flex;align-items:center;gap:9px;padding:8px 12px;border:1px solid;
-   border-radius:999px;font-size:.78rem;font-weight:800;letter-spacing:.02em
+   display:inline-flex;align-items:center;gap:8px;padding:6px 11px;border:1px solid var(--hair);
+   border-radius:3px;font:600 10px/1 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--faint)
  }
- .pill:before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px currentColor}
- .live{color:var(--green);border-color:rgba(53,208,127,.3);background:rgba(53,208,127,.08)}
- .live:before{box-shadow:0 0 0 4px rgba(53,208,127,.12),0 0 14px rgba(53,208,127,.75)}
- .idle{color:#aab9c7;border-color:var(--line);background:rgba(147,168,189,.06)}
- .connection{display:flex;align-items:center;gap:7px;margin-top:14px;color:var(--muted);font-size:.76rem}
- .connection-dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
- .connection.error .connection-dot{background:var(--red)}
- .family-table{width:100%;margin-top:18px;border-collapse:collapse;font-size:.84rem}
- .family-table td{padding:8px 0;border-top:1px solid rgba(32,54,77,.7)}
- .family-table td:first-child{color:#b9c8d6}
- .n{text-align:right;font-variant-numeric:tabular-nums;font-weight:750}
- .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
- .stat{padding:20px 22px}
- .stat-value{margin:8px 0 0;font-size:2rem;font-weight:780;letter-spacing:-.035em;font-variant-numeric:tabular-nums}
- .workspace{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);gap:18px;align-items:start}
- .actions,.incidents{padding:26px}
- h2{margin:0;font-size:1.1rem;letter-spacing:-.015em}
- .section-copy{margin:8px 0 20px;color:var(--muted);font-size:.86rem;line-height:1.55}
- .action-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+ .pill:before{content:"";width:5px;height:5px;border-radius:1px;background:currentColor}
+ .pill.live{color:var(--ok);border-color:rgba(92,186,138,.34);background:rgba(92,186,138,.07)}
+ .pill.live:before{animation:blink 1.9s ease-in-out infinite}
+ .link{
+   display:inline-flex;align-items:center;gap:8px;padding:6px 11px;border:1px solid var(--hair);
+   border-radius:3px;background:var(--panel);color:var(--text);text-decoration:none;
+   font:600 10px/1 var(--mono);letter-spacing:.13em;text-transform:uppercase;
+   transition:background .15s,border-color .15s
+ }
+ .link:after{content:"→";color:var(--faint);font-size:11px;letter-spacing:0}
+ .link:hover{background:var(--panel-2);border-color:#343a44}
+
+ main{padding:20px 0 34px}
+ .metrics{
+   display:grid;grid-template-columns:minmax(0,1.4fr) repeat(4,minmax(0,1fr));
+   border:1px solid var(--hair);border-radius:4px;background:var(--panel)
+ }
+ .metric{padding:17px 20px;border-left:1px solid var(--hair-2);min-width:0}
+ .metric:first-child{border-left:0}
+ .lbl{margin:0;display:flex;align-items:center;gap:7px;color:var(--faint);
+   font:600 10px/1.2 var(--mono);letter-spacing:.15em;text-transform:uppercase}
+ .dot{flex:none;width:5px;height:5px;border-radius:1px;background:var(--warn);opacity:0}
+ .dot.crit{background:var(--crit)}
+ .metric[data-state="active"] .dot{opacity:1}
+ .val{margin:13px 0 0;font-size:30px;font-weight:300;line-height:1;letter-spacing:-.022em;font-variant-numeric:tabular-nums}
+ .metric:first-child .val{font-size:46px}
+ .metric[data-state="zero"] .val{color:var(--faint)}
+ .cap{margin:11px 0 0;color:var(--faint);font-size:11.5px;line-height:1.45}
+
+ .controls{margin-top:14px}
+ .work{display:grid;grid-template-columns:minmax(0,1.48fr) minmax(300px,1fr);gap:14px;margin-top:14px;align-items:start}
+ .work>*{min-width:0}
+ .panel{border:1px solid var(--hair);border-radius:4px;background:var(--panel)}
+ .phead{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 18px;border-bottom:1px solid var(--hair-2)}
+ h2{margin:0;color:var(--dim);font:600 11px/1 var(--mono);letter-spacing:.15em;text-transform:uppercase}
+ .meta{color:var(--faint);font:600 10px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
+ .meta b{color:var(--dim);font-weight:600}
+ .pbody{padding:18px}
+
+ .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
  form{margin:0}
  button{
-   position:relative;display:flex;align-items:center;justify-content:center;gap:10px;
-   width:100%;min-height:48px;padding:12px 14px;border:1px solid transparent;
-   border-radius:12px;color:var(--text);font:inherit;font-size:.86rem;font-weight:800;
-   cursor:pointer;transition:transform .16s,border-color .16s,background .16s,opacity .16s
+   display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;
+   width:100%;height:100%;padding:12px 14px;border:1px solid var(--hair);border-radius:3px;
+   background:transparent;color:var(--text);font:inherit;text-align:left;cursor:pointer;
+   transition:background .15s,border-color .15s,opacity .15s
  }
- button:hover:not(:disabled){transform:translateY(-1px)}
- button:focus-visible{outline:3px solid rgba(77,217,232,.28);outline-offset:2px}
- button:disabled{cursor:wait;opacity:.48}
- button.is-loading{opacity:1}
- .primary{background:var(--blue);box-shadow:0 10px 24px rgba(91,140,255,.2)}
- .neutral{border-color:#2b4762;background:#162a40}
- .danger{border-color:rgba(255,107,107,.38);background:rgba(255,107,107,.11);color:#ffc1c1}
- .warning{border-color:rgba(247,185,85,.4);background:rgba(247,185,85,.11);color:#ffd894}
+ .button-label{display:block;font-size:12.5px;font-weight:600;letter-spacing:-.005em}
+ .button-sub{display:block;margin-top:3px;color:var(--faint);font-size:11px;line-height:1.35}
+ .primary{background:var(--text);border-color:var(--text);color:#0a0b0d}
+ .primary .button-sub{color:rgba(10,11,13,.6)}
+ .primary:hover:not(:disabled){background:#fff;border-color:#fff}
+ .neutral:hover:not(:disabled){background:var(--panel-2);border-color:#343a44}
+ .danger{border-color:rgba(224,100,93,.32);color:#efaba6}
+ .danger .button-sub{color:rgba(224,100,93,.66)}
+ .danger:hover:not(:disabled){background:rgba(224,100,93,.09);border-color:rgba(224,100,93,.55)}
+ .warning{border-color:rgba(216,162,68,.3);color:#eec684}
+ .warning .button-sub{color:rgba(216,162,68,.64)}
+ .warning:hover:not(:disabled){background:rgba(216,162,68,.08);border-color:rgba(216,162,68,.5)}
+ button:focus-visible{outline:2px solid var(--ok);outline-offset:2px}
+ button:disabled{cursor:wait;opacity:.4}
  .button-spinner{
-   display:none;width:15px;height:15px;border:2px solid currentColor;
-   border-right-color:transparent;border-radius:50%;animation:spin .72s linear infinite
+   visibility:hidden;width:13px;height:13px;border:1.5px solid currentColor;border-right-color:transparent;
+   border-radius:50%;animation:spin .7s linear infinite
  }
- button.is-loading .button-spinner{display:block}
+ button.is-loading .button-spinner{visibility:visible}
+
  .busy{
-   display:none;align-items:flex-start;gap:12px;margin-top:14px;padding:14px 15px;
-   border:1px solid rgba(77,217,232,.25);border-radius:12px;
-   background:rgba(77,217,232,.07);color:#c8f7fb;font-size:.82rem;line-height:1.45
+   display:none;align-items:center;gap:10px;margin-top:12px;padding:11px 13px;
+   border:1px solid var(--hair);border-left:2px solid var(--ok);border-radius:3px;
+   background:var(--sunk);color:var(--dim);font-size:11.5px;line-height:1.45
  }
  .busy.on{display:flex}
  .busy .spinner{
-   flex:none;width:17px;height:17px;margin-top:1px;border:2px solid var(--cyan);
-   border-right-color:transparent;border-radius:50%;animation:spin .72s linear infinite
+   flex:none;width:13px;height:13px;border:1.5px solid var(--ok);border-right-color:transparent;
+   border-radius:50%;animation:spin .7s linear infinite
  }
- .result{
-   margin:0 0 16px;padding:15px 16px;border:1px solid rgba(53,208,127,.28);
-   border-radius:13px;background:rgba(53,208,127,.07)
- }
- .result.error{border-color:rgba(255,107,107,.34);background:rgba(255,107,107,.08)}
- .result-title{margin:0 0 8px;color:var(--green);font-size:.72rem;font-weight:850;letter-spacing:.1em;text-transform:uppercase}
- .result.error .result-title{color:var(--red)}
- pre{margin:0;color:#dbe8f2;white-space:pre-wrap;font:500 .78rem/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
- .incident-table{width:100%;border-collapse:collapse;font-size:.78rem}
- .incident-table th{padding:0 8px 9px;text-align:left;color:var(--muted);font-size:.66rem;letter-spacing:.08em;text-transform:uppercase}
- .incident-table td{padding:10px 8px;border-top:1px solid var(--line);color:#c8d5e0;vertical-align:top}
- .incident-table th:first-child,.incident-table td:first-child{padding-left:0}
- .incident-table th:last-child,.incident-table td:last-child{padding-right:0}
- .empty{padding:28px 0;color:var(--muted);font-size:.85rem;text-align:center}
- .notes{margin-top:18px;padding:18px 20px;border:1px solid var(--line);border-radius:15px;color:var(--muted);font-size:.78rem;line-height:1.6;background:rgba(7,17,31,.45)}
- .notes strong{color:#d6e4ef}
- code{padding:2px 5px;border-radius:5px;background:#07111f;color:#b8ecf2;font-size:.92em}
+
+ .result{margin:0 0 14px;border:1px solid var(--hair);border-left:2px solid var(--ok);border-radius:3px;background:var(--sunk)}
+ .result-title{margin:0;padding:10px 13px;border-bottom:1px solid var(--hair-2);color:var(--ok);
+   font:600 10px/1 var(--mono);letter-spacing:.15em;text-transform:uppercase}
+ .result.error{border-left-color:var(--crit)}
+ .result.error .result-title{color:var(--crit)}
+ pre{margin:0;padding:13px;max-height:22rem;overflow:auto;color:#c6ced8;white-space:pre-wrap;
+   font:400 11.5px/1.65 var(--mono)}
+
+ .scroll{overflow-x:auto}
+ table{width:100%;border-collapse:collapse}
+ th{padding:0 10px 9px;text-align:left;border-bottom:1px solid var(--hair-2);color:var(--faint);
+   font:600 9.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
+ td{padding:11px 10px;border-bottom:1px solid var(--hair-2);color:var(--dim);font-size:12px;vertical-align:top}
+ tr:last-child td{border-bottom:0}
+ th:first-child,td:first-child{padding-left:0}
+ th:last-child,td:last-child{padding-right:0}
+ td.name{color:var(--text);font:600 11.5px/1.4 var(--mono)}
+ td.scope{font:400 11px/1.4 var(--mono)}
+ th.n,td.n{text-align:right}
+ td.n{color:var(--text);font-variant-numeric:tabular-nums}
+ td.entities{color:var(--faint);font:400 11px/1.5 var(--mono);word-break:break-word}
+ .tag{display:inline-block;padding:3px 7px;border:1px solid var(--hair);border-radius:2px;color:var(--dim);
+   font:600 9.5px/1 var(--mono);letter-spacing:.11em;text-transform:uppercase}
+ .tag.crit{color:#efaba6;border-color:rgba(224,100,93,.4);background:rgba(224,100,93,.09)}
+ .tag.warn{color:#eec684;border-color:rgba(216,162,68,.36);background:rgba(216,162,68,.08)}
+ .empty{padding:22px 14px;border:1px dashed var(--hair);border-radius:3px;text-align:center}
+ .empty-t{margin:0;color:var(--faint);font:600 10px/1 var(--mono);letter-spacing:.15em;text-transform:uppercase}
+ .empty-s{margin:9px 0 0;color:var(--faint);font-size:11.5px}
+
+ .fam{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px 14px;align-items:baseline;padding:0 0 15px}
+ .fam:last-child{padding-bottom:0}
+ .fam-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dim);font:400 11.5px/1.3 var(--mono)}
+ .fam-n{font-size:12.5px;font-weight:500;font-variant-numeric:tabular-nums;text-align:right}
+ .fam-track{grid-column:1/-1;height:4px;background:#1b1f25;border-radius:2px;overflow:hidden}
+ .fam-fill{display:block;height:100%;min-width:2px;background:#4f5a69;border-radius:2px}
+ .fam:first-child .fam-fill{background:#63707f}
+ .fam[data-empty="1"] .fam-n{color:var(--faint)}
+ .fam[data-empty="1"] .fam-fill{min-width:0}
+
+ .foot{display:flex;align-items:flex-start;justify-content:space-between;gap:28px;
+   margin-top:18px;padding-top:15px;border-top:1px solid var(--hair-2);color:var(--faint);font-size:11.5px;line-height:1.65}
+ .foot p{max-width:74ch;margin:0}
+ .foot strong{color:var(--dim);font-weight:600}
+ .clock{display:flex;align-items:center;gap:7px;white-space:nowrap;color:var(--faint);
+   font:400 10px/1 var(--mono);letter-spacing:.11em;text-transform:uppercase}
+ .clock:before{content:"";width:5px;height:5px;border-radius:1px;background:var(--ok)}
+ .clock.error{color:var(--crit)}
+ .clock.error:before{background:var(--crit)}
+ code{padding:1px 5px;border:1px solid var(--hair-2);border-radius:2px;background:var(--sunk);
+   color:var(--dim);font-family:var(--mono);font-size:.92em}
+
  @keyframes spin{to{transform:rotate(360deg)}}
- @media(max-width:820px){
-   .topbar{display:block}.dash{margin-top:18px}
-   .hero,.workspace{grid-template-columns:1fr}.hero-side{border-left:0;border-top:1px solid var(--line)}
-   .stats{grid-template-columns:1fr 1fr}
+ @keyframes sweep{from{transform:translateX(-100%)}to{transform:translateX(555%)}}
+ @keyframes blink{0%,100%{opacity:1}50%{opacity:.28}}
+
+ @media(max-width:1040px){
+   .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+   .metric{border-top:1px solid var(--hair-2)}
+   .metric:first-child{grid-column:1/-1;border-top:0}
+   .metric:nth-child(even){border-left:0}
+   .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+   .work{grid-template-columns:minmax(0,1fr)}
  }
- @media(max-width:520px){
-   .shell{width:min(100% - 20px,1120px);padding-top:24px}
-   .hero-main,.hero-side,.actions,.incidents{padding:20px}
-   .action-grid{grid-template-columns:1fr}.stats{gap:9px}.stat{padding:16px}
-   .stat-value{font-size:1.65rem}
+ @media(max-width:620px){
+   .wrap{width:min(1180px,100% - 28px)}
+   .mast-sub{padding-left:0;border-left:0;flex-basis:100%}
+   .mast-act{margin-left:0}
+   .grid{grid-template-columns:1fr}
+   .metric:first-child .val{font-size:38px}
+   .val{font-size:26px}
+   .foot{display:block}
+   .clock{margin-top:12px}
  }
- @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation-duration:.01ms!important;transition:none!important}}
+ @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition:none!important}}
 </style>
 </head>
-<body>
-<main class="shell">
-  <header class="topbar">
-    <div>
-      <p class="eyebrow">ALICE observability</p>
-      <h1>Operations console</h1>
-      <p class="lede">Replay control and live detection-layer telemetry. Every action reports its result after a refresh-safe redirect.</p>
-    </div>
-    <a class="dash" href="/">Open Cockpit</a>
-  </header>
+<body data-replay="$body_state">
+<div class="rail" aria-hidden="true"></div>
 
-  <section class="panel hero">
-    <div class="hero-main">
-      <p class="section-label">Documents indexed</p>
-      <p class="total" id="total">$count</p>
-      <p class="total-caption">Across <code>infologger</code> and <code>generic-log-*</code></p>
-    </div>
-    <div class="hero-side">
+<header class="mast">
+  <div class="wrap mast-in">
+    <h1 class="mark">ALICE <span>/ Operations</span></h1>
+    <p class="mast-sub">Replay control and detection telemetry</p>
+    <div class="mast-act">
       <span id="pill" class="pill $pill_class">$pill_text</span>
-      <div id="connection" class="connection">
-        <span class="connection-dot"></span>
-        <span id="last-updated">Live status connected</span>
-      </div>
-      <table class="family-table" id="fam"><tbody>$families</tbody></table>
+      <a class="link" href="/">Cockpit</a>
     </div>
-  </section>
+  </div>
+</header>
 
-  <section class="stats" aria-label="Detection summary">
-    <article class="panel stat"><p class="section-label">Open incidents</p><p class="stat-value" id="incidents">$incidents</p></article>
-    <article class="panel stat"><p class="section-label">Signals firing</p><p class="stat-value" id="signals">$signals</p></article>
-    <article class="panel stat"><p class="section-label">Active alerts</p><p class="stat-value" id="alerts">$alerts</p></article>
-    <article class="panel stat"><p class="section-label">Anomalies · 1h</p><p class="stat-value" id="anom">$anomalies</p></article>
-  </section>
-
-  <section class="workspace">
-    <article class="panel actions">
-      <h2>Replay controls</h2>
-      <p class="section-copy">Start, stop, or reset the paced S3 feed. Destructive actions ask for confirmation.</p>
-      $result
-      <div class="action-grid">
-        <form method="post" action="replay" data-busy="Starting another paced replay pass.">
-          <button class="primary" type="submit" data-loading-label="Starting replay…">
-            <span class="button-spinner" aria-hidden="true"></span><span class="button-label">Append replay</span>
-          </button>
-        </form>
-        <form method="post" action="stop" data-busy="Asking the workers to stop the current pass." data-confirm="Stop the replay currently running on the workers?">
-          <button class="neutral" type="submit" data-loading-label="Stopping replay…">
-            <span class="button-spinner" aria-hidden="true"></span><span class="button-label">Stop replay</span>
-          </button>
-        </form>
-        <form method="post" action="replay-fresh" data-busy="Cancelling any running replay, wiping derived data, rebuilding aliases, and starting a clean reload. This can take up to a minute." data-confirm="Fresh reload deletes the current replayed logs and all derived findings before starting again. Continue?">
-          <button class="danger" type="submit" data-loading-label="Resetting and reloading…">
-            <span class="button-spinner" aria-hidden="true"></span><span class="button-label">Reload data · fresh</span>
-          </button>
-        </form>
-        <form method="post" action="clear" data-busy="Purging alerts, anomalies, incidents, signals, and trend baselines." data-confirm="Clear all derived findings and trend baselines while keeping the logs?">
-          <button class="warning" type="submit" data-loading-label="Clearing findings…">
-            <span class="button-spinner" aria-hidden="true"></span><span class="button-label">Clear findings</span>
-          </button>
-        </form>
-      </div>
-      <div id="busy" class="busy" role="status" aria-live="polite">
-        <span class="spinner" aria-hidden="true"></span><span id="busytext">Working…</span>
-      </div>
-      <div class="notes">
-        A paced load runs for about an hour. One-minute detectors need 32 consecutive windows before leaving initialization. Records keep their archive event time, while detection uses <code>collector_time</code>. <strong>Fresh reload</strong> replaces logs and derived findings; <strong>Clear findings</strong> leaves logs intact.
-      </div>
+<main class="wrap">
+  <section class="metrics" aria-label="Live counters">
+    <article class="metric" data-state="$count_state">
+      <p class="lbl">Documents indexed</p>
+      <p class="val" id="total">$count</p>
+      <p class="cap">Across <code>infologger</code> and <code>generic-log-*</code></p>
     </article>
-
-    <article class="panel incidents">
-      <h2>Open incidents</h2>
-      <p class="section-copy">Episodes group signals that share one cause. Source evidence remains in <code>alice-signals</code>.</p>
-      <div id="incident-empty" class="empty"$empty_hidden>No open incidents</div>
-      <table class="incident-table"$table_hidden>
-        <thead><tr><th>Alert</th><th>Severity</th><th>Scope</th><th>Members</th><th>Entities</th></tr></thead>
-        <tbody id="inclist">$incident_rows</tbody>
-      </table>
+    <article class="metric" data-state="$incidents_state">
+      <p class="lbl"><span class="dot crit"></span>Open incidents</p>
+      <p class="val" id="incidents">$incidents</p>
+    </article>
+    <article class="metric" data-state="$signals_state">
+      <p class="lbl"><span class="dot"></span>Signals firing</p>
+      <p class="val" id="signals">$signals</p>
+    </article>
+    <article class="metric" data-state="$alerts_state">
+      <p class="lbl"><span class="dot"></span>Active alerts</p>
+      <p class="val" id="alerts">$alerts</p>
+    </article>
+    <article class="metric" data-state="$anomalies_state">
+      <p class="lbl"><span class="dot"></span>Anomalies · 1h</p>
+      <p class="val" id="anom">$anomalies</p>
     </article>
   </section>
+
+  <section class="panel controls">
+      <div class="phead">
+        <h2>Replay control</h2>
+        <span class="meta">$worker_meta</span>
+      </div>
+      <div class="pbody">
+        $result
+        <div class="grid">
+          <form method="post" action="replay" data-busy="Starting another paced replay pass.">
+            <button class="primary" type="submit" data-loading-label="Starting replay…">
+              <span><span class="button-label">Append replay</span><span class="button-sub">Adds one more paced pass to the data already loaded.</span></span>
+              <span class="button-spinner" aria-hidden="true"></span>
+            </button>
+          </form>
+          <form method="post" action="stop" data-busy="Asking the workers to stop the current pass." data-confirm="Stop the replay currently running on the workers?">
+            <button class="neutral" type="submit" data-loading-label="Stopping replay…">
+              <span><span class="button-label">Stop replay</span><span class="button-sub">Ends the pass after the record in flight. Data stays.</span></span>
+              <span class="button-spinner" aria-hidden="true"></span>
+            </button>
+          </form>
+          <form method="post" action="replay-fresh" data-busy="Cancelling any running replay, wiping derived data, rebuilding aliases, and starting a clean reload. This can take up to a minute." data-confirm="Fresh reload deletes the current replayed logs and all derived findings before starting again. Continue?">
+            <button class="danger" type="submit" data-loading-label="Resetting and reloading…">
+              <span><span class="button-label">Reload data · fresh</span><span class="button-sub">Deletes logs and findings, rebuilds aliases, reloads.</span></span>
+              <span class="button-spinner" aria-hidden="true"></span>
+            </button>
+          </form>
+          <form method="post" action="clear" data-busy="Purging alerts, anomalies, incidents, signals, and trend baselines." data-confirm="Clear all derived findings and trend baselines while keeping the logs?">
+            <button class="warning" type="submit" data-loading-label="Clearing findings…">
+              <span><span class="button-label">Clear findings</span><span class="button-sub">Drops alerts, incidents and baselines. Keeps the logs.</span></span>
+              <span class="button-spinner" aria-hidden="true"></span>
+            </button>
+          </form>
+        </div>
+        <div id="busy" class="busy" role="status" aria-live="polite">
+          <span class="spinner" aria-hidden="true"></span><span id="busytext">Working…</span>
+        </div>
+      </div>
+  </section>
+
+  <div class="work">
+    <section class="panel">
+      <div class="phead">
+        <h2>Open incidents</h2>
+        <span class="meta" id="inc-meta">$incident_meta</span>
+      </div>
+      <div class="pbody">
+        <div id="incident-empty" class="empty"$empty_hidden>
+          <p class="empty-t">Nothing firing</p>
+          <p class="empty-s">Episodes appear here as soon as a detector opens one.</p>
+        </div>
+        <div class="scroll"$table_hidden>
+          <table>
+            <thead><tr><th>Alert</th><th>Severity</th><th>Scope</th><th class="n">Members</th><th>Entities</th></tr></thead>
+            <tbody id="inclist">$incident_rows</tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="phead">
+        <h2>Ingest by family</h2>
+        <span class="meta">Total <b id="fam-total">$family_total</b></span>
+      </div>
+      <div class="pbody"><div id="fam">$families</div></div>
+    </section>
+  </div>
+
+  <footer class="foot">
+    <p>A paced load runs for about an hour. One-minute detectors need 32 consecutive windows before they
+      leave initialization. Records keep their archive event time, while detection reads the field
+      <code>collector_time</code> instead. <strong>Every action reports its result after a refresh-safe
+      redirect, so a page reload never repeats it.</strong></p>
+    <div id="connection" class="clock"><span id="last-updated">Live status connected</span></div>
+  </footer>
 </main>
 
 <script>
+var SEVERITY = {
+  critical:'crit', crit:'crit', fatal:'crit', error:'crit', high:'crit', p1:'crit',
+  warning:'warn', warn:'warn', medium:'warn', moderate:'warn', p2:'warn'
+};
+function severityClass(value) {
+  return SEVERITY[String(value == null ? '' : value).toLowerCase()] || '';
+}
+function numberText(value) {
+  var text = String(value == null ? '' : value);
+  if (text === '' || /[^0-9]/.test(text)) { return text; }
+  return text.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');
+}
 function cell(text, className) {
   var el = document.createElement('td');
   el.textContent = text == null ? '' : String(text);
   if (className) { el.className = className; }
   return el;
 }
-function numberText(value) {
-  var parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed.toLocaleString() : String(value);
+function severityCell(value) {
+  var el = document.createElement('td');
+  var tag = document.createElement('span');
+  tag.className = ('tag ' + severityClass(value)).trim();
+  tag.textContent = value == null ? '' : String(value);
+  el.appendChild(tag);
+  return el;
+}
+function setMetric(id, value) {
+  var el = document.getElementById(id);
+  el.textContent = numberText(value);
+  var owner = el.closest('.metric');
+  if (owner) { owner.dataset.state = Number(value) > 0 ? 'active' : 'zero'; }
+}
+function paintIncidents(rows) {
+  var body = document.getElementById('inclist');
+  body.replaceChildren();
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var tr = document.createElement('tr');
+    tr.append(cell(r.alertname, 'name'), severityCell(r.severity), cell(r.scope, 'scope'),
+              cell(r.members, 'n'), cell(r.samples, 'entities'));
+    body.appendChild(tr);
+  }
+  document.getElementById('incident-empty').hidden = rows.length > 0;
+  body.closest('.scroll').hidden = rows.length === 0;
+  document.getElementById('inc-meta').textContent =
+    rows.length ? rows.length + ' shown' : 'None firing';
+}
+function paintFamilies(families) {
+  var box = document.getElementById('fam');
+  box.replaceChildren();
+  var top = 0, total = 0, i;
+  for (i = 0; i < families.length; i++) {
+    var n = Number(families[i][1]) || 0;
+    total += n;
+    if (n > top) { top = n; }
+  }
+  for (i = 0; i < families.length; i++) {
+    var count = Number(families[i][1]) || 0;
+    var row = document.createElement('div');
+    row.className = 'fam';
+    if (!count) { row.dataset.empty = '1'; }
+    var name = document.createElement('span');
+    name.className = 'fam-name';
+    name.textContent = families[i][0];
+    name.title = families[i][0];
+    var value = document.createElement('span');
+    value.className = 'fam-n';
+    value.textContent = numberText(count);
+    var track = document.createElement('span');
+    track.className = 'fam-track';
+    var fill = document.createElement('span');
+    fill.className = 'fam-fill';
+    fill.style.width = (top ? Math.max(count ? 2 : 0, Math.round(count / top * 100)) : 0) + '%';
+    track.appendChild(fill);
+    row.append(name, value, track);
+    box.appendChild(row);
+  }
+  document.getElementById('fam-total').textContent = numberText(total);
 }
 function paint(s) {
-  document.getElementById('total').textContent = numberText(s.count);
-  document.getElementById('alerts').textContent = s.active_alerts;
-  document.getElementById('anom').textContent = s.anomalies_last_hour;
-  document.getElementById('incidents').textContent = s.open_incidents;
-  document.getElementById('signals').textContent = s.open_signals;
-
-  var incBody = document.getElementById('inclist');
-  incBody.replaceChildren();
-  for (var j = 0; j < s.incidents.length; j++) {
-    var r = s.incidents[j];
-    var tr = document.createElement('tr');
-    tr.append(cell(r.alertname),cell(r.severity),cell(r.scope),cell(r.members,'n'),cell(r.samples));
-    incBody.appendChild(tr);
-  }
-  var hasIncidents = s.incidents.length > 0;
-  document.getElementById('incident-empty').hidden = hasIncidents;
-  incBody.closest('table').hidden = !hasIncidents;
+  setMetric('total', s.count);
+  setMetric('alerts', s.active_alerts);
+  setMetric('anom', s.anomalies_last_hour);
+  setMetric('incidents', s.open_incidents);
+  setMetric('signals', s.open_signals);
+  paintIncidents(s.incidents);
+  paintFamilies(s.families);
 
   var pill = document.getElementById('pill');
   if (s.replay_running) {
     pill.className = 'pill live';
-    pill.textContent = 'Replay running on ' + s.replay_workers + ' worker' + (s.replay_workers === 1 ? '' : 's');
+    pill.textContent = 'Replay active · ' + s.replay_workers +
+      ' worker' + (s.replay_workers === 1 ? '' : 's');
   } else {
     pill.className = 'pill idle';
-    pill.textContent = 'No replay running';
+    pill.textContent = 'Replay idle';
   }
+  document.body.dataset.replay = s.replay_running ? 'on' : 'off';
 
-  var famBody = document.querySelector('#fam tbody');
-  famBody.replaceChildren();
-  for (var i = 0; i < s.families.length; i++) {
-    var row = document.createElement('tr');
-    row.append(cell(s.families[i][0]),cell(numberText(s.families[i][1]),'n'));
-    famBody.appendChild(row);
-  }
-  document.getElementById('connection').className = 'connection';
-  document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  document.getElementById('connection').className = 'clock';
+  document.getElementById('last-updated').textContent =
+    'Updated ' + new Date().toLocaleTimeString([], {hour12:false});
 }
 function poll() {
   fetch('status', {cache:'no-store'})
@@ -599,7 +744,7 @@ function poll() {
     })
     .then(paint)
     .catch(function () {
-      document.getElementById('connection').className = 'connection error';
+      document.getElementById('connection').className = 'clock error';
       document.getElementById('last-updated').textContent = 'Live status unavailable';
     });
 }
@@ -641,21 +786,59 @@ setInterval(poll,5000);
 </html>
 """)
 
+SEVERITY_TAGS = {
+    "critical": "crit", "crit": "crit", "fatal": "crit", "error": "crit",
+    "high": "crit", "p1": "crit", "warning": "warn", "warn": "warn",
+    "medium": "warn", "moderate": "warn", "p2": "warn",
+}
+
+
+def _fmt(value):
+    text = str(value)
+    return "{:,}".format(int(text)) if text.isdigit() else text
+
+
+def _num_state(value):
+    text = str(value)
+    return "active" if text.isdigit() and int(text) > 0 else "zero"
+
+
+def _severity_class(value):
+    return SEVERITY_TAGS.get(str(value).strip().lower(), "")
+
 
 def _family_rows(families):
-    return "".join(
-        f'<tr><td>{html.escape(f)}</td><td class="n">{n:,}</td></tr>'
-        for f, n in families)
+    top = max([n for _, n in families] or [0])
+    rows = []
+    for name, n in families:
+        share = round(n / top * 100) if top else 0
+        if n and share < 2:
+            share = 2
+        empty = "" if n else ' data-empty="1"'
+        safe = html.escape(str(name))
+        rows.append(
+            f'<div class="fam"{empty}>'
+            f'<span class="fam-name" title="{safe}">{safe}</span>'
+            f'<span class="fam-n">{n:,}</span>'
+            f'<span class="fam-track">'
+            f'<span class="fam-fill" style="width:{share}%"></span>'
+            f'</span></div>')
+    return "".join(rows)
 
 
 def _incident_rows(rows):
-    return "".join(
-        f'<tr><td>{html.escape(str(r["alertname"]))}</td>'
-        f'<td>{html.escape(str(r["severity"]))}</td>'
-        f'<td>{html.escape(str(r["scope"]))}</td>'
-        f'<td class="n">{r["members"]}</td>'
-        f'<td>{html.escape(str(r["samples"]))}</td></tr>'
-        for r in rows)
+    out = []
+    for r in rows:
+        tag = _severity_class(r["severity"])
+        klass = ("tag " + tag).strip()
+        out.append(
+            f'<tr><td class="name">{html.escape(str(r["alertname"]))}</td>'
+            f'<td><span class="{klass}">'
+            f'{html.escape(str(r["severity"]))}</span></td>'
+            f'<td class="scope">{html.escape(str(r["scope"]))}</td>'
+            f'<td class="n">{r["members"]}</td>'
+            f'<td class="entities">{html.escape(str(r["samples"]))}</td></tr>')
+    return "".join(out)
 
 
 def render(result_lines=None):
@@ -673,20 +856,34 @@ def render(result_lines=None):
             f"<pre>{joined}</pre></section>")
     snap = snapshot()
     running = snap["replay_running"]
-    has_incidents = bool(snap["incidents"])
+    workers = snap["replay_workers"]
+    incidents = snap["incidents"]
+    configured = len(WORKERS)
     return PAGE.substitute(
-        count=html.escape(str(snap["count"])),
-        alerts=html.escape(str(snap["active_alerts"])),
-        anomalies=html.escape(str(snap["anomalies_last_hour"])),
-        incidents=html.escape(str(snap["open_incidents"])),
-        signals=html.escape(str(snap["open_signals"])),
-        incident_rows=_incident_rows(snap["incidents"]),
+        body_state="on" if running else "off",
+        count=_fmt(snap["count"]),
+        count_state=_num_state(snap["count"]),
+        alerts=_fmt(snap["active_alerts"]),
+        alerts_state=_num_state(snap["active_alerts"]),
+        anomalies=_fmt(snap["anomalies_last_hour"]),
+        anomalies_state=_num_state(snap["anomalies_last_hour"]),
+        incidents=_fmt(snap["open_incidents"]),
+        incidents_state=_num_state(snap["open_incidents"]),
+        signals=_fmt(snap["open_signals"]),
+        signals_state=_num_state(snap["open_signals"]),
+        incident_rows=_incident_rows(incidents),
+        incident_meta=(f"{len(incidents)} shown" if incidents
+                       else "None firing"),
         families=_family_rows(snap["families"]),
+        family_total=_fmt(sum(n for _, n in snap["families"])),
+        worker_meta=(f"{configured} worker" + ("" if configured == 1 else "s")
+                     if configured else "No workers configured"),
         pill_class="live" if running else "idle",
-        pill_text=(f"Replay running on {snap['replay_workers']} worker(s)"
-                   if running else "No replay running"),
-        empty_hidden=" hidden" if has_incidents else "",
-        table_hidden="" if has_incidents else " hidden",
+        pill_text=(f"Replay active · {workers} worker"
+                   + ("" if workers == 1 else "s")
+                   if running else "Replay idle"),
+        empty_hidden=" hidden" if incidents else "",
+        table_hidden="" if incidents else " hidden",
         result=result)
 
 
