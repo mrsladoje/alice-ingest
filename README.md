@@ -105,9 +105,11 @@ logs on top, platform health (cluster, per-index, Fluent Bit per node, Dashboard
 itself) below — or Discover on the default `infologger,generic-log-*` pattern
 with the seven seed saved searches (which apply their query on open, the v4 fix). For a browser-driven load without the CLI, the control node also
 serves an ops page at **`https://<control-VM>:5601/ops`** (same basic-auth) with
-**Reload data (fresh)** / **Append replay** buttons and a live doc count. Data is
-historical (~June 2026, pinned by `RUN_TAG`) — if Discover looks empty, widen the
-time range rather than assuming no data.
+safe post/redirect/get actions for **Reload data (fresh)** / **Append replay** /
+**Stop replay** / **Clear findings**, live button progress, and live detection
+counts. Refreshing an action result never submits the action again. Data is
+historical (~June 2026, pinned by `RUN_TAG`) — if Discover looks empty, widen
+the time range rather than assuming no data.
 
 **Teardown.**
 

@@ -1,8 +1,10 @@
+import http.client
 import json
 import os
 import subprocess
 import sys
 import tempfile
+import threading
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 
@@ -16,6 +18,7 @@ os.environ.setdefault(
 import signal_identity  # noqa: E402
 import signal_projector as sp  # noqa: E402
 import score_injection as score  # noqa: E402
+import ops_server as ops  # noqa: E402
 
 REQUIRED_LABELS = ["alertname", "source", "cluster_id", "severity",
                    "entity_kind", "entity_id", "collector_id", "family",
@@ -885,6 +888,88 @@ def test_detector_category_migration_recreates_instead_of_updating():
     check('delete_detector_by_name "$name"' in immutable
           and 'create_detector "$name"' in immutable,
           "an immutable detector migration still attempts update-in-place")
+
+
+def test_ops_actions_redirect_before_a_refresh_can_repeat_them():
+    snapshot = {
+        "count": "7488",
+        "active_alerts": "0",
+        "anomalies_last_hour": "5",
+        "open_incidents": "0",
+        "open_signals": "0",
+        "incidents": [],
+        "replay_running": True,
+        "replay_workers": 2,
+        "families": [["infologger", 7132], ["generic-log-other", 119]],
+    }
+    prior_snapshot = ops.snapshot
+    prior_stop = ops.stop_only
+    calls = []
+    server = None
+    thread = None
+    try:
+        ops.snapshot = lambda: snapshot
+
+        def fake_stop():
+            calls.append("stop")
+            return ["test stop action ran exactly once"]
+
+        ops.stop_only = fake_stop
+        with ops._FLASH_LOCK:
+            ops._FLASH_RESULTS.clear()
+        server = ops.ThreadingHTTPServer(("127.0.0.1", 0), ops.Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        host, port = server.server_address
+
+        conn = http.client.HTTPConnection(host, port, timeout=5)
+        conn.request("POST", "/stop")
+        response = conn.getresponse()
+        response.read()
+        location = response.getheader("Location") or ""
+        check(response.status == 303,
+              f"ops stop returned HTTP {response.status}, so refreshing can "
+              f"repeat the destructive POST")
+        check(location.startswith("/ops/?result="),
+              f"ops redirect lost its one-time action result: {location!r}")
+        check(response.getheader("Cache-Control") == "no-store",
+              "the ops POST redirect is cacheable")
+        conn.close()
+
+        conn = http.client.HTTPConnection(host, port, timeout=5)
+        conn.request("GET", location)
+        response = conn.getresponse()
+        first_get = response.read().decode()
+        check(response.status == 200,
+              f"the redirected ops result returned HTTP {response.status}")
+        check("test stop action ran exactly once" in first_get,
+              "the POST/redirect/GET flow discarded the operator result")
+        check("data-loading-label" in first_get
+              and "button-spinner" in first_get
+              and "aria-busy" in first_get,
+              "the ops controls have no per-button loading state")
+        conn.close()
+
+        conn = http.client.HTTPConnection(host, port, timeout=5)
+        conn.request("GET", location)
+        response = conn.getresponse()
+        second_get = response.read().decode()
+        check("test stop action ran exactly once" not in second_get,
+              "the one-time ops result survives refresh instead of being "
+              "consumed")
+        check(calls == ["stop"],
+              f"refresh executed the stop action {len(calls)} times")
+        conn.close()
+    finally:
+        if server is not None:
+            server.shutdown()
+            server.server_close()
+        if thread is not None:
+            thread.join(timeout=5)
+        ops.snapshot = prior_snapshot
+        ops.stop_only = prior_stop
+        with ops._FLASH_LOCK:
+            ops._FLASH_RESULTS.clear()
 
 
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_")]

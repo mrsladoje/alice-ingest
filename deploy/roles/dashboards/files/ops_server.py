@@ -1,9 +1,12 @@
 import html
 import json
 import os
+import secrets
 import subprocess
+import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from string import Template
@@ -21,6 +24,42 @@ COUNT_TARGET = "infologger,generic-log-*"
 INCIDENTS_INDEX = os.environ.get("INCIDENTS_INDEX", "alice-incidents")
 SIGNALS_INDEX = os.environ.get("SIGNALS_INDEX", "alice-signals")
 GRADE_FLOOR = float(os.environ.get("GRADE_FLOOR", "0.5"))
+FLASH_TTL_SECONDS = 300
+FLASH_LIMIT = 32
+_FLASH_RESULTS = {}
+_FLASH_LOCK = threading.Lock()
+
+
+def _store_result(lines):
+    """Keep one action result briefly so POST can redirect to a safe GET."""
+    token = secrets.token_urlsafe(18)
+    now = time.time()
+    with _FLASH_LOCK:
+        expired = [
+            key for key, (created, _) in _FLASH_RESULTS.items()
+            if now - created > FLASH_TTL_SECONDS
+        ]
+        for key in expired:
+            _FLASH_RESULTS.pop(key, None)
+        while len(_FLASH_RESULTS) >= FLASH_LIMIT:
+            oldest = min(
+                _FLASH_RESULTS, key=lambda key: _FLASH_RESULTS[key][0])
+            _FLASH_RESULTS.pop(oldest, None)
+        _FLASH_RESULTS[token] = (now, list(lines))
+    return token
+
+
+def _take_result(token):
+    if not token:
+        return None
+    with _FLASH_LOCK:
+        item = _FLASH_RESULTS.pop(token, None)
+    if item is None:
+        return None
+    created, lines = item
+    if time.time() - created > FLASH_TTL_SECONDS:
+        return None
+    return lines
 
 
 def _log_families():
@@ -285,127 +324,321 @@ def run_replay(fresh):
 
 
 PAGE = Template("""<!doctype html>
+<html lang="en">
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ALICE Cockpit — Ops</title>
+<meta name="theme-color" content="#07111f">
+<title>ALICE Cockpit — Operations</title>
 <style>
- body{font-family:system-ui,Segoe UI,Roboto,sans-serif;max-width:720px;margin:2.5rem auto;padding:0 1rem;color:#111}
- h1{font-size:1.5rem;margin-bottom:.2rem}
- .count{font-size:2.5rem;font-weight:700;margin:.2rem 0}
- .row{display:flex;gap:1.5rem;margin:1rem 0}
- .stat{flex:1}
- .stat .count{font-size:1.8rem}
- .muted{color:#666;font-size:.92rem}
- form{display:inline}
- button{font-size:1rem;padding:.6rem 1rem;border:0;border-radius:8px;cursor:pointer;margin:.3rem .3rem 0 0}
- button:disabled{opacity:.45;cursor:not-allowed}
- .fresh{background:#c0392b;color:#fff}
- .append{background:#e0e0e0;color:#111}
- .clear{background:#f0ad4e;color:#111}
- a.dash{display:inline-block;margin-top:1.4rem;font-weight:600}
- pre{background:#f5f5f5;padding:1rem;border-radius:8px;white-space:pre-wrap;font-size:.85rem;line-height:1.5}
- .pill{display:inline-block;padding:.25rem .7rem;border-radius:999px;font-size:.85rem;font-weight:600}
- .live{background:#d5f5e3;color:#186a3b}
- .idle{background:#eee;color:#555}
- table.fam{border-collapse:collapse;margin:.6rem 0;font-size:.9rem}
- table.fam td{padding:.2rem .9rem .2rem 0}
- table.fam td.n{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
- #busy{display:none;margin:1rem 0;padding:.9rem 1rem;border-radius:8px;background:#fff4e5;color:#7a4b00;font-weight:600}
- #busy.on{display:block}
- .spin{display:inline-block;width:.85em;height:.85em;margin-right:.5em;border:2px solid #7a4b00;border-right-color:transparent;border-radius:50%;animation:sp .8s linear infinite;vertical-align:-.1em}
- @keyframes sp{to{transform:rotate(360deg)}}
+ :root{
+   color-scheme:dark;
+   --bg:#07111f;--surface:#0d1b2a;--surface-2:#112338;
+   --line:#20364d;--text:#f4f8fc;--muted:#93a8bd;
+   --cyan:#4dd9e8;--blue:#5b8cff;--green:#35d07f;
+   --amber:#f7b955;--red:#ff6b6b;--shadow:0 20px 60px rgba(0,0,0,.28)
+ }
+ *{box-sizing:border-box}
+ body{
+   margin:0;min-height:100vh;color:var(--text);
+   font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+   background:
+     radial-gradient(circle at 8% 0%,rgba(77,217,232,.13),transparent 30rem),
+     radial-gradient(circle at 100% 20%,rgba(91,140,255,.12),transparent 34rem),
+     var(--bg)
+ }
+ body:before{
+   content:"";position:fixed;inset:0;pointer-events:none;opacity:.32;
+   background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),
+     linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
+   background-size:32px 32px;mask-image:linear-gradient(to bottom,#000,transparent 75%)
+ }
+ .shell{position:relative;width:min(1120px,calc(100% - 32px));margin:0 auto;padding:42px 0 64px}
+ .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:24px}
+ .eyebrow{margin:0 0 8px;color:var(--cyan);font-size:.72rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase}
+ h1{margin:0;font-size:clamp(2rem,4vw,3.35rem);line-height:1;letter-spacing:-.045em}
+ .lede{max-width:650px;margin:14px 0 0;color:var(--muted);line-height:1.6}
+ .dash{
+   display:inline-flex;align-items:center;gap:8px;flex:none;padding:10px 14px;
+   border:1px solid var(--line);border-radius:12px;color:var(--text);
+   background:rgba(13,27,42,.72);font-size:.88rem;font-weight:700;text-decoration:none;
+   transition:border-color .2s,transform .2s,background .2s
+ }
+ .dash:hover{transform:translateY(-1px);border-color:#3e617f;background:var(--surface-2)}
+ .dash:after{content:"↗";color:var(--cyan)}
+ .panel{
+   border:1px solid var(--line);border-radius:20px;background:rgba(13,27,42,.88);
+   box-shadow:var(--shadow);backdrop-filter:blur(16px)
+ }
+ .hero{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,.75fr);overflow:hidden;margin-bottom:18px}
+ .hero-main{padding:28px 30px}
+ .hero-side{padding:26px 28px;border-left:1px solid var(--line);background:rgba(17,35,56,.58)}
+ .section-label{margin:0 0 8px;color:var(--muted);font-size:.72rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+ .total{margin:0;font-size:clamp(3rem,7vw,5.2rem);font-weight:780;line-height:1;letter-spacing:-.055em;font-variant-numeric:tabular-nums}
+ .total-caption{margin:10px 0 0;color:var(--muted);font-size:.88rem}
+ .pill{
+   display:inline-flex;align-items:center;gap:9px;padding:8px 12px;border:1px solid;
+   border-radius:999px;font-size:.78rem;font-weight:800;letter-spacing:.02em
+ }
+ .pill:before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px currentColor}
+ .live{color:var(--green);border-color:rgba(53,208,127,.3);background:rgba(53,208,127,.08)}
+ .live:before{box-shadow:0 0 0 4px rgba(53,208,127,.12),0 0 14px rgba(53,208,127,.75)}
+ .idle{color:#aab9c7;border-color:var(--line);background:rgba(147,168,189,.06)}
+ .connection{display:flex;align-items:center;gap:7px;margin-top:14px;color:var(--muted);font-size:.76rem}
+ .connection-dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+ .connection.error .connection-dot{background:var(--red)}
+ .family-table{width:100%;margin-top:18px;border-collapse:collapse;font-size:.84rem}
+ .family-table td{padding:8px 0;border-top:1px solid rgba(32,54,77,.7)}
+ .family-table td:first-child{color:#b9c8d6}
+ .n{text-align:right;font-variant-numeric:tabular-nums;font-weight:750}
+ .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+ .stat{padding:20px 22px}
+ .stat-value{margin:8px 0 0;font-size:2rem;font-weight:780;letter-spacing:-.035em;font-variant-numeric:tabular-nums}
+ .workspace{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);gap:18px;align-items:start}
+ .actions,.incidents{padding:26px}
+ h2{margin:0;font-size:1.1rem;letter-spacing:-.015em}
+ .section-copy{margin:8px 0 20px;color:var(--muted);font-size:.86rem;line-height:1.55}
+ .action-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+ form{margin:0}
+ button{
+   position:relative;display:flex;align-items:center;justify-content:center;gap:10px;
+   width:100%;min-height:48px;padding:12px 14px;border:1px solid transparent;
+   border-radius:12px;color:var(--text);font:inherit;font-size:.86rem;font-weight:800;
+   cursor:pointer;transition:transform .16s,border-color .16s,background .16s,opacity .16s
+ }
+ button:hover:not(:disabled){transform:translateY(-1px)}
+ button:focus-visible{outline:3px solid rgba(77,217,232,.28);outline-offset:2px}
+ button:disabled{cursor:wait;opacity:.48}
+ button.is-loading{opacity:1}
+ .primary{background:var(--blue);box-shadow:0 10px 24px rgba(91,140,255,.2)}
+ .neutral{border-color:#2b4762;background:#162a40}
+ .danger{border-color:rgba(255,107,107,.38);background:rgba(255,107,107,.11);color:#ffc1c1}
+ .warning{border-color:rgba(247,185,85,.4);background:rgba(247,185,85,.11);color:#ffd894}
+ .button-spinner{
+   display:none;width:15px;height:15px;border:2px solid currentColor;
+   border-right-color:transparent;border-radius:50%;animation:spin .72s linear infinite
+ }
+ button.is-loading .button-spinner{display:block}
+ .busy{
+   display:none;align-items:flex-start;gap:12px;margin-top:14px;padding:14px 15px;
+   border:1px solid rgba(77,217,232,.25);border-radius:12px;
+   background:rgba(77,217,232,.07);color:#c8f7fb;font-size:.82rem;line-height:1.45
+ }
+ .busy.on{display:flex}
+ .busy .spinner{
+   flex:none;width:17px;height:17px;margin-top:1px;border:2px solid var(--cyan);
+   border-right-color:transparent;border-radius:50%;animation:spin .72s linear infinite
+ }
+ .result{
+   margin:0 0 16px;padding:15px 16px;border:1px solid rgba(53,208,127,.28);
+   border-radius:13px;background:rgba(53,208,127,.07)
+ }
+ .result.error{border-color:rgba(255,107,107,.34);background:rgba(255,107,107,.08)}
+ .result-title{margin:0 0 8px;color:var(--green);font-size:.72rem;font-weight:850;letter-spacing:.1em;text-transform:uppercase}
+ .result.error .result-title{color:var(--red)}
+ pre{margin:0;color:#dbe8f2;white-space:pre-wrap;font:500 .78rem/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
+ .incident-table{width:100%;border-collapse:collapse;font-size:.78rem}
+ .incident-table th{padding:0 8px 9px;text-align:left;color:var(--muted);font-size:.66rem;letter-spacing:.08em;text-transform:uppercase}
+ .incident-table td{padding:10px 8px;border-top:1px solid var(--line);color:#c8d5e0;vertical-align:top}
+ .incident-table th:first-child,.incident-table td:first-child{padding-left:0}
+ .incident-table th:last-child,.incident-table td:last-child{padding-right:0}
+ .empty{padding:28px 0;color:var(--muted);font-size:.85rem;text-align:center}
+ .notes{margin-top:18px;padding:18px 20px;border:1px solid var(--line);border-radius:15px;color:var(--muted);font-size:.78rem;line-height:1.6;background:rgba(7,17,31,.45)}
+ .notes strong{color:#d6e4ef}
+ code{padding:2px 5px;border-radius:5px;background:#07111f;color:#b8ecf2;font-size:.92em}
+ @keyframes spin{to{transform:rotate(360deg)}}
+ @media(max-width:820px){
+   .topbar{display:block}.dash{margin-top:18px}
+   .hero,.workspace{grid-template-columns:1fr}.hero-side{border-left:0;border-top:1px solid var(--line)}
+   .stats{grid-template-columns:1fr 1fr}
+ }
+ @media(max-width:520px){
+   .shell{width:min(100% - 20px,1120px);padding-top:24px}
+   .hero-main,.hero-side,.actions,.incidents{padding:20px}
+   .action-grid{grid-template-columns:1fr}.stats{gap:9px}.stat{padding:16px}
+   .stat-value{font-size:1.65rem}
+ }
+ @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation-duration:.01ms!important;transition:none!important}}
 </style>
-<h1>ALICE Cockpit — Ops</h1>
-<p><span id="pill" class="pill $pill_class">$pill_text</span></p>
+</head>
+<body>
+<main class="shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">ALICE observability</p>
+      <h1>Operations console</h1>
+      <p class="lede">Replay control and live detection-layer telemetry. Every action reports its result after a refresh-safe redirect.</p>
+    </div>
+    <a class="dash" href="/">Open Cockpit</a>
+  </header>
 
-<p class="muted">Documents indexed (infologger + generic-log-*)</p>
-<div class="count" id="total">$count</div>
-<table class="fam" id="fam">$families</table>
+  <section class="panel hero">
+    <div class="hero-main">
+      <p class="section-label">Documents indexed</p>
+      <p class="total" id="total">$count</p>
+      <p class="total-caption">Across <code>infologger</code> and <code>generic-log-*</code></p>
+    </div>
+    <div class="hero-side">
+      <span id="pill" class="pill $pill_class">$pill_text</span>
+      <div id="connection" class="connection">
+        <span class="connection-dot"></span>
+        <span id="last-updated">Live status connected</span>
+      </div>
+      <table class="family-table" id="fam"><tbody>$families</tbody></table>
+    </div>
+  </section>
 
-<div class="row">
-  <div class="stat"><p class="muted">Open incidents</p><div class="count" id="incidents">$incidents</div></div>
-  <div class="stat"><p class="muted">Signals firing</p><div class="count" id="signals">$signals</div></div>
-  <div class="stat"><p class="muted">Active alerts</p><div class="count" id="alerts">$alerts</div></div>
-  <div class="stat"><p class="muted">Anomalies (last hour)</p><div class="count" id="anom">$anomalies</div></div>
-</div>
+  <section class="stats" aria-label="Detection summary">
+    <article class="panel stat"><p class="section-label">Open incidents</p><p class="stat-value" id="incidents">$incidents</p></article>
+    <article class="panel stat"><p class="section-label">Signals firing</p><p class="stat-value" id="signals">$signals</p></article>
+    <article class="panel stat"><p class="section-label">Active alerts</p><p class="stat-value" id="alerts">$alerts</p></article>
+    <article class="panel stat"><p class="section-label">Anomalies · 1h</p><p class="stat-value" id="anom">$anomalies</p></article>
+  </section>
 
-<p class="muted">Open incidents — an episode groups the signals that share one cause;
-the signal rows behind it are never destroyed, they are in <code>alice-signals</code>.</p>
-<table class="fam" id="inclist">$incident_rows</table>
+  <section class="workspace">
+    <article class="panel actions">
+      <h2>Replay controls</h2>
+      <p class="section-copy">Start, stop, or reset the paced S3 feed. Destructive actions ask for confirmation.</p>
+      $result
+      <div class="action-grid">
+        <form method="post" action="replay" data-busy="Starting another paced replay pass.">
+          <button class="primary" type="submit" data-loading-label="Starting replay…">
+            <span class="button-spinner" aria-hidden="true"></span><span class="button-label">Append replay</span>
+          </button>
+        </form>
+        <form method="post" action="stop" data-busy="Asking the workers to stop the current pass." data-confirm="Stop the replay currently running on the workers?">
+          <button class="neutral" type="submit" data-loading-label="Stopping replay…">
+            <span class="button-spinner" aria-hidden="true"></span><span class="button-label">Stop replay</span>
+          </button>
+        </form>
+        <form method="post" action="replay-fresh" data-busy="Cancelling any running replay, wiping derived data, rebuilding aliases, and starting a clean reload. This can take up to a minute." data-confirm="Fresh reload deletes the current replayed logs and all derived findings before starting again. Continue?">
+          <button class="danger" type="submit" data-loading-label="Resetting and reloading…">
+            <span class="button-spinner" aria-hidden="true"></span><span class="button-label">Reload data · fresh</span>
+          </button>
+        </form>
+        <form method="post" action="clear" data-busy="Purging alerts, anomalies, incidents, signals, and trend baselines." data-confirm="Clear all derived findings and trend baselines while keeping the logs?">
+          <button class="warning" type="submit" data-loading-label="Clearing findings…">
+            <span class="button-spinner" aria-hidden="true"></span><span class="button-label">Clear findings</span>
+          </button>
+        </form>
+      </div>
+      <div id="busy" class="busy" role="status" aria-live="polite">
+        <span class="spinner" aria-hidden="true"></span><span id="busytext">Working…</span>
+      </div>
+      <div class="notes">
+        A paced load runs for about an hour. One-minute detectors need 32 consecutive windows before leaving initialization. Records keep their archive event time, while detection uses <code>collector_time</code>. <strong>Fresh reload</strong> replaces logs and derived findings; <strong>Clear findings</strong> leaves logs intact.
+      </div>
+    </article>
 
-<div id="busy"><span class="spin"></span><span id="busytext">Working…</span></div>
-$result
-
-<form method="post" action="replay-fresh" onsubmit="return go(this,'Cancelling any running replay, wiping, rebuilding aliases and starting the reload. This can take up to a minute before the page comes back.');">
-  <button class="fresh" type="submit">Reload data (fresh)</button>
-</form>
-<form method="post" action="replay" onsubmit="return go(this,'Starting another replay pass.');">
-  <button class="append" type="submit">Append replay</button>
-</form>
-<form method="post" action="stop" onsubmit="return go(this,'Asking the workers to stop the current pass.');">
-  <button class="append" type="submit">Stop running replay</button>
-</form>
-<form method="post" action="clear" onsubmit="return go(this,'Purging alerts, anomalies and trend baselines.');">
-  <button class="clear" type="submit">Clear alerts &amp; anomalies</button>
-</form>
-
-<p class="muted">A load runs for about an hour. It is paced on purpose, so the anomaly
-detectors get the 32 consecutive one-minute windows they need to finish training — the
-counters below climb steadily rather than all at once. They refresh by themselves every
-5 seconds, and the first records land within seconds of pressing the button.
-Records keep the archive's own event times, so the log panels need a time range that
-spans it; the detectors are unaffected, they run on collector_time.
-<strong>Reload fresh</strong> cancels anything already in flight, then wipes the logs,
-alerts, anomalies and trend baselines before reloading.
-<strong>Clear</strong> purges those findings without touching the logs.</p>
-
-<a class="dash" href="/">Open the ALICE Cockpit dashboard</a>
+    <article class="panel incidents">
+      <h2>Open incidents</h2>
+      <p class="section-copy">Episodes group signals that share one cause. Source evidence remains in <code>alice-signals</code>.</p>
+      <div id="incident-empty" class="empty"$empty_hidden>No open incidents</div>
+      <table class="incident-table"$table_hidden>
+        <thead><tr><th>Alert</th><th>Severity</th><th>Scope</th><th>Members</th><th>Entities</th></tr></thead>
+        <tbody id="inclist">$incident_rows</tbody>
+      </table>
+    </article>
+  </section>
+</main>
 
 <script>
-function go(form, msg) {
-  document.getElementById('busytext').textContent = msg;
-  document.getElementById('busy').classList.add('on');
-  var b = document.querySelectorAll('button');
-  for (var i = 0; i < b.length; i++) { b[i].disabled = true; }
-  return true;
+function cell(text, className) {
+  var el = document.createElement('td');
+  el.textContent = text == null ? '' : String(text);
+  if (className) { el.className = className; }
+  return el;
+}
+function numberText(value) {
+  var parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed.toLocaleString() : String(value);
 }
 function paint(s) {
-  document.getElementById('total').textContent = s.count;
+  document.getElementById('total').textContent = numberText(s.count);
   document.getElementById('alerts').textContent = s.active_alerts;
   document.getElementById('anom').textContent = s.anomalies_last_hour;
   document.getElementById('incidents').textContent = s.open_incidents;
   document.getElementById('signals').textContent = s.open_signals;
-  var inc = '';
+
+  var incBody = document.getElementById('inclist');
+  incBody.replaceChildren();
   for (var j = 0; j < s.incidents.length; j++) {
     var r = s.incidents[j];
-    inc += '<tr><td>' + r.alertname + '</td><td>' + r.severity + '</td><td>'
-        + r.scope + '</td><td class="n">' + r.members + '</td><td>'
-        + r.samples + '</td></tr>';
+    var tr = document.createElement('tr');
+    tr.append(cell(r.alertname),cell(r.severity),cell(r.scope),cell(r.members,'n'),cell(r.samples));
+    incBody.appendChild(tr);
   }
-  document.getElementById('inclist').innerHTML = inc;
+  var hasIncidents = s.incidents.length > 0;
+  document.getElementById('incident-empty').hidden = hasIncidents;
+  incBody.closest('table').hidden = !hasIncidents;
+
   var pill = document.getElementById('pill');
   if (s.replay_running) {
     pill.className = 'pill live';
-    pill.textContent = 'Replay running on ' + s.replay_workers + ' worker(s)';
+    pill.textContent = 'Replay running on ' + s.replay_workers + ' worker' + (s.replay_workers === 1 ? '' : 's');
   } else {
     pill.className = 'pill idle';
     pill.textContent = 'No replay running';
   }
-  var rows = '';
+
+  var famBody = document.querySelector('#fam tbody');
+  famBody.replaceChildren();
   for (var i = 0; i < s.families.length; i++) {
-    rows += '<tr><td>' + s.families[i][0] + '</td><td class="n">'
-         + s.families[i][1].toLocaleString() + '</td></tr>';
+    var row = document.createElement('tr');
+    row.append(cell(s.families[i][0]),cell(numberText(s.families[i][1]),'n'));
+    famBody.appendChild(row);
   }
-  document.getElementById('fam').innerHTML = rows;
+  document.getElementById('connection').className = 'connection';
+  document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
 }
 function poll() {
-  fetch('status', {cache: 'no-store'})
-    .then(function (r) { return r.json(); })
+  fetch('status', {cache:'no-store'})
+    .then(function (response) {
+      if (!response.ok) { throw new Error('status ' + response.status); }
+      return response.json();
+    })
     .then(paint)
-    .catch(function () {});
+    .catch(function () {
+      document.getElementById('connection').className = 'connection error';
+      document.getElementById('last-updated').textContent = 'Live status unavailable';
+    });
 }
-setInterval(poll, 5000);
+function resetButtons() {
+  var buttons = document.querySelectorAll('button');
+  for (var i = 0; i < buttons.length; i++) {
+    buttons[i].disabled = false;
+    buttons[i].classList.remove('is-loading');
+    buttons[i].removeAttribute('aria-busy');
+    var label = buttons[i].querySelector('.button-label');
+    if (label && label.dataset.original) { label.textContent = label.dataset.original; }
+  }
+  document.getElementById('busy').classList.remove('on');
+}
+var forms = document.querySelectorAll('form[data-busy]');
+for (var f = 0; f < forms.length; f++) {
+  forms[f].addEventListener('submit', function (event) {
+    var question = this.dataset.confirm;
+    if (question && !window.confirm(question)) { event.preventDefault(); return; }
+    var clicked = this.querySelector('button[type="submit"]');
+    var label = clicked.querySelector('.button-label');
+    label.dataset.original = label.textContent;
+    label.textContent = clicked.dataset.loadingLabel || 'Working…';
+    clicked.classList.add('is-loading');
+    clicked.setAttribute('aria-busy','true');
+    var buttons = document.querySelectorAll('button');
+    for (var i = 0; i < buttons.length; i++) { buttons[i].disabled = true; }
+    document.getElementById('busytext').textContent = this.dataset.busy;
+    document.getElementById('busy').classList.add('on');
+  });
+}
+window.addEventListener('pageshow', resetButtons);
+if (window.location.search.indexOf('result=') !== -1) {
+  window.history.replaceState(null,'',window.location.pathname);
+}
+setInterval(poll,5000);
 </script>
+</body>
+</html>
 """)
 
 
@@ -429,9 +662,18 @@ def render(result_lines=None):
     result = ""
     if result_lines:
         joined = html.escape("\n".join(result_lines))
-        result = f"<pre>{joined}</pre>"
+        error = any(
+            marker in line.upper()
+            for line in result_lines
+            for marker in ("FAILED", "REFUSED", "ERROR"))
+        result = (
+            f'<section class="result{" error" if error else ""}" '
+            f'role="status"><p class="result-title">'
+            f'{"Action needs attention" if error else "Action complete"}</p>'
+            f"<pre>{joined}</pre></section>")
     snap = snapshot()
     running = snap["replay_running"]
+    has_incidents = bool(snap["incidents"])
     return PAGE.substitute(
         count=html.escape(str(snap["count"])),
         alerts=html.escape(str(snap["active_alerts"])),
@@ -443,6 +685,8 @@ def render(result_lines=None):
         pill_class="live" if running else "idle",
         pill_text=(f"Replay running on {snap['replay_workers']} worker(s)"
                    if running else "No replay running"),
+        empty_hidden=" hidden" if has_incidents else "",
+        table_hidden="" if has_incidents else " hidden",
         result=result)
 
 
@@ -451,14 +695,26 @@ class Handler(BaseHTTPRequestHandler):
         data = body.encode()
         self.send_response(code)
         self.send_header("Content-Type", ctype)
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
 
+    def _redirect_to_result(self, lines):
+        token = _store_result(lines)
+        location = "/ops/?result=" + urllib.parse.quote(token, safe="")
+        self.send_response(303)
+        self.send_header("Location", location)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def do_GET(self):
-        path = self.path.split("?", 1)[0].rstrip("/") or "/"
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path.rstrip("/") or "/"
         if path in ("/", "/ops"):
-            self._send(200, render())
+            token = urllib.parse.parse_qs(parsed.query).get("result", [""])[0]
+            self._send(200, render(_take_result(token)))
         elif path == "/status":
             self._send(200, json.dumps(snapshot()), "application/json")
         else:
@@ -467,13 +723,13 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = self.path.split("?", 1)[0].rstrip("/")
         if path.endswith("/replay-fresh"):
-            self._send(200, render(run_replay(fresh=True)))
+            self._redirect_to_result(run_replay(fresh=True))
         elif path.endswith("/replay"):
-            self._send(200, render(run_replay(fresh=False)))
+            self._redirect_to_result(run_replay(fresh=False))
         elif path.endswith("/clear"):
-            self._send(200, render(clear_only()))
+            self._redirect_to_result(clear_only())
         elif path.endswith("/stop"):
-            self._send(200, render(stop_only()))
+            self._redirect_to_result(stop_only())
         else:
             self._send(404, render(["not found"]))
 
