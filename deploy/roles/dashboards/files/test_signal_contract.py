@@ -256,8 +256,13 @@ def test_cockpit_headlines_episodes_not_raw_detector_exhaust():
     board_state = json.loads(board["attributes"]["visState"])
     check(board_state.get("type") == "vega"
           and "diagnosis" in board_state["params"]["spec"]
-          and "operator_action" in board_state["params"]["spec"],
-          "episode board does not render diagnosis and next action")
+          and "operator_action" not in board_state["params"]["spec"],
+          "episode board must render the diagnosis and no next-action line")
+    spec = board_state["params"]["spec"]
+    check("alice-search-signals" in spec
+          and "alice-search-open-incidents" in spec
+          and "episode_id" in spec,
+          "episode board does not link cards to their signals and detail")
 
 
 def test_epn_parent_comes_from_the_roster_not_from_arithmetic():

@@ -28,6 +28,9 @@ ERRWARN_Q = "severity_norm:(error or fatal or warning)"
 REALTIME_Q = "run:realtime"
 ANOMALY_FLOOR_Q = "run:realtime and grade > 0.5"
 
+FONT_STACK = ("Inter UI, -apple-system, BlinkMacSystemFont, 'Segoe UI', "
+              "Helvetica, Arial, sans-serif")
+
 INDEX_REF_NAME = "kibanaSavedObjectMeta.searchSourceJSON.index"
 
 DEFAULT_COLUMNS = ["log_source", "severity_norm", "origin_host", "message"]
@@ -406,7 +409,6 @@ def incident_summary_strip(vid, title):
     spec = {
         "$schema": "https://vega.github.io/schema/vega/v5.json",
         "autosize": {"type": "fit", "contains": "padding"},
-        "background": "#0B1727",
         "padding": 8,
         "data": [{
             "name": "stats",
@@ -433,9 +435,9 @@ def incident_summary_strip(vid, title):
                          "datum.rank == 2 ? 'PAGE' : "
                          "datum.rank == 3 ? 'WARNING' : 'STALE / RECOVERING'"},
                 {"type": "formula", "as": "color",
-                 "expr": "datum.rank == 1 ? '#42B8A5' : "
-                         "datum.rank == 2 ? '#FF5A67' : "
-                         "datum.rank == 3 ? '#F4B740' : '#8EA5BD'"},
+                 "expr": "datum.rank == 1 ? '#006BB4' : "
+                         "datum.rank == 2 ? '#BD271E' : "
+                         "datum.rank == 3 ? '#F5A700' : '#98A2B3'"},
             ],
         }],
         "scales": [{
@@ -449,35 +451,35 @@ def incident_summary_strip(vid, title):
                  "x": {"scale": "cards", "field": "rank"},
                  "width": {"scale": "cards", "band": 1},
                  "y": {"value": 0}, "y2": {"signal": "height"},
-                 "fill": {"value": "#14263A"},
-                 "stroke": {"value": "#243B53"},
-                 "cornerRadius": {"value": 8},
+                 "fill": {"value": "#FFFFFF"},
+                 "stroke": {"value": "#D3DAE6"},
+                 "cornerRadius": {"value": 4},
              }}},
             {"type": "rect", "from": {"data": "stats"},
              "encode": {"update": {
                  "x": {"scale": "cards", "field": "rank"},
-                 "width": {"value": 5},
+                 "width": {"value": 4},
                  "y": {"value": 0}, "y2": {"signal": "height"},
                  "fill": {"field": "color"},
-                 "cornerRadius": {"value": 8},
+                 "cornerRadius": {"value": 4},
              }}},
             {"type": "text", "from": {"data": "stats"},
              "encode": {"update": {
-                 "x": {"scale": "cards", "field": "rank", "offset": 18},
+                 "x": {"scale": "cards", "field": "rank", "offset": 16},
                  "y": {"signal": "height * 0.32"},
                  "text": {"field": "label"},
-                 "fill": {"value": "#9FB3C8"},
-                 "font": {"value": "Inter, system-ui, sans-serif"},
+                 "fill": {"value": "#69707D"},
+                 "font": {"value": FONT_STACK},
                  "fontSize": {"value": 11},
                  "fontWeight": {"value": "bold"},
              }}},
             {"type": "text", "from": {"data": "stats"},
              "encode": {"update": {
-                 "x": {"scale": "cards", "field": "rank", "offset": 18},
+                 "x": {"scale": "cards", "field": "rank", "offset": 16},
                  "y": {"signal": "height * 0.72"},
                  "text": {"field": "doc_count"},
                  "fill": {"field": "color"},
-                 "font": {"value": "Inter, system-ui, sans-serif"},
+                 "font": {"value": FONT_STACK},
                  "fontSize": {"value": 28},
                  "fontWeight": {"value": "bold"},
              }}},
@@ -488,33 +490,106 @@ def incident_summary_strip(vid, title):
     return viz(vid, title, state, index_ref_on=False)
 
 
+def _episode_href(search_id):
+    return ("'/app/data-explorer/discover#/view/" + search_id +
+            "?_a=(query:(language:kuery,query:\\'episode_id:\"' + "
+            "datum._source.episode_id + '\"\\'))'")
+
+
+def _episode_card_text(as_field, expr, dy, fill, size, bold=False,
+                       limit="cardWidth - 32"):
+    mark = {"type": "text", "from": {"data": "episodes"},
+            "encode": {"update": {
+                "x": {"value": 16},
+                "y": {"signal":
+                      "datum.row * (cardHeight + gap) - scroll + %d" % dy},
+                "text": ({"field": as_field} if as_field
+                         else {"signal": expr}),
+                "fill": {"value": fill},
+                "font": {"value": FONT_STACK},
+                "fontSize": {"value": size},
+                "limit": {"signal": limit},
+            }}}
+    if bold:
+        mark["encode"]["update"]["fontWeight"] = {"value": "bold"}
+    return [mark]
+
+
+def _episode_button(x_signal, label, href_field):
+    button_opacity = {"signal": "datum._source.episode_id ? 1 : 0"}
+    rect = {"type": "rect", "from": {"data": "episodes"},
+            "encode": {"update": {
+                "x": {"signal": x_signal},
+                "y": {"signal":
+                      "datum.row * (cardHeight + gap) - scroll + 11"},
+                "width": {"value": 64},
+                "height": {"value": 20},
+                "cornerRadius": {"value": 4},
+                "fill": {"value": "rgba(0,107,180,0.08)"},
+                "stroke": {"value": "#006BB4"},
+                "href": {"field": href_field},
+                "cursor": {"value": "pointer"},
+                "opacity": button_opacity,
+            }}}
+    text = {"type": "text", "from": {"data": "episodes"},
+            "encode": {"update": {
+                "x": {"signal": x_signal + " + 32"},
+                "y": {"signal":
+                      "datum.row * (cardHeight + gap) - scroll + 21"},
+                "text": {"value": label},
+                "align": {"value": "center"},
+                "baseline": {"value": "middle"},
+                "fill": {"value": "#006BB4"},
+                "font": {"value": FONT_STACK},
+                "fontSize": {"value": 10},
+                "fontWeight": {"value": "bold"},
+                "href": {"field": href_field},
+                "cursor": {"value": "pointer"},
+                "opacity": button_opacity,
+            }}}
+    return [rect, text]
+
+
 def incident_episode_board(vid, title):
     spec = {
         "$schema": "https://vega.github.io/schema/vega/v5.json",
         "autosize": {"type": "fit", "contains": "padding"},
-        "background": "#0B1727",
-        "padding": 8,
+        "padding": 4,
         "signals": [
             {"name": "gap", "value": 10},
+            {"name": "cardHeight", "value": 68},
             {"name": "cardWidth", "update": "width"},
-            {"name": "cardRows",
-             "update": "max(1, length(data('episodes')))"},
-            {"name": "cardHeight",
-             "update": "max(84, (height - gap * (cardRows - 1)) / cardRows)"},
+            {"name": "cardRows", "update": "length(data('episodes'))"},
+            {"name": "contentHeight",
+             "update": "cardRows * cardHeight + "
+                       "max(0, cardRows - 1) * gap"},
+            {"name": "maxScroll", "update": "max(0, contentHeight - height)"},
+            {"name": "scroll", "value": 0,
+             "on": [
+                 {"events": {"type": "wheel", "consume": True},
+                  "update": "clamp(scroll + event.deltaY, 0, maxScroll)"},
+                 {"events": {"signal": "maxScroll"},
+                  "update": "clamp(scroll, 0, maxScroll)"},
+             ]},
+            {"name": "thumbHeight",
+             "update": "max(24, height * height / "
+                           "max(contentHeight, height))"},
+            {"name": "thumbY",
+             "update": "maxScroll > 0 ? scroll / maxScroll * "
+                       "(height - thumbHeight) : 0"},
         ],
         "data": [{
             "name": "episodes",
             "url": {
                 "index": INCIDENTS_TITLE,
                 "body": {
-                    "size": 8,
+                    "size": 20,
                     "sort": [{"last_seen": {"order": "desc"}}],
                     "query": {"term": {"state": "firing"}},
-                    "_source": ["title", "diagnosis", "operator_action",
-                                "affected", "severity", "episode_state",
-                                "opened_at", "last_seen", "member_count",
-                                "source_label", "worst_grade",
-                                "latest_confidence"],
+                    "_source": ["title", "diagnosis", "affected", "severity",
+                                "episode_state", "opened_at", "last_seen",
+                                "member_count", "alertname", "episode_id",
+                                "worst_grade", "latest_confidence"],
                 },
             },
             "format": {"property": "hits.hits"},
@@ -530,87 +605,92 @@ def incident_episode_board(vid, title):
                 {"type": "formula", "as": "row",
                  "expr": "datum.rank - 1"},
                 {"type": "formula", "as": "accent",
-                 "expr": "datum._source.severity == 'page' ? '#FF5A67' : "
-                         "datum._source.episode_state == 'STALE' ? '#8EA5BD' : "
+                 "expr": "datum._source.severity == 'page' ? '#BD271E' : "
+                         "datum._source.episode_state == 'STALE' ? '#98A2B3' : "
                          "datum._source.episode_state == 'RECOVERING' ? "
-                         "'#42B8A5' : '#F4B740'"},
+                         "'#017D73' : '#F5A700'"},
+                {"type": "formula", "as": "titleText",
+                 "expr": "datum._source.title || datum._source.alertname || "
+                         "'Untitled episode'"},
                 {"type": "formula", "as": "meta",
-                 "expr": "upper(datum._source.severity) + '  ·  ' + "
-                         "datum._source.episode_state + '  ·  ' + "
-                         "datum._source.affected + '  ·  ' + "
-                         "datum._source.member_count + ' signals  ·  since ' + "
-                         "timeFormat(toDate(datum._source.opened_at), "
+                 "expr": "upper(datum._source.severity || '?') + '  ·  ' + "
+                         "(datum._source.episode_state || 'OPEN') + "
+                         "(datum._source.affected ? '  ·  ' + "
+                         "datum._source.affected : '') + '  ·  ' + "
+                         "(datum._source.member_count || 0) + ' signals  ·  "
+                         "since ' + timeFormat(toDate(datum._source.opened_at), "
                          "'%b %d %H:%M')"},
                 {"type": "formula", "as": "score",
                  "expr": "datum._source.worst_grade == null ? '' : "
                          "'  ·  worst grade ' + "
                          "format(datum._source.worst_grade, '.3f') + "
                          "' / confidence ' + "
-                         "format(datum._source.latest_confidence, '.3f')"},
+                         "format(datum._source.latest_confidence || 0, '.3f')"},
+                {"type": "formula", "as": "diagText",
+                 "expr": "datum._source.diagnosis || ''"},
+                {"type": "formula", "as": "signalsUrl",
+                 "expr": _episode_href("alice-search-signals")},
+                {"type": "formula", "as": "detailsUrl",
+                 "expr": _episode_href("alice-search-open-incidents")},
             ],
         }],
         "marks": [
-            {"type": "rect", "from": {"data": "episodes"},
+            {"type": "group",
              "encode": {"update": {
                  "x": {"value": 0},
-                 "y": {"signal": "datum.row * (cardHeight + gap)"},
-                 "width": {"signal": "cardWidth"},
-                 "height": {"signal": "cardHeight"},
-                 "fill": {"value": "#14263A"},
-                 "stroke": {"value": "#243B53"},
-                 "cornerRadius": {"value": 8},
-             }}},
-            {"type": "rect", "from": {"data": "episodes"},
+                 "y": {"value": 0},
+                 "width": {"signal": "width"},
+                 "height": {"signal": "height"},
+                 "clip": {"value": True}}},
+             "marks": [
+                 {"type": "rect", "from": {"data": "episodes"},
+                  "encode": {"update": {
+                      "x": {"value": 0},
+                      "y": {"signal":
+                            "datum.row * (cardHeight + gap) - scroll"},
+                      "width": {"signal": "cardWidth"},
+                      "height": {"signal": "cardHeight"},
+                      "fill": {"value": "#FFFFFF"},
+                      "stroke": {"value": "#D3DAE6"},
+                      "cornerRadius": {"value": 4},
+                  }}},
+                 {"type": "rect", "from": {"data": "episodes"},
+                  "encode": {"update": {
+                      "x": {"value": 0},
+                      "y": {"signal":
+                            "datum.row * (cardHeight + gap) - scroll"},
+                      "width": {"value": 4},
+                      "height": {"signal": "cardHeight"},
+                      "fill": {"field": "accent"},
+                      "cornerRadius": {"value": 4},
+                  }}},
+             ] + _episode_card_text("titleText", None, 18, "#343741", 13,
+                                    bold=True,
+                                    limit="cardWidth - 190")
+               + _episode_card_text(None, "datum.meta + datum.score", 37,
+                                    "#69707D", 10)
+               + _episode_card_text("diagText", None, 55, "#343741", 11)
+               + _episode_button("cardWidth - 162", "SIGNALS", "signalsUrl")
+               + _episode_button("cardWidth - 90", "DETAILS", "detailsUrl")},
+            {"type": "rect",
              "encode": {"update": {
-                 "x": {"value": 0},
-                 "y": {"signal": "datum.row * (cardHeight + gap)"},
-                 "width": {"value": 5},
-                 "height": {"signal": "cardHeight"},
-                 "fill": {"field": "accent"},
-                 "cornerRadius": {"value": 8},
+                 "x": {"signal": "width - 6"},
+                 "y": {"value": 0},
+                 "width": {"value": 4},
+                 "height": {"signal": "height"},
+                 "cornerRadius": {"value": 2},
+                 "fill": {"value": "#D3DAE6"},
+                 "opacity": {"signal": "maxScroll > 0 ? 0.6 : 0"},
              }}},
-            {"type": "text", "from": {"data": "episodes"},
+            {"type": "rect",
              "encode": {"update": {
-                 "x": {"value": 16},
-                 "y": {"signal": "datum.row * (cardHeight + gap) + 20"},
-                 "text": {"field": "_source.title"},
-                 "fill": {"value": "#F3F7FA"},
-                 "font": {"value": "Inter, system-ui, sans-serif"},
-                 "fontSize": {"value": 14},
-                 "fontWeight": {"value": "bold"},
-                 "limit": {"signal": "cardWidth - 32"},
-             }}},
-            {"type": "text", "from": {"data": "episodes"},
-             "encode": {"update": {
-                 "x": {"value": 16},
-                 "y": {"signal": "datum.row * (cardHeight + gap) + 39"},
-                 "text": {"signal": "datum.meta + datum.score"},
-                 "fill": {"field": "accent"},
-                 "font": {"value": "Inter, system-ui, sans-serif"},
-                 "fontSize": {"value": 10},
-                 "fontWeight": {"value": "bold"},
-                 "limit": {"signal": "cardWidth - 32"},
-             }}},
-            {"type": "text", "from": {"data": "episodes"},
-             "encode": {"update": {
-                 "x": {"value": 16},
-                 "y": {"signal": "datum.row * (cardHeight + gap) + 59"},
-                 "text": {"field": "_source.diagnosis"},
-                 "fill": {"value": "#C8D5E0"},
-                 "font": {"value": "Inter, system-ui, sans-serif"},
-                 "fontSize": {"value": 11},
-                 "limit": {"signal": "cardWidth - 32"},
-             }}},
-            {"type": "text", "from": {"data": "episodes"},
-             "encode": {"update": {
-                 "x": {"value": 16},
-                 "y": {"signal": "datum.row * (cardHeight + gap) + 78"},
-                 "text": {"signal": "'NEXT  ' + datum._source.operator_action"},
-                 "fill": {"value": "#86D9CC"},
-                 "font": {"value": "Inter, system-ui, sans-serif"},
-                 "fontSize": {"value": 10},
-                 "limit": {"signal": "cardWidth - 32"},
-                 "opacity": {"signal": "cardHeight >= 92 ? 1 : 0"},
+                 "x": {"signal": "width - 6"},
+                 "y": {"signal": "thumbY"},
+                 "width": {"value": 4},
+                 "height": {"signal": "thumbHeight"},
+                 "cornerRadius": {"value": 2},
+                 "fill": {"value": "#98A2B3"},
+                 "opacity": {"signal": "maxScroll > 0 ? 0.9 : 0"},
              }}},
             {"type": "text", "encode": {"update": {
                  "x": {"signal": "width / 2"},
@@ -618,9 +698,9 @@ def incident_episode_board(vid, title):
                  "text": {"value": "NO OPEN EPISODES"},
                  "align": {"value": "center"},
                  "baseline": {"value": "middle"},
-                 "fill": {"value": "#42B8A5"},
-                 "font": {"value": "Inter, system-ui, sans-serif"},
-                 "fontSize": {"value": 18},
+                 "fill": {"value": "#017D73"},
+                 "font": {"value": FONT_STACK},
+                 "fontSize": {"value": 16},
                  "fontWeight": {"value": "bold"},
                  "opacity": {"signal": "length(data('episodes')) ? 0 : 1"},
             }}},
@@ -1116,12 +1196,14 @@ def build():
                  "again on the next window that still breaches it."),
         markdown("alice-viz-incident-header", "Incidents header",
                  "## Live incident episodes\n"
-                 "One card is one deduplicated episode. It says **what is "
-                 "wrong, what is affected, the exact rule/model meaning, and "
-                 "what to inspect next**. PAGE is urgent; WARNING needs "
+                 "One card is one deduplicated episode: **what is wrong, "
+                 "what is affected, and the exact rule/model meaning**. "
+                 "**SIGNALS** opens the raw evidence folded into the episode; "
+                 "**DETAILS** its full record. PAGE is urgent; WARNING needs "
                  "attention; STALE means the model stopped evaluating and is "
-                 "not evidence of recovery. This board ignores the global "
-                 "time picker, so an old-but-open episode cannot disappear."),
+                 "not evidence of recovery. The board shows five episodes "
+                 "and scrolls; it ignores the global time picker, so an "
+                 "old-but-open episode cannot disappear."),
         incident_summary_strip("alice-viz-open-incidents",
                                "Episode summary"),
         incident_episode_board("alice-viz-incidents",
@@ -1139,29 +1221,29 @@ def build():
         ("visualization", "alice-viz-status-strip",    {"x": 0,  "y": 6, "w": 48, "h": 5}),
         ("visualization", "alice-viz-incident-header", {"x": 0,  "y": 11, "w": 48, "h": 6}),
         ("visualization", "alice-viz-open-incidents",  {"x": 0,  "y": 17, "w": 48, "h": 6}),
-        ("visualization", "alice-viz-incidents",       {"x": 0,  "y": 23, "w": 48, "h": 36}),
-        ("visualization", "alice-viz-detect-header",   {"x": 0,  "y": 59, "w": 48, "h": 5}),
-        ("visualization", "alice-viz-health-header",   {"x": 0,  "y": 64, "w": 48, "h": 3}),
-        ("visualization", "alice-viz-cluster-status",  {"x": 0,  "y": 67, "w": 8, "h": 8}, live),
-        ("visualization", "alice-viz-unassigned",      {"x": 8,  "y": 67, "w": 8, "h": 8}, live),
-        ("visualization", "alice-viz-osd-status",      {"x": 16, "y": 67, "w": 8, "h": 8}, live),
-        ("visualization", "alice-viz-fb-status",       {"x": 24, "y": 67, "w": 14, "h": 8}, live),
-        ("visualization", "alice-viz-health-links",    {"x": 38, "y": 67, "w": 10, "h": 8}),
-        ("visualization", "alice-viz-ingest-rate",     {"x": 0,  "y": 75, "w": 24, "h": 12}, live),
-        ("visualization", "alice-viz-index-size",      {"x": 24, "y": 75, "w": 24, "h": 12}, live),
-        ("visualization", "alice-viz-fb-throughput",   {"x": 0,  "y": 87, "w": 24, "h": 12}, live),
-        ("visualization", "alice-viz-fb-trouble",      {"x": 24, "y": 87, "w": 24, "h": 12}, live),
-        ("visualization", "alice-viz-index-health",    {"x": 0,  "y": 99, "w": 16, "h": 12}, live),
-        ("visualization", "alice-viz-node-heap",       {"x": 16, "y": 99, "w": 16, "h": 12}, live),
-        ("visualization", "alice-viz-osd-perf",        {"x": 32, "y": 99, "w": 16, "h": 12}, live),
-        ("visualization", "alice-viz-log-header",      {"x": 0,  "y": 111, "w": 48, "h": 4}),
-        ("visualization", "alice-viz-total",           {"x": 0,  "y": 115, "w": 16, "h": 8}),
-        ("visualization", "alice-viz-errwarn",         {"x": 16, "y": 115, "w": 16, "h": 8}),
-        ("visualization", "alice-viz-bysource",        {"x": 32, "y": 115, "w": 16, "h": 8}),
-        ("visualization", "alice-viz-sev-time",        {"x": 0,  "y": 123, "w": 48, "h": 12}),
-        ("visualization", "alice-viz-top-hosts",       {"x": 0,  "y": 135, "w": 24, "h": 12}),
-        ("visualization", "alice-viz-top-systems",     {"x": 24, "y": 135, "w": 24, "h": 12}),
-        ("search",        "alice-search-errwarn",      {"x": 0,  "y": 147, "w": 48, "h": 16}),
+        ("visualization", "alice-viz-incidents",       {"x": 0,  "y": 23, "w": 48, "h": 22}),
+        ("visualization", "alice-viz-detect-header",   {"x": 0,  "y": 45, "w": 48, "h": 5}),
+        ("visualization", "alice-viz-health-header",   {"x": 0,  "y": 50, "w": 48, "h": 3}),
+        ("visualization", "alice-viz-cluster-status",  {"x": 0,  "y": 53, "w": 8, "h": 8}, live),
+        ("visualization", "alice-viz-unassigned",      {"x": 8,  "y": 53, "w": 8, "h": 8}, live),
+        ("visualization", "alice-viz-osd-status",      {"x": 16, "y": 53, "w": 8, "h": 8}, live),
+        ("visualization", "alice-viz-fb-status",       {"x": 24, "y": 53, "w": 14, "h": 8}, live),
+        ("visualization", "alice-viz-health-links",    {"x": 38, "y": 53, "w": 10, "h": 8}),
+        ("visualization", "alice-viz-ingest-rate",     {"x": 0,  "y": 61, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-index-size",      {"x": 24, "y": 61, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-fb-throughput",   {"x": 0,  "y": 73, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-fb-trouble",      {"x": 24, "y": 73, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-index-health",    {"x": 0,  "y": 85, "w": 16, "h": 12}, live),
+        ("visualization", "alice-viz-node-heap",       {"x": 16, "y": 85, "w": 16, "h": 12}, live),
+        ("visualization", "alice-viz-osd-perf",        {"x": 32, "y": 85, "w": 16, "h": 12}, live),
+        ("visualization", "alice-viz-log-header",      {"x": 0,  "y": 97, "w": 48, "h": 4}),
+        ("visualization", "alice-viz-total",           {"x": 0,  "y": 101, "w": 16, "h": 8}),
+        ("visualization", "alice-viz-errwarn",         {"x": 16, "y": 101, "w": 16, "h": 8}),
+        ("visualization", "alice-viz-bysource",        {"x": 32, "y": 101, "w": 16, "h": 8}),
+        ("visualization", "alice-viz-sev-time",        {"x": 0,  "y": 109, "w": 48, "h": 12}),
+        ("visualization", "alice-viz-top-hosts",       {"x": 0,  "y": 121, "w": 24, "h": 12}),
+        ("visualization", "alice-viz-top-systems",     {"x": 24, "y": 121, "w": 24, "h": 12}),
+        ("search",        "alice-search-errwarn",      {"x": 0,  "y": 133, "w": 48, "h": 16}),
     ]
     objects.append(dashboard(panels))
     return objects
