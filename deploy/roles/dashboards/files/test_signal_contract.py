@@ -259,10 +259,12 @@ def test_cockpit_headlines_episodes_not_raw_detector_exhaust():
           and "operator_action" not in board_state["params"]["spec"],
           "episode board must render the diagnosis and no next-action line")
     spec = board_state["params"]["spec"]
-    check("alice-search-signals" in spec
-          and "alice-search-open-incidents" in spec
+    check("alice-search-signals?_q=(query:" in spec
+          and "alice-search-open-incidents?_q=(query:" in spec
           and "episode_id" in spec,
           "episode board does not link cards to their signals and detail")
+    check('"renderer": "svg"' in spec,
+          "episode board must render as svg or its links are dead pixels")
 
 
 def test_epn_parent_comes_from_the_roster_not_from_arithmetic():

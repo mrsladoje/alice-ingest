@@ -492,7 +492,7 @@ def incident_summary_strip(vid, title):
 
 def _episode_href(search_id):
     return ("'/app/data-explorer/discover#/view/" + search_id +
-            "?_a=(query:(language:kuery,query:\\'episode_id:\"' + "
+            "?_q=(query:(language:kuery,query:\\'episode_id:\"' + "
             "datum._source.episode_id + '\"\\'))'")
 
 
@@ -554,6 +554,7 @@ def incident_episode_board(vid, title):
     spec = {
         "$schema": "https://vega.github.io/schema/vega/v5.json",
         "autosize": {"type": "fit", "contains": "padding"},
+        "config": {"kibana": {"renderer": "svg"}},
         "padding": 4,
         "signals": [
             {"name": "gap", "value": 10},
