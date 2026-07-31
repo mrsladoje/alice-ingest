@@ -4,7 +4,10 @@
     state: directory
     owner: root
     group: root
-    mode: "0750"
+    # DynamicUser services need to traverse this directory to read the one
+    # public, non-secret signal catalog below.  Scripts and definitions keep
+    # their own root-only modes.
+    mode: "0755"
 
 - name: Render the tier-aware OpenSearch index-template bootstrap script
   ansible.builtin.template:
@@ -68,7 +71,23 @@
     dest: "{{ dashboards_bootstrap_signal_catalog }}"
     owner: root
     group: root
-    mode: "0640"
+    # alice-anomaly-digest and alice-signal-projector use DynamicUser=true,
+    # so neither can join a stable Unix group.  The catalog contains only
+    # public classifiers, never credentials; make that file readable while
+    # leaving the neighboring detector/monitor definitions root-only.
+    mode: "0644"
+
+- name: Prove a sandbox-style unprivileged service can read and parse the signal identity catalog
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/runuser
+      - -u
+      - nobody
+      - --
+      - /usr/bin/python3
+      - -c
+      - "import json; json.load(open('{{ dashboards_bootstrap_signal_catalog }}'))"
+  changed_when: false
 
 - name: Ensure the control-node app root exists
   ansible.builtin.file:

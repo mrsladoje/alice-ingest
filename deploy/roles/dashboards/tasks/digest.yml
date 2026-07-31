@@ -30,3 +30,28 @@
     enabled: true
     state: started
     daemon_reload: true
+
+- name: Apply a pending digest restart before asserting its traversal
+  ansible.builtin.meta: flush_handlers
+
+- name: Record the earliest acceptable digest cycle completion time
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/date
+      - +%s
+  register: _digest_gate_started
+  changed_when: false
+
+- name: Wait for the digest to complete a new lossless traversal cycle
+  ansible.builtin.uri:
+    url: "http://localhost:{{ opensearch_http_port }}/{{ lane_state_index }}/_doc/anomaly-realtime"
+    status_code: [200, 404]
+    return_content: true
+  register: _digest_lane
+  until:
+    - _digest_lane.status == 200
+    - >-
+      (((_digest_lane.json | default({})).get('_source', {})).get('updated_at', 0) | int)
+      >= ((_digest_gate_started.stdout | int) * 1000)
+  retries: 24
+  delay: 5

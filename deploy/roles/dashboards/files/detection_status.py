@@ -388,8 +388,43 @@ def digest_report():
               f"grade={s.get('grade')} conf={s.get('confidence')}  "
               f"{s.get('about')} @ {s.get('scope')}")
     if not total:
-        print("  (none — either no detector has scored above 0.5, or the "
-              "digest service is not running)")
+        raw_code, raw_body = req(
+            "POST",
+            "/.opendistro-anomaly-results*/_count"
+            "?ignore_unavailable=true&allow_no_indices=true",
+            {"query": {"bool": {
+                "filter": [
+                    {"range": {"execution_end_time": {"gte": "now-2h"}}},
+                    {"range": {"anomaly_grade": {"gt": 0.5}}},
+                ],
+                "must_not": [{"exists": {"field": "task_id"}}],
+            }}})
+        raw = raw_body.get("count", 0) if raw_code == 200 else "?"
+        if isinstance(raw, int) and raw > 0:
+            print(f"  FATAL: {raw} realtime raw anomalies above 0.5 exist "
+                  "in the last 2h, but the digest projected none")
+        else:
+            print("  (none — no realtime detector has scored above 0.5 in "
+                  "the last 2h)")
+
+
+def projector_report():
+    rule("SIGNAL PROJECTOR (functional heartbeat)")
+    code, body = req(
+        "POST", "/cockpit-metrics/_search?ignore_unavailable=true",
+        {"size": 1, "sort": [{"@timestamp": "desc"}],
+         "query": {"term": {"kind": "projector"}}})
+    hits = body.get("hits", {}).get("hits", []) if code == 200 else []
+    if not hits:
+        print("FATAL: no projector heartbeat exists")
+        return
+    src = hits[0].get("_source", {})
+    state = "healthy" if src.get("projector_cycle_ok") == 1 else "FAILED"
+    print(f"{state}: last={src.get('@timestamp')} "
+          f"cycle_ok={src.get('projector_cycle_ok')} "
+          f"signals_open={src.get('signals_open')} "
+          f"incidents_open={src.get('incidents_open')} "
+          f"cycle_ms={src.get('projector_cycle_ms')}")
 
 
 def alerts_report():
@@ -478,6 +513,7 @@ def main():
     result_errors_report()
     results_index_report()
     digest_report()
+    projector_report()
     alerts_report()
     monitors_report()
     rollup_report()

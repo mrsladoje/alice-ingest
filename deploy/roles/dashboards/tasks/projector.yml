@@ -59,6 +59,42 @@
 - name: Flush handlers so the asserted processes are the restarted ones
   ansible.builtin.meta: flush_handlers
 
+- name: Record the earliest acceptable projector heartbeat time
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/date
+      - -u
+      - +%Y-%m-%dT%H:%M:%S.000Z
+  register: _projector_gate_started
+  changed_when: false
+
+- name: Wait for the newest signal-projector heartbeat to prove a successful cycle
+  ansible.builtin.uri:
+    url: "http://localhost:{{ opensearch_http_port }}/{{ cockpit_metrics_index }}/_search"
+    method: POST
+    body_format: json
+    body:
+      size: 1
+      sort:
+        - "@timestamp": desc
+      query:
+        bool:
+          filter:
+            - term:
+                kind: projector
+            - range:
+                "@timestamp":
+                  gte: "{{ _projector_gate_started.stdout }}"
+    status_code: 200
+  register: _projector_heartbeat
+  until:
+    - (_projector_heartbeat.json.hits.hits | default([]) | length) == 1
+    - >-
+      (((_projector_heartbeat.json.hits.hits | default([]) | first | default({})).get('_source', {})).get('projector_cycle_ok', 0) | int)
+      == 1
+  retries: 24
+  delay: 5
+
 - name: Assert the notification path stayed up (a dead receiver silently drops every notification)
   ansible.builtin.systemd:
     name: "{{ item }}"

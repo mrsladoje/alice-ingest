@@ -972,6 +972,124 @@ def test_ops_actions_redirect_before_a_refresh_can_repeat_them():
             ops._FLASH_RESULTS.clear()
 
 
+def _checkout_file(*parts):
+    here = os.path.dirname(os.path.abspath(__file__))
+    for _ in range(8):
+        candidate = os.path.join(here, *parts)
+        if os.path.exists(candidate):
+            return candidate
+        here = os.path.dirname(here)
+    return None
+
+
+def test_dynamic_services_can_read_the_signal_catalog():
+    import yaml
+
+    path = _checkout_file(
+        "roles", "dashboards", "tasks", "bootstrap.yml")
+    if path is None:
+        print("[signal-contract] "
+              "test_dynamic_services_can_read_the_signal_catalog: skipped, "
+              "bootstrap.yml not beside this checkout")
+        return
+    tasks = yaml.safe_load(open(path))
+    by_name = {task.get("name"): task for task in tasks}
+    root = by_name.get("Ensure the bootstrap scripts directory exists", {})
+    catalog = by_name.get(
+        "Stage the signal identity catalog (one explicit per-monitor and "
+        "per-detector classifier, never inferred from an index name)", {})
+    probe = by_name.get(
+        "Prove a sandbox-style unprivileged service can read and parse the "
+        "signal identity catalog", {})
+    check((root.get("ansible.builtin.file") or {}).get("mode") == "0755",
+          "DynamicUser services cannot traverse the signal catalog's parent "
+          "directory")
+    check((catalog.get("ansible.builtin.copy") or {}).get("mode") == "0644",
+          "the root-owned signal catalog is not readable by DynamicUser "
+          "services")
+    argv = (probe.get("ansible.builtin.command") or {}).get("argv") or []
+    check("/usr/sbin/runuser" in argv and "nobody" in argv
+          and any("json.load(open(" in str(arg) for arg in argv),
+          "deployment does not prove an unprivileged service can parse the "
+          "signal catalog")
+
+    digest_path = _checkout_file(
+        "roles", "dashboards", "tasks", "digest.yml")
+    projector_path = _checkout_file(
+        "roles", "dashboards", "tasks", "projector.yml")
+    digest = open(digest_path).read() if digest_path else ""
+    projector = open(projector_path).read() if projector_path else ""
+    check("Wait for the digest to complete a new lossless traversal cycle"
+          in digest and ".get('updated_at', 0)" in digest,
+          "deploy does not require a post-start digest cycle to advance its "
+          "watermark")
+    check("Wait for the newest signal-projector heartbeat to prove a "
+          "successful cycle" in projector
+          and "projector_cycle_ok" in projector
+          and "_projector_gate_started.stdout" in projector,
+          "deploy accepts a systemd-active but functionally failed signal "
+          "projector")
+
+
+def test_deploy_preserves_the_replay_runtime_dropin():
+    import yaml
+
+    producer_path = _checkout_file(
+        "roles", "producer", "tasks", "main.yml")
+    replay_path = _checkout_file("replay.yml")
+    unit_path = _checkout_file(
+        "roles", "producer", "templates", "replay.service.j2")
+    if not all((producer_path, replay_path, unit_path)):
+        print("[signal-contract] "
+              "test_deploy_preserves_the_replay_runtime_dropin: skipped, "
+              "producer sources not beside this checkout")
+        return
+    producer_tasks = yaml.safe_load(open(producer_path))
+    managed = []
+    for task in producer_tasks:
+        copy = task.get("ansible.builtin.copy") or {}
+        if str(copy.get("dest", "")).endswith("/clock.conf"):
+            managed.append(task.get("name"))
+    check(not managed,
+          f"ordinary deploy still overwrites replay runtime state: {managed}")
+
+    replay = open(replay_path).read()
+    unit = open(unit_path).read()
+    check("service.d/clock.conf" in replay
+          and "Environment=REPLAY_LOOP={{ replay_loop" in replay,
+          "replay.yml no longer owns a complete loop-aware runtime drop-in")
+    check("Environment=REPLAY_LOOP={{ replay_loop" in unit
+          and "Environment=REPLAY_CLOCK={{ replay_clock" in unit,
+          "fresh producer installs have no default replay runtime settings")
+
+
+def test_status_exposes_functional_projector_and_replay_health():
+    status_path = _checkout_file("status.yml")
+    probe_path = _checkout_file(
+        "roles", "dashboards", "files", "detection_status.py")
+    if not all((status_path, probe_path)):
+        print("[signal-contract] "
+              "test_status_exposes_functional_projector_and_replay_health: "
+              "skipped, status sources not beside this checkout")
+        return
+    status = open(status_path).read()
+    probe = open(probe_path).read()
+    check("dashboards_signal_projector_service_name" in status
+          and "dashboards_notification_ingest_service_name" in status,
+          "make status still omits signal-path systemd services")
+    check("/replay-status" in status and "running=" in status and "loop=" in status,
+          "make status does not reveal that deploy stopped the replay loop")
+    check("cycle failed|FATAL|Permission denied" in status,
+          "make status treats a retrying but functionally dead service as "
+          "healthy")
+    check("SIGNAL PROJECTOR (functional heartbeat)" in probe
+          and "projector_cycle_ok" in probe,
+          "the detection probe does not inspect the projector heartbeat")
+    check("realtime raw anomalies above 0.5 exist" in probe,
+          "the detection probe cannot distinguish an empty digest from a "
+          "broken digest")
+
+
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
 
 

@@ -4,46 +4,76 @@
   gather_facts: false
   vars_files:
     - roles/dashboards/defaults/main.yml
+  vars:
+    cockpit_status_services:
+      - "{{ dashboards_metrics_service_name }}"
+      - "{{ dashboards_trend_rollup_service_name }}"
+      - "{{ dashboards_anomaly_digest_service_name }}"
+      - "{{ dashboards_signal_projector_service_name }}"
+      - "{{ dashboards_notification_ingest_service_name }}"
+      - "{{ dashboards_ops_service_name }}"
   tasks:
     - name: Check the cockpit services
       ansible.builtin.command:
-        argv:
-          - systemctl
-          - is-active
-          - "{{ dashboards_metrics_service_name }}"
-          - "{{ dashboards_trend_rollup_service_name }}"
-          - "{{ dashboards_anomaly_digest_service_name }}"
-          - "{{ dashboards_ops_service_name }}"
+        argv: "{{ ['systemctl', 'is-active'] + cockpit_status_services }}"
       register: _services
       changed_when: false
       failed_when: false
 
     - name: Print the service states
       ansible.builtin.debug:
-        msg: "{{ [dashboards_metrics_service_name,
-                  dashboards_trend_rollup_service_name,
-                  dashboards_anomaly_digest_service_name,
-                  dashboards_ops_service_name]
-                 | zip(_services.stdout_lines)
+        msg: "{{ cockpit_status_services | zip(_services.stdout_lines)
                  | map('join', ' = ') | list }}"
 
-    - name: Tail the anomaly digest log when it is not running
+    - name: Read every replay worker's functional state
+      ansible.builtin.uri:
+        url: "http://{{ hostvars[item].ansible_host }}:{{ replay_http_port }}/replay-status"
+        return_content: true
+        status_code: 200
+      loop: "{{ groups['workers'] }}"
+      register: _replay_states
+      changed_when: false
+      failed_when: false
+
+    - name: Print the replay worker states
+      ansible.builtin.debug:
+        msg: >-
+          {{ item.item }} =
+          running={{ (item.json | default({})).get('running', 'unreachable') }}
+          loop={{ (item.json | default({})).get('loop', 'unknown') }}
+          collector={{ (item.json | default({})).get('collector', 'unknown') }}
+      loop: "{{ _replay_states.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Read recent digest and projector logs even when systemd calls the retry loop active
       ansible.builtin.command:
         argv:
           - journalctl
           - -u
-          - "{{ dashboards_anomaly_digest_service_name }}"
-          - -n
-          - "30"
+          - "{{ item }}"
+          - --since
+          - "5 minutes ago"
           - --no-pager
+          - -o
+          - cat
+      loop:
+        - "{{ dashboards_anomaly_digest_service_name }}"
+        - "{{ dashboards_signal_projector_service_name }}"
       register: _digest_log
       changed_when: false
       failed_when: false
-      when: "'active' not in (_services.stdout_lines[2] | default(''))"
 
-    - name: Print the anomaly digest log
+    - name: Print recent functional failures (an empty list is healthy)
       ansible.builtin.debug:
-        msg: "{{ _digest_log.stdout_lines | default(['(service is active)']) }}"
+        msg: >-
+          {{ item.item }} failures =
+          {{ item.stdout_lines | default([])
+             | select('search', 'cycle failed|FATAL|Permission denied')
+             | list }}
+      loop: "{{ _digest_log.results }}"
+      loop_control:
+        label: "{{ item.item }}"
 
     - name: Run the detection status probe
       ansible.builtin.script:

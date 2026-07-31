@@ -165,16 +165,10 @@
     state: absent
   when: replay_clock | default('preserved') != 'shifted'
 
-- name: Install alice-replay clock-mode drop-in from group_vars
-  ansible.builtin.copy:
-    dest: /etc/systemd/system/{{ producer_service_name }}.service.d/clock.conf
-    owner: root
-    group: root
-    mode: "0644"
-    content: |
-      [Service]
-      Environment=REPLAY_CLOCK={{ replay_clock | default('preserved') }}
-  notify: restart alice-replay
+# clock.conf is operational runtime state owned by replay.yml.  An ordinary
+# deployment must not replace REPLAY_LOOP=true (or the selected pace) with the
+# group default and restart an active soak.  Fresh hosts already receive every
+# default in replay.service.j2; operators change them through make replay*.
 
 - name: Apply any pending restart now, before the one-shot autostart can be interrupted
   ansible.builtin.meta: flush_handlers
