@@ -752,7 +752,9 @@ up on a panel, where noise is cheap; a throttled page is not.
 
 Alerts appear in Dashboards → Alerting and on the Cockpit **Detection** panels.
 `/ops` headlines open incidents and signals firing, with active-alert and
-anomalies-last-hour counts beside them. Notifications go through Alertmanager
+anomalies-last-hour counts beside them. Its buttons post in place and the work
+runs as a background job, so the address bar never leaves `/ops/` and a fresh
+reload that takes minutes no longer ends in an nginx 504. Notifications go through Alertmanager
 to `alice-notification-ingest`; no external channel yet, which is now a
 receiver config change rather than an architecture change.
 

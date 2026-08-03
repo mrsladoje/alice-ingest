@@ -24,6 +24,7 @@ POISON_SERVICE = os.environ.get(
     "OPS_POISON_SERVICE", "alice-poison-replay")
 POISON_STATUS = os.environ.get(
     "OPS_POISON_STATUS", "/var/lib/alice-poison-replay/status.json")
+RESET_TIMEOUT = float(os.environ.get("OPS_RESET_TIMEOUT", "900"))
 COUNT_TARGET = "infologger,generic-log-*"
 INCIDENTS_INDEX = os.environ.get("INCIDENTS_INDEX", "alice-incidents")
 SIGNALS_INDEX = os.environ.get("SIGNALS_INDEX", "alice-signals")
@@ -64,6 +65,58 @@ def _take_result(token):
     if time.time() - created > FLASH_TTL_SECONDS:
         return None
     return lines
+
+
+_JOB_LOCK = threading.Lock()
+_JOB = None
+
+
+def _job_view(job):
+    finished = job["finished"] or time.time()
+    return {
+        "id": job["id"],
+        "action": job["action"],
+        "label": job["label"],
+        "state": job["state"],
+        "lines": list(job["lines"]),
+        "seconds": int(finished - job["started"]),
+    }
+
+
+def job_status():
+    with _JOB_LOCK:
+        return _job_view(_JOB) if _JOB else None
+
+
+def start_job(action, label, work):
+    """Run one action in the background so the POST answers immediately."""
+    global _JOB
+    with _JOB_LOCK:
+        if _JOB and _JOB["state"] == "running":
+            return None, _JOB["label"]
+        job = {
+            "id": secrets.token_urlsafe(9),
+            "action": action,
+            "label": label,
+            "state": "running",
+            "lines": [],
+            "started": time.time(),
+            "finished": None,
+        }
+        _JOB = job
+
+    def run():
+        try:
+            work(job["lines"])
+        except Exception as exc:
+            job["lines"].append(
+                f"FAILED — {action} stopped with an unexpected error: {exc}")
+        with _JOB_LOCK:
+            job["finished"] = time.time()
+            job["state"] = "done"
+
+    threading.Thread(target=run, daemon=True).start()
+    return job, None
 
 
 def _log_families():
@@ -171,27 +224,42 @@ def incident_rows(limit=8):
     return rows
 
 
-def reset_derived(mode="full"):
+def reset_derived(mode="full", lines=None):
+    lines = [] if lines is None else lines
     try:
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             ["/usr/bin/python3", RESET_SCRIPT],
             env=dict(os.environ, OS_URL=OS_URL, MODE=mode,
                      LOG_FAMILIES=",".join(LOG_FAMILIES)),
-            capture_output=True, text=True, timeout=600)
-        lines = [ln for ln in (proc.stdout or "").splitlines() if ln.strip()]
-        if proc.returncode != 0:
-            lines.append(
-                f"reset finished with exit {proc.returncode} — stale alerts "
-                f"or rollup rows may survive this reload: "
-                f"{(proc.stderr or '').strip()[-300:]}")
-        return lines
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     except Exception as e:
-        return [f"FAILED to run {RESET_SCRIPT}: {e} — old alerts, anomalies "
-                f"and trend-rollup rows are still there"]
+        lines.append(f"FAILED to run {RESET_SCRIPT}: {e} — old alerts, "
+                     f"anomalies and trend-rollup rows are still there")
+        return lines
+    killer = threading.Timer(RESET_TIMEOUT, proc.kill)
+    killer.start()
+    tail = []
+    try:
+        for raw in proc.stdout:
+            text = raw.rstrip()
+            if text.strip():
+                lines.append(text)
+                tail.append(text)
+                del tail[:-4]
+        proc.wait()
+    finally:
+        killer.cancel()
+        proc.stdout.close()
+    if proc.returncode != 0:
+        lines.append(
+            f"reset finished with exit {proc.returncode} — stale alerts "
+            f"or rollup rows may survive this reload: "
+            + " / ".join(tail)[-300:])
+    return lines
 
 
-def wipe():
-    lines = []
+def wipe(lines=None):
+    lines = [] if lines is None else lines
     patterns = ["infologger-*", "generic-log-other-*"]
     patterns += [f"generic-log-info-{n}-*" for n in INFO_NODES]
     for pat in patterns:
@@ -199,7 +267,7 @@ def wipe():
             "DELETE",
             f"{OS_URL}/{pat}?ignore_unavailable=true&allow_no_indices=true")
         lines.append(f"delete {pat}: HTTP {code}")
-    lines += reset_derived()
+    reset_derived("full", lines)
     env = dict(os.environ, OS_URL=OS_URL, SEED_EMPTY_INDICES="false")
     try:
         proc = subprocess.run(
@@ -262,12 +330,13 @@ def poison_status():
     return status
 
 
-def start_poison():
+def start_poison(lines=None):
+    lines = [] if lines is None else lines
     if _service_active(POISON_SERVICE):
-        return [
+        lines.append(
             "REFUSED — a poison replay is already running. Follow its live "
-            "matrix below or stop it before starting another one."
-        ]
+            "matrix below or stop it before starting another one.")
+        return lines
     try:
         subprocess.run(
             ["/usr/bin/systemctl", "reset-failed", POISON_SERVICE],
@@ -276,11 +345,13 @@ def start_poison():
             ["/usr/bin/systemctl", "--no-block", "start", POISON_SERVICE],
             capture_output=True, text=True, timeout=10, check=False)
     except Exception as exc:
-        return [f"FAILED to start {POISON_SERVICE}: {exc}"]
+        lines.append(f"FAILED to start {POISON_SERVICE}: {exc}")
+        return lines
     if proc.returncode != 0:
         detail = (proc.stderr or proc.stdout or "unknown systemd error").strip()
-        return [f"FAILED to start {POISON_SERVICE}: {detail}"]
-    return [
+        lines.append(f"FAILED to start {POISON_SERVICE}: {detail}")
+        return lines
+    lines += [
         "poison replay started in the background",
         "it will start/continue the paced S3 replay, wait until all ten "
         "one-minute detectors are trained, inject labelled outlier windows, "
@@ -288,24 +359,29 @@ def start_poison():
         "the 30-minute detectors are deliberately excluded; progress updates "
         "on this page every five seconds",
     ]
+    return lines
 
 
-def stop_poison():
+def stop_poison(lines=None):
+    lines = [] if lines is None else lines
     if not _service_active(POISON_SERVICE):
-        return ["no poison replay is running"]
+        lines.append("no poison replay is running")
+        return lines
     try:
         proc = subprocess.run(
             ["/usr/bin/systemctl", "stop", POISON_SERVICE],
             capture_output=True, text=True, timeout=45, check=False)
     except Exception as exc:
-        return [f"FAILED to stop {POISON_SERVICE}: {exc}"]
+        lines.append(f"FAILED to stop {POISON_SERVICE}: {exc}")
+        return lines
     if proc.returncode != 0:
         detail = (proc.stderr or proc.stdout or "unknown systemd error").strip()
-        return [f"FAILED to stop {POISON_SERVICE}: {detail}"]
-    return [
+        lines.append(f"FAILED to stop {POISON_SERVICE}: {detail}")
+        return lines
+    lines.append(
         "poison replay stopped; its already-indexed labelled evidence remains "
-        "available for audit and expires with the normal index retention"
-    ]
+        "available for audit and expires with the normal index retention")
+    return lines
 
 
 def family_counts():
@@ -337,11 +413,12 @@ def snapshot():
         "replay_workers": len(busy),
         "poison": poison_status(),
         "families": family_counts(),
+        "job": job_status(),
     }
 
 
-def stop_replays(workers):
-    lines = []
+def stop_replays(workers, lines=None):
+    lines = [] if lines is None else lines
     for w in workers:
         code, body = _req("POST", f"{w}/replay-stop", timeout=15)
         lines.append(f"stop {w}: HTTP {code} {body.strip()}")
@@ -357,8 +434,8 @@ def wait_until_idle(timeout=45):
     return not replay_in_flight()
 
 
-def trigger_workers():
-    lines = []
+def trigger_workers(lines=None):
+    lines = [] if lines is None else lines
     if not WORKERS:
         lines.append("no worker triggers configured")
     for w in WORKERS:
@@ -367,30 +444,34 @@ def trigger_workers():
     return lines
 
 
-def stop_only():
+def stop_only(lines=None):
+    lines = [] if lines is None else lines
     busy = replay_in_flight()
     if not busy:
-        return ["no replay is running"]
-    return stop_replays(busy) + [
+        lines.append("no replay is running")
+        return lines
+    stop_replays(busy, lines)
+    lines.append(
         "stop requested — the workers finish the record they are on and then "
-        "end the pass; the indices keep everything shipped so far"]
+        "end the pass; the indices keep everything shipped so far")
+    return lines
 
 
-def clear_only():
-    return reset_derived(mode="clear")
+def clear_only(lines=None):
+    return reset_derived("clear", lines)
 
 
-def run_replay(fresh):
-    lines = []
+def run_replay(fresh, lines=None):
+    lines = [] if lines is None else lines
     if fresh:
         busy = replay_in_flight()
         if busy:
             lines.append(
                 "a replay was already running on " + ", ".join(busy)
                 + " — cancelling it first, since a fresh reload replaces it")
-            lines += stop_replays(busy)
+            stop_replays(busy, lines)
             if not wait_until_idle():
-                return lines + [
+                lines += [
                     "REFUSED — it did not stop within 45s, so nothing was "
                     "wiped. Wiping while a load is in flight empties the "
                     "indices without starting a reload, and lets ingest "
@@ -398,10 +479,27 @@ def run_replay(fresh):
                     "Restart alice-replay on those workers, then press "
                     "Reload data (fresh) again.",
                 ]
+                return lines
             lines.append("previous replay stopped")
-        lines += wipe()
-    lines += trigger_workers()
+        wipe(lines)
+    trigger_workers(lines)
     return lines
+
+
+ACTIONS = {
+    "replay": ("Starting another paced replay pass",
+               lambda lines: run_replay(False, lines)),
+    "replay-fresh": ("Cancelling any running replay, wiping derived data, "
+                     "rebuilding aliases and starting a clean reload",
+                     lambda lines: run_replay(True, lines)),
+    "stop": ("Asking the workers to stop the current pass", stop_only),
+    "clear": ("Purging alerts, anomalies, incidents, signals and trend "
+              "baselines", clear_only),
+    "poison-replay": ("Starting the background detector calibration run",
+                      start_poison),
+    "poison-stop": ("Stopping the poison calibration process cleanly",
+                    stop_poison),
+}
 
 
 PAGE = Template("""<!doctype html>
@@ -642,7 +740,7 @@ PAGE = Template("""<!doctype html>
         <span class="meta">$worker_meta</span>
       </div>
       <div class="pbody">
-        $result
+        <div id="result-slot">$result</div>
         <div class="grid">
           <form method="post" action="replay" data-busy="Starting another paced replay pass.">
             <button class="primary" type="submit" data-loading-label="Starting replay…">
@@ -719,14 +817,18 @@ PAGE = Template("""<!doctype html>
   <footer class="foot">
     <p>A paced load runs for about an hour. One-minute detectors need 32 consecutive windows before they
       leave initialization. Records keep their archive event time, while detection reads the field
-      <code>collector_time</code> instead. <strong>Every action reports its result after a refresh-safe
-      redirect, so a page reload never repeats it.</strong> Poison replay uses only already-modelled
+      <code>collector_time</code> instead. <strong>Every action runs in the background and reports its
+      progress on this page, so the address bar never leaves /ops/ and a reload never repeats an
+      action.</strong> Poison replay uses only already-modelled
       entities and reports native result and projected-episode evidence separately.</p>
     <div id="connection" class="clock"><span id="last-updated">Live status connected</span></div>
   </footer>
 </main>
 
 <script>
+var jobRunning = false;
+var stickUntil = 0;
+var lastResult = '';
 var SEVERITY = {
   critical:'crit', crit:'crit', fatal:'crit', error:'crit', high:'crit', p1:'crit',
   warning:'warn', warn:'warn', medium:'warn', moderate:'warn', p2:'warn'
@@ -826,6 +928,8 @@ function paint(s) {
   }
   document.body.dataset.replay = s.replay_running ? 'on' : 'off';
 
+  paintJob(s.job);
+
   var poison = s.poison || {};
   var poisonState = String(poison.state || 'never-run');
   var poisonText = poisonState.replace(/-/g, ' ');
@@ -840,15 +944,23 @@ function paint(s) {
       '/' + poison.verdict.detectors_expected + ' detectors';
   }
   document.getElementById('poison-status').textContent = poisonText;
-  document.getElementById('poison-start').disabled = !!poison.running;
-  document.getElementById('poison-stop').disabled = !poison.running;
+  if (!jobRunning) {
+    document.getElementById('poison-start').disabled = !!poison.running;
+    document.getElementById('poison-stop').disabled = !poison.running;
+  }
 
   document.getElementById('connection').className = 'clock';
   document.getElementById('last-updated').textContent =
     'Updated ' + new Date().toLocaleTimeString([], {hour12:false});
 }
+var timer = null;
+function schedule() {
+  clearTimeout(timer);
+  timer = setTimeout(poll, jobRunning ? 1000 : 5000);
+}
 function poll() {
-  fetch('status', {cache:'no-store'})
+  clearTimeout(timer);
+  return fetch('status', {cache:'no-store'})
     .then(function (response) {
       if (!response.ok) { throw new Error('status ' + response.status); }
       return response.json();
@@ -857,41 +969,114 @@ function poll() {
     .catch(function () {
       document.getElementById('connection').className = 'clock error';
       document.getElementById('last-updated').textContent = 'Live status unavailable';
-    });
+    })
+    .then(schedule);
 }
-function resetButtons() {
-  var buttons = document.querySelectorAll('button');
+function controls() {
+  return document.querySelectorAll('.grid button');
+}
+function setControlsDisabled(on) {
+  var buttons = controls();
+  for (var i = 0; i < buttons.length; i++) { buttons[i].disabled = on; }
+}
+function clearLoading() {
+  var buttons = controls();
   for (var i = 0; i < buttons.length; i++) {
-    buttons[i].disabled = false;
     buttons[i].classList.remove('is-loading');
     buttons[i].removeAttribute('aria-busy');
     var label = buttons[i].querySelector('.button-label');
     if (label && label.dataset.original) { label.textContent = label.dataset.original; }
   }
-  document.getElementById('busy').classList.remove('on');
+}
+function busyStrip(on, text) {
+  if (text) { document.getElementById('busytext').textContent = text; }
+  document.getElementById('busy').classList.toggle('on', on);
+}
+function hasProblem(lines) {
+  for (var i = 0; i < lines.length; i++) {
+    var text = String(lines[i]).toUpperCase();
+    if (text.indexOf('FAILED') !== -1 || text.indexOf('REFUSED') !== -1 ||
+        text.indexOf('ERROR') !== -1) { return true; }
+  }
+  return false;
+}
+function showResult(title, lines, error, sticky) {
+  if (!sticky && Date.now() < stickUntil) { return; }
+  if (sticky) { stickUntil = Date.now() + 8000; }
+  var key = title + '\\u0000' + lines.join('\\n') + '\\u0000' + error;
+  if (key === lastResult) { return; }
+  lastResult = key;
+  var slot = document.getElementById('result-slot');
+  var section = document.createElement('section');
+  section.className = error ? 'result error' : 'result';
+  section.setAttribute('role', 'status');
+  var head = document.createElement('p');
+  head.className = 'result-title';
+  head.textContent = title;
+  var body = document.createElement('pre');
+  body.textContent = lines.join('\\n');
+  section.append(head, body);
+  slot.replaceChildren(section);
+}
+function paintJob(job) {
+  jobRunning = !!(job && job.state === 'running');
+  if (jobRunning) {
+    setControlsDisabled(true);
+    busyStrip(true, job.label + ' · ' + job.seconds + 's');
+  } else {
+    clearLoading();
+    setControlsDisabled(false);
+    busyStrip(false);
+  }
+  if (!job) { return; }
+  var lines = job.lines.length ? job.lines : ['working…'];
+  var problem = hasProblem(lines);
+  showResult(
+    jobRunning ? job.label + ' · ' + job.seconds + 's'
+               : (problem ? 'Action needs attention' : 'Action complete'),
+    lines, problem && !jobRunning, false);
+}
+function runAction(form) {
+  var clicked = form.querySelector('button[type="submit"]');
+  var label = clicked.querySelector('.button-label');
+  if (!label.dataset.original) { label.dataset.original = label.textContent; }
+  label.textContent = clicked.dataset.loadingLabel || 'Working…';
+  clicked.classList.add('is-loading');
+  clicked.setAttribute('aria-busy', 'true');
+  setControlsDisabled(true);
+  busyStrip(true, form.dataset.busy);
+  fetch(form.getAttribute('action'), {
+    method: 'POST', cache: 'no-store', headers: {'Accept': 'application/json'}
+  }).then(function (response) {
+    return response.json().catch(function () { return {}; });
+  }).then(function (payload) {
+    if (payload && payload.refused) {
+      showResult('Action needs attention', payload.refused, true, true);
+    }
+    return poll();
+  }).catch(function () {
+    showResult('Action needs attention',
+      ['The request never reached the ops server. Check that alice-ops is running, then try again.'],
+      true, true);
+    clearLoading();
+    setControlsDisabled(false);
+    busyStrip(false);
+  });
 }
 var forms = document.querySelectorAll('form[data-busy]');
 for (var f = 0; f < forms.length; f++) {
   forms[f].addEventListener('submit', function (event) {
+    event.preventDefault();
     var question = this.dataset.confirm;
-    if (question && !window.confirm(question)) { event.preventDefault(); return; }
-    var clicked = this.querySelector('button[type="submit"]');
-    var label = clicked.querySelector('.button-label');
-    label.dataset.original = label.textContent;
-    label.textContent = clicked.dataset.loadingLabel || 'Working…';
-    clicked.classList.add('is-loading');
-    clicked.setAttribute('aria-busy','true');
-    var buttons = document.querySelectorAll('button');
-    for (var i = 0; i < buttons.length; i++) { buttons[i].disabled = true; }
-    document.getElementById('busytext').textContent = this.dataset.busy;
-    document.getElementById('busy').classList.add('on');
+    if (question && !window.confirm(question)) { return; }
+    runAction(this);
   });
 }
-window.addEventListener('pageshow', resetButtons);
+window.addEventListener('pageshow', function () { clearLoading(); poll(); });
 if (window.location.search.indexOf('result=') !== -1) {
   window.history.replaceState(null,'',window.location.pathname);
 }
-setInterval(poll,5000);
+poll();
 </script>
 </body>
 </html>
@@ -964,20 +1149,43 @@ def _poison_text(status):
     return html.escape(state)
 
 
+def _has_problem(lines):
+    return any(
+        marker in line.upper()
+        for line in lines
+        for marker in ("FAILED", "REFUSED", "ERROR"))
+
+
+def _result_block(lines, title, error):
+    if not lines:
+        return ""
+    joined = html.escape("\n".join(lines))
+    return (
+        f'<section class="result{" error" if error else ""}" role="status">'
+        f'<p class="result-title">{html.escape(title)}</p>'
+        f"<pre>{joined}</pre></section>")
+
+
 def render(result_lines=None):
-    result = ""
-    if result_lines:
-        joined = html.escape("\n".join(result_lines))
-        error = any(
-            marker in line.upper()
-            for line in result_lines
-            for marker in ("FAILED", "REFUSED", "ERROR"))
-        result = (
-            f'<section class="result{" error" if error else ""}" '
-            f'role="status"><p class="result-title">'
-            f'{"Action needs attention" if error else "Action complete"}</p>'
-            f"<pre>{joined}</pre></section>")
     snap = snapshot()
+    job = snap.get("job")
+    if result_lines:
+        problem = _has_problem(result_lines)
+        result = _result_block(
+            result_lines,
+            "Action needs attention" if problem else "Action complete",
+            problem)
+    elif job:
+        active = job["state"] == "running"
+        problem = _has_problem(job["lines"])
+        result = _result_block(
+            job["lines"] or ["working…"],
+            f"{job['label']} · {job['seconds']}s" if active
+            else ("Action needs attention" if problem
+                  else "Action complete"),
+            problem and not active)
+    else:
+        result = ""
     running = snap["replay_running"]
     workers = snap["replay_workers"]
     incidents = snap["incidents"]
@@ -1024,8 +1232,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _redirect_to_result(self, lines):
-        token = _store_result(lines)
-        location = "/ops/?result=" + urllib.parse.quote(token, safe="")
+        location = "/ops/"
+        if lines:
+            token = _store_result(lines)
+            location += "?result=" + urllib.parse.quote(token, safe="")
         self.send_response(303)
         self.send_header("Location", location)
         self.send_header("Cache-Control", "no-store")
@@ -1043,22 +1253,33 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._send(404, render(["not found"]))
 
+    def _wants_json(self):
+        return "application/json" in (self.headers.get("Accept") or "")
+
     def do_POST(self):
         path = self.path.split("?", 1)[0].rstrip("/")
-        if path.endswith("/poison-replay"):
-            self._redirect_to_result(start_poison())
-        elif path.endswith("/poison-stop"):
-            self._redirect_to_result(stop_poison())
-        elif path.endswith("/replay-fresh"):
-            self._redirect_to_result(run_replay(fresh=True))
-        elif path.endswith("/replay"):
-            self._redirect_to_result(run_replay(fresh=False))
-        elif path.endswith("/clear"):
-            self._redirect_to_result(clear_only())
-        elif path.endswith("/stop"):
-            self._redirect_to_result(stop_only())
-        else:
+        name = path.rsplit("/", 1)[-1]
+        action = ACTIONS.get(name)
+        if action is None:
             self._send(404, render(["not found"]))
+            return
+        label, work = action
+        job, busy = start_job(name, label, work)
+        refusal = None
+        if job is None:
+            refusal = [
+                f"REFUSED — another action is still running: {busy}.",
+                "Wait for it to finish, then press this again.",
+            ]
+        if self._wants_json():
+            self._send(
+                409 if refusal else 202,
+                json.dumps({"job": job_status(), "refused": refusal}),
+                "application/json")
+        elif refusal:
+            self._redirect_to_result(refusal)
+        else:
+            self._redirect_to_result([])
 
     def log_message(self, *args):
         pass

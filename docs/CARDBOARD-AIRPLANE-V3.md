@@ -39,7 +39,7 @@ For a non-CLI trigger, a small `alice-ops` service on the control node sits behi
 - **Reload data (fresh)** → `POST /ops/replay-fresh`: wipes the log indices, re-creates the per-worker `require.box` info indices, then triggers replay on every worker — the always-clean load, safe to click repeatedly.
 - **Append replay** → `POST /ops/replay`: another full pass with no dedup (deliberate use only).
 
-The service (`ops_server.py`, stdlib only, `127.0.0.1:8090`) fans out to each worker's `:8088` trigger and talks to OpenSearch on `localhost:9200`; the recreate uses `wait_for_active_shards=0` so it never blocks on allocation. Workers open `:8088` to the control node's IP (host firewall) so the fan-out can reach them. This is CERN-internal only — reaching it from the public internet would be a separate, deliberate LanDB firewall opening.
+The service (`ops_server.py`, stdlib only, `127.0.0.1:8090`) fans out to each worker's `:8088` trigger and talks to OpenSearch on `localhost:9200`; the recreate uses `wait_for_active_shards=0` so it never blocks on allocation. Every button posts in place from the page and the POST returns at once: the action runs as one background job, and the page streams its progress lines from `GET /ops/status`. That keeps the address bar on `/ops/` and keeps a multi-minute fresh reload from hitting the nginx 120s proxy timeout with a 504. Only one job runs at a time; a second request while one is in flight is refused rather than queued. Workers open `:8088` to the control node's IP (host firewall) so the fan-out can reach them. This is CERN-internal only — reaching it from the public internet would be a separate, deliberate LanDB firewall opening.
 
 ---
 
