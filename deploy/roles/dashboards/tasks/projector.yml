@@ -148,7 +148,6 @@
       ansible.builtin.set_fact:
         projector_gate_failed: true
         projector_gate_started_at: "{{ _projector_gate_started.stdout }}"
-      cacheable: false
 
     - name: Report the projector gate as unproven and continue so the rest of the deploy converges
       ansible.builtin.debug:
