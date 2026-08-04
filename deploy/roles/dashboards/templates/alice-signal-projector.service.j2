@@ -6,6 +6,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+MemoryAccounting=yes
+MemoryHigh={{ alice_service_memory_high }}
+MemoryMax={{ alice_service_memory_max }}
 DynamicUser=true
 NoNewPrivileges=true
 ProtectSystem=strict

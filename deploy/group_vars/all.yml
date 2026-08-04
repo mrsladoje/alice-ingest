@@ -3,6 +3,9 @@ opensearch_cluster_name: alice-logs
 
 opensearch_heap_size: "1g"
 
+alice_service_memory_high: "256M"
+alice_service_memory_max: "512M"
+
 opensearch_http_port: 9200
 opensearch_transport_port: 9300
 

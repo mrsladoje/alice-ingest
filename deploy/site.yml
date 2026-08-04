@@ -74,6 +74,47 @@
               the roles below restart them, which happens only after the swap
               file and the memory slice are in place.
 
+- name: Quiet the control host before anything heavy runs on it
+  hosts: control
+  become: true
+  vars:
+    moved_services:
+      - alice-trend-rollup
+      - alice-anomaly-digest
+    quiesce_services:
+      - alice-signal-projector
+      - alice-metrics
+      - alice-notification-ingest
+      - alice-poison-replay
+      - alice-ops
+  tasks:
+    - name: Stop the control-host pollers so the bootstrap does not compete with the previous run's processes
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: stopped
+      loop: "{{ quiesce_services }}"
+      failed_when: false
+
+    - name: Stop and disable the services that now run on the background nodes
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: stopped
+        enabled: false
+      loop: "{{ moved_services }}"
+      failed_when: false
+
+    - name: Remove their unit files from the control host
+      ansible.builtin.file:
+        path: "/etc/systemd/system/{{ item }}.service"
+        state: absent
+      loop: "{{ moved_services }}"
+      register: _moved_units
+
+    - name: Reload systemd so the removed units are forgotten
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: _moved_units is changed
+
 - name: Common host prep (all 5 VMs — workers + storage)
   hosts: alice_nodes
   become: true
@@ -111,34 +152,6 @@
       until: _os_gate.status == 200 and _os_gate.json.status in ['red', 'yellow', 'green']
       retries: 60
       delay: 5
-
-- name: Retire the moved services from the control host, before anything heavy runs on it
-  hosts: control
-  become: true
-  vars:
-    moved_services:
-      - alice-trend-rollup
-      - alice-anomaly-digest
-  tasks:
-    - name: Stop and disable the services that now run on the background nodes
-      ansible.builtin.systemd:
-        name: "{{ item }}"
-        state: stopped
-        enabled: false
-      loop: "{{ moved_services }}"
-      failed_when: false
-
-    - name: Remove their unit files from the control host
-      ansible.builtin.file:
-        path: "/etc/systemd/system/{{ item }}.service"
-        state: absent
-      loop: "{{ moved_services }}"
-      register: _moved_units
-
-    - name: Reload systemd so the removed units are forgotten
-      ansible.builtin.systemd:
-        daemon_reload: true
-      when: _moved_units is changed
 
 - name: Alertmanager (control host only, behind the existing nginx seam)
   hosts: control
