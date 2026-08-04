@@ -70,6 +70,16 @@
 
 - name: Prove the signal projector completed a cycle
   block:
+    - name: Confirm this node's OpenSearch still answers before waiting on the projector
+      ansible.builtin.uri:
+        url: "http://localhost:{{ opensearch_http_port }}/_cluster/health?timeout=5s"
+        timeout: 10
+        status_code: 200
+      register: _os_alive
+      until: _os_alive.status == 200
+      retries: 6
+      delay: 5
+
     # The projector writes its heartbeat only after a full cycle returns, and
     # the first cycle after a restart reads the whole overlap window. On a
     # loaded control node that takes minutes, not the two this used to allow.
@@ -91,6 +101,7 @@
                     "@timestamp":
                       gte: "{{ _projector_gate_started.stdout }}"
         status_code: 200
+        timeout: 10
       register: _projector_heartbeat
       until:
         - (_projector_heartbeat.json.hits.hits | default([]) | length) == 1
@@ -109,6 +120,13 @@
         - "journalctl -u {{ dashboards_signal_projector_service_name }} -n 60 --no-pager"
         - "free -m"
         - "swapon --show"
+        - "systemctl status opensearch --no-pager | tail -12"
+        - "journalctl -u opensearch -n 40 --no-pager"
+        - "curl -s -m 5 'http://localhost:{{ opensearch_http_port }}/_cluster/health?pretty' || echo 'OpenSearch did not answer within 5s'"
+        - >-
+          curl -s -m 5
+          'http://localhost:{{ opensearch_http_port }}/_cat/nodes?v&h=name,heap.percent,ram.percent,cpu,node.role'
+          || echo 'OpenSearch did not answer within 5s'
       register: _projector_why
       changed_when: false
       failed_when: false

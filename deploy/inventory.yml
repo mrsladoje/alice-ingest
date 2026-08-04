@@ -25,7 +25,7 @@ all:
             alice-ingest-3:
               ansible_host: 203.0.113.13
               node_id: node-03
-              opensearch_heap_size: "768m"
+              opensearch_heap_size: "1g"
             alice-ingest-4:
               ansible_host: 203.0.113.14
               node_id: node-04

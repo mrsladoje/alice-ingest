@@ -112,21 +112,7 @@
       retries: 60
       delay: 5
 
-- name: Alertmanager (control host only, behind the existing nginx seam)
-  hosts: control
-  become: true
-  roles:
-    - alertmanager
-
-- name: OpenSearch Dashboards + nginx proxy + cluster bootstrap (control host only)
-  hosts: control
-  become: true
-  vars_files:
-    - "{{ playbook_dir }}/group_vars/vault.yml"
-  roles:
-    - dashboards
-
-- name: Retire the moved services from the control host
+- name: Retire the moved services from the control host, before anything heavy runs on it
   hosts: control
   become: true
   vars:
@@ -153,6 +139,20 @@
       ansible.builtin.systemd:
         daemon_reload: true
       when: _moved_units is changed
+
+- name: Alertmanager (control host only, behind the existing nginx seam)
+  hosts: control
+  become: true
+  roles:
+    - alertmanager
+
+- name: OpenSearch Dashboards + nginx proxy + cluster bootstrap (control host only)
+  hosts: control
+  become: true
+  vars_files:
+    - "{{ playbook_dir }}/group_vars/vault.yml"
+  roles:
+    - dashboards
 
 - name: Background analytics services (off the control host, one per idle storage node)
   hosts: background
