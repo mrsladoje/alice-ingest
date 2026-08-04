@@ -13,7 +13,7 @@ common_sysctl_conf_file: /etc/sysctl.d/99-opensearch.conf
 
 common_swapfile_path: /swapfile
 common_swapfile_size_mb: 2048
-common_swappiness: 1
+common_swappiness: 60
 
 
 common_log_dirs:

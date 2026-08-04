@@ -76,8 +76,33 @@ bootstrap:
 provision:
 	cd deploy && $(ANSIBLE_PLAYBOOK) provision.yml
 
+# Converges rather than giving up. Every play is idempotent, and site.yml opens
+# with a pre-flight that hard-reboots a node it cannot reach, so a pass that
+# dies because a node ran out of memory is repaired and resumed by the next one.
+# The vault password is read once and held in a 0600 file on tmpfs (never AFS),
+# removed on exit, so the retries do not re-prompt.
+DEPLOY_ATTEMPTS ?= 3
+
 deploy:
-	cd deploy && $(ANSIBLE_PLAYBOOK) site.yml --ask-vault-pass $(ANSIBLE_EXTRA)
+	@vpf=$$(mktemp $${XDG_RUNTIME_DIR:-/dev/shm}/alice-vault.XXXXXX 2>/dev/null || mktemp); \
+	chmod 600 "$$vpf"; \
+	trap 'rm -f "$$vpf"' EXIT INT TERM; \
+	printf 'Vault password: ' >&2; stty -echo 2>/dev/null; \
+	IFS= read -r vp; stty echo 2>/dev/null; printf '\n' >&2; \
+	printf '%s\n' "$$vp" > "$$vpf"; unset vp; \
+	rc=1; \
+	for i in $$(seq 1 $(DEPLOY_ATTEMPTS)); do \
+	  if [ "$$i" -gt 1 ]; then \
+	    printf '\n== deploy pass %s of %s — repairing and resuming ==\n\n' "$$i" "$(DEPLOY_ATTEMPTS)" >&2; \
+	  fi; \
+	  if (cd deploy && $(ANSIBLE_PLAYBOOK) site.yml --vault-password-file "$$vpf" $(ANSIBLE_EXTRA)); then \
+	    rc=0; break; \
+	  fi; \
+	done; \
+	if [ "$$rc" -ne 0 ]; then \
+	  printf '\ndeploy did not converge in %s passes — the last run above holds the reason\n' "$(DEPLOY_ATTEMPTS)" >&2; \
+	fi; \
+	exit $$rc
 
 deploy-migrate-rollover:
 	cd deploy && $(ANSIBLE_PLAYBOOK) site.yml --ask-vault-pass -e log_rollover_migrate_existing=true
