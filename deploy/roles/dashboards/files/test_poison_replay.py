@@ -212,7 +212,8 @@ def test_deploy_wires_mapping_service_make_and_ops_controls():
           and "poison-replay:" in makefile
           and "posion-replay: poison-replay" in makefile,
           "short, canonical, or requested misspelling target is absent")
-    check("\ndeploy: contract\n" in makefile,
+    check("\ndeploy: deploy-preflight contract\n" in makefile
+          and "deploy-preflight:" in makefile,
           "make deploy can reach the VMs before local contracts pass")
     check('action="poison-replay"' in ops_source
           and 'action="poison-stop"' in ops_source,

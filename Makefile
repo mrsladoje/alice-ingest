@@ -59,7 +59,7 @@ endif
 volume volumes:
 	@:
 
-.PHONY: bootstrap provision deploy replay replay-fresh replay-fast replay-loop replay-shifted poison poison-replay posion-replay poison-status poison-stop backtest teardown status inject roster-discover monitors contract
+.PHONY: bootstrap provision deploy-preflight deploy replay replay-fresh replay-fast replay-loop replay-shifted poison poison-replay posion-replay poison-status poison-stop backtest teardown status inject roster-discover monitors contract
 
 # Control-node toolchain lives in a self-contained venv (override with VENV=...).
 # The deploy targets prefer it, but fall back to an already-activated venv on PATH
@@ -84,7 +84,27 @@ provision:
 # removed on exit, so the retries do not re-prompt.
 DEPLOY_ATTEMPTS ?= 2
 
-deploy: contract
+deploy-preflight:
+	@rc=0; \
+	if ! command -v "$(ANSIBLE_PLAYBOOK)" >/dev/null 2>&1; then \
+	  printf '%s\n' \
+	    'ERROR: ansible-playbook is unavailable.' \
+	    'Run `make bootstrap` once on the deployment control node.' >&2; \
+	  rc=1; \
+	fi; \
+	if [ ! -f deploy/inventory.generated.yml ]; then \
+	  printf '%s\n' \
+	    'ERROR: deploy/inventory.generated.yml is missing; the committed inventory contains placeholder IPs.' \
+	    'Use the provisioned lxplus checkout, or run `make provision` from a correctly configured control node first.' >&2; \
+	  rc=1; \
+	fi; \
+	if [ "$$rc" -ne 0 ]; then \
+	  printf '%s\n' \
+	    'The default deployment path is lxplus. A Mac additionally needs CERN auth and the documented SSH ProxyJump.' >&2; \
+	  exit 2; \
+	fi
+
+deploy: deploy-preflight contract
 	@vpf=$$(mktemp $${XDG_RUNTIME_DIR:-/dev/shm}/alice-vault.XXXXXX 2>/dev/null || mktemp); \
 	chmod 600 "$$vpf"; \
 	trap 'rm -f "$$vpf"' EXIT INT TERM; \
