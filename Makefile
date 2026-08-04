@@ -81,7 +81,7 @@ provision:
 # dies because a node ran out of memory is repaired and resumed by the next one.
 # The vault password is read once and held in a 0600 file on tmpfs (never AFS),
 # removed on exit, so the retries do not re-prompt.
-DEPLOY_ATTEMPTS ?= 3
+DEPLOY_ATTEMPTS ?= 2
 
 deploy:
 	@vpf=$$(mktemp $${XDG_RUNTIME_DIR:-/dev/shm}/alice-vault.XXXXXX 2>/dev/null || mktemp); \

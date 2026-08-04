@@ -1,6 +1,9 @@
 dashboards_config_dir: /etc/opensearch-dashboards
 dashboards_config_file: "{{ dashboards_config_dir }}/opensearch_dashboards.yml"
 dashboards_service_name: opensearch-dashboards
+
+projector_gate_retries: 60
+projector_gate_delay: 5
 dashboards_system_user: opensearch-dashboards
 dashboards_system_group: opensearch-dashboards
 dashboards_home_dir: /usr/share/opensearch-dashboards

@@ -68,32 +68,66 @@
   register: _projector_gate_started
   changed_when: false
 
-- name: Wait for the newest signal-projector heartbeat to prove a successful cycle
-  ansible.builtin.uri:
-    url: "http://localhost:{{ opensearch_http_port }}/{{ cockpit_metrics_index }}/_search"
-    method: POST
-    body_format: json
-    body:
-      size: 1
-      sort:
-        - "@timestamp": desc
-      query:
-        bool:
-          filter:
-            - term:
-                kind: projector
-            - range:
-                "@timestamp":
-                  gte: "{{ _projector_gate_started.stdout }}"
-    status_code: 200
-  register: _projector_heartbeat
-  until:
-    - (_projector_heartbeat.json.hits.hits | default([]) | length) == 1
-    - >-
-      (((_projector_heartbeat.json.hits.hits | default([]) | first | default({})).get('_source', {})).get('projector_cycle_ok', 0) | int)
-      == 1
-  retries: 24
-  delay: 5
+- name: Prove the signal projector completed a cycle
+  block:
+    # The projector writes its heartbeat only after a full cycle returns, and
+    # the first cycle after a restart reads the whole overlap window. On a
+    # loaded control node that takes minutes, not the two this used to allow.
+    - name: Wait for the newest signal-projector heartbeat to prove a successful cycle
+      ansible.builtin.uri:
+        url: "http://localhost:{{ opensearch_http_port }}/{{ cockpit_metrics_index }}/_search"
+        method: POST
+        body_format: json
+        body:
+          size: 1
+          sort:
+            - "@timestamp": desc
+          query:
+            bool:
+              filter:
+                - term:
+                    kind: projector
+                - range:
+                    "@timestamp":
+                      gte: "{{ _projector_gate_started.stdout }}"
+        status_code: 200
+      register: _projector_heartbeat
+      until:
+        - (_projector_heartbeat.json.hits.hits | default([]) | length) == 1
+        - >-
+          (((_projector_heartbeat.json.hits.hits | default([]) | first | default({})).get('_source', {})).get('projector_cycle_ok', 0) | int)
+          == 1
+      retries: "{{ projector_gate_retries }}"
+      delay: "{{ projector_gate_delay }}"
+
+  rescue:
+    - name: Collect why the projector produced no heartbeat
+      ansible.builtin.shell:
+        cmd: "{{ item }}"
+      loop:
+        - "systemctl status {{ dashboards_signal_projector_service_name }} --no-pager | tail -20"
+        - "journalctl -u {{ dashboards_signal_projector_service_name }} -n 60 --no-pager"
+        - "free -m"
+        - "swapon --show"
+      register: _projector_why
+      changed_when: false
+      failed_when: false
+
+    - name: Report why the projector produced no heartbeat
+      ansible.builtin.debug:
+        msg: "{{ (item.stdout_lines | default([])) }}"
+      loop: "{{ _projector_why.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item | default('') }}"
+
+    - name: Fail with the projector diagnosis above
+      ansible.builtin.fail:
+        msg: >-
+          The signal projector wrote no successful-cycle heartbeat within
+          {{ projector_gate_retries | int * projector_gate_delay | int }}s.
+          The service status, its last 60 log lines and the node's memory are
+          printed above — that output says whether it crashed, whether the
+          cycle raised, or whether the node simply ran out of memory.
 
 - name: Assert the notification path stayed up (a dead receiver silently drops every notification)
   ansible.builtin.systemd:
