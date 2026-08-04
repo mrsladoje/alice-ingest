@@ -7,23 +7,6 @@
     mode: "0640"
   notify: restart opensearch-dashboards
 
-- name: Ensure the systemd drop-in directory exists for OpenSearch Dashboards
-  ansible.builtin.file:
-    path: "/etc/systemd/system/{{ dashboards_service_name }}.service.d"
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-
-- name: Cap Dashboards memory and keep it inside the ALICE slice
-  ansible.builtin.template:
-    src: dashboards-memory-override.conf.j2
-    dest: "/etc/systemd/system/{{ dashboards_service_name }}.service.d/memory-override.conf"
-    owner: root
-    group: root
-    mode: "0644"
-  notify: restart opensearch-dashboards
-
 - name: Enable and start OpenSearch Dashboards
   ansible.builtin.systemd:
     name: "{{ dashboards_service_name }}"

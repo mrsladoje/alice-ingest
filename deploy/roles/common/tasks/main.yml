@@ -53,20 +53,6 @@
     state: present
     reload: true
 
-- name: Install the memory-guarded slice the ALICE services run inside
-  ansible.builtin.template:
-    src: alice.slice.j2
-    dest: "/etc/systemd/system/{{ alice_slice_name }}"
-    owner: root
-    group: root
-    mode: "0644"
-  register: _alice_slice
-
-- name: Reload systemd so the slice limit takes effect
-  ansible.builtin.systemd:
-    daemon_reload: true
-  when: _alice_slice.changed
-
 - name: Install baseline packages
   ansible.builtin.dnf:
     name: "{{ common_packages }}"

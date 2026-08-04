@@ -1,8 +1,6 @@
 dashboards_config_dir: /etc/opensearch-dashboards
 dashboards_config_file: "{{ dashboards_config_dir }}/opensearch_dashboards.yml"
 dashboards_service_name: opensearch-dashboards
-dashboards_memory_high_mb: 500
-dashboards_memory_max_mb: 700
 dashboards_system_user: opensearch-dashboards
 dashboards_system_group: opensearch-dashboards
 dashboards_home_dir: /usr/share/opensearch-dashboards

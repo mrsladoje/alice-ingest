@@ -1,9 +1,6 @@
 opensearch_version: "3.7.0"
 opensearch_cluster_name: alice-logs
 
-alice_slice_name: alice.slice
-alice_slice_memory_high_pct: 70
-
 opensearch_heap_size: "1g"
 
 opensearch_http_port: 9200
