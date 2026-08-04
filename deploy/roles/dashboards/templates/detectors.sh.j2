@@ -8,6 +8,8 @@ LOG_DELAY="${AD_LOG_WINDOW_DELAY_MINUTES:-2}"
 
 METRICS_NAMES="ingest-flow node-health dashboards-health"
 
+CURL_TIMEOUTS="--connect-timeout ${AD_CONNECT_TIMEOUT:-5} --max-time ${AD_MAX_TIME:-120}"
+
 put_ok() {
   case "$1" in
     200|201) return 0 ;;
@@ -17,7 +19,7 @@ put_ok() {
 
 search_detector_id() {
   name="$1"
-  curl -s -XPOST "$OS/_plugins/_anomaly_detection/detectors/_search" \
+  curl -s $CURL_TIMEOUTS -XPOST "$OS/_plugins/_anomaly_detection/detectors/_search" \
     -H 'Content-Type: application/json' \
     -d "{\"query\":{\"bool\":{\"should\":[{\"term\":{\"name.keyword\":\"$name\"}},{\"term\":{\"name\":\"$name\"}},{\"match_phrase\":{\"name\":\"$name\"}}]}},\"size\":5}" \
     | python3 -c '
@@ -122,13 +124,13 @@ else:
 
 stop_detector() {
   id="$1"
-  curl -s -o /tmp/ad-stop -w '%{http_code}' \
+  curl -s $CURL_TIMEOUTS -o /tmp/ad-stop -w '%{http_code}' \
     -XPOST "$OS/_plugins/_anomaly_detection/detectors/$id/_stop" || echo 000
 }
 
 start_detector() {
   id="$1"
-  code=$(curl -s -o /tmp/ad-start -w '%{http_code}' \
+  code=$(curl -s $CURL_TIMEOUTS -o /tmp/ad-start -w '%{http_code}' \
     -XPOST "$OS/_plugins/_anomaly_detection/detectors/$id/_start" || echo 000)
   case "$code" in
     200|201) echo "[detectors] started: $id" ;;
@@ -141,7 +143,7 @@ start_detector() {
 
 create_detector() {
   name="$1"
-  code=$(curl -s -o /tmp/ad-resp -w '%{http_code}' \
+  code=$(curl -s $CURL_TIMEOUTS -o /tmp/ad-resp -w '%{http_code}' \
     -XPOST "$OS/_plugins/_anomaly_detection/detectors" \
     -H 'Content-Type: application/json' \
     --data-binary @/tmp/ad-desired.json || echo 000)
@@ -168,7 +170,7 @@ upsert_detector() {
     return
   fi
 
-  curl -s -o /tmp/ad-current.json \
+  curl -s $CURL_TIMEOUTS -o /tmp/ad-current.json \
     "$OS/_plugins/_anomaly_detection/detectors/$existing?job=true" || true
   state=$(python3 -c "$CMP" /tmp/ad-desired.json /tmp/ad-current.json \
     2>/dev/null || echo changed)
@@ -194,7 +196,7 @@ upsert_detector() {
   echo "[detectors] definition changed, restarting (RCF models and init progress reset): $name ($existing)"
   stop_detector "$existing" >/dev/null || true
   sleep 2
-  code=$(curl -s -o /tmp/ad-resp -w '%{http_code}' \
+  code=$(curl -s $CURL_TIMEOUTS -o /tmp/ad-resp -w '%{http_code}' \
     -XPUT "$OS/_plugins/_anomaly_detection/detectors/$existing" \
     -H 'Content-Type: application/json' \
     --data-binary @/tmp/ad-desired.json || echo 000)
@@ -202,7 +204,7 @@ upsert_detector() {
     sleep 3
     stop_detector "$existing" >/dev/null || true
     sleep 2
-    code=$(curl -s -o /tmp/ad-resp -w '%{http_code}' \
+    code=$(curl -s $CURL_TIMEOUTS -o /tmp/ad-resp -w '%{http_code}' \
       -XPUT "$OS/_plugins/_anomaly_detection/detectors/$existing" \
       -H 'Content-Type: application/json' \
       --data-binary @/tmp/ad-desired.json || echo 000)
@@ -224,7 +226,7 @@ delete_detector_by_name() {
   fi
   stop_detector "$existing" >/dev/null || true
   sleep 1
-  code=$(curl -s -o /tmp/ad-del -w '%{http_code}' \
+  code=$(curl -s $CURL_TIMEOUTS -o /tmp/ad-del -w '%{http_code}' \
     -XDELETE "$OS/_plugins/_anomaly_detection/detectors/$existing" || echo 000)
   case "$code" in
     200|201|404)
@@ -238,7 +240,7 @@ delete_detector_by_name() {
 }
 
 echo "[detectors] provisioning from $DETECTORS_DIR (metrics_delay=${METRICS_DELAY}m log_delay=${LOG_DELAY}m)"
-curl -s -XPUT "$OS/_cluster/settings" -H 'Content-Type: application/json' \
+curl -s $CURL_TIMEOUTS -XPUT "$OS/_cluster/settings" -H 'Content-Type: application/json' \
   -d '{"persistent":{"plugins.anomaly_detection.max_multi_entity_anomaly_detectors":50}}' \
   >/tmp/ad-settings || true
 delete_detector_by_name "il-per-epn-lag"

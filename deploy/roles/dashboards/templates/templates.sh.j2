@@ -7,11 +7,14 @@ WORKER_NODES="{{ groups['workers'] | map('extract', hostvars, 'node_id') | join(
 MIGRATE_EXISTING="{{ log_rollover_migrate_existing | bool | ternary('true', 'false') }}"
 SEED_EMPTY_INDICES="${SEED_EMPTY_INDICES:-true}"
 
+CURL_TIMEOUTS="--connect-timeout ${OS_CONNECT_TIMEOUT:-5} --max-time ${OS_MAX_TIME:-120}"
+
 wait_os() {
   echo "[os-init] waiting for OpenSearch at $OS ..."
   i=1
   while [ "$i" -le 60 ]; do
-    code=$(curl -s -o /dev/null -w '%{http_code}' \
+    code=$(curl -s --connect-timeout 5 --max-time "${OS_HEALTH_MAX_TIME:-15}" \
+      -o /dev/null -w '%{http_code}' \
       "$OS/_cluster/health?wait_for_status=yellow&timeout=5s" || echo 000)
     if [ "$code" = "200" ]; then
       echo "[os-init] OpenSearch ready (attempt $i)"
@@ -29,7 +32,7 @@ put() {
   path="$1"; body="$2"; name="$3"
   i=1
   while [ "$i" -le 5 ]; do
-    code=$(curl -s -o /tmp/resp -w '%{http_code}' \
+    code=$(curl -s $CURL_TIMEOUTS -o /tmp/resp -w '%{http_code}' \
       -XPUT "$OS$path" -H 'Content-Type: application/json' -d "$body" || echo 000)
     case "$code" in
       200|201) echo "[os-init] applied: $name"; return 0 ;;
@@ -43,7 +46,7 @@ put() {
 
 del() {
   path="$1"; name="$2"
-  code=$(curl -s -o /tmp/resp -w '%{http_code}' -XDELETE "$OS$path" || echo 000)
+  code=$(curl -s $CURL_TIMEOUTS -o /tmp/resp -w '%{http_code}' -XDELETE "$OS$path" || echo 000)
   case "$code" in
     200|404) echo "[os-init] removed (or absent): $name" ;;
     *) echo "[os-init] WARN: delete $name -> HTTP $code: $(cat /tmp/resp 2>/dev/null)" ;;
@@ -52,12 +55,12 @@ del() {
 
 ensure_rollover_index() {
   alias="$1"; extra="$2"
-  existing=$(curl -s "$OS/_cat/aliases/$alias?h=index" 2>/dev/null || true)
+  existing=$(curl -s $CURL_TIMEOUTS "$OS/_cat/aliases/$alias?h=index" 2>/dev/null || true)
   if [ -n "$existing" ]; then
     echo "[os-init] write alias already present (skip): $alias -> $existing"
     return 0
   fi
-  icode=$(curl -s -o /dev/null -w '%{http_code}' "$OS/$alias" || echo 000)
+  icode=$(curl -s $CURL_TIMEOUTS -o /dev/null -w '%{http_code}' "$OS/$alias" || echo 000)
   if [ "$icode" = "200" ]; then
     if [ "$MIGRATE_EXISTING" = "true" ]; then
       echo "[os-init] MIGRATING: '$alias' is a legacy concrete index; deleting so the write alias can take the name"
@@ -91,7 +94,7 @@ seed_if_empty() {
   if [ "$SEED_EMPTY_INDICES" != "true" ]; then
     return 0
   fi
-  cnt=$(curl -s "$OS/$alias/_count?ignore_unavailable=true&allow_no_indices=true" \
+  cnt=$(curl -s $CURL_TIMEOUTS "$OS/$alias/_count?ignore_unavailable=true&allow_no_indices=true" \
     | python3 -c '
 import json,sys
 try:
@@ -109,7 +112,7 @@ except Exception:
   fi
   now=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
   body=$(printf '{"@timestamp":"%s","collector_time":"%s","log_source":"bootstrap","message":"alice-ingest bootstrap seed. The anomaly-detection plugin refuses to create or update a detector over an index holding zero documents, and the log indices stay empty until the first replay. This document exists only for the moment between index creation and detector provisioning, and the deploy deletes it again once every detector is up. It carries no host, node or severity field, so it forms no entity in any detector or trend-rollup bucket."}' "$now" "$now")
-  code=$(curl -s -o /tmp/os-seed -w '%{http_code}' \
+  code=$(curl -s $CURL_TIMEOUTS -o /tmp/os-seed -w '%{http_code}' \
     -XPUT "$OS/$alias/_doc/alice-bootstrap-seed?refresh=true" \
     -H 'Content-Type: application/json' -d "$body" || echo 000)
   case "$code" in
@@ -123,7 +126,7 @@ except Exception:
 
 ensure_index() {
   idx="$1"; body="$2"
-  code=$(curl -s -o /dev/null -w '%{http_code}' "$OS/$idx" || echo 000)
+  code=$(curl -s $CURL_TIMEOUTS -o /dev/null -w '%{http_code}' "$OS/$idx" || echo 000)
   if [ "$code" = "200" ]; then
     echo "[os-init] index already present (skip create): $idx"
     return 0
@@ -899,7 +902,7 @@ for idx_tpl in \
   "{{ notifications_index }}:alice-notifications"; do
   idx="${idx_tpl%%:*}"
   tpl="${idx_tpl##*:}"
-  props=$(curl -s "$OS/_index_template/$tpl" | python3 -c '
+  props=$(curl -s $CURL_TIMEOUTS "$OS/_index_template/$tpl" | python3 -c '
 import json,sys
 try:
     tpl=json.load(sys.stdin)["index_templates"][0]["index_template"]["template"]
