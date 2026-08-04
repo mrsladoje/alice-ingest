@@ -1,6 +1,10 @@
 dashboards_config_dir: /etc/opensearch-dashboards
 dashboards_config_file: "{{ dashboards_config_dir }}/opensearch_dashboards.yml"
 dashboards_service_name: opensearch-dashboards
+dashboards_node_max_old_space_mb: 512
+dashboards_systemd_dropin_dir: /etc/systemd/system/opensearch-dashboards.service.d
+dashboards_memory_dropin: /etc/systemd/system/opensearch-dashboards.service.d/memory.conf
+dashboards_node_options_file: "{{ dashboards_config_dir }}/node.options"
 
 projector_gate_retries: 60
 projector_gate_delay: 5

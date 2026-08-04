@@ -1,3 +1,52 @@
+- name: Report the background analytics services from the nodes that now run them
+  hosts: background
+  become: true
+  gather_facts: false
+  vars_files:
+    - roles/dashboards/defaults/main.yml
+  vars:
+    background_status_services: >-
+      {{ ([dashboards_trend_rollup_service_name] if 'rollup' in background_services else [])
+         + ([dashboards_anomaly_digest_service_name] if 'digest' in background_services else []) }}
+  tasks:
+    - name: Check this node's background services
+      ansible.builtin.command:
+        argv: "{{ ['systemctl', 'is-active'] + background_status_services }}"
+      register: _background
+      changed_when: false
+      failed_when: false
+
+    - name: Print the background service states
+      ansible.builtin.debug:
+        msg: "{{ background_status_services | zip(_background.stdout_lines) | map('join', ' = ') | list }}"
+
+    - name: Read the recent journal of this node's background services
+      ansible.builtin.command:
+        argv:
+          - journalctl
+          - -u
+          - "{{ item }}"
+          - --since
+          - "5 minutes ago"
+          - --no-pager
+          - -o
+          - cat
+      loop: "{{ background_status_services }}"
+      register: _background_log
+      changed_when: false
+      failed_when: false
+
+    - name: Print recent functional failures (an empty list is healthy)
+      ansible.builtin.debug:
+        msg: >-
+          {{ item.item }} failures =
+          {{ item.stdout_lines | default([])
+             | select('search', 'cycle failed|FATAL|Permission denied')
+             | list }}
+      loop: "{{ _background_log.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
 - name: Report live detection-layer status from the control node
   hosts: control
   become: true
@@ -7,8 +56,6 @@
   vars:
     cockpit_status_services:
       - "{{ dashboards_metrics_service_name }}"
-      - "{{ dashboards_trend_rollup_service_name }}"
-      - "{{ dashboards_anomaly_digest_service_name }}"
       - "{{ dashboards_signal_projector_service_name }}"
       - "{{ dashboards_notification_ingest_service_name }}"
       - "{{ dashboards_ops_service_name }}"
@@ -58,7 +105,6 @@
           - -o
           - cat
       loop:
-        - "{{ dashboards_anomaly_digest_service_name }}"
         - "{{ dashboards_signal_projector_service_name }}"
       register: _digest_log
       changed_when: false

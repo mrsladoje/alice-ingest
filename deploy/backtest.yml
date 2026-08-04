@@ -1,5 +1,5 @@
 - name: Run historical analysis over the replayed window and project the findings into the cockpit
-  hosts: control
+  hosts: background
   become: true
   gather_facts: false
   vars_files:
@@ -14,6 +14,7 @@
     - name: Run the backtest
       ansible.builtin.command:
         cmd: "python3 {{ dashboards_backtest_script }}"
+      when: "'digest' in background_services"
       environment:
         OS_URL: "http://localhost:{{ opensearch_http_port }}"
         DIGEST_INDEX: "{{ anomaly_digest_index }}"
@@ -29,3 +30,4 @@
     - name: Print the backtest report
       ansible.builtin.debug:
         msg: "{{ _backtest.stdout_lines }}"
+      when: "'digest' in background_services"

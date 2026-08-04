@@ -114,8 +114,6 @@
     label: "{{ item.dest }}"
   notify:
     - restart alice-metrics
-    - restart alice-trend-rollup
-    - restart alice-anomaly-digest
     - restart alice-signal-projector
 
 - name: Stage the detection-layer verify script

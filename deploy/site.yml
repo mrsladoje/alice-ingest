@@ -126,6 +126,55 @@
   roles:
     - dashboards
 
+- name: Retire the moved services from the control host
+  hosts: control
+  become: true
+  vars:
+    moved_services:
+      - alice-trend-rollup
+      - alice-anomaly-digest
+  tasks:
+    - name: Stop and disable the services that now run on the background nodes
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: stopped
+        enabled: false
+      loop: "{{ moved_services }}"
+      failed_when: false
+
+    - name: Remove their unit files from the control host
+      ansible.builtin.file:
+        path: "/etc/systemd/system/{{ item }}.service"
+        state: absent
+      loop: "{{ moved_services }}"
+      register: _moved_units
+
+    - name: Reload systemd so the removed units are forgotten
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: _moved_units is changed
+
+- name: Background analytics services (off the control host, one per idle storage node)
+  hosts: background
+  become: true
+  tasks:
+    - name: Stage what these services import
+      ansible.builtin.include_role:
+        name: dashboards
+        tasks_from: offload_prep.yml
+
+    - name: Trend rollup service
+      ansible.builtin.include_role:
+        name: dashboards
+        tasks_from: rollup.yml
+      when: "'rollup' in background_services"
+
+    - name: Anomaly digest service
+      ansible.builtin.include_role:
+        name: dashboards
+        tasks_from: digest.yml
+      when: "'digest' in background_services"
+
 - name: Fluent Bit collector (worker VMs only)
   hosts: workers
   become: true

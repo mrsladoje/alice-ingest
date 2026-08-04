@@ -7,12 +7,48 @@
     mode: "0640"
   notify: restart opensearch-dashboards
 
+- name: Create the Dashboards systemd drop-in directory
+  ansible.builtin.file:
+    path: "{{ dashboards_systemd_dropin_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Bound the Dashboards V8 old-space so Node cannot grow into the node's memory
+  ansible.builtin.template:
+    src: dashboards-memory.conf.j2
+    dest: "{{ dashboards_memory_dropin }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart opensearch-dashboards
+
+- name: Check whether the launcher ships a node.options file
+  ansible.builtin.stat:
+    path: "{{ dashboards_node_options_file }}"
+  register: _node_options
+
+- name: Set the same bound in node.options, which the launcher reads after NODE_OPTIONS
+  ansible.builtin.lineinfile:
+    path: "{{ dashboards_node_options_file }}"
+    regexp: '^\s*--max-old-space-size='
+    line: "--max-old-space-size={{ dashboards_node_max_old_space_mb }}"
+    owner: root
+    group: "{{ dashboards_system_group }}"
+    mode: "0640"
+  when: _node_options.stat.exists
+  notify: restart opensearch-dashboards
+
 - name: Enable and start OpenSearch Dashboards
   ansible.builtin.systemd:
     name: "{{ dashboards_service_name }}"
     enabled: true
     state: started
     daemon_reload: true
+
+- name: Apply a pending Dashboards restart before proving the bound took effect
+  ansible.builtin.meta: flush_handlers
 
 - name: Wait for the local Dashboards API to answer (127.0.0.1, loopback-only by design)
   ansible.builtin.uri:
@@ -22,3 +58,44 @@
   until: _dashboards_up.status == 200
   retries: 60
   delay: 5
+
+- name: Read the old-space bound the running Dashboards process actually got
+  ansible.builtin.shell:
+    executable: /bin/bash
+    cmd: |
+      set -o pipefail
+      pid=$(systemctl show -p MainPID --value {{ dashboards_service_name }})
+      if [ -z "$pid" ] || [ "$pid" = "0" ] || [ ! -r "/proc/$pid/cmdline" ]; then
+        echo "no-running-process"
+        exit 0
+      fi
+      cli=$(tr '\0' '\n' < "/proc/$pid/cmdline" \
+            | grep -o 'max-old-space-size=[0-9]\+' | tail -1)
+      env=$(tr '\0' '\n' < "/proc/$pid/environ" | grep '^NODE_OPTIONS=' \
+            | grep -o 'max-old-space-size=[0-9]\+' | tail -1)
+      if [ -n "$cli" ]; then
+        echo "${cli#*=}"
+      elif [ -n "$env" ]; then
+        echo "${env#*=}"
+      else
+        echo "unset"
+      fi
+  register: _dashboards_heap_cap
+  changed_when: false
+
+- name: Fail when the bound did not reach the process, rather than passing a deploy that changed nothing
+  ansible.builtin.assert:
+    that:
+      - _dashboards_heap_cap.stdout | trim == (dashboards_node_max_old_space_mb | string)
+    fail_msg: >-
+      The Dashboards old-space bound did not take. Expected
+      {{ dashboards_node_max_old_space_mb }} MB, the running process reports
+      '{{ _dashboards_heap_cap.stdout | trim }}'. 'unset' means neither the
+      systemd drop-in ({{ dashboards_memory_dropin }}) nor node.options reached
+      Node. Any other number means the launcher passes its own
+      --max-old-space-size on the command line, which beats NODE_OPTIONS; set
+      that value in {{ dashboards_node_options_file }} instead. Until this
+      passes, node 3 has not gained the memory this change is supposed to free.
+    success_msg: >-
+      Dashboards is bounded at {{ dashboards_node_max_old_space_mb }} MB of V8
+      old-space.
