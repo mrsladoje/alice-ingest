@@ -66,6 +66,7 @@ volume volumes:
 # so `make bootstrap` is convenient without being mandatory.
 VENV ?= $(CURDIR)/.venv
 ANSIBLE_PLAYBOOK := $(if $(wildcard $(VENV)/bin/ansible-playbook),$(VENV)/bin/ansible-playbook,ansible-playbook)
+DEPLOY_PYTHON := $(if $(wildcard $(VENV)/bin/python3),$(VENV)/bin/python3,python3)
 
 bootstrap:
 	python3 -m venv $(VENV)
@@ -83,7 +84,7 @@ provision:
 # removed on exit, so the retries do not re-prompt.
 DEPLOY_ATTEMPTS ?= 2
 
-deploy:
+deploy: contract
 	@vpf=$$(mktemp $${XDG_RUNTIME_DIR:-/dev/shm}/alice-vault.XXXXXX 2>/dev/null || mktemp); \
 	chmod 600 "$$vpf"; \
 	trap 'rm -f "$$vpf"' EXIT INT TERM; \
@@ -171,8 +172,8 @@ monitors:
 	python3 deploy/roles/dashboards/files/gen_monitors.py
 
 contract:
-	python3 deploy/roles/dashboards/files/test_poison_replay.py
-	python3 deploy/roles/dashboards/files/test_signal_contract.py
+	$(DEPLOY_PYTHON) deploy/roles/dashboards/files/test_poison_replay.py
+	$(DEPLOY_PYTHON) deploy/roles/dashboards/files/test_signal_contract.py
 
 status:
 	cd deploy && $(ANSIBLE_PLAYBOOK) status.yml

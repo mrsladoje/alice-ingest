@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 
@@ -162,6 +163,101 @@ def test_alert_identity_survives_the_move_to_history():
         "provenance must record the physical index the winning row came from")
 
 
+def test_alert_identity_uses_document_id_until_source_id_is_backfilled():
+    stub_roster(["node-01"], {})
+    live_hit = alert_hit(
+        "a-generated", sp.ALERTS_CURRENT, "ACTIVE", "collector-down",
+        ["node-01"])
+    live_hit["_source"]["id"] = ""
+    live = sp.alert_signal(live_hit, sp.ALERTS_CURRENT)
+    moved = sp.alert_signal(
+        alert_hit(
+            "a-generated", ".opendistro-alerting-alert-history-000001",
+            "COMPLETED", "collector-down", ["node-01"], end=2000),
+        ".opendistro-alerting-alert-history-000001")
+    check(live["source_id"] == "a-generated",
+          "a new alert with an empty _source.id did not use its durable _id")
+    check(live["source_uid"] == moved["source_uid"],
+          "backfilling _source.id changed the signal identity after history move")
+
+    mismatched = alert_hit(
+        "document-id", sp.ALERTS_CURRENT, "ACTIVE", "collector-down",
+        ["node-01"])
+    mismatched["_source"]["id"] = "different-source-id"
+    try:
+        sp.alert_signal(mismatched, sp.ALERTS_CURRENT)
+    except sp.os_cursor.CursorError:
+        pass
+    else:
+        check(False, "a real _source.id/_id mismatch was silently accepted")
+
+
+def test_anomaly_ingest_consumes_bounded_pages_in_event_order():
+    stub_roster(["node-01"], {})
+    first = result_hit(
+        "r-page-1", "d2", 0.9, "collector_id", "node-01", 10000)
+    second = result_hit(
+        "r-page-2", "d2", 0.8, "collector_id", "node-01", 20000)
+    first["_source"]["execution_end_time"] = 90000
+    second["_source"]["execution_end_time"] = 80000
+    pages = []
+    captured = {}
+    prior_scan = sp.os_cursor.scan
+    prior_watermark = sp.watermark
+    try:
+        def fake_scan(os_url, target, query, sort_field, **kwargs):
+            captured.update({
+                "target": target,
+                "query": query,
+                "sort_field": sort_field,
+                **kwargs,
+            })
+            yield [first]
+            yield [second]
+
+        sp.os_cursor.scan = fake_scan
+        sp.watermark = lambda lane, minutes: 1000
+        high, lane = sp.ingest_anomaly_results(
+            {"d2": "ingest-flow"},
+            lambda rows: pages.append([row["source_id"] for row in rows]))
+    finally:
+        sp.os_cursor.scan = prior_scan
+        sp.watermark = prior_watermark
+
+    check(pages == [["r-page-1"], ["r-page-2"]],
+          f"anomaly traversal retained or merged PIT pages: {pages}")
+    check(captured.get("sort_field") == "data_end_time",
+          "anomaly lifecycle evidence is not traversed in event-time order")
+    check(captured.get("keep_alive") == sp.PIT_KEEP_ALIVE,
+          "the projector did not apply its extended PIT keep-alive")
+    check((high, lane) == (90000, "projector-anomalies"),
+          f"the execution watermark changed under event-order traversal: "
+          f"{(high, lane)}")
+
+
+def test_bulk_signal_writes_are_bounded():
+    prior_bulk = sp.os_cursor.bulk
+    prior_limit = sp.BULK_DOCUMENTS
+    calls = []
+    try:
+        def fake_bulk(os_url, lines, refresh="false", timeout=120):
+            calls.append(len(lines) // 2)
+            return len(lines) // 2, []
+
+        sp.os_cursor.bulk = fake_bulk
+        sp.BULK_DOCUMENTS = 2
+        written = sp.write_signals([
+            {"source_kind": "detector", "source_uid": str(index)}
+            for index in range(5)
+        ])
+    finally:
+        sp.os_cursor.bulk = prior_bulk
+        sp.BULK_DOCUMENTS = prior_limit
+    check(calls == [2, 2, 1],
+          f"signal bulk requests were not bounded at two documents: {calls}")
+    check(written == 5, f"bounded signal writes reported {written}, expected 5")
+
+
 def test_every_label_is_present_and_explicit():
     stub_roster(["node-01"], {"epn001": "node-01"})
     rows = [
@@ -311,6 +407,84 @@ def test_episode_opens_recovers_and_resolves_on_evidence():
           "K healthy windows must resolve the episode")
 
 
+def test_detector_episode_state_survives_page_boundaries():
+    stub_roster(["node-01"], {})
+    meta = signal_identity.detector("ingest-flow")
+    required = int(meta["healthy_windows_required"])
+    incidents = {}
+    timelines = {}
+
+    firing = sp.anomaly_row(
+        result_hit("r-page-open", "d2", 0.9, "collector_id", "node-01",
+                   10000), {"d2": "ingest-flow"})
+    firing["incident_id"] = sp.incident_id(firing)
+    sp.apply_detector(incidents, [firing], timelines, {})
+
+    for index in range(required):
+        healthy = sp.anomaly_row(
+            result_hit(
+                f"r-page-healthy-{index}", "d2", 0.0, "collector_id",
+                "node-01", 70000 + index * 60000),
+            {"d2": "ingest-flow"})
+        healthy["incident_id"] = sp.incident_id(healthy)
+        sp.apply_detector(incidents, [healthy], timelines, {})
+
+    key = firing["incident_id"]
+    check(len(timelines.get(key, [])) == 1,
+          "page-local detector state was not retained in the shared timeline")
+    check(only(incidents)["episode_state"] == sp.RESOLVED,
+          "healthy evidence on later pages did not resolve the opened episode")
+
+
+def test_detector_prefetch_recovers_terminal_episode_outside_timeline_window():
+    stub_roster(["node-01"], {})
+    meta = signal_identity.detector("ingest-flow")
+    required = int(meta["healthy_windows_required"])
+    seed = {}
+    seed_timelines = {}
+    firing = sp.anomaly_row(
+        result_hit("r-old-open", "d2", 0.9, "collector_id", "node-01",
+                   10000), {"d2": "ingest-flow"})
+    firing["incident_id"] = sp.incident_id(firing)
+    sp.apply_detector(seed, [firing], seed_timelines, {})
+    for index in range(required):
+        healthy = sp.anomaly_row(
+            result_hit(
+                f"r-old-close-{index}", "d2", 0.0, "collector_id",
+                "node-01", 70000 + index * 60000),
+            {"d2": "ingest-flow"})
+        healthy["incident_id"] = sp.incident_id(healthy)
+        sp.apply_detector(seed, [healthy], seed_timelines, {})
+    persisted = only(seed)
+    eid = persisted["episode_id"]
+    check(persisted["episode_state"] == sp.RESOLVED,
+          "the prefetch fixture did not create a terminal episode")
+
+    timelines = {}
+    stored = {}
+    requested = []
+    prior_fetch = sp.fetch_episodes
+    try:
+        def fake_fetch(ids):
+            requested.append(set(ids))
+            return {eid: persisted} if eid in ids else {}
+
+        sp.fetch_episodes = fake_fetch
+        firing.pop("episode_id", None)
+        sp.prefetch_detector_episodes([firing], timelines, stored)
+    finally:
+        sp.fetch_episodes = prior_fetch
+
+    replay = {}
+    sp.apply_detector(replay, [firing], timelines, stored)
+    check(requested == [{eid}],
+          f"the page did not request its persisted episode by exact ID: "
+          f"{requested}")
+    check(list(replay) == [eid]
+          and replay[eid]["episode_state"] == sp.RESOLVED,
+          "a replayed old firing row reopened or duplicated a terminal episode")
+
+
 def test_inactivity_never_resolves_but_goes_stale():
     stub_roster(["node-01"], {})
     incidents = {}
@@ -331,6 +505,54 @@ def test_inactivity_never_resolves_but_goes_stale():
     check(only(incidents)["state"] == "firing",
           "a STALE episode is still open — it may expire storage, never "
           "produce RESOLVED")
+
+
+def test_interrupted_anomaly_traversal_never_advances_watermarks():
+    stub_roster(["node-01"], {})
+    row = sp.anomaly_row(
+        result_hit("r-interrupted", "d2", 0.9, "collector_id", "node-01",
+                   10000), {"d2": "ingest-flow"})
+    names = [
+        "detector_names", "snapshot_current_alerts", "ingest_alert_history",
+        "ingest_anomaly_results", "load_episode_timelines", "fetch_episodes",
+        "write_signals",
+    ]
+    prior = {name: getattr(sp, name) for name in names}
+    prior_write_watermark = sp.os_cursor.write_watermark
+    signal_batches = []
+    watermark_writes = []
+    interrupted = False
+    try:
+        sp.detector_names = lambda: {"d2": "ingest-flow"}
+        sp.snapshot_current_alerts = lambda: []
+        sp.ingest_alert_history = lambda: (
+            [], 5000, "projector-alert-history")
+        sp.load_episode_timelines = lambda: {}
+        sp.fetch_episodes = lambda ids: {}
+        sp.write_signals = lambda rows: signal_batches.append(
+            [item["source_id"] for item in rows]) or len(rows)
+
+        def fail_after_first_page(detectors, consume):
+            consume([dict(row)])
+            raise sp.os_cursor.CursorError("simulated PIT loss")
+
+        sp.ingest_anomaly_results = fail_after_first_page
+        sp.os_cursor.write_watermark = lambda *args, **kwargs: (
+            watermark_writes.append((args, kwargs)))
+        try:
+            sp.cycle()
+        except sp.os_cursor.CursorError:
+            interrupted = True
+    finally:
+        for name, value in prior.items():
+            setattr(sp, name, value)
+        sp.os_cursor.write_watermark = prior_write_watermark
+
+    check(interrupted, "the simulated interrupted PIT traversal did not fail")
+    check(signal_batches == [["r-interrupted"]],
+          f"the completed page was not written idempotently: {signal_batches}")
+    check(not watermark_writes,
+          "an interrupted traversal advanced a watermark and could lose rows")
 
 
 def test_retired_collector_closes_expected():
@@ -966,7 +1188,7 @@ def test_detector_category_migration_recreates_instead_of_updating():
           "an immutable detector migration still attempts update-in-place")
 
 
-def test_ops_actions_redirect_before_a_refresh_can_repeat_them():
+def test_ops_actions_run_in_background_and_refresh_is_safe():
     snapshot = {
         "count": "7488",
         "active_alerts": "0",
@@ -979,18 +1201,23 @@ def test_ops_actions_redirect_before_a_refresh_can_repeat_them():
         "families": [["infologger", 7132], ["generic-log-other", 119]],
     }
     prior_snapshot = ops.snapshot
-    prior_stop = ops.stop_only
+    prior_action = ops.ACTIONS["stop"]
+    with ops._JOB_LOCK:
+        prior_job = ops._JOB
     calls = []
     server = None
     thread = None
     try:
-        ops.snapshot = lambda: snapshot
+        ops.snapshot = lambda: dict(snapshot, job=ops.job_status())
 
-        def fake_stop():
+        def fake_stop(lines):
             calls.append("stop")
-            return ["test stop action ran exactly once"]
+            lines.append("test stop action ran exactly once")
+            return lines
 
-        ops.stop_only = fake_stop
+        ops.ACTIONS["stop"] = ("Stopping the test replay", fake_stop)
+        with ops._JOB_LOCK:
+            ops._JOB = None
         with ops._FLASH_LOCK:
             ops._FLASH_RESULTS.clear()
         server = ops.ThreadingHTTPServer(("127.0.0.1", 0), ops.Handler)
@@ -1006,11 +1233,20 @@ def test_ops_actions_redirect_before_a_refresh_can_repeat_them():
         check(response.status == 303,
               f"ops stop returned HTTP {response.status}, so refreshing can "
               f"repeat the destructive POST")
-        check(location.startswith("/ops/?result="),
-              f"ops redirect lost its one-time action result: {location!r}")
+        check(location == "/ops/",
+              f"background ops action redirected somewhere unsafe: {location!r}")
         check(response.getheader("Cache-Control") == "no-store",
               "the ops POST redirect is cacheable")
         conn.close()
+
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            job = ops.job_status()
+            if job and job["state"] == "done":
+                break
+            time.sleep(0.01)
+        check(job is not None and job["state"] == "done",
+              f"the background ops action did not finish: {job}")
 
         conn = http.client.HTTPConnection(host, port, timeout=5)
         conn.request("GET", location)
@@ -1030,9 +1266,8 @@ def test_ops_actions_redirect_before_a_refresh_can_repeat_them():
         conn.request("GET", location)
         response = conn.getresponse()
         second_get = response.read().decode()
-        check("test stop action ran exactly once" not in second_get,
-              "the one-time ops result survives refresh instead of being "
-              "consumed")
+        check("test stop action ran exactly once" in second_get,
+              "refresh lost the completed background action result")
         check(calls == ["stop"],
               f"refresh executed the stop action {len(calls)} times")
         conn.close()
@@ -1043,7 +1278,9 @@ def test_ops_actions_redirect_before_a_refresh_can_repeat_them():
         if thread is not None:
             thread.join(timeout=5)
         ops.snapshot = prior_snapshot
-        ops.stop_only = prior_stop
+        ops.ACTIONS["stop"] = prior_action
+        with ops._JOB_LOCK:
+            ops._JOB = prior_job
         with ops._FLASH_LOCK:
             ops._FLASH_RESULTS.clear()
 
@@ -1093,8 +1330,13 @@ def test_dynamic_services_can_read_the_signal_catalog():
         "roles", "dashboards", "tasks", "digest.yml")
     projector_path = _checkout_file(
         "roles", "dashboards", "tasks", "projector.yml")
+    projector_unit_path = _checkout_file(
+        "roles", "dashboards", "templates",
+        "alice-signal-projector.service.j2")
     digest = open(digest_path).read() if digest_path else ""
     projector = open(projector_path).read() if projector_path else ""
+    projector_unit = (open(projector_unit_path).read()
+                      if projector_unit_path else "")
     check("Wait for the digest to complete a new lossless traversal cycle"
           in digest and ".get('updated_at', 0)" in digest,
           "deploy does not require a post-start digest cycle to advance its "
@@ -1105,6 +1347,18 @@ def test_dynamic_services_can_read_the_signal_catalog():
           and "_projector_gate_started.stdout" in projector,
           "deploy accepts a systemd-active but functionally failed signal "
           "projector")
+    check("Assert the projector is actually running inside finite memory "
+          "bounds" in projector
+          and "MemoryHigh=[1-9][0-9]*" in projector
+          and "MemoryMax=[1-9][0-9]*" in projector,
+          "deploy does not prove the running projector has finite memory caps")
+    check("MemoryHigh={{ alice_service_memory_high }}" in projector_unit
+          and "MemoryMax={{ alice_service_memory_max }}" in projector_unit
+          and "Environment=PIT_KEEP_ALIVE={{ "
+          "signal_projector_pit_keep_alive }}" in projector_unit
+          and "Environment=BULK_DOCUMENTS={{ "
+          "signal_projector_bulk_documents }}" in projector_unit,
+          "the projector unit dropped its memory or bounded-traversal settings")
 
 
 def test_deploy_preserves_the_replay_runtime_dropin():

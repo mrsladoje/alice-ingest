@@ -5,6 +5,7 @@ import os
 import pathlib
 import tempfile
 import threading
+import time
 
 HERE = pathlib.Path(__file__).resolve().parent
 
@@ -143,12 +144,25 @@ def test_selected_entity_must_have_an_active_trained_model():
 
 def test_ops_poison_route_precedes_generic_replay_suffix():
     called = []
-    original_poison = ops.start_poison
-    original_replay = ops.run_replay
+    original_poison = ops.ACTIONS["poison-replay"]
+    original_replay = ops.ACTIONS["replay"]
+    with ops._JOB_LOCK:
+        original_job = ops._JOB
+    server = None
+    thread = None
     try:
-        ops.start_poison = lambda: called.append("poison") or ["started"]
-        ops.run_replay = lambda fresh: called.append(
-            "fresh" if fresh else "replay") or ["wrong"]
+        def fake_poison(lines):
+            called.append("poison")
+            lines.append("started")
+
+        def fake_replay(lines):
+            called.append("replay")
+            lines.append("wrong")
+
+        ops.ACTIONS["poison-replay"] = ("Starting poison test", fake_poison)
+        ops.ACTIONS["replay"] = ("Starting replay test", fake_replay)
+        with ops._JOB_LOCK:
+            ops._JOB = None
         server = ops.ThreadingHTTPServer(("127.0.0.1", 0), ops.Handler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
@@ -158,16 +172,28 @@ def test_ops_poison_route_precedes_generic_replay_suffix():
         response = connection.getresponse()
         response.read()
         connection.close()
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            job = ops.job_status()
+            if job and job["state"] == "done":
+                break
+            time.sleep(0.01)
         check(response.status == 303,
               f"poison action did not use refresh-safe redirect: {response.status}")
+        check(response.getheader("Location") == "/ops/",
+              "poison action did not return to the background-job ops page")
         check(called == ["poison"],
               f"/poison-replay fell through to generic replay: {called}")
     finally:
-        ops.start_poison = original_poison
-        ops.run_replay = original_replay
+        if server is not None:
+            server.shutdown()
+            server.server_close()
+        if thread is not None:
+            thread.join(timeout=5)
+        ops.ACTIONS["poison-replay"] = original_poison
+        ops.ACTIONS["replay"] = original_replay
+        with ops._JOB_LOCK:
+            ops._JOB = original_job
 
 
 def test_deploy_wires_mapping_service_make_and_ops_controls():
@@ -186,6 +212,8 @@ def test_deploy_wires_mapping_service_make_and_ops_controls():
           and "poison-replay:" in makefile
           and "posion-replay: poison-replay" in makefile,
           "short, canonical, or requested misspelling target is absent")
+    check("\ndeploy: contract\n" in makefile,
+          "make deploy can reach the VMs before local contracts pass")
     check('action="poison-replay"' in ops_source
           and 'action="poison-stop"' in ops_source,
           "Ops lacks poison start/stop controls")

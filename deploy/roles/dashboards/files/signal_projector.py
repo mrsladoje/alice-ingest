@@ -28,7 +28,9 @@ ALERT_NAMESPACE = "opendistro-alerting"
 
 CLUSTER_ID = os.environ.get("CLUSTER_ID", "alice-logs")
 INTERVAL = int(os.environ.get("INTERVAL", "30"))
-PAGE = int(os.environ.get("PAGE", "500"))
+PAGE = max(1, int(os.environ.get("PAGE", "500")))
+PIT_KEEP_ALIVE = os.environ.get("PIT_KEEP_ALIVE", "10m")
+BULK_DOCUMENTS = max(1, int(os.environ.get("BULK_DOCUMENTS", "500")))
 GRADE_FLOOR = float(os.environ.get("GRADE_FLOOR", "0.5"))
 OVERLAP_MINUTES = int(os.environ.get("OVERLAP_MINUTES", "15"))
 EVIDENCE_OVERLAP_MINUTES = int(
@@ -44,7 +46,6 @@ MASS_SILENCE_FRACTION = float(
 MAX_OPEN_INCIDENTS = int(os.environ.get("MAX_OPEN_INCIDENTS", "5000"))
 MAX_MEMBER_IDS = int(os.environ.get("MAX_MEMBER_IDS", "2000"))
 MAX_ANNOTATION_IDS = int(os.environ.get("MAX_ANNOTATION_IDS", "50"))
-EPISODE_LOOKBACK_HOURS = int(os.environ.get("EPISODE_LOOKBACK_HOURS", "24"))
 EPISODE_LOOKBACK_HOURS = int(os.environ.get("EPISODE_LOOKBACK_HOURS", "24"))
 
 ACTIVE_ALERT_STATES = {"ACTIVE", "ERROR"}
@@ -151,15 +152,21 @@ def watermark(lane, default_minutes):
 
 def alert_signal(hit, source_index):
     src = hit.get("_source") or {}
-    alert_id = src.get("id")
+    source_alert_id = src.get("id")
+    hit_id = hit.get("_id")
+    # OpenSearch indexes a new alert before the generated document ID is
+    # copied back into the Alert object.  During that interval _source.id is
+    # empty even though hit._id is already the durable identity that survives
+    # the move to alert history.
+    alert_id = source_alert_id or hit_id
     if not alert_id:
         raise os_cursor.CursorError(
-            f"alert in {source_index} has no id source field; the cursor and "
-            f"the signal identity both depend on it")
-    if hit.get("_id") and alert_id != hit.get("_id"):
+            f"alert in {source_index} has neither _source.id nor _id; the "
+            f"signal identity depends on one durable alert ID")
+    if source_alert_id and hit_id and source_alert_id != hit_id:
         raise os_cursor.CursorError(
             f"alert id contract broken in {source_index}: _source.id="
-            f"{alert_id} but _id={hit.get('_id')}")
+            f"{source_alert_id} but _id={hit_id}")
     alertname = src.get("monitor_name") or src.get("trigger_name")
     try:
         meta = signal_identity.monitor(alertname)
@@ -291,7 +298,7 @@ def snapshot_current_alerts():
     rows = []
     for hits in os_cursor.scan(
             OS_URL, ALERTS_CURRENT, {"bool": {"filter": [{"match_all": {}}]}},
-            "start_time", page=PAGE):
+            "start_time", page=PAGE, keep_alive=PIT_KEEP_ALIVE):
         for hit in hits:
             doc = alert_signal(hit, ALERTS_CURRENT)
             if doc:
@@ -308,7 +315,7 @@ def ingest_alert_history():
         {"range": {"end_time": {"gte": lower, "format": "epoch_millis"}}}]}}
     rows = []
     for hits in os_cursor.scan(OS_URL, ALERTS_HISTORY, query, "end_time",
-                               page=PAGE):
+                               page=PAGE, keep_alive=PIT_KEEP_ALIVE):
         for hit in hits:
             value = (hit.get("_source") or {}).get("end_time")
             if isinstance(value, (int, float)) and int(value) > highest:
@@ -319,7 +326,14 @@ def ingest_alert_history():
     return rows, highest, lane
 
 
-def ingest_anomaly_results(detector_names):
+def ingest_anomaly_results(detector_names, consume):
+    """Consume one bounded page of normalized AD rows at a time.
+
+    The query watermark remains execution_end_time, which catches late results.
+    A PIT snapshot can safely be traversed in data_end_time order so lifecycle
+    evidence reaches the episode reducer chronologically without retaining the
+    complete initial lookback in memory.
+    """
     lane = "projector-anomalies"
     lower = watermark(lane, INITIAL_LOOKBACK_MINUTES) \
         - EVIDENCE_OVERLAP_MINUTES * 60000
@@ -328,13 +342,13 @@ def ingest_anomaly_results(detector_names):
         "filter": [{"range": {"execution_end_time": {
             "gte": lower, "format": "epoch_millis"}}}],
         "must_not": [{"exists": {"field": "task_id"}}]}}
-    rows = []
     for hits in os_cursor.scan(
-            OS_URL, AD_RESULTS, query, "execution_end_time",
+            OS_URL, AD_RESULTS, query, "data_end_time",
             source=["detector_id", "anomaly_grade", "confidence",
                     "data_end_time", "data_start_time",
                     "execution_end_time", "entity", "task_id"],
-            page=PAGE):
+            page=PAGE, keep_alive=PIT_KEEP_ALIVE):
+        rows = []
         for hit in hits:
             value = (hit.get("_source") or {}).get("execution_end_time")
             if isinstance(value, (int, float)) and int(value) > highest:
@@ -342,7 +356,9 @@ def ingest_anomaly_results(detector_names):
             row = anomaly_row(hit, detector_names)
             if row:
                 rows.append(row)
-    return rows, highest, lane
+        if rows:
+            consume(rows)
+    return highest, lane
 
 
 def detector_names():
@@ -581,9 +597,26 @@ def apply_monitor(episodes, rows, latest, stored):
             episodes[eid] = ep
 
 
+def remember_episode(timeline, ep):
+    """Insert or replace an episode while keeping a timeline chronological."""
+    start = int(ep.get("episode_start", 0))
+    for index, current in enumerate(timeline):
+        current_start = int(current.get("episode_start", 0))
+        if current_start == start:
+            timeline[index] = ep
+            return
+        if current_start > start:
+            timeline.insert(index, ep)
+            return
+    timeline.append(ep)
+
+
 def apply_detector(episodes, rows, timelines, stored):
     for key, group in group_rows(rows).items():
-        timeline = list(timelines.get(key) or [])
+        # This is deliberately the shared timeline, not a copy. A detector
+        # episode opened near the end of one PIT page must be visible to the
+        # recovery evidence at the start of the next page.
+        timeline = timelines.setdefault(key, [])
         for doc in group:
             meta = signal_identity.detector(doc["alertname"])
             close_threshold = float(meta.get("close_threshold", 0.0))
@@ -637,11 +670,33 @@ def apply_detector(episodes, rows, timelines, stored):
                     ep["episode_state"] = RECOVERING
                     ep["state"] = "firing"
             episodes[eid] = ep
-            if not timeline or int(start) > int(
-                    timeline[-1].get("episode_start", -1)):
-                timeline.append(ep)
-            elif timeline[-1].get("episode_start") == int(start):
-                timeline[-1] = ep
+            remember_episode(timeline, ep)
+
+
+def prefetch_detector_episodes(rows, timelines, stored):
+    """Load persisted episodes a bounded page may reference by exact ID.
+
+    Preserved-clock replay gives incidents old event timestamps even though the
+    AD result was executed now. A terminal incident can therefore be outside
+    the timeline lookback while its source row is inside the execution-time
+    overlap. Exact-ID lookup keeps that replay attached to the old episode.
+    """
+    candidates = set()
+    for key, group in group_rows(rows).items():
+        timeline = timelines.get(key) or []
+        for doc in group:
+            start = detector_episode_start(timeline, doc)
+            if start is not None:
+                candidates.add(episode_id(key, start))
+    missing = candidates.difference(stored)
+    if not missing:
+        return
+    loaded = fetch_episodes(missing)
+    stored.update(loaded)
+    for ep in loaded.values():
+        key = ep.get("incident_id")
+        if key:
+            remember_episode(timelines.setdefault(key, []), ep)
 
 
 def age_episodes(incidents, moment):
@@ -700,21 +755,32 @@ def classify_mass_silence(rows):
 
 def write_signals(rows):
     lines = []
+    written = 0
     for doc in rows:
         lines.append(json.dumps({"index": {
             "_index": SIGNALS_INDEX,
             "_id": f"{doc['source_kind']}:{doc['source_uid']}"}}))
         lines.append(json.dumps(doc))
+        if len(lines) >= BULK_DOCUMENTS * 2:
+            written += checked_bulk(lines, "signal")
+            lines = []
+    if lines:
+        written += checked_bulk(lines, "signal")
+    return written
+
+
+def checked_bulk(lines, label):
     ok, failures = os_cursor.bulk(OS_URL, lines, refresh="false")
     if failures:
         raise os_cursor.CursorError(
-            f"{len(failures)} signal rows rejected; first: "
+            f"{len(failures)} {label} rows rejected; first: "
             f"{json.dumps(failures[0])[:300]}")
     return ok
 
 
 def write_incidents(incidents, mass_class):
     lines = []
+    written = 0
     for key, ep in incidents.items():
         if mass_class and ep.get("state") == "firing" \
                 and ep.get("alertname") in ("fleet-fb-silence",
@@ -725,12 +791,12 @@ def write_incidents(incidents, mass_class):
         lines.append(json.dumps(
             {"index": {"_index": INCIDENTS_INDEX, "_id": key}}))
         lines.append(json.dumps(ep))
-    ok, failures = os_cursor.bulk(OS_URL, lines, refresh="false")
-    if failures:
-        raise os_cursor.CursorError(
-            f"{len(failures)} incident rows rejected; first: "
-            f"{json.dumps(failures[0])[:300]}")
-    return ok
+        if len(lines) >= BULK_DOCUMENTS * 2:
+            written += checked_bulk(lines, "incident")
+            lines = []
+    if lines:
+        written += checked_bulk(lines, "incident")
+    return written
 
 
 def labels_for(ep):
@@ -870,9 +936,7 @@ def cycle():
     current = snapshot_current_alerts()
     history, history_high, history_lane = ingest_alert_history()
     alert_rows = merge_alert_rows(current + history)
-    anomaly_rows, anomaly_high, anomaly_lane = ingest_anomaly_results(names)
-
-    for row in alert_rows + anomaly_rows:
+    for row in alert_rows:
         row["incident_id"] = incident_id(row)
         row["suppressed_by"] = sentinel("entity_id")
 
@@ -880,30 +944,58 @@ def cycle():
     latest = {k: latest_of(v) for k, v in timelines.items()
               if latest_of(v) is not None}
 
+    # The timeline query already loaded every open and every recent terminal
+    # episode. Seed the exact-ID lookup with those documents, then mget monitor
+    # candidates that may fall outside the timeline window.
+    stored = {}
+    for key, timeline in timelines.items():
+        for ep in timeline:
+            eid = ep.get("episode_id") or episode_id(
+                key, ep.get("episode_start", 0))
+            stored[eid] = ep
+
     candidates = set()
     for key, group in group_rows(alert_rows).items():
         for start, _ in split_monitor_episodes(group, latest.get(key)):
             candidates.add(episode_id(key, start))
-    scratch = {}
-    apply_detector(scratch, anomaly_rows, timelines, {})
-    candidates.update(scratch)
-    stored = fetch_episodes(candidates)
+    stored.update(fetch_episodes(candidates))
 
     incidents = {}
     apply_monitor(incidents, alert_rows, latest, stored)
-    apply_detector(incidents, anomaly_rows, timelines, stored)
+    anomaly_firing = 0
+
+    def consume_anomaly_page(rows):
+        nonlocal anomaly_firing
+        for row in rows:
+            row["incident_id"] = incident_id(row)
+            row["suppressed_by"] = sentinel("entity_id")
+        prefetch_detector_episodes(rows, timelines, stored)
+        apply_detector(incidents, rows, timelines, stored)
+        for row in rows:
+            eid = row.get("episode_id")
+            if eid in incidents:
+                stored[eid] = incidents[eid]
+        firing = [row for row in rows if row["state"] == "firing"]
+        for row in firing:
+            row.setdefault(
+                "episode_id", episode_id(row["incident_id"], 0))
+        if firing:
+            write_signals(firing)
+            anomaly_firing += len(firing)
+
+    anomaly_high, anomaly_lane = ingest_anomaly_results(
+        names, consume_anomaly_page)
+
     for key, ep in list(latest.items()):
         eid = ep.get("episode_id") or episode_id(key, ep.get("episode_start", 0))
         if eid not in incidents and ep.get("episode_state") not in TERMINAL:
             incidents[eid] = ep
     stale_count, stale_dwell = age_episodes(incidents, moment)
 
-    signal_rows = alert_rows + [r for r in anomaly_rows
-                                if r["state"] == "firing"]
-    for row in signal_rows:
+    for row in alert_rows:
         row.setdefault("episode_id", episode_id(row["incident_id"], 0))
-    if signal_rows:
-        write_signals(signal_rows)
+    if alert_rows:
+        write_signals(alert_rows)
 
     mass_class = classify_mass_silence(alert_rows)
     if incidents:
@@ -928,7 +1020,8 @@ def cycle():
         log(f"stale episodes by detector: {stale_count} — a missing "
             f"evaluation is never a recovery, so these stay open")
     return {
-        "open_signals": sum(1 for r in signal_rows if r["state"] == "firing"),
+        "open_signals": (sum(1 for row in alert_rows
+                             if row["state"] == "firing") + anomaly_firing),
         "open_incidents": open_incidents,
         "cycle_ok": True,
         "cycle_ms": int((time.time() - started) * 1000),

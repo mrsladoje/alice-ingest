@@ -59,6 +59,33 @@
 - name: Flush handlers so the asserted processes are the restarted ones
   ansible.builtin.meta: flush_handlers
 
+- name: Read the projector memory bounds from the running systemd unit
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/systemctl
+      - show
+      - "{{ dashboards_signal_projector_service_name }}"
+      - --property=MemoryHigh
+      - --property=MemoryMax
+  register: _projector_memory_bounds
+  changed_when: false
+
+- name: Assert the projector is actually running inside finite memory bounds
+  ansible.builtin.assert:
+    that:
+      - >-
+        (_projector_memory_bounds.stdout |
+        regex_search('(?m)^MemoryHigh=[1-9][0-9]*$')) is not none
+      - >-
+        (_projector_memory_bounds.stdout |
+        regex_search('(?m)^MemoryMax=[1-9][0-9]*$')) is not none
+    fail_msg: >-
+      The running projector has no finite systemd memory bounds:
+      {{ _projector_memory_bounds.stdout_lines | default([]) }}
+    success_msg: >-
+      The projector is bounded by
+      {{ _projector_memory_bounds.stdout_lines | default([]) | join(', ') }}.
+
 - name: Record the earliest acceptable projector heartbeat time
   ansible.builtin.command:
     argv:

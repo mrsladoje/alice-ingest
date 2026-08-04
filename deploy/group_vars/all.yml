@@ -118,6 +118,8 @@ alertmanager_proven_inhibit_rules: []
 
 signal_projector_retention_days: 30
 signal_projector_page: 500
+signal_projector_bulk_documents: 500
+signal_projector_pit_keep_alive: "10m"
 signal_projector_mass_silence_fraction: 0.5
 
 ad_metrics_window_delay_minutes: 1
