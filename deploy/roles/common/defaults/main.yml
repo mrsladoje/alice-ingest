@@ -8,6 +8,8 @@ common_packages:
 
 common_timezone: UTC
 
+common_dnf_timeout: 600
+
 common_vm_max_map_count: 262144
 common_sysctl_conf_file: /etc/sysctl.d/99-opensearch.conf
 

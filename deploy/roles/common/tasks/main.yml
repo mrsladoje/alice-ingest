@@ -53,11 +53,33 @@
     state: present
     reload: true
 
+# update_cache is deliberately off. dnf fetches metadata by itself whenever it
+# actually has to resolve a missing package, so forcing a refresh on every run
+# only buys a network round trip and a ~700MB dnf process on a node that has
+# none to spare. lock_timeout and the async bound stop a stuck transaction or a
+# leftover lock from an interrupted run turning into an unbounded wait.
 - name: Install baseline packages
-  ansible.builtin.dnf:
-    name: "{{ common_packages }}"
-    state: present
-    update_cache: true
+  block:
+    - name: Install baseline packages
+      ansible.builtin.dnf:
+        name: "{{ common_packages }}"
+        state: present
+        update_cache: false
+        lock_timeout: 60
+      async: "{{ common_dnf_timeout }}"
+      poll: 5
+
+  rescue:
+    - name: Say what a dnf failure here means
+      ansible.builtin.fail:
+        msg: >-
+          dnf did not finish on {{ inventory_hostname }} within
+          {{ common_dnf_timeout }}s, or it failed outright. Underlying result:
+          {{ ansible_failed_result.msg | default('none reported') }}.
+          Every baseline package is normally already installed, so this task
+          should return in seconds. A stall here means the node is starved for
+          memory, or a previous interrupted run left an rpm transaction lock
+          behind.
 
 - name: Set system timezone to UTC
   community.general.timezone:
