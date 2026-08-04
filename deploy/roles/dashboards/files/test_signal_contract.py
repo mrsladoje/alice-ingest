@@ -1134,6 +1134,33 @@ def test_push_heartbeat_gate_runs_after_collector_cutover():
           "the final verifier does not enforce the pushed-heartbeat contract")
 
 
+def test_control_host_is_quiet_before_fact_gathering():
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = None
+    for _ in range(7):
+        candidate = os.path.join(here, "site.yml")
+        if os.path.exists(candidate):
+            path = candidate
+            break
+        here = os.path.dirname(here)
+    if path is None:
+        print("[signal-contract] "
+              "test_control_host_is_quiet_before_fact_gathering"
+              ": skipped, site.yml not beside this checkout")
+        return
+
+    import yaml
+    plays = yaml.safe_load(open(path))
+    quiet = next((play for play in plays if play.get("name") ==
+                  "Quiet the control host before anything heavy runs on it"),
+                 None)
+    check(quiet is not None, "the control-host quiesce play is missing")
+    if quiet is not None:
+        check(quiet.get("gather_facts") is False,
+              "the control-host quiesce play gathers facts before it stops "
+              "the memory-heavy services")
+
+
 def test_detector_category_migration_recreates_instead_of_updating():
     here = os.path.dirname(os.path.abspath(__file__))
     script = None
