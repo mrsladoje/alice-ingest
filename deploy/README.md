@@ -253,6 +253,15 @@ ansible-playbook replay.yml -e replay_fresh=true   # wipe + reload (no dedup!)
 Equivalent shortcuts from the repo root: `make deploy`, `make replay`,
 `make replay-fresh`.
 
+`make deploy` first proves that the supplied Ansible-vault password decrypts
+`group_vars/vault.yml`, before it contacts a VM. The prompt is for the vault
+password chosen at encryption time, not the CERN/lxplus login password. A
+typo can be retried three times; a failed vault check never consumes either
+deployment convergence pass. An Ansible vault cannot be recovered without
+its password, so if that password is lost, recreate the encrypted file from
+the three source secrets described in section 3.3 (or run
+`scripts/push-vault.sh` from the workstation that holds them).
+
 **How the generated inventory works.** `deploy/inventory.yml` is the
 committed source of truth for groups (`alice_nodes`, `control`), `node_id`,
 and `epn_partition` — but its `ansible_host` values are placeholders

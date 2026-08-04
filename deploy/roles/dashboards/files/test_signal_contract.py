@@ -1357,6 +1357,29 @@ def _checkout_file(*parts):
     return None
 
 
+def test_deploy_validates_the_vault_before_retrying_hosts():
+    makefile_path = _checkout_file("Makefile")
+    if makefile_path is None:
+        print("[signal-contract] "
+              "test_deploy_validates_the_vault_before_retrying_hosts: "
+              "skipped, Makefile not beside this checkout")
+        return
+
+    makefile = open(makefile_path).read()
+    validation = makefile.find("$(ANSIBLE_VAULT) view")
+    deploy_loop = makefile.find("for i in $$(seq 1 $(DEPLOY_ATTEMPTS))")
+    check("VAULT_PASSWORD_ATTEMPTS ?= 3" in makefile,
+          "make deploy does not permit a vault-password typo retry")
+    check(validation >= 0 and deploy_loop >= 0 and validation < deploy_loop,
+          "make deploy starts or retries hosts before proving that its vault "
+          "password decrypts the local vault")
+    check("not CERN/lxplus password" in makefile,
+          "the deploy prompt does not distinguish the vault password from the "
+          "operator's CERN login password")
+    check("deployment stopped before contacting any VM" in makefile,
+          "a vault failure does not state its no-impact boundary")
+
+
 def test_projector_runtime_is_off_the_control_host():
     import yaml
 

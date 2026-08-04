@@ -66,6 +66,7 @@ volume volumes:
 # so `make bootstrap` is convenient without being mandatory.
 VENV ?= $(CURDIR)/.venv
 ANSIBLE_PLAYBOOK := $(if $(wildcard $(VENV)/bin/ansible-playbook),$(VENV)/bin/ansible-playbook,ansible-playbook)
+ANSIBLE_VAULT := $(if $(wildcard $(VENV)/bin/ansible-vault),$(VENV)/bin/ansible-vault,ansible-vault)
 DEPLOY_PYTHON := $(if $(wildcard $(VENV)/bin/python3),$(VENV)/bin/python3,python3)
 
 bootstrap:
@@ -83,6 +84,7 @@ provision:
 # The vault password is read once and held in a 0600 file on tmpfs (never AFS),
 # removed on exit, so the retries do not re-prompt.
 DEPLOY_ATTEMPTS ?= 2
+VAULT_PASSWORD_ATTEMPTS ?= 3
 
 deploy-preflight:
 	@rc=0; \
@@ -92,10 +94,27 @@ deploy-preflight:
 	    'Run `make bootstrap` once on the deployment control node.' >&2; \
 	  rc=1; \
 	fi; \
+	if ! command -v "$(ANSIBLE_VAULT)" >/dev/null 2>&1; then \
+	  printf '%s\n' \
+	    'ERROR: ansible-vault is unavailable.' \
+	    'Run `make bootstrap` once on the deployment control node.' >&2; \
+	  rc=1; \
+	fi; \
 	if [ ! -f deploy/inventory.generated.yml ]; then \
 	  printf '%s\n' \
 	    'ERROR: deploy/inventory.generated.yml is missing; the committed inventory contains placeholder IPs.' \
 	    'Use the provisioned lxplus checkout, or run `make provision` from a correctly configured control node first.' >&2; \
+	  rc=1; \
+	fi; \
+	if [ ! -f deploy/group_vars/vault.yml ]; then \
+	  printf '%s\n' \
+	    'ERROR: deploy/group_vars/vault.yml is missing.' \
+	    'Restore the encrypted, gitignored vault before deploying; see deploy/README.md section 3.3.' >&2; \
+	  rc=1; \
+	elif ! head -n 1 deploy/group_vars/vault.yml | grep -q '^\$$ANSIBLE_VAULT;'; then \
+	  printf '%s\n' \
+	    'ERROR: deploy/group_vars/vault.yml is not an encrypted Ansible vault.' \
+	    'Do not deploy a plaintext secrets file; see deploy/README.md section 3.3.' >&2; \
 	  rc=1; \
 	fi; \
 	if [ "$$rc" -ne 0 ]; then \
@@ -107,10 +126,33 @@ deploy-preflight:
 deploy: deploy-preflight contract
 	@vpf=$$(mktemp $${XDG_RUNTIME_DIR:-/dev/shm}/alice-vault.XXXXXX 2>/dev/null || mktemp); \
 	chmod 600 "$$vpf"; \
-	trap 'rm -f "$$vpf"' EXIT INT TERM; \
-	printf 'Vault password: ' >&2; stty -echo 2>/dev/null; \
-	IFS= read -r vp; stty echo 2>/dev/null; printf '\n' >&2; \
-	printf '%s\n' "$$vp" > "$$vpf"; unset vp; \
+	trap 'stty echo 2>/dev/null || true; rm -f "$$vpf"' EXIT INT TERM HUP; \
+	vault_ok=0; \
+	for va in $$(seq 1 $(VAULT_PASSWORD_ATTEMPTS)); do \
+	  printf 'Ansible vault password (not CERN/lxplus password): ' >&2; \
+	  stty -echo 2>/dev/null || true; \
+	  if ! IFS= read -r vp; then \
+	    stty echo 2>/dev/null || true; printf '\n' >&2; \
+	    printf 'ERROR: could not read a vault password from the terminal.\n' >&2; \
+	    break; \
+	  fi; \
+	  stty echo 2>/dev/null || true; printf '\n' >&2; \
+	  printf '%s\n' "$$vp" > "$$vpf"; unset vp; \
+	  if (cd deploy && $(ANSIBLE_VAULT) view \
+	      --vault-password-file "$$vpf" group_vars/vault.yml >/dev/null 2>&1); then \
+	    vault_ok=1; \
+	    break; \
+	  fi; \
+	  remaining=$$(( $(VAULT_PASSWORD_ATTEMPTS) - va )); \
+	  printf 'That password did not decrypt deploy/group_vars/vault.yml (%s attempt%s remaining).\n' \
+	    "$$remaining" "$$( [ "$$remaining" -eq 1 ] && printf '' || printf 's' )" >&2; \
+	done; \
+	if [ "$$vault_ok" -ne 1 ]; then \
+	  printf '%s\n' \
+	    'ERROR: deployment stopped before contacting any VM.' \
+	    'Use the password chosen when this Ansible vault was encrypted. If it is lost, the vault cannot be decrypted; recreate it from the three source secrets using deploy/README.md section 3.3 or scripts/push-vault.sh.' >&2; \
+	  exit 2; \
+	fi; \
 	rc=1; \
 	for i in $$(seq 1 $(DEPLOY_ATTEMPTS)); do \
 	  if [ "$$i" -gt 1 ]; then \
