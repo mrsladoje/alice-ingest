@@ -15,6 +15,7 @@ common_swapfile_path: /swapfile
 common_swapfile_size_mb: 2048
 common_swappiness: 1
 
+
 common_log_dirs:
   - "{{ log_root }}"
   - "{{ log_root }}/dds"

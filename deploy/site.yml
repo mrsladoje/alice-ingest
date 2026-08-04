@@ -1,3 +1,79 @@
+- name: Pre-flight — reach every node, recovering any that are wedged
+  hosts: alice_nodes
+  gather_facts: false
+  become: false
+  vars:
+    preflight_probe_timeout: 40
+    preflight_boot_timeout: 900
+    preflight_heavy_services:
+      - opensearch
+      - opensearch-dashboards
+      - alice-metrics
+      - alice-trend-rollup
+      - alice-signal-projector
+      - alice-anomaly-digest
+      - alice-notification-ingest
+      - alice-ops
+      - alice-poison-replay
+  tasks:
+    - name: Probe the node over SSH
+      block:
+        - name: Wait briefly for this node to answer
+          ansible.builtin.wait_for_connection:
+            timeout: "{{ preflight_probe_timeout }}"
+
+      rescue:
+        - name: Report the node as unreachable and start recovery
+          ansible.builtin.debug:
+            msg: >-
+              {{ inventory_hostname }} did not answer within
+              {{ preflight_probe_timeout }}s. A node that accepts TCP but never
+              completes an SSH login is out of memory, not down. Hard-rebooting
+              it through OpenStack and taking the memory-heavy services out of
+              the way before the roles run.
+
+        - name: Hard-reboot the unreachable node through OpenStack
+          openstack.cloud.server_action:
+            server: "{{ inventory_hostname }}"
+            action: reboot_hard
+          delegate_to: localhost
+          register: _preflight_reboot
+          failed_when: false
+
+        - name: Fail with the reason when the reboot could not be requested
+          ansible.builtin.assert:
+            that:
+              - _preflight_reboot is succeeded
+            fail_msg: >-
+              {{ inventory_hostname }} is unreachable and the OpenStack reboot
+              was refused. This playbook needs ambient OpenStack auth to
+              recover a wedged node. On lxplus run `kinit`, then export
+              OS_AUTH_URL=https://keystone.cern.ch/v3, OS_AUTH_TYPE=v3fedkerb,
+              OS_IDENTITY_PROVIDER=sssd, OS_PROTOCOL=kerberos,
+              OS_PROJECT_DOMAIN_ID=default,
+              OS_PROJECT_NAME="Personal masladoj". Underlying error:
+              {{ _preflight_reboot.msg | default('no message returned') }}
+
+        - name: Wait for the node to finish booting
+          ansible.builtin.wait_for_connection:
+            delay: 45
+            timeout: "{{ preflight_boot_timeout }}"
+
+        - name: Stop the memory-heavy services so the roles get a quiet node
+          ansible.builtin.systemd:
+            name: "{{ item }}"
+            state: stopped
+          become: true
+          loop: "{{ preflight_heavy_services }}"
+          failed_when: false
+
+        - name: Report the node as recovered
+          ansible.builtin.debug:
+            msg: >-
+              {{ inventory_hostname }} is back. Its services stay stopped until
+              the roles below restart them, which happens only after the swap
+              file and the memory slice are in place.
+
 - name: Common host prep (all 5 VMs — workers + storage)
   hosts: alice_nodes
   become: true

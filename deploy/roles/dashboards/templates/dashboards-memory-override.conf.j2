@@ -1,0 +1,9 @@
+# {{ ansible_managed }}
+
+[Service]
+Slice={{ alice_slice_name }}
+MemoryAccounting=yes
+MemoryHigh={{ dashboards_memory_high_mb }}M
+MemoryMax={{ dashboards_memory_max_mb }}M
+Restart=always
+RestartSec=10

@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description=ALICE ingest services, held below the node's memory ceiling
+
+[Slice]
+MemoryAccounting=yes
+MemoryHigh={{ (ansible_memtotal_mb * alice_slice_memory_high_pct / 100) | round | int }}M

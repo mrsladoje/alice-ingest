@@ -7,6 +7,8 @@ opensearch_service_name: opensearch
 
 opensearch_limit_nofile: 65536
 
+opensearch_memory_high_mb: 2200
+
 opensearch_user: opensearch
 opensearch_group: opensearch
 
