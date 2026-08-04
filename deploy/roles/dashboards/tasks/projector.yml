@@ -1,4 +1,4 @@
-- name: Stage the signal contract test beside the projector it exercises
+- name: Stage the signal contract test on the control host
   ansible.builtin.copy:
     src: test_signal_contract.py
     dest: "{{ dashboards_signal_contract_test }}"
@@ -31,30 +31,107 @@
     state: started
     daemon_reload: true
 
-- name: Install the signal projector script
+- name: Stage the signal projector implementation on the control host for its contract test
   ansible.builtin.copy:
     src: signal_projector.py
     dest: "{{ dashboards_signal_projector_script }}"
     owner: root
     group: root
     mode: "0755"
-  notify: restart alice-signal-projector
 
-- name: Template the alice-signal-projector systemd unit
+- name: Create the projector's app and catalog directories on its offload host
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ dashboards_app_root }}"
+    - "{{ dashboards_bootstrap_root }}"
+  delegate_to: "{{ signal_projector_host }}"
+
+- name: Stage the projector's shared modules on its offload host
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - {src: os_cursor.py, dest: "{{ dashboards_os_cursor_script }}"}
+    - {src: signal_identity.py, dest: "{{ dashboards_signal_identity_script }}"}
+  loop_control:
+    label: "{{ item.dest }}"
+  register: _projector_remote_modules
+  delegate_to: "{{ signal_projector_host }}"
+
+- name: Stage the projector's readable signal catalog on its offload host
+  ansible.builtin.copy:
+    src: signal_catalog.json
+    dest: "{{ dashboards_bootstrap_signal_catalog }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: _projector_remote_catalog
+  delegate_to: "{{ signal_projector_host }}"
+
+- name: Prove an unprivileged projector process can parse its remote catalog
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/runuser
+      - -u
+      - nobody
+      - --
+      - /usr/bin/python3
+      - -c
+      - "import json; json.load(open('{{ dashboards_bootstrap_signal_catalog }}'))"
+  changed_when: false
+  delegate_to: "{{ signal_projector_host }}"
+
+- name: Install the signal projector script on its offload host
+  ansible.builtin.copy:
+    src: signal_projector.py
+    dest: "{{ dashboards_signal_projector_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+  register: _projector_remote_script
+  delegate_to: "{{ signal_projector_host }}"
+
+- name: Template the alice-signal-projector systemd unit on its offload host
   ansible.builtin.template:
     src: alice-signal-projector.service.j2
     dest: /etc/systemd/system/{{ dashboards_signal_projector_service_name }}.service
     owner: root
     group: root
     mode: "0644"
-  notify: restart alice-signal-projector
+  register: _projector_remote_unit
+  delegate_to: "{{ signal_projector_host }}"
 
-- name: Enable and start alice-signal-projector
+- name: Prove the offload host can reach Alertmanager before starting the projector
+  ansible.builtin.uri:
+    url: "http://{{ hostvars[groups['control'][0]].ansible_host }}:{{ alertmanager_port }}/-/ready"
+    status_code: [200]
+  register: _remote_alertmanager_ready
+  retries: 12
+  delay: 5
+  until: _remote_alertmanager_ready.status == 200
+  delegate_to: "{{ signal_projector_host }}"
+
+- name: Enable and start the projector on its offload host, restarting only when its inputs changed
   ansible.builtin.systemd:
     name: "{{ dashboards_signal_projector_service_name }}"
     enabled: true
-    state: started
+    state: >-
+      {{ 'restarted'
+         if ((_projector_remote_modules.changed | default(false))
+             or (_projector_remote_catalog.changed | default(false))
+             or (_projector_remote_script.changed | default(false))
+             or (_projector_remote_unit.changed | default(false)))
+         else 'started' }}
     daemon_reload: true
+  delegate_to: "{{ signal_projector_host }}"
 
 - name: Flush handlers so the asserted processes are the restarted ones
   ansible.builtin.meta: flush_handlers
@@ -69,6 +146,7 @@
       - --property=MemoryMax
   register: _projector_memory_bounds
   changed_when: false
+  delegate_to: "{{ signal_projector_host }}"
 
 - name: Assert the projector is actually running inside finite memory bounds
   ansible.builtin.assert:
@@ -94,6 +172,7 @@
       - +%Y-%m-%dT%H:%M:%S.000Z
   register: _projector_gate_started
   changed_when: false
+  delegate_to: "{{ signal_projector_host }}"
 
 - name: Prove the signal projector completed a cycle
   block:
@@ -106,10 +185,11 @@
       until: _os_alive.status == 200
       retries: 6
       delay: 5
+      delegate_to: "{{ signal_projector_host }}"
 
     # The projector writes its heartbeat only after a full cycle returns, and
-    # the first cycle after a restart reads the whole overlap window. On a
-    # loaded control node that takes minutes, not the two this used to allow.
+    # the first cycle after a restart reads the whole overlap window. Even on
+    # the offload host that can take minutes, not the two this used to allow.
     - name: Wait for the newest signal-projector heartbeat to prove a successful cycle
       ansible.builtin.uri:
         url: "http://localhost:{{ opensearch_http_port }}/{{ cockpit_metrics_index }}/_search"
@@ -137,6 +217,7 @@
           == 1
       retries: "{{ projector_gate_retries }}"
       delay: "{{ projector_gate_delay }}"
+      delegate_to: "{{ signal_projector_host }}"
 
   rescue:
     - name: Collect why the projector produced no heartbeat
@@ -144,7 +225,9 @@
         cmd: "{{ item }}"
       loop:
         - "systemctl status {{ dashboards_signal_projector_service_name }} --no-pager | tail -20"
+        - "systemctl show {{ dashboards_signal_projector_service_name }} --property=Result --property=NRestarts --property=MemoryCurrent --property=MemoryPeak --property=ExecMainStatus"
         - "journalctl -u {{ dashboards_signal_projector_service_name }} -n 60 --no-pager"
+        - "journalctl -k -n 100 --no-pager | grep -Ei 'oom|out of memory|killed process' | tail -20"
         - "free -m"
         - "swapon --show"
         - "systemctl status opensearch --no-pager | tail -12"
@@ -159,10 +242,15 @@
           'http://localhost:{{ opensearch_http_port }}/{{ cockpit_metrics_index }}/_search?pretty'
           -d '{"size":3,"sort":[{"@timestamp":"desc"}],"query":{"term":{"kind":"projector"}}}'
           || echo 'OpenSearch did not answer within 10s'
+        - >-
+          curl -s -m 5
+          'http://{{ hostvars[groups['control'][0]].ansible_host }}:{{ alertmanager_port }}/-/ready'
+          || echo 'Alertmanager did not answer from the projector host within 5s'
         - "date -u +%Y-%m-%dT%H:%M:%S.000Z"
       register: _projector_why
       changed_when: false
       failed_when: false
+      delegate_to: "{{ signal_projector_host }}"
 
     - name: Report why the projector produced no heartbeat
       ansible.builtin.debug:
@@ -192,16 +280,22 @@
           stops the deploy — the remaining plays run, and the deploy still
           exits non-zero at the end so this is never mistaken for a pass.
 
-- name: Assert the notification path stayed up (a dead receiver silently drops every notification)
+- name: Assert the offloaded projector stayed up
   ansible.builtin.systemd:
-    name: "{{ item }}"
+    name: "{{ dashboards_signal_projector_service_name }}"
+  register: _projector_state
+  retries: 6
+  delay: 5
+  until: _projector_state.status.ActiveState == "active"
+  delegate_to: "{{ signal_projector_host }}"
+
+- name: Assert the notification receiver stayed up (a dead receiver silently drops every notification)
+  ansible.builtin.systemd:
+    name: "{{ dashboards_notification_ingest_service_name }}"
   register: _notify_state
   retries: 6
   delay: 5
   until: _notify_state.status.ActiveState == "active"
-  loop:
-    - "{{ dashboards_notification_ingest_service_name }}"
-    - "{{ dashboards_signal_projector_service_name }}"
 
 - name: Assert the notification receiver durably accepts a probe
   ansible.builtin.uri:

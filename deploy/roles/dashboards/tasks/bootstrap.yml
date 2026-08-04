@@ -114,7 +114,6 @@
     label: "{{ item.dest }}"
   notify:
     - restart alice-metrics
-    - restart alice-signal-projector
 
 - name: Stage the detection-layer verify script
   ansible.builtin.copy:

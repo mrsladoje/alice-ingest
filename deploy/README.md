@@ -46,10 +46,9 @@ the local dev path (Docker Compose on a single machine — see the root
 │ Dashboards :5602   │   │  + infologger:     │   │  + generic-log-other:
 │ idempotent bootstrap│   │  3 shards, 2 repl, require.role=storage, balanced across the 3
 │ alice-ops (/ops)   │   │  + cockpit-metrics: 1 shard, 2 repl, storage-pinned
-│ alice-metrics poller   │                    │   │                    │
-│ alice-trend-rollup │   │                    │   │                    │
-│ alertmanager       │   │                    │   │                    │
-│ alice-signal-projector · alice-notification-ingest                    │
+│ alice-metrics      │   │ alice-trend-rollup │   │ alice-anomaly-digest│
+│ alertmanager       │   │ alice-signal-      │   │                    │
+│ notification-ingest│   │ projector          │   │                    │
 └───────────────────┘   └───────────────────┘   └───────────────────┘
   Storage tier runs NO collector and NO producer — it never touches the ingest firehose.
 ```
@@ -74,7 +73,9 @@ hard-pinned tiers by shard-allocation `require` filtering:
 Exactly one VM — `alice-ingest-3`, the first storage node, the "control" host —
 additionally runs OpenSearch Dashboards, an nginx reverse proxy in front of it,
 and the idempotent cluster bootstrap (tier-aware index templates + per-worker
-index pre-creates, Dashboards index patterns).
+index pre-creates, Dashboards index patterns). The heavier Python traversal is
+not co-located with that UI stack: `alice-signal-projector` runs on
+`alice-ingest-4`, while `alice-anomaly-digest` runs on `alice-ingest-5`.
 
 ---
 
@@ -124,8 +125,10 @@ index pre-creates, Dashboards index patterns).
 - **Alertmanager is built, in the seam that was reserved for it.** The nginx
   vhost's "another control-host-only service behind this nginx" slot is now
   wired: `alertmanager_port` is a real variable, the service is control-host
-  only and loopback-bound, and it is reachable at `/alertmanager/` behind the
-  same TLS and basic-auth. It owns notification semantics only — grouping
+  only and reachable at `/alertmanager/` behind the same TLS and basic-auth.
+  Its raw port is admitted by firewalld only from the node-04 projector host;
+  this internal path lets the memory-heavy projector stay off node-03 without
+  exposing Alertmanager generally. It owns notification semantics only — grouping
   timers, inhibition matching, silences, routing. It is **not** the incident
   database: it does not persist alerts across a restart and expects the sender
   to keep re-sending, which is why the projector's re-send contract is

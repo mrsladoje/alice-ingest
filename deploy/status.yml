@@ -1,4 +1,4 @@
-- name: Report the background analytics services from the nodes that now run them
+- name: Report the offloaded control-plane services from the nodes that now run them
   hosts: background
   become: true
   gather_facts: false
@@ -7,7 +7,9 @@
   vars:
     background_status_services: >-
       {{ ([dashboards_trend_rollup_service_name] if 'rollup' in background_services else [])
-         + ([dashboards_anomaly_digest_service_name] if 'digest' in background_services else []) }}
+         + ([dashboards_anomaly_digest_service_name] if 'digest' in background_services else [])
+         + ([dashboards_signal_projector_service_name]
+            if inventory_hostname in groups['projector'] else []) }}
   tasks:
     - name: Check this node's background services
       ansible.builtin.command:
@@ -56,7 +58,6 @@
   vars:
     cockpit_status_services:
       - "{{ dashboards_metrics_service_name }}"
-      - "{{ dashboards_signal_projector_service_name }}"
       - "{{ dashboards_notification_ingest_service_name }}"
       - "{{ dashboards_ops_service_name }}"
   tasks:
@@ -90,34 +91,6 @@
           loop={{ (item.json | default({})).get('loop', 'unknown') }}
           collector={{ (item.json | default({})).get('collector', 'unknown') }}
       loop: "{{ _replay_states.results }}"
-      loop_control:
-        label: "{{ item.item }}"
-
-    - name: Read recent digest and projector logs even when systemd calls the retry loop active
-      ansible.builtin.command:
-        argv:
-          - journalctl
-          - -u
-          - "{{ item }}"
-          - --since
-          - "5 minutes ago"
-          - --no-pager
-          - -o
-          - cat
-      loop:
-        - "{{ dashboards_signal_projector_service_name }}"
-      register: _digest_log
-      changed_when: false
-      failed_when: false
-
-    - name: Print recent functional failures (an empty list is healthy)
-      ansible.builtin.debug:
-        msg: >-
-          {{ item.item }} failures =
-          {{ item.stdout_lines | default([])
-             | select('search', 'cycle failed|FATAL|Permission denied')
-             | list }}
-      loop: "{{ _digest_log.results }}"
       loop_control:
         label: "{{ item.item }}"
 

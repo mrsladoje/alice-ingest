@@ -82,8 +82,8 @@
     moved_services:
       - alice-trend-rollup
       - alice-anomaly-digest
-    quiesce_services:
       - alice-signal-projector
+    quiesce_services:
       - alice-metrics
       - alice-notification-ingest
       - alice-poison-replay
@@ -168,7 +168,7 @@
   roles:
     - dashboards
 
-- name: Background analytics services (off the control host, one per idle storage node)
+- name: Background analytics services (off the control host, distributed across storage nodes)
   hosts: background
   become: true
   tasks:

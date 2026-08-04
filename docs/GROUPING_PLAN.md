@@ -191,7 +191,7 @@ Every threshold downstream is a percentage or a delay over storm behaviour, and 
 
 ## Stage S4 — `alice-signal-projector`, `alice-signals`, `alice-incidents`
 
-Same operational shape as `alice-trend-rollup`: Python service on the control node, deterministic `_id`, idempotent re-write of a rolling window, document-level pruning, and its own `signal-projector-stale` monitor so the lane watches its own dependency.
+Same operational shape as `alice-trend-rollup`: a single Python service with deterministic `_id`, idempotent re-write of a rolling window, document-level pruning, and its own `signal-projector-stale` monitor so the lane watches its own dependency. The live five-VM deployment places it on storage node-04 rather than the already crowded control node; Alertmanager remains on node-03 and admits its internal API only from node-04.
 
 **Two stores, deliberately.** One aggregate store cannot be both "one row per incident" and "no signal ever lost".
 
@@ -351,7 +351,7 @@ Shared injection harness: that plan's Stage B gate (`systemctl stop fluent-bit` 
 
 ## Non-optimal / risks
 
-1. **A third single-instance control-node service.** `alice-metrics`, `alice-trend-rollup`, now the projector, plus Alertmanager. One VM is a blind spot for four lanes; mitigated by staleness monitors, properly fixed only by redundancy that is not worth it at this scale.
+1. **Single-instance control-plane services.** `alice-metrics` and Alertmanager remain on node-03; `alice-trend-rollup` and the projector run on node-04, with the digest on node-05. Each remains a single-instance blind spot, mitigated by staleness monitors and properly fixed only by redundancy that is not worth it at this scale.
 2. **Alertmanager does not persist alerts.** Correct behaviour, but it means the re-send contract is load-bearing: if the projector stalls, notifications resolve themselves while the fault continues. The S5 gate tests exactly this, and `signal-projector-stale` must page.
 3. **Label cardinality.** `entity_id` over ~214 EPNs is fine for grouping; it would not be fine as a Prometheus metric label. Keep counts and lists in annotations.
 4. **Stage 7.5's silence rule and this plan are one piece of work.** "Logged during the baseline, silent for N hours" will be the most storm-prone monitor we own; shipping it before S4–S6 ships a noise generator.

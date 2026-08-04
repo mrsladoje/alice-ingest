@@ -37,6 +37,13 @@ all:
       hosts:
         alice-ingest-3: {}
 
+    # The projector is deliberately not on the control VM.  Its catch-up
+    # traversal is the largest Python resident set in the control plane, while
+    # node-04 has no Dashboards/nginx/Alertmanager workload.
+    projector:
+      hosts:
+        alice-ingest-4: {}
+
     background:
       hosts:
         alice-ingest-4:

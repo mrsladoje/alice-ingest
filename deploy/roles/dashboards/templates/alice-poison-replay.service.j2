@@ -1,7 +1,7 @@
 # {{ ansible_managed }}
 [Unit]
 Description=ALICE controlled poison replay and detector calibration
-After=network-online.target opensearch.service {{ dashboards_metrics_service_name }}.service {{ dashboards_signal_projector_service_name }}.service
+After=network-online.target opensearch.service {{ dashboards_metrics_service_name }}.service
 Wants=network-online.target
 
 [Service]

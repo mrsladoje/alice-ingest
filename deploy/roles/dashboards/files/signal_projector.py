@@ -904,28 +904,43 @@ def heartbeat(result, stale_count, stale_dwell):
         lines.append(json.dumps({"index": {"_index": METRICS_INDEX}}))
         lines.append(json.dumps(doc))
     try:
-        os_cursor.bulk(OS_URL, lines, refresh="false")
+        _, failures = os_cursor.bulk(OS_URL, lines, refresh="false")
+        if failures:
+            log(f"heartbeat write rejected {len(failures)} rows; first: "
+                f"{json.dumps(failures[0])[:300]}")
     except os_cursor.CursorError as e:
         log(f"heartbeat write failed: {e}")
+
+
+def schedule_prune(index, query):
+    """Submit retention work without blocking the re-send loop.
+
+    A synchronous delete-by-query may legitimately run for minutes on these
+    small VMs.  The projector must never wait for it: Alertmanager relies on a
+    30-second re-send and deploy relies on the first functional heartbeat.
+    """
+    code, body = os_cursor.request(
+        OS_URL, "POST",
+        f"/{index}/_delete_by_query?conflicts=proceed"
+        "&wait_for_completion=false&slices=1",
+        {"query": query}, timeout=30)
+    if code != 200:
+        raise os_cursor.CursorError(
+            f"cannot schedule retention for {index}: HTTP {code} "
+            f"{json.dumps(body)[:200]}")
+    log(f"scheduled retention for {index}: task={body.get('task', 'unknown')}")
 
 
 def prune():
     if RETENTION_DAYS <= 0:
         return
     for index in (SIGNALS_INDEX, NOTIFICATIONS_INDEX):
-        os_cursor.request(
-            OS_URL, "POST",
-            f"/{index}/_delete_by_query?conflicts=proceed",
-            {"query": {"range": {
-                "@timestamp": {"lt": f"now-{RETENTION_DAYS}d"}}}},
-            timeout=180)
-    os_cursor.request(
-        OS_URL, "POST",
-        f"/{INCIDENTS_INDEX}/_delete_by_query?conflicts=proceed",
-        {"query": {"bool": {"filter": [
+        schedule_prune(index, {"range": {
+            "@timestamp": {"lt": f"now-{RETENTION_DAYS}d"}}})
+    schedule_prune(INCIDENTS_INDEX, {"bool": {"filter": [
             {"terms": {"episode_state": sorted(TERMINAL)}},
-            {"range": {"@timestamp": {"lt": f"now-{RETENTION_DAYS}d"}}}]}}},
-        timeout=180)
+            {"range": {"@timestamp": {
+                "lt": f"now-{RETENTION_DAYS}d"}}}]}})
 
 
 def cycle():
@@ -1041,14 +1056,10 @@ def main():
             f"resolve live alerts between cycles")
         return 1
     last_prune = 0.0
+    first_cycle_succeeded = False
+    log("starting the first projection cycle before retention maintenance")
     while True:
         started = time.time()
-        if started - last_prune >= PRUNE_EVERY_SECONDS:
-            last_prune = started
-            try:
-                prune()
-            except Exception as e:
-                log(f"prune raised: {e}")
         result = {"open_signals": 0, "open_incidents": 0, "cycle_ms": 0,
                   "cycle_ok": False, "am_ok": False, "am_latency_ms": 0}
         stale_count, stale_dwell = {}, {}
@@ -1058,6 +1069,19 @@ def main():
             log(f"cycle failed, watermarks held: {e}")
             result["am_ok"], result["am_latency_ms"] = probe_alertmanager()
         heartbeat(result, stale_count, stale_dwell)
+        if result["cycle_ok"] and not first_cycle_succeeded:
+            first_cycle_succeeded = True
+            log(f"first projection cycle completed in "
+                f"{result['cycle_ms']}ms; functional heartbeat written")
+        # Retention is maintenance, never a prerequisite for projection.  Run
+        # it only after a successful heartbeat and submit it asynchronously so
+        # it cannot break the Alertmanager re-send cadence or the deploy gate.
+        if result["cycle_ok"] and started - last_prune >= PRUNE_EVERY_SECONDS:
+            last_prune = started
+            try:
+                prune()
+            except Exception as e:
+                log(f"prune scheduling raised: {e}")
         time.sleep(max(5, INTERVAL - (time.time() - started)))
 
 

@@ -132,6 +132,7 @@
         name: "{{ dashboards_signal_projector_service_name }}"
         state: stopped
       when: scenario == 'stop-projector'
+      delegate_to: "{{ signal_projector_host }}"
 
     - name: Observe for {{ observe_minutes }} minutes
       ansible.builtin.wait_for:
@@ -144,13 +145,18 @@
       changed_when: false
       when: scenario == 'stop-projector' and (restore | bool)
 
+    - name: Restore the metrics poller
+      ansible.builtin.systemd:
+        name: "{{ dashboards_metrics_service_name }}"
+        state: started
+      when: scenario == 'stop-alice-metrics' and (restore | bool)
+
     - name: Restore the injected component
       ansible.builtin.systemd:
-        name: "{{ item }}"
+        name: "{{ dashboards_signal_projector_service_name }}"
         state: started
-      loop: "{{ ([dashboards_metrics_service_name] if scenario == 'stop-alice-metrics' else [])
-                + ([dashboards_signal_projector_service_name] if scenario == 'stop-projector' else []) }}"
-      when: restore | bool
+      when: scenario == 'stop-projector' and (restore | bool)
+      delegate_to: "{{ signal_projector_host }}"
 
     - name: Restore the real ingest pipeline
       ansible.builtin.uri:

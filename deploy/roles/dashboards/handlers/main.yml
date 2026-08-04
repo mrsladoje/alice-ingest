@@ -39,14 +39,6 @@
     daemon_reload: true
   listen: restart alice-anomaly-digest
 
-- name: Restart alice-signal-projector
-  ansible.builtin.systemd:
-    name: "{{ dashboards_signal_projector_service_name }}"
-    state: restarted
-    daemon_reload: true
-  failed_when: false
-  listen: restart alice-signal-projector
-
 - name: Restart alice-notification-ingest
   ansible.builtin.systemd:
     name: "{{ dashboards_notification_ingest_service_name }}"

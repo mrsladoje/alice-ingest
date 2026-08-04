@@ -1,21 +1,21 @@
 # {{ ansible_managed }}
 [Unit]
 Description=ALICE signal projector — domain semantics for alerts and anomalies
-After=network-online.target opensearch.service alertmanager.service
+After=network-online.target opensearch.service
 Wants=network-online.target
 
 [Service]
 Type=simple
 MemoryAccounting=yes
-MemoryHigh={{ alice_service_memory_high }}
-MemoryMax={{ alice_service_memory_max }}
+MemoryHigh={{ signal_projector_memory_high }}
+MemoryMax={{ signal_projector_memory_max }}
 DynamicUser=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
 Environment=OS_URL=http://localhost:{{ opensearch_http_port }}
-Environment=ALERTMANAGER_URL=http://127.0.0.1:{{ alertmanager_port }}
+Environment=ALERTMANAGER_URL=http://{{ hostvars[groups['control'][0]].ansible_host }}:{{ alertmanager_port }}
 Environment=SIGNALS_INDEX={{ signals_index }}
 Environment=INCIDENTS_INDEX={{ incidents_index }}
 Environment=NOTIFICATIONS_INDEX={{ notifications_index }}

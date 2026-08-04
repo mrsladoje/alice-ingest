@@ -6,6 +6,13 @@ opensearch_heap_size: "1g"
 alice_service_memory_high: "256M"
 alice_service_memory_max: "512M"
 
+# The projector runs on node-04 rather than the crowded control VM.  Its
+# resident set is bounded, but a little larger than the thin pollers because it
+# must hold the active incident episode set while it traverses AD results.
+signal_projector_host: "{{ groups['projector'][0] }}"
+signal_projector_memory_high: "384M"
+signal_projector_memory_max: "768M"
+
 opensearch_http_port: 9200
 opensearch_transport_port: 9300
 

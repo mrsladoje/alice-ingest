@@ -146,3 +146,15 @@
     immediate: true
     state: enabled
   when: inventory_hostname in groups['control']
+
+- name: Allow only the projector host to reach Alertmanager's internal API
+  ansible.posix.firewalld:
+    rich_rule: >-
+      rule family="ipv4"
+      source address="{{ hostvars[signal_projector_host].ansible_host }}"
+      port port="{{ alertmanager_port }}" protocol="tcp"
+      accept
+    permanent: true
+    immediate: true
+    state: enabled
+  when: inventory_hostname in groups['control']

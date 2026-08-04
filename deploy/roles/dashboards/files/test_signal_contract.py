@@ -258,6 +258,41 @@ def test_bulk_signal_writes_are_bounded():
     check(written == 5, f"bounded signal writes reported {written}, expected 5")
 
 
+def test_retention_is_async_and_runs_after_the_functional_heartbeat():
+    prior_request = sp.os_cursor.request
+    prior_retention = sp.RETENTION_DAYS
+    prior_log = sp.log
+    calls = []
+    try:
+        def fake_request(os_url, method, path, payload=None, **kwargs):
+            calls.append((method, path, payload, kwargs))
+            return 200, {"task": f"retention-{len(calls)}"}
+
+        sp.os_cursor.request = fake_request
+        sp.RETENTION_DAYS = 30
+        sp.log = lambda message: None
+        sp.prune()
+    finally:
+        sp.os_cursor.request = prior_request
+        sp.RETENTION_DAYS = prior_retention
+        sp.log = prior_log
+
+    check(len(calls) == 3,
+          f"retention scheduled {len(calls)} jobs instead of three")
+    check(all("wait_for_completion=false" in path for _, path, _, _ in calls),
+          f"a projector retention request can still block: {calls}")
+    check(all(kwargs.get("timeout") == 30 for _, _, _, kwargs in calls),
+          f"retention scheduling lost its bounded client timeout: {calls}")
+
+    import inspect
+    main = inspect.getsource(sp.main)
+    heartbeat_at = main.find("heartbeat(result")
+    prune_at = main.find("prune()")
+    check(heartbeat_at >= 0 and prune_at > heartbeat_at,
+          "the projector can still run retention before its first functional "
+          "heartbeat")
+
+
 def test_every_label_is_present_and_explicit():
     stub_roster(["node-01"], {"epn001": "node-01"})
     rows = [
@@ -1322,6 +1357,69 @@ def _checkout_file(*parts):
     return None
 
 
+def test_projector_runtime_is_off_the_control_host():
+    import yaml
+
+    inventory_path = _checkout_file("inventory.yml")
+    site_path = _checkout_file("site.yml")
+    projector_path = _checkout_file(
+        "roles", "dashboards", "tasks", "projector.yml")
+    projector_unit_path = _checkout_file(
+        "roles", "dashboards", "templates",
+        "alice-signal-projector.service.j2")
+    alertmanager_unit_path = _checkout_file(
+        "roles", "alertmanager", "templates", "alertmanager.service.j2")
+    common_path = _checkout_file("roles", "common", "tasks", "main.yml")
+    inject_path = _checkout_file("inject.yml")
+    if not all((inventory_path, site_path, projector_path,
+                projector_unit_path, alertmanager_unit_path, common_path,
+                inject_path)):
+        print("[signal-contract] "
+              "test_projector_runtime_is_off_the_control_host: skipped, "
+              "deployment sources not beside this checkout")
+        return
+
+    inventory = yaml.safe_load(open(inventory_path))
+    children = inventory["all"]["children"]
+    control = set(children["control"]["hosts"])
+    projector_hosts = set(children["projector"]["hosts"])
+    check(projector_hosts == {"alice-ingest-4"},
+          f"projector is not pinned to the intended offload host: "
+          f"{sorted(projector_hosts)}")
+    check(control.isdisjoint(projector_hosts),
+          "the projector host is still the crowded control host")
+
+    site = open(site_path).read()
+    projector = open(projector_path).read()
+    projector_unit = open(projector_unit_path).read()
+    alertmanager_unit = open(alertmanager_unit_path).read()
+    common = open(common_path).read()
+    inject = open(inject_path).read()
+    check("moved_services:" in site and "alice-signal-projector" in site,
+          "deploy does not retire the old control-host projector unit")
+    check(projector.count(
+        'delegate_to: "{{ signal_projector_host }}"') >= 8,
+          "projector files, service checks and diagnostics are not consistently "
+          "delegated to the offload host")
+    check("Environment=ALERTMANAGER_URL=http://{{ "
+          "hostvars[groups['control'][0]].ansible_host }}" in projector_unit,
+          "the offloaded projector still targets loopback Alertmanager")
+    check("MemoryHigh={{ signal_projector_memory_high }}" in projector_unit
+          and "MemoryMax={{ signal_projector_memory_max }}" in projector_unit,
+          "the offloaded projector lost its dedicated memory bounds")
+    check("--web.listen-address=0.0.0.0:{{ alertmanager_port }}" in
+          alertmanager_unit,
+          "Alertmanager is still loopback-only after projector offload")
+    check("source address=\"{{ "
+          "hostvars[signal_projector_host].ansible_host }}\"" in common
+          and "port=\"{{ alertmanager_port }}\"" in common,
+          "the Alertmanager firewall path is not restricted to the projector "
+          "host")
+    check(inject.count(
+        'delegate_to: "{{ signal_projector_host }}"') >= 2,
+          "the stop-projector drill still operates on the control host")
+
+
 def test_dynamic_services_can_read_the_signal_catalog():
     import yaml
 
@@ -1379,8 +1477,8 @@ def test_dynamic_services_can_read_the_signal_catalog():
           and "MemoryHigh=[1-9][0-9]*" in projector
           and "MemoryMax=[1-9][0-9]*" in projector,
           "deploy does not prove the running projector has finite memory caps")
-    check("MemoryHigh={{ alice_service_memory_high }}" in projector_unit
-          and "MemoryMax={{ alice_service_memory_max }}" in projector_unit
+    check("MemoryHigh={{ signal_projector_memory_high }}" in projector_unit
+          and "MemoryMax={{ signal_projector_memory_max }}" in projector_unit
           and "Environment=PIT_KEEP_ALIVE={{ "
           "signal_projector_pit_keep_alive }}" in projector_unit
           and "Environment=BULK_DOCUMENTS={{ "
