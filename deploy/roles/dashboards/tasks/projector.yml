@@ -127,6 +127,12 @@
           curl -s -m 5
           'http://localhost:{{ opensearch_http_port }}/_cat/nodes?v&h=name,heap.percent,ram.percent,cpu,node.role'
           || echo 'OpenSearch did not answer within 5s'
+        - >-
+          curl -s -m 10 -H 'Content-Type: application/json'
+          'http://localhost:{{ opensearch_http_port }}/{{ cockpit_metrics_index }}/_search?pretty'
+          -d '{"size":3,"sort":[{"@timestamp":"desc"}],"query":{"term":{"kind":"projector"}}}'
+          || echo 'OpenSearch did not answer within 10s'
+        - "date -u +%Y-%m-%dT%H:%M:%S.000Z"
       register: _projector_why
       changed_when: false
       failed_when: false
@@ -138,14 +144,27 @@
       loop_control:
         label: "{{ item.item | default('') }}"
 
-    - name: Fail with the projector diagnosis above
-      ansible.builtin.fail:
+    - name: Record that the projector gate did not prove a cycle
+      ansible.builtin.set_fact:
+        projector_gate_failed: true
+        projector_gate_started_at: "{{ _projector_gate_started.stdout }}"
+      cacheable: false
+
+    - name: Report the projector gate as unproven and continue so the rest of the deploy converges
+      ansible.builtin.debug:
         msg: >-
-          The signal projector wrote no successful-cycle heartbeat within
-          {{ projector_gate_retries | int * projector_gate_delay | int }}s.
-          The service status, its last 60 log lines and the node's memory are
-          printed above — that output says whether it crashed, whether the
-          cycle raised, or whether the node simply ran out of memory.
+          PROJECTOR GATE UNPROVEN — the signal projector wrote no
+          successful-cycle heartbeat within
+          {{ projector_gate_retries | int * projector_gate_delay | int }}s of
+          {{ _projector_gate_started.stdout }}. The diagnosis is printed above.
+          Read it in this order: the last three kind=projector documents say
+          whether the projector ever writes at all and what projector_cycle_ok
+          it reports; the node's own UTC clock beside them says whether the
+          heartbeat timestamps are simply outside the window this gate asks
+          for; free -m and swapon say whether the node ran out of memory during
+          the cycle; the journal says whether the cycle raised. This no longer
+          stops the deploy — the remaining plays run, and the deploy still
+          exits non-zero at the end so this is never mistaken for a pass.
 
 - name: Assert the notification path stayed up (a dead receiver silently drops every notification)
   ansible.builtin.systemd:

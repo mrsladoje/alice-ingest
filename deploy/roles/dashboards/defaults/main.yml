@@ -6,8 +6,9 @@ dashboards_systemd_dropin_dir: /etc/systemd/system/opensearch-dashboards.service
 dashboards_memory_dropin: /etc/systemd/system/opensearch-dashboards.service.d/memory.conf
 dashboards_node_options_file: "{{ dashboards_config_dir }}/node.options"
 
-projector_gate_retries: 60
+projector_gate_retries: 36
 projector_gate_delay: 5
+projector_gate_failed: false
 dashboards_system_user: opensearch-dashboards
 dashboards_system_group: opensearch-dashboards
 dashboards_home_dir: /usr/share/opensearch-dashboards

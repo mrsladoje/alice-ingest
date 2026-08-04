@@ -197,3 +197,17 @@
     - "{{ playbook_dir }}/group_vars/vault.yml"
   roles:
     - producer
+
+- name: Final verdict on any gate that was reported but not allowed to stop the run
+  hosts: control
+  become: false
+  gather_facts: false
+  tasks:
+    - name: Fail the deploy when the signal projector never proved a cycle
+      ansible.builtin.fail:
+        msg: >-
+          Everything else converged, but the signal projector gate is still
+          unproven. Its full diagnosis was printed during the Dashboards play,
+          under 'Report why the projector produced no heartbeat'. Scroll back to
+          that block — it is the only part of this run that needs reading.
+      when: projector_gate_failed | default(false) | bool
