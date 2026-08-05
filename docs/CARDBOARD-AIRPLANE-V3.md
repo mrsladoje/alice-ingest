@@ -1,6 +1,6 @@
 # Cardboard Airplane v3 — Trigger, More Data, and the Cockpit
 
-The hand-to-Lubos increment on top of [`CARDBOARD-AIRPLANE-V2.md`](CARDBOARD-AIRPLANE-V2.md). Same 5-VM two-tier cluster, same OpenSearch Dashboards 2.17 stack — v3 adds three things a human operator actually touches: **a replay button, more real data, and a single cockpit dashboard**. Design was grilled to a shared understanding on 2026-07-17; this doc records what shipped.
+The hand-to-Lubos increment on top of the v2 two-tier design. Same 5-VM two-tier cluster, same OpenSearch Dashboards 2.17 stack — v3 adds three things a human operator actually touches: **a replay button, more real data, and a single cockpit dashboard**. Design was grilled to a shared understanding on 2026-07-17; this doc records what shipped.
 
 > v2 (tag `cardboard-airplane-v2`) is the baseline. Nothing about the topology, tiers, or shard placement changes here.
 

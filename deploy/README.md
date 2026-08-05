@@ -489,9 +489,9 @@ output writes the document into `cockpit-metrics`. Nothing scrapes worker
 and the firewall rule that used to open the port is removed by the same task
 that created it (`collector_metrics_scrape_open: false`).
 
-> **Deviation from `HEALTH_METRICS_PLAN.md` § 3.1.** That section named two
-> candidate inputs, `fluentbit_metrics` and `prometheus_scrape`, and left the
-> choice to a Stage A implementability gate. Both emit *metric* chunks, which
+> **Why `exec` and not `fluentbit_metrics` or `prometheus_scrape`.** Those two
+> were the obvious candidates for the self-metrics input, and both were
+> rejected. Both emit *metric* chunks, which
 > Lua filters do not process and which the OpenSearch output would ship in a
 > metrics shape rather than the flat `cockpit-metrics` schema the cockpit,
 > monitors and detectors already consume. The `exec` input emits an ordinary
@@ -1123,8 +1123,9 @@ scenario also waits for a `projector_cycle_ok: 1` heartbeat newer than the
 restart boundary before scoring; a running process without a completed catch-up
 cycle is not recovery.
 
-> **Deviation on scenario 2.** `GROUPING_PLAN.md` words it as "drop one EPN's
-> file mid-replay". A file-level drop is not usable here: `replay.py`'s
+> **Why scenario 2 drops records, not a file.** The obvious form of this
+> injection is "drop one EPN's file mid-replay". A file-level drop is not
+> usable here: `replay.py`'s
 > `_write_lines` has no per-host error handling, so a failed write kills the
 > whole dds+stdout family rather than one host, and simply deleting the file
 > makes Fluent Bit re-read the recreated inode from the head — duplication, not
