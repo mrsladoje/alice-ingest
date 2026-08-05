@@ -1,0 +1,50 @@
+{
+  "name": "disk-fill",
+  "description": "Predict filesystem fill for every node in the OpenSearch cluster. Reads the poller's kind:node documents, which carry fs.total minus fs.available for the whole VM filesystem, not only the OpenSearch data path. One feature is the plugin's hard limit for a forecaster.",
+  "time_field": "@timestamp",
+  "indices": [
+    "cockpit-metrics"
+  ],
+  "feature_attributes": [
+    {
+      "feature_name": "disk_used_percent",
+      "feature_enabled": true,
+      "aggregation_query": {
+        "disk_used_percent": {
+          "max": {
+            "field": "disk_used_percent"
+          }
+        }
+      }
+    }
+  ],
+  "forecast_interval": {
+    "period": {
+      "interval": 60,
+      "unit": "Minutes"
+    }
+  },
+  "window_delay": {
+    "period": {
+      "interval": 1,
+      "unit": "Minutes"
+    }
+  },
+  "horizon": 24,
+  "history": 168,
+  "shingle_size": 8,
+  "category_field": [
+    "os_node"
+  ],
+  "filter_query": {
+    "bool": {
+      "filter": [
+        {
+          "term": {
+            "kind": "node"
+          }
+        }
+      ]
+    }
+  }
+}

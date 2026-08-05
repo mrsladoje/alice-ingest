@@ -58,6 +58,14 @@
       "notification_scope": "fleet",
       "feed": "control-plane"
     },
+    "disk-fill-forecast": {
+      "entity_kind": "fleet",
+      "entity_source": "constant",
+      "entity_id": "all",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane"
+    },
     "cluster-red": {
       "entity_kind": "cluster",
       "entity_source": "constant",
@@ -416,6 +424,17 @@
       "maximum_lateness_minutes": 35,
       "healthy_windows_required": 2,
       "close_threshold": 0.0
+    }
+  },
+  "forecasters": {
+    "disk-fill": {
+      "entity_kind": "os_node",
+      "category_field": "os_node",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane",
+      "alerted_by": "disk-fill-forecast",
+      "expected_interval_minutes": 60
     }
   }
 }

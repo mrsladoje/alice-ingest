@@ -12,6 +12,7 @@ MIN_SLICE_DOCS="${TREND_MIN_SLICE_DOCS:-50}"
 MIN_SLICE_ERRORS="${TREND_MIN_SLICE_ERRORS:-10}"
 MIN_LAG_DOCS="${TREND_MIN_LAG_DOCS:-100}"
 FLEET_SILENCE_FRACTION="${FLEET_SILENCE_FRACTION:-0.5}"
+DISK_FORECAST_THRESHOLD="${FORECAST_DISK_THRESHOLD_PERCENT:-85}"
 SINK_ID="${ALERT_SINK_ID:-alice-incluster-alert-sink}"
 SINK_URL="${ALERT_SINK_URL:-http://127.0.0.1:9200/alice-alert-actions/_doc}"
 SINK_INDEX="${ALERT_SINK_INDEX:-alice-alert-actions}"
@@ -159,10 +160,18 @@ prepare_body() {
   ENTITY_CAP="$ENTITY_CAP" LAG_CEILING="$LAG_CEILING" \
   MIN_SLICE_DOCS="$MIN_SLICE_DOCS" MIN_SLICE_ERRORS="$MIN_SLICE_ERRORS" \
   MIN_LAG_DOCS="$MIN_LAG_DOCS" FLEET_SILENCE_FRACTION="$FLEET_SILENCE_FRACTION" \
+  DISK_FORECAST_THRESHOLD="$DISK_FORECAST_THRESHOLD" \
   python3 -c '
 import json,os,re,sys
 d=json.load(open(sys.argv[1]))
 name=d.get("name")
+if name=="disk-fill-forecast":
+    threshold=float(os.environ["DISK_FORECAST_THRESHOLD"])
+    trig=d["triggers"][0]["query_level_trigger"]
+    trig["condition"]["script"]["source"]=re.sub(
+        r"double diskThreshold = [0-9.]+;",
+        "double diskThreshold = %r;" % threshold,
+        trig["condition"]["script"]["source"])
 if name=="fleet-fb-silence":
     frac=float(os.environ["FLEET_SILENCE_FRACTION"])
     trig=d["triggers"][0]["query_level_trigger"]

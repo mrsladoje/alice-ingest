@@ -27,10 +27,12 @@ dashboards_bootstrap_templates_script: "{{ dashboards_bootstrap_root }}/template
 dashboards_bootstrap_patterns_script: "{{ dashboards_bootstrap_root }}/patterns.sh"
 dashboards_bootstrap_alerting_script: "{{ dashboards_bootstrap_root }}/alerting.sh"
 dashboards_bootstrap_detectors_script: "{{ dashboards_bootstrap_root }}/detectors.sh"
+dashboards_bootstrap_forecasters_script: "{{ dashboards_bootstrap_root }}/forecasters.sh"
 dashboards_bootstrap_ism_script: "{{ dashboards_bootstrap_root }}/ism.sh"
 dashboards_bootstrap_verify_script: "{{ dashboards_bootstrap_root }}/verify_detection.py"
 dashboards_bootstrap_monitors_dir: "{{ dashboards_bootstrap_root }}/monitors"
 dashboards_bootstrap_detectors_dir: "{{ dashboards_bootstrap_root }}/detectors"
+dashboards_bootstrap_forecasters_dir: "{{ dashboards_bootstrap_root }}/forecasters"
 dashboards_bootstrap_cockpit_ndjson: "{{ dashboards_bootstrap_root }}/cockpit.ndjson"
 dashboards_bootstrap_hydrate_script: "{{ dashboards_bootstrap_root }}/hydrate_patterns.py"
 
@@ -53,8 +55,9 @@ dashboards_trend_rollup_script: /opt/alice-ingest/trend_rollup.py
 dashboards_anomaly_digest_service_name: alice-anomaly-digest
 dashboards_anomaly_digest_script: /opt/alice-ingest/anomaly_digest.py
 
-expected_monitors: 25
+expected_monitors: 26
 expected_detectors: 17
+expected_forecasters: 1
 dashboards_backtest_script: /opt/alice-ingest/backtest.py
 dashboards_reset_derived_script: /opt/alice-ingest/reset_derived.py
 

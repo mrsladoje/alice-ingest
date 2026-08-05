@@ -1,0 +1,94 @@
+{
+  "type": "monitor",
+  "name": "disk-fill-forecast",
+  "description": "Warn while there is still time to act: a node in the OpenSearch cluster is predicted to cross the disk warning watermark inside the forecast horizon. Fleet-scoped on purpose, exactly like ad-high-grade — the forecast result index stores its entity as a nested field, so a monitor cannot key per node without a flattened result index, and per-entity attribution is the signal projector's job. Restricted to real-time results (must_not exists task_id) so a backtest can never warn. Assumes disk-fill is the only forecaster; verify_detection.py fails the deploy on any forecaster missing from the signal catalog.",
+  "monitor_type": "query_level_monitor",
+  "enabled": true,
+  "schedule": {
+    "period": {
+      "interval": 10,
+      "unit": "MINUTES"
+    }
+  },
+  "inputs": [
+    {
+      "search": {
+        "indices": [
+          "opensearch-forecast-results*"
+        ],
+        "query": {
+          "size": 1,
+          "sort": [
+            {
+              "forecast_value": {
+                "order": "desc"
+              }
+            }
+          ],
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "range": {
+                    "execution_end_time": {
+                      "gte": "{{period_end}}||-1h",
+                      "lte": "{{period_end}}",
+                      "format": "epoch_millis"
+                    }
+                  }
+                }
+              ],
+              "must_not": [
+                {
+                  "exists": {
+                    "field": "task_id"
+                  }
+                }
+              ]
+            }
+          },
+          "aggregations": {
+            "max_forecast": {
+              "max": {
+                "field": "forecast_value"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "triggers": [
+    {
+      "query_level_trigger": {
+        "name": "disk-fill-forecast",
+        "severity": "2",
+        "condition": {
+          "script": {
+            "source": "double diskThreshold = 85.0; if (ctx.results[0].hits.total.value == 0) { return false; } def peak = ctx.results[0].aggregations.max_forecast.value; return peak != null && peak > diskThreshold;",
+            "lang": "painless"
+          }
+        },
+        "actions": [
+          {
+            "name": "notify",
+            "destination_id": "alice-incluster-alert-sink",
+            "subject_template": {
+              "source": "{{ctx.monitor.name}}",
+              "lang": "mustache"
+            },
+            "message_template": {
+              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_start\":\"{{ctx.periodStart}}\",\"period_end\":\"{{ctx.periodEnd}}\",\"entity_kind\":\"fleet\",\"notification_scope\":\"fleet\",\"feed\":\"control-plane\",\"delivery_path\":\"alertmanager\",\"entity\":\"all\"}",
+              "lang": "mustache"
+            },
+            "throttle_enabled": true,
+            "throttle": {
+              "value": 30,
+              "unit": "MINUTES"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

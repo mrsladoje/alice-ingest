@@ -48,6 +48,16 @@ MONITOR_PRESENTATION = {
         "two minutes and is close to becoming read-only.",
         "Free space or move shards immediately; check for read-only index "
         "blocks."),
+    "disk-fill-forecast": (
+        "A node is predicted to run out of disk",
+        "At least one node in the OpenSearch cluster is forecast to cross the "
+        "disk warning watermark within the next 24 hours. This is a "
+        "prediction, not an observation, and it names no node: forecast "
+        "results carry their entity in a nested field, so the monitor is "
+        "fleet-scoped.",
+        "Open Forecasting in Dashboards and read the disk-fill chart to see "
+        "which node is rising and when it crosses. Then free space or move "
+        "shards before disk-cliff-warn fires on the real value."),
     "heap-spiral": (
         "OpenSearch heap stayed above 90%",
         "OpenSearch node {entity} remained above 90% JVM heap for five "

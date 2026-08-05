@@ -321,6 +321,7 @@
     OS_URL: "http://localhost:{{ opensearch_http_port }}"
     EXPECTED_MONITORS: "{{ expected_monitors }}"
     EXPECTED_DETECTORS: "{{ expected_detectors }}"
+    EXPECTED_FORECASTERS: "{{ expected_forecasters }}"
     ROLLUP_INDEX: "{{ trend_rollup_index }}"
     METRICS_INDEX: "{{ cockpit_metrics_index }}"
     ROSTER_INDEX: "{{ fleet_roster_index }}"

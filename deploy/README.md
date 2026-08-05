@@ -846,6 +846,64 @@ the likely mitigations are dropping the `-slow` twins for EPN-scoped signals, or
 filtering detectors to the hosts that carry meaningful volume.
 Profile: `GET _plugins/_anomaly_detection/detectors/<id>/_profile`.
 
+### Forecasting (`disk-fill`)
+
+One forecaster, deliberately. Forecasting predicts *when a value crosses a
+threshold*, so it earns its place only where a metric has a real absolute
+threshold, moves slowly and smoothly, and arrives continuously in real time.
+In this stack exactly one metric passes all three: filesystem fill per
+OpenSearch node. Rates, lags and error shares are spiky and thresholdless —
+anomaly detection and the trend lane already own them. Log-volume forecasting
+would freeze in Initializing for the same reason the log detectors did: replay
+arrives in bursts, not as a continuous stream.
+
+| Piece | Value |
+|---|---|
+| Forecaster | `disk-fill`, HC on `os_node` (every node in the cluster, all 5) |
+| Source | `cockpit-metrics`, `kind:node`, `max(disk_used_percent)` |
+| Interval / horizon / history | 60 min / 24 buckets (1 day ahead) / 168 points (7 days) |
+| Results | `opensearch-forecast-results*`, retention `forecast_result_retention` |
+| Monitor | `disk-fill-forecast`, query-level, severity warn, 30 min throttle |
+| Fires when | `max(forecast_value) > forecast_disk_threshold_percent` |
+
+The disk figure is `fs.total` minus `fs.available`, so it covers the whole VM
+filesystem — operating system, Fluent Bit buffers and shards together. On the
+two workers that includes the collector's own buffers, reported under the
+`os_node` identity rather than `collector_id`. Same machine, different field.
+
+**The alert names no node.** Forecast results carry their entity in a *nested*
+field, so a monitor cannot key per node without a flattened custom result
+index. This lane makes the same trade `ad-high-grade` already makes: the
+monitor is a fleet-scoped tripwire and per-entity attribution is read from the
+Forecasting UI in Dashboards. Add `flatten_custom_result_index` and a
+bucket-level monitor if per-node pages turn out to matter.
+
+**It is silent for its first two days.** An RCF model needs roughly 40 points
+at the configured interval, which at 60 minutes is about two days of poller
+history. `verify_detection.py` prints the warm-up state and does **not** fail
+the deploy for it; it fails only on a missing, duplicated, mis-categorized or
+genuinely failed forecaster.
+
+**`plugins.forecast.max_primary_shards` must stay pinned at 1.** The result
+index otherwise takes one primary per data node with `auto_expand_replicas`
+`0-2` — 15 shards for a few thousand tiny documents, against a storage-tier
+budget near 60. `forecasters.sh` pins it and the retention period on every run,
+and `verify_detection.py` fails the deploy if the pin is missing. Forecast
+model memory is a *separate* 10 % heap slice from anomaly detection
+(`plugins.forecast.model_max_size_percent`), so this lane does not compete with
+the 17 detectors — but it is another ~100 MB claim on a 1 GB heap, which is why
+it stays at five entities.
+
+**Cardboard cannot validate this honestly.** Disk here is driven by replay runs
+and lifecycle deletes, which is a sawtooth, not an organic ramp. Treat a green
+lane on the test cluster as a contract proof, not as evidence the forecast is
+accurate. The signal becomes real on a production flight, where disk fills
+monotonically.
+
+Profile: `GET _plugins/_forecast/forecasters/<id>/_profile`.
+Backtest without waiting: `POST _plugins/_forecast/forecasters/<id>/_run_once`
+(task-scoped, writes results carrying `task_id`, which the monitor excludes).
+
 ### Replay clock
 
 Dual-clock (`collector_time` wall clock + preserved `@timestamp`) is what unlocks

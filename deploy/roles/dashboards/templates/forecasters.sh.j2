@@ -1,0 +1,268 @@
+#!/bin/sh
+set -eu
+
+OS="${OS_URL:-http://localhost:9200}"
+FORECASTERS_DIR="${FORECASTERS_DIR:-/opt/alice-ingest/init/forecasters}"
+INTERVAL="${FORECAST_INTERVAL_MINUTES:-60}"
+DELAY="${FORECAST_WINDOW_DELAY_MINUTES:-1}"
+HORIZON="${FORECAST_HORIZON:-24}"
+HISTORY="${FORECAST_HISTORY:-168}"
+MAX_PRIMARY_SHARDS="${FORECAST_MAX_PRIMARY_SHARDS:-1}"
+RESULT_RETENTION="${FORECAST_RESULT_RETENTION:-14d}"
+
+CURL_TIMEOUTS="--connect-timeout ${FORECAST_CONNECT_TIMEOUT:-5} --max-time ${FORECAST_MAX_TIME:-120}"
+
+put_ok() {
+  case "$1" in
+    200|201) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+pin_forecast_settings() {
+  code=$(curl -s $CURL_TIMEOUTS -o /tmp/fc-settings -w '%{http_code}' \
+    -XPUT "$OS/_cluster/settings" -H 'Content-Type: application/json' \
+    -d "{\"persistent\":{\"plugins.forecast.max_primary_shards\":$MAX_PRIMARY_SHARDS,\"plugins.forecast.forecast_result_history_retention_period\":\"$RESULT_RETENTION\"}}" \
+    || echo 000)
+  if put_ok "$code"; then
+    echo "[forecasters] pinned max_primary_shards=$MAX_PRIMARY_SHARDS retention=$RESULT_RETENTION"
+  else
+    echo "[forecasters] FATAL: pin forecast settings -> HTTP $code: $(cat /tmp/fc-settings)"
+    return 1
+  fi
+}
+
+search_forecaster_id() {
+  name="$1"
+  curl -s $CURL_TIMEOUTS -XPOST "$OS/_plugins/_forecast/forecasters/_search" \
+    -H 'Content-Type: application/json' \
+    -d "{\"query\":{\"bool\":{\"should\":[{\"term\":{\"name.keyword\":\"$name\"}},{\"term\":{\"name\":\"$name\"}},{\"match_phrase\":{\"name\":\"$name\"}}]}},\"size\":5}" \
+    | python3 -c '
+import json,sys
+name=sys.argv[1]
+r=json.load(sys.stdin)
+for h in r.get("hits",{}).get("hits",[]):
+    if h.get("_source",{}).get("name")==name:
+        print(h["_id"])
+        break
+' "$name"
+}
+
+prepare_body() {
+  file="$1"
+  INTERVAL="$INTERVAL" DELAY="$DELAY" HORIZON="$HORIZON" HISTORY="$HISTORY" \
+  python3 -c '
+import json,os,sys
+d=json.load(open(sys.argv[1]))
+d["forecast_interval"]={"period":{"interval":int(os.environ["INTERVAL"]),"unit":"Minutes"}}
+d["window_delay"]={"period":{"interval":int(os.environ["DELAY"]),"unit":"Minutes"}}
+d["horizon"]=int(os.environ["HORIZON"])
+d["history"]=int(os.environ["HISTORY"])
+print(json.dumps(d))
+' "$file"
+}
+
+CMP='
+import json, sys
+
+KEYS = ["name", "description", "time_field", "indices", "shingle_size",
+        "category_field", "forecast_interval", "window_delay", "horizon",
+        "history", "filter_query", "result_index", "suggested_seasonality",
+        "recency_emphasis"]
+
+NOISE = {"boost": 1.0, "adjust_pure_negative": True}
+
+
+def strip(v):
+    if isinstance(v, dict):
+        out = {}
+        for k, x in v.items():
+            if x is None:
+                continue
+            if k in NOISE and x == NOISE[k]:
+                continue
+            out[k] = strip(x)
+        if list(out) == ["value"]:
+            return out["value"]
+        return out
+    if isinstance(v, list):
+        return [strip(x) for x in v]
+    return v
+
+
+MATCH_ALL = json.dumps(strip({"match_all": {"boost": 1.0}}), sort_keys=True)
+
+
+def feats(d):
+    out = []
+    for f in d.get("feature_attributes") or []:
+        out.append([f.get("feature_name"),
+                    bool(f.get("feature_enabled", True)),
+                    strip(f.get("aggregation_query"))])
+    return out
+
+
+def norm(d, ref):
+    n = {}
+    for k in KEYS:
+        if k not in d:
+            continue
+        v = strip(d[k])
+        if k not in ref:
+            if v in (None, [], {}):
+                continue
+            if k == "filter_query" and json.dumps(v, sort_keys=True) == MATCH_ALL:
+                continue
+        if k in ("indices", "category_field") and isinstance(v, list):
+            v = sorted(v)
+        n[k] = v
+    n["features"] = feats(d)
+    return json.dumps(n, sort_keys=True)
+
+
+desired = json.load(open(sys.argv[1]))
+current = json.load(open(sys.argv[2]))
+fc = current.get("forecaster") or {}
+task = current.get("realtime_task") or {}
+if not fc:
+    print("changed")
+elif sorted(strip(fc.get("category_field") or [])) != sorted(
+        strip(desired.get("category_field") or [])):
+    print("changed-immutable")
+elif norm(fc, desired) != norm(desired, desired):
+    print("changed")
+elif str(task.get("state", "")).upper() in (
+        "", "INACTIVE", "INACTIVE_STOPPED", "INACTIVE_NOT_STARTED",
+        "STOPPED", "DISABLED"):
+    print("same-stopped")
+else:
+    print("same-running")
+'
+
+stop_forecaster() {
+  id="$1"
+  curl -s $CURL_TIMEOUTS -o /tmp/fc-stop -w '%{http_code}' \
+    -XPOST "$OS/_plugins/_forecast/forecasters/$id/_stop" || echo 000
+}
+
+start_forecaster() {
+  id="$1"
+  code=$(curl -s $CURL_TIMEOUTS -o /tmp/fc-start -w '%{http_code}' \
+    -XPOST "$OS/_plugins/_forecast/forecasters/$id/_start" || echo 000)
+  case "$code" in
+    200|201) echo "[forecasters] started: $id" ;;
+    *)
+      echo "[forecasters] FATAL: start $id -> HTTP $code: $(cat /tmp/fc-start)"
+      return 1
+      ;;
+  esac
+}
+
+create_forecaster() {
+  name="$1"
+  code=$(curl -s $CURL_TIMEOUTS -o /tmp/fc-resp -w '%{http_code}' \
+    -XPOST "$OS/_plugins/_forecast/forecasters" \
+    -H 'Content-Type: application/json' \
+    --data-binary @/tmp/fc-desired.json || echo 000)
+  if put_ok "$code"; then
+    id=$(python3 -c 'import json; print(json.load(open("/tmp/fc-resp")).get("_id",""))')
+    echo "[forecasters] created: $name ($id)"
+    if [ -n "$id" ]; then
+      start_forecaster "$id"
+    fi
+    return 0
+  fi
+  echo "[forecasters] FATAL: create $name -> HTTP $code: $(cat /tmp/fc-resp)"
+  return 1
+}
+
+delete_forecaster() {
+  name="$1"
+  id="$2"
+  stop_forecaster "$id" >/dev/null || true
+  sleep 1
+  code=$(curl -s $CURL_TIMEOUTS -o /tmp/fc-del -w '%{http_code}' \
+    -XDELETE "$OS/_plugins/_forecast/forecasters/$id" || echo 000)
+  case "$code" in
+    200|201|404)
+      echo "[forecasters] deleted: $name ($id)"
+      ;;
+    *)
+      echo "[forecasters] FATAL: delete $name -> HTTP $code: $(cat /tmp/fc-del)"
+      return 1
+      ;;
+  esac
+}
+
+upsert_forecaster() {
+  file="$1"
+  prepare_body "$file" > /tmp/fc-desired.json
+  name=$(python3 -c 'import json; print(json.load(open("/tmp/fc-desired.json"))["name"])')
+  existing=$(search_forecaster_id "$name")
+
+  if [ -z "$existing" ]; then
+    create_forecaster "$name"
+    return
+  fi
+
+  curl -s $CURL_TIMEOUTS -o /tmp/fc-current.json \
+    "$OS/_plugins/_forecast/forecasters/$existing?task=true" || true
+  state=$(python3 -c "$CMP" /tmp/fc-desired.json /tmp/fc-current.json \
+    2>/dev/null || echo changed)
+
+  case "$state" in
+    changed-immutable)
+      echo "[forecasters] immutable category field changed, recreating: $name ($existing)"
+      delete_forecaster "$name" "$existing"
+      create_forecaster "$name"
+      return
+      ;;
+    same-running)
+      echo "[forecasters] unchanged and running, model state preserved: $name ($existing)"
+      return 0
+      ;;
+    same-stopped)
+      echo "[forecasters] unchanged but stopped: $name ($existing)"
+      start_forecaster "$existing"
+      return 0
+      ;;
+  esac
+
+  echo "[forecasters] definition changed, restarting (RCF models and training progress reset): $name ($existing)"
+  stop_forecaster "$existing" >/dev/null || true
+  sleep 2
+  code=$(curl -s $CURL_TIMEOUTS -o /tmp/fc-resp -w '%{http_code}' \
+    -XPUT "$OS/_plugins/_forecast/forecasters/$existing" \
+    -H 'Content-Type: application/json' \
+    --data-binary @/tmp/fc-desired.json || echo 000)
+  if ! put_ok "$code"; then
+    sleep 3
+    stop_forecaster "$existing" >/dev/null || true
+    sleep 2
+    code=$(curl -s $CURL_TIMEOUTS -o /tmp/fc-resp -w '%{http_code}' \
+      -XPUT "$OS/_plugins/_forecast/forecasters/$existing" \
+      -H 'Content-Type: application/json' \
+      --data-binary @/tmp/fc-desired.json || echo 000)
+  fi
+  if put_ok "$code"; then
+    echo "[forecasters] updated: $name ($existing)"
+    start_forecaster "$existing"
+  else
+    echo "[forecasters] FATAL: update $name -> HTTP $code: $(cat /tmp/fc-resp)"
+    return 1
+  fi
+}
+
+echo "[forecasters] provisioning from $FORECASTERS_DIR (interval=${INTERVAL}m horizon=$HORIZON history=$HISTORY)"
+pin_forecast_settings
+count=0
+for f in "$FORECASTERS_DIR"/*.json; do
+  [ -f "$f" ] || continue
+  upsert_forecaster "$f"
+  count=$((count + 1))
+done
+if [ "$count" -lt 1 ]; then
+  echo "[forecasters] FATAL: no forecaster definitions in $FORECASTERS_DIR"
+  exit 1
+fi
+echo "[forecasters] DONE — $count forecasters upserted and start requested"

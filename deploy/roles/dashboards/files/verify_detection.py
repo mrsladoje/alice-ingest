@@ -5,8 +5,9 @@ import urllib.error
 import urllib.request
 
 OS_URL = os.environ.get("OS_URL", "http://localhost:9200")
-EXPECTED_MONITORS = int(os.environ.get("EXPECTED_MONITORS", "25"))
+EXPECTED_MONITORS = int(os.environ.get("EXPECTED_MONITORS", "26"))
 EXPECTED_DETECTORS = int(os.environ.get("EXPECTED_DETECTORS", "17"))
+EXPECTED_FORECASTERS = int(os.environ.get("EXPECTED_FORECASTERS", "1"))
 ROLLUP_INDEX = os.environ.get("ROLLUP_INDEX", "trend-rollup")
 METRICS_INDEX = os.environ.get("METRICS_INDEX", "cockpit-metrics")
 ROSTER_INDEX = os.environ.get("ROSTER_INDEX", "cockpit-fleet")
@@ -30,6 +31,12 @@ BREAKGLASS_MONITORS = {"signal-projector-stale", "alertmanager-down"}
 METRICS_DETECTORS = {"ingest-flow", "node-health", "dashboards-health"}
 OK_STATES = {"RUNNING", "INIT", "INITIALIZING", "INIT_PROGRESS"}
 
+FORECAST_OK_STATES = {"RUNNING", "INIT", "INITIALIZING", "INIT_FORECAST",
+                      "AWAITING_DATA_TO_INIT", "AWAITING_DATA_TO_RESTART"}
+FORECAST_FAILED_STATES = {"DISABLED", "STOPPED", "INACTIVE_STOPPED", "FAILED",
+                          "FORECAST_FAILURE", "INIT_FORECAST_FAILED",
+                          "INIT_TEST_FAILED"}
+
 RETIRED_NODE_CONSUMERS = {
     "collector-down", "collector-unhealthy", "data-loss",
     "shipping-breaking", "disk-cliff-warn", "disk-cliff-page", "heap-spiral",
@@ -40,6 +47,7 @@ with open(CATALOG_PATH) as _fh:
 
 EXPECTED_MONITOR_NAMES = set(CATALOG["monitors"])
 EXPECTED_DETECTOR_NAMES = set(CATALOG["detectors"])
+EXPECTED_FORECASTER_NAMES = set(CATALOG.get("forecasters") or {})
 TREND_MONITOR_NAMES = {
     n for n in EXPECTED_MONITOR_NAMES if n.startswith("trend-")
     and n not in ("trend-rollup-stale", "trend-entity-cap")}
@@ -291,6 +299,105 @@ def check_detectors(errors):
             f"detector count {len(det_names)} < {EXPECTED_DETECTORS}")
 
 
+def check_forecasters(errors):
+    code, fc = req("POST", "/_plugins/_forecast/forecasters/_search",
+                   {"query": {"match_all": {}}, "size": 200})
+    if code != 200:
+        errors.append(
+            f"cannot search forecasters: HTTP {code} — the forecasting APIs "
+            f"live in the anomaly-detection plugin and are enabled by "
+            f"default, so a non-200 here means the plugin is missing or "
+            f"plugins.forecast.enabled was turned off")
+        return
+    hits = fc.get("hits", {}).get("hits", [])
+    names = {}
+    for h in hits:
+        src = h.get("_source", {})
+        name = src.get("name")
+        if not name:
+            continue
+        names.setdefault(name, []).append(h.get("_id"))
+
+    print(f"[verify-detection] forecasters={sorted(names)}")
+    missing = sorted(EXPECTED_FORECASTER_NAMES - set(names))
+    if missing:
+        errors.append(f"missing forecasters: {missing}")
+    uncatalogued = sorted(set(names) - EXPECTED_FORECASTER_NAMES)
+    if uncatalogued:
+        errors.append(
+            f"forecasters absent from the signal catalog: {uncatalogued} — "
+            f"disk-fill-forecast reads every real-time forecast result and "
+            f"compares it against a disk percentage, so a second forecaster "
+            f"on any other unit would warn against a meaningless threshold")
+    for name, ids in names.items():
+        if len(ids) > 1:
+            errors.append(f"duplicate forecaster name {name}: {ids}")
+
+    for h in hits:
+        src = h.get("_source", {})
+        name = src.get("name")
+        if name not in EXPECTED_FORECASTER_NAMES:
+            continue
+        want_category = CATALOG["forecasters"][name].get("category_field")
+        got_category = (src.get("category_field") or [None])[0]
+        if want_category != got_category:
+            errors.append(
+                f"forecaster {name} category_field={got_category!r} but the "
+                f"catalog declares {want_category!r}")
+        features = src.get("feature_attributes") or []
+        if len(features) != 1:
+            errors.append(
+                f"forecaster {name} declares {len(features)} features — the "
+                f"plugin supports exactly one and silently forecasts only "
+                f"part of the configuration otherwise")
+
+    for name, ids in names.items():
+        if name not in EXPECTED_FORECASTER_NAMES:
+            continue
+        code, prof = req(
+            "GET", f"/_plugins/_forecast/forecasters/{ids[0]}/_profile")
+        if code != 200:
+            errors.append(f"profile failed for forecaster {name}: HTTP {code}")
+            continue
+        state = str(prof.get("state", "UNKNOWN")).upper()
+        err = prof.get("error")
+        print(f"[verify-detection] forecaster {name}: state={state} "
+              f"error={err!r} models={len(prof.get('models') or [])} "
+              f"total_size={prof.get('total_size_in_bytes')}")
+        if state in FORECAST_FAILED_STATES:
+            errors.append(f"forecaster {name} state={state}")
+        elif state not in FORECAST_OK_STATES:
+            print(f"[verify-detection] forecaster {name} is still warming up "
+                  f"(state={state}). At a 60-minute interval an RCF model "
+                  f"needs roughly two days of poller history before it "
+                  f"forecasts, so this is expected on a fresh cluster and "
+                  f"does not fail the deploy.")
+        if err and "memory" in str(err).lower():
+            errors.append(f"forecaster {name} memory error: {err}")
+
+    if len(names) < EXPECTED_FORECASTERS:
+        errors.append(
+            f"forecaster count {len(names)} < {EXPECTED_FORECASTERS}")
+
+
+def check_forecast_shards(errors):
+    code, body = req("GET", "/_cluster/settings?flat_settings=true")
+    if code != 200:
+        errors.append("cannot read cluster settings for the forecast lane")
+        return
+    persistent = body.get("persistent") or {}
+    shards = persistent.get("plugins.forecast.max_primary_shards")
+    if shards is None:
+        errors.append(
+            "plugins.forecast.max_primary_shards is not pinned — the result "
+            "index defaults to one primary per data node with "
+            "auto_expand_replicas 0-2, which is 15 shards for a few thousand "
+            "tiny documents, and shard budget is the binding constraint on "
+            "this cluster")
+    else:
+        print(f"[verify-detection] forecast max_primary_shards={shards}")
+
+
 def check_live_mappings(errors):
     wanted = {
         METRICS_INDEX: ["collector_id", "os_node", "heartbeat_missing",
@@ -510,6 +617,8 @@ def main():
     check_rollup_commits(errors)
     check_aliases()
     check_detectors(errors)
+    check_forecast_shards(errors)
+    check_forecasters(errors)
     check_signal_labels(errors)
     check_ism(errors)
 
