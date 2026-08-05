@@ -23,3 +23,4 @@ opensearch_required_plugins:
   - opensearch-notifications-core
   - opensearch-job-scheduler
   - opensearch-index-management
+  - opensearch-sql
