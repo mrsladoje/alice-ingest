@@ -8,9 +8,13 @@
       {{ alertmanager_proven_inhibit_rules }}, but the page tier still waits
       {{ alertmanager_page_group_wait }} before its first notification. That
       wait was chosen for speed, not to cover a cause-to-symptom delay, so a
-      suppressed page can notify before the page that should suppress it. The
-      live pair is collector-down against data-loss; both are severity page and
-      both would be held for {{ alertmanager_page_group_wait }} only. Measure
+      suppressed page can notify before the page that should suppress it. Five
+      shipped pairs are page against page and sit wholly inside this tier:
+      collector-down over data-loss; telemetry-silence over cluster-red and
+      disk-cliff-page; fleet-fb-silence over collector-down and data-loss.
+      The other seventeen targets are warn and are safer than before, because
+      they now wait {{ alertmanager_group_wait }} while their suppressor waits
+      {{ alertmanager_page_group_wait }}. Measure
       the delay with `make inject`, raise alertmanager_page_group_wait to cover
       it, then set alertmanager_page_wait_covers_inhibition to true.
     success_msg: >-

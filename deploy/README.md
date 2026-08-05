@@ -1046,10 +1046,23 @@ name.
 **The page tier's 30 s is a speed choice, and inhibition needs the opposite.**
 A `group_wait` that protects inhibition must cover the cause→consequence delay,
 so a suppressing alert reliably arrives before what it suppresses. 30 s is far
-too short for that. It is harmless while nothing is
-suppressed, and dangerous for exactly one shipped pair: `collector-down` is
-meant to suppress `data-loss`, and `data-loss` is itself a page, so both would
-sit in the fast tier. The alertmanager role therefore refuses to run whenever
+too short for that. Note that what matters is *arrival*, not notification order:
+the inhibit stage asks whether a matching source alert is currently active in
+the store, so the target's wait is what buys the source time to get there.
+
+The three written rules carry 22 target signals. Seventeen are `warn`, and the
+split makes those **safer** than the old single 3 m wait: the suppressor now
+waits 30 s while its targets wait 5 m, instead of both waiting 3 m and racing.
+Five pairs are page-against-page and sit wholly inside the fast tier, where
+neither side gets any margin:
+
+| Suppressor | Page targets in the same tier |
+|---|---|
+| `collector-down` | `data-loss` |
+| `telemetry-silence` | `cluster-red`, `disk-cliff-page` |
+| `fleet-fb-silence` | `collector-down`, `data-loss` |
+
+Those five are the reason the gate exists. The alertmanager role refuses to run whenever
 `alertmanager_proven_inhibit_rules` is non-empty unless
 `alertmanager_page_wait_covers_inhibition` is `true`. Measure the delay with
 `make inject`, raise the page wait to cover it, then flip that flag. The gate is
