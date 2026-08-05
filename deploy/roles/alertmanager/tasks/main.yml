@@ -1,3 +1,22 @@
+- name: Refuse inhibition while the page tier still runs on an underived group_wait
+  ansible.builtin.assert:
+    that:
+      - alertmanager_proven_inhibit_rules | length == 0
+        or alertmanager_page_wait_covers_inhibition | bool
+    fail_msg: >-
+      alertmanager_proven_inhibit_rules is
+      {{ alertmanager_proven_inhibit_rules }}, but the page tier still waits
+      {{ alertmanager_page_group_wait }} before its first notification. That
+      wait was chosen for speed, not to cover a cause-to-symptom delay, so a
+      suppressed page can notify before the page that should suppress it. The
+      live pair is collector-down against data-loss; both are severity page and
+      both would be held for {{ alertmanager_page_group_wait }} only. Measure
+      the delay with `make inject`, raise alertmanager_page_group_wait to cover
+      it, then set alertmanager_page_wait_covers_inhibition to true.
+    success_msg: >-
+      inhibition is off, so the page tier may stay at
+      {{ alertmanager_page_group_wait }}
+
 - name: Create the alertmanager system user
   ansible.builtin.user:
     name: "{{ alertmanager_system_user }}"

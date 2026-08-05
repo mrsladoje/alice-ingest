@@ -11,11 +11,16 @@ route:
   routes:
     - matchers:
         - notification_scope =~ "collector:.+"
-      receiver: alice-notification-ingest
       group_by: ['cluster_id', 'alertname', 'notification_scope']
-      group_wait: {{ alertmanager_group_wait }}
-      group_interval: {{ alertmanager_group_interval }}
-      repeat_interval: {{ alertmanager_repeat_interval }}
+      routes:
+        - matchers:
+            - severity = "page"
+          group_wait: {{ alertmanager_page_group_wait }}
+          group_interval: {{ alertmanager_page_group_interval }}
+    - matchers:
+        - severity = "page"
+      group_wait: {{ alertmanager_page_group_wait }}
+      group_interval: {{ alertmanager_page_group_interval }}
 
 inhibit_rules:
 {% if 'collector-down' in alertmanager_proven_inhibit_rules %}

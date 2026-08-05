@@ -117,11 +117,15 @@ alertmanager_resolve_timeout: 5m
 signal_projector_interval_seconds: 30
 signal_projector_resolve_timeout_seconds: 300
 
-alertmanager_group_wait: 3m
+alertmanager_group_wait: 5m
 alertmanager_group_interval: 10m
 alertmanager_repeat_interval: 4h
 
+alertmanager_page_group_wait: 30s
+alertmanager_page_group_interval: 2m
+
 alertmanager_proven_inhibit_rules: []
+alertmanager_page_wait_covers_inhibition: false
 
 signal_projector_retention_days: 30
 signal_projector_page: 500

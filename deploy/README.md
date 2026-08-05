@@ -1014,6 +1014,47 @@ a silence there — matching e.g. `cluster_id="alice-logs"` — before a
 Those are all windows where alerts are expected and should be muted
 deliberately rather than ignored by habit.
 
+**Two notification tiers, split on `severity`.** The projector already stamps
+every alert `page` or `warn` (OpenSearch severity `1` versus anything else), so
+the routing tree tiers on that label alone and no producer changed. Pages wait
+`alertmanager_page_group_wait` (30 s, one projector push) before the first
+notification and `alertmanager_page_group_interval` (2 m) before the next one
+from an open group. Everything else waits `alertmanager_group_wait` (5 m) and
+`alertmanager_group_interval` (10 m), which is what the ten `trend-*` monitors
+want: they run on a ten-minute schedule and a storm of them should arrive as
+one group, not ten. `repeat_interval` stays 4 h for both. The practical effect
+is that a dead Fluent Bit reaches a human in roughly 2.5 min rather than 5,
+while trend noise batches harder than before.
+
+```
+route  group_by [cluster_id, alertname]           5 m / 10 m / 4 h
+├── notification_scope =~ "collector:.+"          + notification_scope in group_by
+│   └── severity = "page"                         30 s / 2 m
+└── severity = "page"                             30 s / 2 m
+```
+
+Child routes inherit the receiver, the `group_by` and any timer they do not
+set, so each node writes only what differs, and the first matching child wins.
+A collector-scoped warn alert therefore stops at the middle node and keeps both
+its per-collector grouping and the batch timers. Verify the tree without a VM:
+render the template and run
+`amtool config routes test --config.file <rendered> --tree cluster_id=alice-logs
+alertname=data-loss severity=page notification_scope=collector:node-01`.
+Every route shares one receiver, so read the printed path, not the receiver
+name.
+
+**The page tier's 30 s is a speed choice, and inhibition needs the opposite.**
+A `group_wait` that protects inhibition must cover the cause→consequence delay,
+so a suppressing alert reliably arrives before what it suppresses. 30 s is far
+too short for that. It is harmless while nothing is
+suppressed, and dangerous for exactly one shipped pair: `collector-down` is
+meant to suppress `data-loss`, and `data-loss` is itself a page, so both would
+sit in the fast tier. The alertmanager role therefore refuses to run whenever
+`alertmanager_proven_inhibit_rules` is non-empty unless
+`alertmanager_page_wait_covers_inhibition` is `true`. Measure the delay with
+`make inject`, raise the page wait to cover it, then flip that flag. The gate is
+a deliberate stop, not a formality.
+
 **Inhibition ships OFF, because nothing has been demonstrated yet.**
 `alertmanager_proven_inhibit_rules` is `[]`, so Alertmanager runs with an empty
 `inhibit_rules` block and mutes nothing. S6 admits one rule at a time and only
@@ -1157,8 +1198,11 @@ time dead-man semantics; those remain the physical `kill-fluent-bit`,
 | `heartbeat_grace_seconds` | 90 s | one poller interval plus margin, inside the ~2 min page budget | — |
 | kill-FB → `collector-down` page | ≤ ~2 min by design | grace (90 s) + poller tick (30 s) + monitor schedule (60 s) | — |
 | kill-FB → first child symptom | unknown | children are the 10-minute trend monitors | — |
-| `alertmanager_group_wait` | 3 m | worst-case absence lag, so the inhibiting alert arrives first | — |
+| `alertmanager_page_group_wait` | 30 s | one projector push cycle; speed, **not** a cause→consequence delay | — |
+| `alertmanager_page_group_interval` | 2 m | a later page in an open group should not wait a trend cycle | — |
+| `alertmanager_group_wait` | 5 m | batch tier; half a `trend-*` cycle, so a storm arrives as one group | — |
 | `alertmanager_group_interval` | 10 m | matches the `trend-*` monitor schedule | — |
+| `alertmanager_repeat_interval` | 4 h | both tiers; unchanged by the severity split | — |
 | `alertmanager_resolve_timeout` | 5 m | set explicitly; the projector's 30 s re-send is derived from it | — |
 | `fleet_silence_fraction` | 0.5 | half the roster | — |
 | `plugins.alerting.max_actionable_alert_count` | 50 | pinned so the per_alert → per_execution rewrite point is known | — |
