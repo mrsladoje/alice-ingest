@@ -1,0 +1,74 @@
+- name: Delete every replayed log and everything derived from it, and load nothing
+  hosts: control
+  become: true
+  gather_facts: false
+  vars_files:
+    - roles/dashboards/defaults/main.yml
+
+  # Same action as the /ops page's Delete logs button, on purpose. The ops
+  # server already stops a running replay, waits for the workers to go quiet,
+  # deletes the log indices, clears everything derived from them and rebuilds
+  # the write aliases. This play asks for that action and follows the job, so
+  # there is one implementation and one set of refusals.
+  tasks:
+    - name: Ask the ops server to delete the logs
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ ops_internal_port }}/wipe"
+        method: POST
+        headers:
+          Accept: application/json
+        return_content: true
+      register: _wipe
+      failed_when: false
+      changed_when: false
+
+    - name: Fail when alice-ops did not accept the request
+      ansible.builtin.assert:
+        that:
+          - _wipe.status | default(0) in [202, 409]
+        fail_msg: >-
+          alice-ops did not answer on 127.0.0.1:{{ ops_internal_port }}
+          ({{ _wipe.msg | default('no response') }}). It owns this action, so
+          check `systemctl status {{ dashboards_ops_service_name }}` on the
+          control host first.
+
+    - name: Refuse when another ops action is already running
+      ansible.builtin.fail:
+        msg: >-
+          Another ops action is still running:
+          {{ (_wipe.json.refused | default(['unknown'])) | join(' ') }}
+      when: _wipe.status == 409
+
+    - name: Follow the job until the wipe finishes
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ ops_internal_port }}/status"
+        return_content: true
+        status_code: 200
+      register: _job
+      until: >-
+        ((_job.json.job | default({}, true)).get('action') == 'wipe')
+        and ((_job.json.job | default({}, true)).get('state') == 'done')
+      retries: 120
+      delay: 5
+      changed_when: false
+
+    - name: Print what was deleted
+      ansible.builtin.debug:
+        msg: "{{ _job.json.job.lines }}"
+
+    - name: Fail when the wipe reported a problem
+      ansible.builtin.fail:
+        msg: >-
+          The wipe did not finish cleanly. Read the lines above: a failed
+          alias rebuild leaves rollover inactive, and ingest would then
+          auto-create the log indices with the wrong mapping.
+      when: _job.json.job.lines
+            | select('search', 'FAILED|REFUSED')
+            | list | length > 0
+
+    - name: Report the clean baseline
+      ansible.builtin.debug:
+        msg: >-
+          The log indices are empty, the write aliases are rebuilt, and
+          nothing is loading. The next `make replay` is the only data in
+          there.

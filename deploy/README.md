@@ -775,7 +775,20 @@ Two buttons empty the stack, and they are not the same. **Delete logs** stops
 any running replay, deletes the log indices and everything derived from them,
 rebuilds the write aliases, and then loads nothing — use it when the next
 replay must be the only data in there. **Reload data · fresh** does all of that
-and immediately starts a new paced pass. Notifications go through Alertmanager
+and immediately starts a new paced pass.
+
+```
+make clear      # the Delete logs button, from a terminal (make wipe is the same target)
+make replay     # load data again when you are ready
+```
+
+`make clear` asks `alice-ops` for that exact action and follows the job, so the
+button and the command share one implementation and one set of refusals. It
+needs `alice-ops` running on the control host, and it fails if the wipe reports
+a problem — a failed alias rebuild leaves rollover inactive, and ingest would
+then auto-create the log indices with the wrong mapping. The name overlaps with
+the page's **Clear findings** button, which is a different, smaller action: it
+drops alerts, incidents and baselines and keeps the logs. Notifications go through Alertmanager
 to `alice-notification-ingest`; no external channel yet, which is now a
 receiver config change rather than an architecture change.
 

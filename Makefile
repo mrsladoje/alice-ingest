@@ -59,7 +59,7 @@ endif
 volume volumes:
 	@:
 
-.PHONY: bootstrap provision deploy-preflight deploy replay replay-fresh replay-fast replay-loop replay-shifted poison poison-replay posion-replay poison-status poison-stop backtest teardown status inject roster-discover monitors contract
+.PHONY: bootstrap provision deploy-preflight deploy replay replay-fresh replay-fast replay-loop replay-shifted clear wipe poison poison-replay posion-replay poison-status poison-stop backtest teardown status inject roster-discover monitors contract
 
 # Control-node toolchain lives in a self-contained venv (override with VENV=...).
 # The deploy targets prefer it, but fall back to an already-activated venv on PATH
@@ -179,6 +179,17 @@ replay:
 
 replay-fresh:
 	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_fresh=true
+
+# Empties the stack and starts nothing — the /ops page's Delete logs button.
+# It stops any running replay first, deletes the log indices and everything
+# derived from them, and rebuilds the write aliases. Use this when the next
+# replay has to be the only data in there; replay-fresh reloads immediately,
+# so it never leaves you a clean baseline to look at.
+clear:
+	cd deploy && $(ANSIBLE_PLAYBOOK) clear.yml $(ANSIBLE_EXTRA)
+
+# Same thing under the name the indices use.
+wipe: clear
 
 replay-fast:
 	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_pace=fast
