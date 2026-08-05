@@ -87,6 +87,7 @@
       - alice-metrics
       - alice-notification-ingest
       - alice-poison-replay
+      - alice-inject
       - alice-ops
   tasks:
     - name: Stop the control-host pollers so the bootstrap does not compete with the previous run's processes
@@ -211,6 +212,12 @@
     - "{{ playbook_dir }}/group_vars/vault.yml"
   roles:
     - producer
+
+- name: Fault agents — the nodes an injection has to reach (workers + the projector host)
+  hosts: workers:projector
+  become: true
+  roles:
+    - faults
 
 - name: Final verdict on any gate that was reported but not allowed to stop the run
   hosts: control

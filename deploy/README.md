@@ -32,6 +32,7 @@ the local dev path (Docker Compose on a single machine — see the root
 │  attr box=node-01  │                          │  attr box=node-02  │
 │ Fluent Bit -> localhost:9200 ONLY             │ Fluent Bit -> localhost:9200 ONLY
 │ alice-replay  epn%2==0 slice                  │ alice-replay  epn%2==1 slice
+│ alice-fault-agent (control-triggered)         │ alice-fault-agent
 │ generic-log-info-node-01 (1 shard,0 repl,     │ generic-log-info-node-02 (local,
 │   pinned require.box=node-01, disposable)     │   pinned require.box=node-02)
 └───────────────────┘                          └───────────────────┘
@@ -49,6 +50,7 @@ the local dev path (Docker Compose on a single machine — see the root
 │ alice-metrics      │   │ alice-trend-rollup │   │ alice-anomaly-digest│
 │ alertmanager       │   │ alice-signal-      │   │                    │
 │ notification-ingest│   │ projector          │   │                    │
+│ alice-inject       │   │ alice-fault-agent  │   │                    │
 └───────────────────┘   └───────────────────┘   └───────────────────┘
   Storage tier runs NO collector and NO producer — it never touches the ingest firehose.
 ```
@@ -766,7 +768,14 @@ Alerts appear in Dashboards → Alerting and on the Cockpit **Detection** panels
 `/ops` headlines open incidents and signals firing, with active-alert and
 anomalies-last-hour counts beside them. Its buttons post in place and the work
 runs as a background job, so the address bar never leaves `/ops/` and a fresh
-reload that takes minutes no longer ends in an nginx 504. Notifications go through Alertmanager
+reload that takes minutes no longer ends in an nginx 504. The page also starts
+replay passes, poison replay, and fault injection — see § Fault injection.
+
+Two buttons empty the stack, and they are not the same. **Delete logs** stops
+any running replay, deletes the log indices and everything derived from them,
+rebuilds the write aliases, and then loads nothing — use it when the next
+replay must be the only data in there. **Reload data · fresh** does all of that
+and immediately starts a new paced pass. Notifications go through Alertmanager
 to `alice-notification-ingest`; no external channel yet, which is now a
 receiver config change rather than an architecture change.
 
@@ -1178,13 +1187,37 @@ make inject SCENARIO=replay-end             # scenario 4 — mass-silence classi
 make inject SCENARIO=stop-projector         # the S5 re-send gate
 ```
 
+The same runs start from the **Fault injection** panel on `/ops`: pick the
+scenario, the target worker, the observation window and the EPN host to
+silence, then press **Run injection**. The page shows the live state, the
+countdown, and the finished scorecard metric by metric, with the failures
+listed under it. **Stop injection** ends the observation window early; it still
+restores the component and still scores the shortened window.
+
+Both front doors drive one engine, `alice-inject` on the control VM
+(`roles/dashboards/files/inject_run.py`). `make inject` writes
+`/var/lib/alice-inject/request.json`, starts that unit, and then only follows
+it, so a scorecard never depends on which door produced it and a dropped SSH
+session never aborts a 45-minute run. Each finished run is also kept as JSON
+under `/var/lib/alice-inject/runs/`.
+
+The engine runs on the control VM, which has no Ansible and no SSH into the
+fleet, so the physical steps reach their node through **`alice-fault-agent`**
+(`roles/faults`), an HTTP agent on the workers and the projector host. It is
+firewalled to the control host, accepts a token when `fault_agent_token` is
+set, and each node's agent will only touch the service it owns — Fluent Bit on
+a worker, the signal projector on the projector host. Nothing else is
+reachable through it. Two runs may never overlap: an injection refuses to start
+while poison replay is running and vice versa, because either one's evidence
+would be scored as the other's.
+
 Each run injects, observes, restores, and prints a seven-metric scorecard —
 signal reconciliation, independent-event recall, incident purity,
 fragmentation, time-to-notify, time-to-resolve, false inhibition. **The
 scorecard gates: a lossy reconciliation, an impure incident, fragmentation, a
 non-zero false-inhibition score, or an absorbed independent event exits
 non-zero and fails the play.** Pass `-e injection_strict=false` to report
-without gating. Run each scenario at least twice and paste the scorecards under
+without gating, or clear **Gate on the scorecard** on `/ops`. Run each scenario at least twice and paste the scorecards under
 § Calibration below. Notification-volume reduction alone is not a pass: that
 number rewards suppressing everything, which is why it is reported but never
 gated on. A page remains accountable after it resolves: `alice-signals` is a
@@ -1289,3 +1322,48 @@ it is a placeholder, not a derived value. On the first real-VM soak, query p99
 `ingest_lag_ms` per family on a fresh replay (shipping lag, not archive age) and bump
 `ad_log_window_delay_minutes` in `group_vars/all.yml`. Repeat after any topology change,
 or shingles skip.
+
+### Message-pattern triage
+
+Every monitor above answers *how much* and *how late*. None answers **what the
+host is actually saying**. When `trend-il-volume`, `trend-il-ef` or
+`trend-other-errors` names an entity, the next question is which messages
+changed — and that is a query, not a detector.
+
+PPL's `patterns` command groups raw messages into templates at query time. It
+ships in `opensearch-sql`, which is now asserted in
+`roles/opensearch/defaults/main.yml`. Run it in Query Workbench, or against
+`POST _plugins/_ppl` on `:9200`:
+
+```
+source=infologger
+| where origin_host='epn-infra12'
+      and collector_time > '2026-08-05 14:20:00'
+      and collector_time < '2026-08-05 14:30:00'
+| patterns message method=brain mode=aggregation by severity_norm
+| sort - pattern_count | head 20
+```
+
+Run it twice — once over the alert window, once over the hour before — and
+compare. A template whose `pattern_count` jumped, or one that appears only in
+the second result, is the message behind the alert. Swap `infologger` /
+`origin_host` for `generic-log-other` or `generic-log-info-*` on the other
+families; the field names are the same after `severity_norm` / `origin_host`
+normalisation (Non-optimal §4/§5).
+
+**Always bound the window and the entity.** `brain` clusters the matched
+documents in two map-reduce passes, so an unbounded `source=infologger` asks
+two 2-vCPU storage nodes to cluster the whole retention window. Ten minutes of
+one host is the intended scale.
+
+**This lane can never become an alert.** Alerting monitors accept query DSL
+only — there is no PPL monitor type — so `patterns` stays an operator tool.
+Making template behaviour alertable would mean materialising a template ID at
+ingest, which is deliberately not built: the template set of a fixed
+source-code corpus saturates within a run, so "new template" tracks software
+deploys rather than farm health.
+
+**Unverified.** PPL was unused anywhere in this tree before this section, and
+the `brain` method has not been run against 3.7.0 on these VMs. The first soak
+should run the query above once; if `method=brain` is rejected, the fallback is
+`method=simple_pattern`, and the plugin assertion still holds either way.

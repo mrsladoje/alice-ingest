@@ -20,6 +20,11 @@ Environment=OPS_TEMPLATES_SCRIPT={{ dashboards_bootstrap_templates_script }}
 Environment=OPS_RESET_SCRIPT={{ dashboards_reset_derived_script }}
 Environment=OPS_POISON_SERVICE={{ dashboards_poison_replay_service_name }}
 Environment=OPS_POISON_STATUS={{ dashboards_poison_replay_status }}
+Environment=OPS_INJECT_SERVICE={{ dashboards_inject_service_name }}
+Environment=OPS_INJECT_STATUS={{ dashboards_inject_status }}
+Environment=OPS_INJECT_REQUEST={{ dashboards_inject_request }}
+Environment=OPS_INJECT_WORKERS={% for h in groups['workers'] %}{{ h }}{% if not loop.last %},{% endif %}{% endfor +%}
+Environment=OPS_INJECT_OBSERVE_MINUTES={{ dashboards_inject_default_observe_minutes }}
 Environment=ROLLUP_INDEX={{ trend_rollup_index }}
 Environment=DIGEST_INDEX={{ anomaly_digest_index }}
 Environment=SIGNALS_INDEX={{ signals_index }}

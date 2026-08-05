@@ -1,0 +1,39 @@
+# {{ ansible_managed }}
+[Unit]
+Description=ALICE fault injection — inject, observe, restore, score
+After=network-online.target opensearch.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+MemoryAccounting=yes
+MemoryHigh={{ alice_service_memory_high }}
+MemoryMax={{ alice_service_memory_max }}
+User=root
+Group=root
+Environment=OS_URL=http://localhost:{{ opensearch_http_port }}
+Environment=METRICS_INDEX={{ cockpit_metrics_index }}
+Environment=SIGNALS_INDEX={{ signals_index }}
+Environment=INCIDENTS_INDEX={{ incidents_index }}
+Environment=NOTIFICATIONS_INDEX={{ notifications_index }}
+Environment=GRADE_FLOOR={{ anomaly_grade_floor }}
+Environment=INJECT_REQUEST_PATH={{ dashboards_inject_request }}
+Environment=INJECT_STATUS_PATH={{ dashboards_inject_status }}
+Environment=INJECT_REPORT_DIR={{ dashboards_inject_report_dir }}
+Environment=INJECT_SCORE_SCRIPT={{ dashboards_score_injection_script }}
+Environment=INJECT_WORKER_AGENTS={% for h in groups['workers'] %}{{ h }}=http://{{ hostvars[h].ansible_host }}:{{ fault_agent_port }}{% if not loop.last %},{% endif %}{% endfor +%}
+Environment=INJECT_WORKER_REPLAY={% for h in groups['workers'] %}{{ h }}=http://{{ hostvars[h].ansible_host }}:{{ replay_http_port }}{% if not loop.last %},{% endif %}{% endfor +%}
+Environment=INJECT_PROJECTOR_AGENT=http://{{ hostvars[signal_projector_host].ansible_host }}:{{ fault_agent_port }}
+Environment=INJECT_PROJECTOR_SERVICE={{ dashboards_signal_projector_service_name }}
+Environment=INJECT_METRICS_SERVICE={{ dashboards_metrics_service_name }}
+Environment=INJECT_FLUENT_BIT_SERVICE=fluent-bit
+Environment=INJECT_FAULT_TOKEN={{ fault_agent_token }}
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 {{ dashboards_inject_script }}
+Restart=no
+KillSignal=SIGTERM
+TimeoutStopSec=600s
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

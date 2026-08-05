@@ -94,6 +94,51 @@
       loop_control:
         label: "{{ item.item }}"
 
+    - name: Read every fault agent's health
+      ansible.builtin.uri:
+        url: "http://{{ hostvars[item].ansible_host }}:{{ fault_agent_port }}/health"
+        headers:
+          X-Fault-Token: "{{ fault_agent_token }}"
+        return_content: true
+        status_code: 200
+      loop: "{{ (groups['workers'] + [signal_projector_host]) | unique }}"
+      register: _fault_agents
+      changed_when: false
+      failed_when: false
+
+    - name: Print the fault agent states
+      ansible.builtin.debug:
+        msg: >-
+          {{ item.item }} =
+          {{ 'unreachable — the /ops injection button and make inject cannot
+             reach this node'
+             if (item.json | default({})).get('ok') is not true
+             else 'ready, may fault ' ~
+                  ((item.json.allowed_services | join(', ')) or 'nothing') ~
+                  ', cpu_stress=' ~ item.json.cpu_stress }}
+      loop: "{{ _fault_agents.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Read the last fault-injection run
+      ansible.builtin.slurp:
+        src: "{{ dashboards_inject_status }}"
+      register: _inject_state
+      changed_when: false
+      failed_when: false
+
+    - name: Print the last fault-injection run
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'no injection has run on this control node yet'
+             if _inject_state.content is not defined
+             else 'injection ' ~ (_last.state | default('unknown')) ~ ' · ' ~
+                  (_last.scenario | default('?')) ~ ' · scorecard ' ~
+                  (_last.verdict | default('not scored')) }}
+      vars:
+        _last: "{{ (_inject_state.content | default('e30=') | b64decode
+                    | from_json) }}"
+
     - name: Run the detection status probe
       ansible.builtin.script:
         cmd: roles/dashboards/files/detection_status.py

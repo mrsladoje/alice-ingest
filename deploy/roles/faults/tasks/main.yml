@@ -1,0 +1,71 @@
+---
+
+- name: Ensure the app root exists for the fault agent
+  ansible.builtin.file:
+    path: "{{ fault_agent_app_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Open the fault-agent port ({{ fault_agent_port }}/tcp) to the control node only
+  ansible.posix.firewalld:
+    rich_rule: >-
+      rule family="ipv4"
+      source address="{{ hostvars[groups['control'][0]].ansible_host }}"
+      port port="{{ fault_agent_port }}" protocol="tcp"
+      accept
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Install the fault-injection agent
+  ansible.builtin.copy:
+    src: fault_agent.py
+    dest: "{{ fault_agent_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: restart alice-fault-agent
+
+- name: Template the fault-agent systemd unit
+  ansible.builtin.template:
+    src: alice-fault-agent.service.j2
+    dest: /etc/systemd/system/{{ fault_agent_service_name }}.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart alice-fault-agent
+
+- name: Enable and start the fault agent
+  ansible.builtin.systemd:
+    name: "{{ fault_agent_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Apply a pending agent restart before the gate below reads its allowlist
+  ansible.builtin.meta: flush_handlers
+
+- name: Confirm the agent answers and reports its allowlist
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ fault_agent_port }}/health"
+    method: GET
+    headers:
+      X-Fault-Token: "{{ fault_agent_token }}"
+    status_code: 200
+  register: _fault_agent_health
+  retries: 12
+  delay: 5
+  until: _fault_agent_health.status == 200
+
+- name: Fail when the agent came up without the services this node must be able to fault
+  ansible.builtin.assert:
+    that:
+      - _fault_agent_health.json.allowed_services | sort == fault_agent_services | sort
+    fail_msg: >-
+      {{ inventory_hostname }} runs the fault agent but its allowlist is
+      {{ _fault_agent_health.json.allowed_services }} instead of
+      {{ fault_agent_services }}. The /ops injection button and make inject
+      both drive this allowlist, so a scenario aimed at a missing service
+      would be refused at run time instead of at deploy time.

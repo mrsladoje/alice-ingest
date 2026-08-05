@@ -1,7 +1,9 @@
 - name: Fault injection — the calibration data for grouping, inhibition and group_wait
   hosts: control
   become: true
-  gather_facts: true
+  gather_facts: false
+  vars_files:
+    - roles/dashboards/defaults/main.yml
   vars:
     scenario: kill-fluent-bit
     target_worker: "{{ groups['workers'][0] }}"
@@ -9,6 +11,12 @@
     independent_entity: ""
     restore: true
 
+  # One engine, two front doors. This play arms and follows the same
+  # alice-inject run that the /ops page's injection button starts, so a
+  # scorecard never depends on which door it came through. The run itself
+  # lives on the control VM: it outlives this SSH session, and the physical
+  # steps it cannot take locally (a worker's Fluent Bit, a worker's CPUs, the
+  # projector on its own node) go through that node's fault agent.
   tasks:
     - name: Refuse an unknown scenario
       ansible.builtin.assert:
@@ -31,206 +39,101 @@
           without it the run cannot establish the metric it exists for.
       when: scenario == 'drop-epn-stream'
 
-    - name: Record the injection start
-      ansible.builtin.set_fact:
-        injection_start_ms: "{{ (ansible_date_time.epoch | int) * 1000 }}"
+    - name: Check whether a run is already in flight
+      ansible.builtin.command:
+        cmd: "systemctl is-active {{ dashboards_inject_service_name }}"
+      register: _inject_active
+      changed_when: false
+      failed_when: false
+
+    - name: Refuse to start a second injection on top of a running one
+      ansible.builtin.assert:
+        that:
+          - _inject_active.stdout.strip() != 'active'
+        fail_msg: >-
+          {{ dashboards_inject_service_name }} is already running. Two faults
+          at once make every metric on the scorecard unattributable. Follow
+          the running one on the /ops page, or stop it with
+          `systemctl stop {{ dashboards_inject_service_name }}` first.
+
+    - name: Write the injection request the engine reads
+      ansible.builtin.copy:
+        content: "{{ _inject_request | to_nice_json }}\n"
+        dest: "{{ dashboards_inject_request }}"
+        owner: root
+        group: root
+        mode: "0640"
+      vars:
+        _inject_request:
+          scenario: "{{ scenario }}"
+          observe_minutes: "{{ observe_minutes | int }}"
+          target_worker: "{{ target_worker }}"
+          independent_entity: "{{ independent_entity }}"
+          restore: "{{ restore | bool }}"
+          strict: "{{ injection_strict | default(true) | bool }}"
+          requested_by: make-inject
+
+    - name: Start the run
+      ansible.builtin.systemd:
+        name: "{{ dashboards_inject_service_name }}"
+        state: started
+        daemon_reload: true
 
     - name: Announce
       ansible.builtin.debug:
         msg: >-
           scenario={{ scenario }} target={{ target_worker }}
-          start_ms={{ injection_start_ms }} observe={{ observe_minutes }}m —
-          every threshold downstream is a percentage or a delay over storm
-          behaviour, so this run is the measurement, not a smoke test
+          observe={{ observe_minutes }}m — every threshold downstream is a
+          percentage or a delay over storm behaviour, so this run is the
+          measurement, not a smoke test. It injects, observes, restores and
+          scores on the control VM; this play only follows it. Interrupting
+          this play leaves the run going — follow it on the /ops page.
 
-- name: Apply the worker-side injection
-  hosts: "{{ target_worker | default(groups['workers'][0]) }}"
-  become: true
-  vars:
-    scenario: kill-fluent-bit
-    restore: true
-  tasks:
-    - name: Stop Fluent Bit on this collector (scenario 1 — the shared health-metrics Stage B gate)
-      ansible.builtin.systemd:
-        name: fluent-bit
-        state: stopped
-      when: scenario == 'kill-fluent-bit'
+    - name: Follow the run until it injects, observes, restores and scores
+      ansible.builtin.slurp:
+        src: "{{ dashboards_inject_status }}"
+      register: _inject_status
+      until: >-
+        (_inject_status.content | b64decode | from_json).state
+        in ['done', 'failed', 'stopped']
+      retries: "{{ ((observe_minutes | int) * 4) + 120 }}"
+      delay: 15
 
-    - name: Saturate this worker's CPUs (scenario 3 — shipping lag before drops)
-      ansible.builtin.shell:
-        cmd: >-
-          nohup sh -c 'for i in $(seq 1 {{ ansible_processor_vcpus | default(2) }});
-          do timeout 900 sh -c "while :; do :; done" & done' >/dev/null 2>&1 &
-      changed_when: true
-      when: scenario == 'cpu-stress-worker'
+    - name: Keep the finished status for the tasks below
+      ansible.builtin.set_fact:
+        _inject_final: "{{ _inject_status.content | b64decode | from_json }}"
 
-    - name: Stop the replay so the run ends normally (scenario 4 — mass silence)
-      ansible.builtin.uri:
-        url: "http://127.0.0.1:{{ replay_http_port }}/replay-stop"
-        method: POST
-        status_code: [200, 404, -1]
-      failed_when: false
-      when: scenario == 'replay-end'
+    - name: Print the run log
+      ansible.builtin.debug:
+        msg: "{{ _inject_final.lines | default([]) }}"
 
-- name: Apply the control-side injection, observe, and score
-  hosts: control
-  become: true
-  vars_files:
-    - roles/dashboards/defaults/main.yml
-  vars:
-    scenario: kill-fluent-bit
-    observe_minutes: 45
-    independent_entity: ""
-    restore: true
-
-  tasks:
-    - name: Silence exactly one EPN at ingest (scenario 2 — independent-event recall)
-      ansible.builtin.uri:
-        url: "http://localhost:{{ opensearch_http_port }}/_ingest/pipeline/alice-add-ingest-time-injected"
-        method: PUT
-        body_format: json
-        body:
-          description: >-
-            Injection only. Drops every record born on one EPN so that host
-            goes silent while the rest of the fleet keeps logging. The plan
-            words this as dropping the EPN's file; a file-level drop is not
-            usable here because replay.py has no per-host error handling, so
-            a write failure kills the whole dds+stdout family instead of one
-            host, and deleting the file makes Fluent Bit re-read the
-            recreated inode from the head. Dropping at ingest produces the
-            specified observable exactly and is reversible. It delegates to
-            alice-add-ingest-time so every non-target record still gets its
-            ingest_time and both lag fields; without that the injection would
-            silently blind every other detector lane it is supposed to leave
-            alone.
-          processors:
-            - drop:
-                if: "ctx.origin_host == '{{ independent_entity }}'"
-            - pipeline:
-                name: alice-add-ingest-time
-        status_code: [200, 201]
-      when: scenario == 'drop-epn-stream'
-
-    - name: Point every log index at the injected pipeline
-      ansible.builtin.uri:
-        url: "http://localhost:{{ opensearch_http_port }}/infologger*,generic-log-*/_settings?ignore_unavailable=true&allow_no_indices=true"
-        method: PUT
-        body_format: json
-        body:
-          index.default_pipeline: alice-add-ingest-time-injected
-        status_code: [200]
-      when: scenario == 'drop-epn-stream'
-
-    - name: Stop the thin poller (scenario 5 — suppressor precedence; does blindness read as health?)
-      ansible.builtin.systemd:
-        name: "{{ dashboards_metrics_service_name }}"
-        state: stopped
-      when: scenario == 'stop-alice-metrics'
-
-    - name: Stop the projector (S5 gate — prove the re-send contract is real)
-      ansible.builtin.systemd:
-        name: "{{ dashboards_signal_projector_service_name }}"
-        state: stopped
-      when: scenario == 'stop-projector'
-      delegate_to: "{{ signal_projector_host }}"
-
-    - name: Observe for {{ observe_minutes }} minutes
-      ansible.builtin.wait_for:
-        timeout: "{{ (observe_minutes | int) * 60 }}"
-
-    - name: Record the projector restart boundary
-      ansible.builtin.command:
-        cmd: date +%s%3N
-      register: _projector_restart_clock
-      changed_when: false
-      when: scenario == 'stop-projector' and (restore | bool)
-
-    - name: Restore the metrics poller
-      ansible.builtin.systemd:
-        name: "{{ dashboards_metrics_service_name }}"
-        state: started
-      when: scenario == 'stop-alice-metrics' and (restore | bool)
-
-    - name: Restore the injected component
-      ansible.builtin.systemd:
-        name: "{{ dashboards_signal_projector_service_name }}"
-        state: started
-      when: scenario == 'stop-projector' and (restore | bool)
-      delegate_to: "{{ signal_projector_host }}"
-
-    - name: Restore the real ingest pipeline
-      ansible.builtin.uri:
-        url: "http://localhost:{{ opensearch_http_port }}/infologger*,generic-log-*/_settings?ignore_unavailable=true&allow_no_indices=true"
-        method: PUT
-        body_format: json
-        body:
-          index.default_pipeline: alice-add-ingest-time
-        status_code: [200]
-      when: scenario == 'drop-epn-stream' and (restore | bool)
-
-    - name: Wait for a successful projector catch-up cycle
-      ansible.builtin.uri:
-        url: "http://localhost:{{ opensearch_http_port }}/{{ cockpit_metrics_index }}/_search"
-        method: POST
-        body_format: json
-        body:
-          size: 0
-          track_total_hits: true
-          query:
-            bool:
-              filter:
-                - term:
-                    kind: projector
-                - term:
-                    projector_cycle_ok: 1
-                - range:
-                    "@timestamp":
-                      gte: "{{ _projector_restart_clock.stdout | int }}"
-                      format: epoch_millis
-        status_code: [200]
-      register: _projector_catchup
-      retries: 24
-      delay: 5
-      until: (_projector_catchup.json.hits.total.value | int) > 0
-      when: scenario == 'stop-projector' and (restore | bool)
-
-    - name: Score the run against all seven metrics
-      ansible.builtin.command:
-        cmd: "python3 {{ dashboards_score_injection_script }}"
-      environment:
-        OS_URL: "http://localhost:{{ opensearch_http_port }}"
-        SIGNALS_INDEX: "{{ signals_index }}"
-        INCIDENTS_INDEX: "{{ incidents_index }}"
-        NOTIFICATIONS_INDEX: "{{ notifications_index }}"
-        GRADE_FLOOR: "{{ anomaly_grade_floor }}"
-        SCENARIO: "{{ scenario }}"
-        START_MS: "{{ hostvars[inventory_hostname].injection_start_ms }}"
-        INDEPENDENT_ENTITY: "{{ independent_entity }}"
-        REQUIRE_INDEPENDENT_RECALL: "{{ 'true' if scenario == 'drop-epn-stream' else 'false' }}"
-        STRICT: "{{ injection_strict | default('true') }}"
-      register: _score
-      changed_when: false
-      failed_when: _score.rc != 0
+    - name: Fail when the run never reached its scorecard
+      ansible.builtin.fail:
+        msg: >-
+          The injection did not complete: state={{ _inject_final.state }}.
+          {{ _inject_final.error | default('The run log above says where it
+          stopped.') }}
+      when: _inject_final.state == 'failed'
 
     - name: Print the scorecard (copy it into deploy/README.md § Calibration)
       ansible.builtin.debug:
-        msg: "{{ (_score.stdout | from_json) }}"
+        msg: "{{ _inject_final.report }}"
 
-- name: Restore the worker-side injection
-  hosts: "{{ target_worker | default(groups['workers'][0]) }}"
-  become: true
-  vars:
-    scenario: kill-fluent-bit
-    restore: true
-  tasks:
-    - name: Start Fluent Bit again
-      ansible.builtin.systemd:
-        name: fluent-bit
-        state: started
-      when: scenario == 'kill-fluent-bit' and (restore | bool)
+    - name: Print the seven-metric summary
+      ansible.builtin.debug:
+        msg: "{{ _inject_final.summary | default([]) }}"
 
-    - name: Drop the CPU load generators
-      ansible.builtin.shell:
-        cmd: "pkill -f 'while :; do :; done' || true"
-      changed_when: false
-      when: scenario == 'cpu-stress-worker' and (restore | bool)
+    - name: Fail when the injected component could not be restored
+      ansible.builtin.fail:
+        msg: >-
+          The scorecard was produced, but restoring the injected component
+          failed: {{ _inject_final.restore_error }}. Put it back by hand
+          before the next run, or the next scorecard measures this fault too.
+      when: _inject_final.restore_error | default('') | length > 0
+
+    - name: Fail on the scorecard
+      ansible.builtin.fail:
+        msg: >-
+          Scorecard FAILED — {{ _inject_final.failures | join(' / ') }}.
+          Pass -e injection_strict=false to report without gating.
+      when: _inject_final.verdict == 'failed'

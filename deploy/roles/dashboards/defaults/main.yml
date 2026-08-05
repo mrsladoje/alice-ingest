@@ -46,6 +46,14 @@ dashboards_poison_replay_state_dir: /var/lib/alice-poison-replay
 dashboards_poison_replay_status: "{{ dashboards_poison_replay_state_dir }}/status.json"
 dashboards_poison_replay_report_dir: "{{ dashboards_poison_replay_state_dir }}/runs"
 
+dashboards_inject_service_name: alice-inject
+dashboards_inject_script: /opt/alice-ingest/inject_run.py
+dashboards_inject_state_dir: /var/lib/alice-inject
+dashboards_inject_status: "{{ dashboards_inject_state_dir }}/status.json"
+dashboards_inject_request: "{{ dashboards_inject_state_dir }}/request.json"
+dashboards_inject_report_dir: "{{ dashboards_inject_state_dir }}/runs"
+dashboards_inject_default_observe_minutes: 45
+
 dashboards_metrics_service_name: alice-metrics
 dashboards_metrics_script: /opt/alice-ingest/metrics_poller.py
 

@@ -1,6 +1,7 @@
 import html
 import json
 import os
+import re
 import secrets
 import subprocess
 import threading
@@ -24,6 +25,35 @@ POISON_SERVICE = os.environ.get(
     "OPS_POISON_SERVICE", "alice-poison-replay")
 POISON_STATUS = os.environ.get(
     "OPS_POISON_STATUS", "/var/lib/alice-poison-replay/status.json")
+INJECT_SERVICE = os.environ.get("OPS_INJECT_SERVICE", "alice-inject")
+INJECT_STATUS = os.environ.get(
+    "OPS_INJECT_STATUS", "/var/lib/alice-inject/status.json")
+INJECT_REQUEST = os.environ.get(
+    "OPS_INJECT_REQUEST", "/var/lib/alice-inject/request.json")
+INJECT_WORKERS = [
+    w for w in os.environ.get("OPS_INJECT_WORKERS", "").split(",") if w]
+INJECT_OBSERVE_DEFAULT = int(
+    os.environ.get("OPS_INJECT_OBSERVE_MINUTES", "45"))
+INJECT_SCENARIOS = (
+    ("kill-fluent-bit",
+     "Stops one collector's Fluent Bit. Sets group_wait."),
+    ("drop-epn-stream",
+     "Silences one EPN at ingest. Scores independent-event recall."),
+    ("cpu-stress-worker",
+     "Saturates one collector's CPUs. Shipping lag before drops."),
+    ("stop-alice-metrics",
+     "Stops the thin poller. Does blindness read as health?"),
+    ("stop-projector",
+     "Stops the projector on its node. The re-send contract."),
+    ("replay-end",
+     "Ends one worker's replay. Mass-silence classification."),
+    ("observe-only",
+     "Injects nothing. Measures the stack as it stands."),
+)
+INJECT_WORKER_SCENARIOS = {
+    "kill-fluent-bit", "cpu-stress-worker", "replay-end"}
+INJECT_LIVE_STATES = {
+    "starting", "injecting", "observing", "restoring", "scoring"}
 RESET_TIMEOUT = float(os.environ.get("OPS_RESET_TIMEOUT", "900"))
 COUNT_TARGET = "infologger,generic-log-*"
 INCIDENTS_INDEX = os.environ.get("INCIDENTS_INDEX", "alice-incidents")
@@ -337,6 +367,12 @@ def start_poison(lines=None):
             "REFUSED — a poison replay is already running. Follow its live "
             "matrix below or stop it before starting another one.")
         return lines
+    if _service_active(INJECT_SERVICE):
+        lines.append(
+            "REFUSED — a fault injection is running. Injected documents "
+            "inside its scoring window would be counted as the fault's own "
+            "evidence. Wait for it, or stop it first.")
+        return lines
     try:
         subprocess.run(
             ["/usr/bin/systemctl", "reset-failed", POISON_SERVICE],
@@ -384,6 +420,156 @@ def stop_poison(lines=None):
     return lines
 
 
+def inject_status():
+    running = _service_active(INJECT_SERVICE)
+    status = {"state": "never-run", "running": running}
+    try:
+        with open(INJECT_STATUS) as handle:
+            loaded = json.load(handle)
+        if isinstance(loaded, dict):
+            status.update(loaded)
+    except FileNotFoundError:
+        pass
+    except Exception as exc:
+        status["status_error"] = str(exc)
+    if not running and status.get("state") in INJECT_LIVE_STATES:
+        status["interrupted_state"] = status["state"]
+        status["state"] = "interrupted"
+    status["running"] = running
+    return status
+
+
+def _inject_request(params):
+    scenario = (params.get("scenario") or "").strip()
+    known = {name for name, _ in INJECT_SCENARIOS}
+    if scenario not in known:
+        return None, [
+            f"REFUSED — '{scenario}' is not a scenario. Pick one of: "
+            + ", ".join(sorted(known)) + "."]
+    raw_minutes = (params.get("observe_minutes")
+                   or str(INJECT_OBSERVE_DEFAULT)).strip()
+    try:
+        minutes = int(raw_minutes)
+    except ValueError:
+        return None, [
+            f"REFUSED — observe minutes must be a whole number, not "
+            f"'{raw_minutes}'."]
+    if minutes < 1 or minutes > 720:
+        return None, [
+            "REFUSED — observe minutes must be between 1 and 720. The "
+            "observation window is the measurement, so it is never zero."]
+    entity = (params.get("independent_entity") or "").strip()
+    if scenario == "drop-epn-stream":
+        if not entity:
+            return None, [
+                "REFUSED — drop-epn-stream needs the EPN host it is supposed "
+                "to silence. That host is what the scenario silences and what "
+                "independent-event recall is then scored against; without it "
+                "the run cannot establish the metric it exists for."]
+        if not re.match(r"^[A-Za-z0-9_.-]{1,64}$", entity):
+            return None, [
+                f"REFUSED — '{entity}' is not a host name. It is compared "
+                f"inside an ingest pipeline condition, so it may only hold "
+                f"letters, digits, dots, dashes and underscores."]
+    target = (params.get("target_worker") or "").strip()
+    if scenario in INJECT_WORKER_SCENARIOS:
+        if not target and INJECT_WORKERS:
+            target = INJECT_WORKERS[0]
+        if target not in INJECT_WORKERS:
+            return None, [
+                f"REFUSED — {scenario} needs a target worker. Known workers: "
+                + (", ".join(INJECT_WORKERS) or "none configured") + "."]
+    else:
+        target = ""
+    return {
+        "scenario": scenario,
+        "observe_minutes": minutes,
+        "target_worker": target,
+        "independent_entity": entity,
+        "strict": (params.get("strict") or "").lower() in ("true", "on", "1"),
+        "restore": (params.get("restore") or "true").lower()
+                   in ("true", "on", "1"),
+        "requested_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "requested_by": "ops-page",
+    }, []
+
+
+def start_inject(lines=None, params=None):
+    lines = [] if lines is None else lines
+    request, refusal = _inject_request(params or {})
+    if refusal:
+        lines += refusal
+        return lines
+    if _service_active(INJECT_SERVICE):
+        lines.append(
+            "REFUSED — an injection is already running. Follow it below, or "
+            "stop it before starting another one. Two faults at once make "
+            "every metric on the scorecard unattributable.")
+        return lines
+    if _service_active(POISON_SERVICE):
+        lines.append(
+            "REFUSED — the poison calibration run is still going. Its "
+            "labelled outliers would land inside this run's scoring window "
+            "and both scorecards would be unreadable. Stop it first.")
+        return lines
+    try:
+        os.makedirs(os.path.dirname(INJECT_REQUEST), exist_ok=True)
+        tmp = f"{INJECT_REQUEST}.tmp"
+        with open(tmp, "w") as handle:
+            json.dump(request, handle, indent=2)
+            handle.write("\n")
+        os.replace(tmp, INJECT_REQUEST)
+    except Exception as exc:
+        lines.append(f"FAILED to write the injection request: {exc}")
+        return lines
+    try:
+        subprocess.run(
+            ["/usr/bin/systemctl", "reset-failed", INJECT_SERVICE],
+            capture_output=True, text=True, timeout=10, check=False)
+        proc = subprocess.run(
+            ["/usr/bin/systemctl", "--no-block", "start", INJECT_SERVICE],
+            capture_output=True, text=True, timeout=10, check=False)
+    except Exception as exc:
+        lines.append(f"FAILED to start {INJECT_SERVICE}: {exc}")
+        return lines
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "unknown systemd error").strip()
+        lines.append(f"FAILED to start {INJECT_SERVICE}: {detail}")
+        return lines
+    lines += [
+        f"injection started: {request['scenario']}"
+        + (f" on {request['target_worker']}" if request["target_worker"]
+           else ""),
+        f"it injects now, observes for {request['observe_minutes']} minutes, "
+        f"restores what it stopped, and then scores the seven metrics",
+        "progress and the scorecard appear on this page; leaving the page "
+        "does not stop the run",
+    ]
+    return lines
+
+
+def stop_inject(lines=None, params=None):
+    lines = [] if lines is None else lines
+    if not _service_active(INJECT_SERVICE):
+        lines.append("no injection is running")
+        return lines
+    try:
+        proc = subprocess.run(
+            ["/usr/bin/systemctl", "stop", INJECT_SERVICE],
+            capture_output=True, text=True, timeout=300, check=False)
+    except Exception as exc:
+        lines.append(f"FAILED to stop {INJECT_SERVICE}: {exc}")
+        return lines
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "unknown systemd error").strip()
+        lines.append(f"FAILED to stop {INJECT_SERVICE}: {detail}")
+        return lines
+    lines.append(
+        "injection stopped; it ends the observation window early, still "
+        "restores what it stopped, and still scores the shortened window")
+    return lines
+
+
 def family_counts():
     out = []
     for fam in LOG_FAMILIES:
@@ -412,6 +598,7 @@ def snapshot():
         "replay_running": bool(busy),
         "replay_workers": len(busy),
         "poison": poison_status(),
+        "inject": inject_status(),
         "families": family_counts(),
         "job": job_status(),
     }
@@ -461,44 +648,70 @@ def clear_only(lines=None):
     return reset_derived("clear", lines)
 
 
+def _quiet_the_workers(lines, button):
+    busy = replay_in_flight()
+    if not busy:
+        return True
+    lines.append(
+        "a replay was already running on " + ", ".join(busy)
+        + " — cancelling it first, since the indices may not be wiped while "
+          "records are still arriving")
+    stop_replays(busy, lines)
+    if not wait_until_idle():
+        lines += [
+            "REFUSED — it did not stop within 45s, so nothing was wiped. "
+            "Wiping while a load is in flight empties the indices without "
+            "stopping the load, and lets ingest recreate the log indices "
+            "with the wrong mapping.",
+            f"Restart alice-replay on those workers, then press {button} "
+            f"again.",
+        ]
+        return False
+    lines.append("previous replay stopped")
+    return True
+
+
 def run_replay(fresh, lines=None):
     lines = [] if lines is None else lines
     if fresh:
-        busy = replay_in_flight()
-        if busy:
-            lines.append(
-                "a replay was already running on " + ", ".join(busy)
-                + " — cancelling it first, since a fresh reload replaces it")
-            stop_replays(busy, lines)
-            if not wait_until_idle():
-                lines += [
-                    "REFUSED — it did not stop within 45s, so nothing was "
-                    "wiped. Wiping while a load is in flight empties the "
-                    "indices without starting a reload, and lets ingest "
-                    "recreate the log indices with the wrong mapping.",
-                    "Restart alice-replay on those workers, then press "
-                    "Reload data (fresh) again.",
-                ]
-                return lines
-            lines.append("previous replay stopped")
+        if not _quiet_the_workers(lines, "Reload data (fresh)"):
+            return lines
         wipe(lines)
     trigger_workers(lines)
     return lines
 
 
+def wipe_only(lines=None):
+    lines = [] if lines is None else lines
+    if not _quiet_the_workers(lines, "Delete logs"):
+        return lines
+    wipe(lines)
+    lines.append(
+        "the indices are empty, the write aliases are rebuilt, and nothing "
+        "is loading — the next replay you start is the only data in there, "
+        "so this is the clean baseline")
+    return lines
+
+
 ACTIONS = {
     "replay": ("Starting another paced replay pass",
-               lambda lines: run_replay(False, lines)),
+               lambda lines, params: run_replay(False, lines)),
     "replay-fresh": ("Cancelling any running replay, wiping derived data, "
                      "rebuilding aliases and starting a clean reload",
-                     lambda lines: run_replay(True, lines)),
-    "stop": ("Asking the workers to stop the current pass", stop_only),
+                     lambda lines, params: run_replay(True, lines)),
+    "stop": ("Asking the workers to stop the current pass",
+             lambda lines, params: stop_only(lines)),
+    "wipe": ("Stopping any replay, deleting the logs and everything derived "
+             "from them, and rebuilding the aliases",
+             lambda lines, params: wipe_only(lines)),
     "clear": ("Purging alerts, anomalies, incidents, signals and trend "
-              "baselines", clear_only),
+              "baselines", lambda lines, params: clear_only(lines)),
     "poison-replay": ("Starting the background detector calibration run",
-                      start_poison),
+                      lambda lines, params: start_poison(lines)),
     "poison-stop": ("Stopping the poison calibration process cleanly",
-                    stop_poison),
+                    lambda lines, params: stop_poison(lines)),
+    "inject": ("Arming and starting the fault-injection run", start_inject),
+    "inject-stop": ("Stopping the fault-injection run", stop_inject),
 }
 
 
@@ -607,6 +820,37 @@ PAGE = Template("""<!doctype html>
    border-radius:50%;animation:spin .7s linear infinite
  }
  button.is-loading .button-spinner{visibility:visible}
+
+ .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:12px}
+ .field{display:flex;flex-direction:column;gap:6px;min-width:0}
+ .field-l{color:var(--faint);font:600 9.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase}
+ select,input[type="number"],input[type="text"]{
+   width:100%;padding:9px 10px;border:1px solid var(--hair);border-radius:3px;
+   background:var(--sunk);color:var(--text);font:400 12px/1.3 var(--sans);
+   -webkit-appearance:none;appearance:none
+ }
+ select{background-image:none}
+ select:focus-visible,input:focus-visible{outline:2px solid var(--ok);outline-offset:1px}
+ input:disabled,select:disabled{opacity:.4;cursor:not-allowed}
+ .field.check{flex-direction:row;align-items:center;gap:9px;align-self:end;padding-bottom:9px}
+ .field.check input{width:14px;height:14px;accent-color:#5cba8a}
+ .field.check span{color:var(--dim);font-size:11.5px}
+ .field-hint{color:var(--faint);font-size:10.5px;line-height:1.35}
+
+ .card{margin-top:14px;border:1px solid var(--hair);border-radius:3px;background:var(--sunk)}
+ .card-h{display:flex;align-items:center;justify-content:space-between;gap:12px;
+   padding:10px 13px;border-bottom:1px solid var(--hair-2)}
+ .card-t{margin:0;color:var(--faint);font:600 10px/1 var(--mono);letter-spacing:.15em;text-transform:uppercase}
+ .card-b{padding:6px 13px 13px}
+ .verdict{display:inline-flex;align-items:center;gap:7px;padding:5px 9px;border:1px solid var(--hair);
+   border-radius:2px;font:600 9.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+ .verdict.pass{color:var(--ok);border-color:rgba(92,186,138,.4);background:rgba(92,186,138,.08)}
+ .verdict.fail{color:#efaba6;border-color:rgba(224,100,93,.4);background:rgba(224,100,93,.09)}
+ td.metric-v{color:var(--text)}
+ td.metric-v.bad{color:#efaba6}
+ td.metric-v.good{color:var(--ok)}
+ .fails{margin:10px 0 0;padding:0 0 0 17px;color:#efaba6;font-size:11.5px;line-height:1.55}
+ .fails li{margin-top:5px}
 
  .busy{
    display:none;align-items:center;gap:10px;margin-top:12px;padding:11px 13px;
@@ -760,6 +1004,13 @@ PAGE = Template("""<!doctype html>
               <span class="button-spinner" aria-hidden="true"></span>
             </button>
           </form>
+          <form method="post" action="wipe" data-busy="Stopping any replay, deleting the logs and everything derived from them, and rebuilding the aliases."
+                data-confirm="Delete every replayed log and every finding derived from it? Any running replay is stopped first, and nothing starts loading afterwards — the stack stays empty until you start a replay yourself.">
+            <button class="danger" type="submit" data-loading-label="Deleting logs…">
+              <span><span class="button-label">Delete logs</span><span class="button-sub">Empties the indices, rebuilds aliases, loads nothing.</span></span>
+              <span class="button-spinner" aria-hidden="true"></span>
+            </button>
+          </form>
           <form method="post" action="clear" data-busy="Purging alerts, anomalies, incidents, signals, and trend baselines." data-confirm="Clear all derived findings and trend baselines while keeping the logs?">
             <button class="warning" type="submit" data-loading-label="Clearing findings…">
               <span><span class="button-label">Clear findings</span><span class="button-sub">Drops alerts, incidents and baselines. Keeps the logs.</span></span>
@@ -782,6 +1033,63 @@ PAGE = Template("""<!doctype html>
         <div id="busy" class="busy" role="status" aria-live="polite">
           <span class="spinner" aria-hidden="true"></span><span id="busytext">Working…</span>
         </div>
+      </div>
+  </section>
+
+  <section class="panel controls" aria-label="Fault injection">
+      <div class="phead">
+        <h2>Fault injection</h2>
+        <span class="meta" id="inject-meta">$inject_meta</span>
+      </div>
+      <div class="pbody">
+        <form id="inject-form" method="post" action="inject"
+              data-busy="Arming the injection run and starting it in the background."
+              data-confirm="This stops a real component, leaves it stopped for the whole observation window, then restores it and scores the run. Continue?">
+          <div class="fields">
+            <label class="field">
+              <span class="field-l">Scenario</span>
+              <select name="scenario" id="inject-scenario">$scenario_options</select>
+              <span class="field-hint" id="scenario-hint">$scenario_hint</span>
+            </label>
+            <label class="field">
+              <span class="field-l">Target worker</span>
+              <select name="target_worker" id="inject-target">$worker_options</select>
+              <span class="field-hint">Used by the collector and replay scenarios.</span>
+            </label>
+            <label class="field">
+              <span class="field-l">Observe · minutes</span>
+              <input type="number" name="observe_minutes" id="inject-minutes"
+                     value="$observe_default" min="1" max="720" step="1">
+              <span class="field-hint">The window the scorecard is measured over.</span>
+            </label>
+            <label class="field">
+              <span class="field-l">EPN host to silence</span>
+              <input type="text" name="independent_entity" id="inject-entity"
+                     placeholder="epn001" autocomplete="off" spellcheck="false">
+              <span class="field-hint">Required by drop-epn-stream only.</span>
+            </label>
+            <label class="field check">
+              <input type="checkbox" name="strict" id="inject-strict" value="true" checked>
+              <span>Gate on the scorecard</span>
+            </label>
+          </div>
+        </form>
+        <form id="inject-stop-form" method="post" action="inject-stop"
+              data-busy="Stopping the injection run, restoring what it stopped, and scoring the shortened window."
+              data-confirm="Stop the running injection? It restores the component and scores the shortened window."></form>
+        <div class="grid">
+          <button class="warning" type="submit" form="inject-form" id="inject-start"
+                  data-loading-label="Starting injection…">
+            <span><span class="button-label">Run injection</span><span class="button-sub" id="inject-sub">$inject_text</span></span>
+            <span class="button-spinner" aria-hidden="true"></span>
+          </button>
+          <button class="neutral" type="submit" form="inject-stop-form" id="inject-stop"
+                  data-loading-label="Stopping injection…"$inject_stop_disabled>
+            <span><span class="button-label">Stop injection</span><span class="button-sub">Ends the window early. Still restores and still scores.</span></span>
+            <span class="button-spinner" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div id="scorecard"></div>
       </div>
   </section>
 
@@ -908,6 +1216,173 @@ function paintFamilies(families) {
   }
   document.getElementById('fam-total').textContent = numberText(total);
 }
+var SCENARIO_HINTS = $scenario_hints;
+var WORKER_SCENARIOS = $worker_scenarios;
+function clockText(seconds) {
+  var n = Math.max(0, Number(seconds) || 0);
+  var m = Math.floor(n / 60);
+  var s = Math.floor(n % 60);
+  return m + 'm ' + (s < 10 ? '0' : '') + s + 's';
+}
+function msText(value) {
+  if (value == null) { return 'not measured'; }
+  return clockText(Number(value) / 1000);
+}
+function syncScenarioFields() {
+  var picked = document.getElementById('inject-scenario').value;
+  document.getElementById('scenario-hint').textContent = SCENARIO_HINTS[picked] || '';
+  var target = document.getElementById('inject-target');
+  var entity = document.getElementById('inject-entity');
+  target.disabled = WORKER_SCENARIOS.indexOf(picked) === -1;
+  entity.disabled = picked !== 'drop-epn-stream';
+  entity.required = picked === 'drop-epn-stream';
+}
+function metricRow(label, value, tone, detail) {
+  var tr = document.createElement('tr');
+  tr.append(cell(label, 'name'), cell(value, ('metric-v ' + (tone || '')).trim()),
+            cell(detail, 'entities'));
+  return tr;
+}
+function scorecardTable(report) {
+  var table = document.createElement('table');
+  var head = document.createElement('thead');
+  var hr = document.createElement('tr');
+  ['Metric', 'Result', 'Detail'].forEach(function (text) {
+    var th = document.createElement('th');
+    th.textContent = text;
+    hr.appendChild(th);
+  });
+  head.appendChild(hr);
+  var body = document.createElement('tbody');
+
+  var rec = report.signal_reconciliation || {};
+  body.appendChild(metricRow('Signal reconciliation',
+    rec.lossless ? 'lossless' : 'LOSSY', rec.lossless ? 'good' : 'bad',
+    rec.projected_signals + ' rows for ' + rec.raw_alerts + ' alerts and ' +
+    rec.raw_anomalies + ' anomalies'));
+
+  var recall = report.independent_event_recall;
+  body.appendChild(metricRow('Independent-event recall',
+    recall ? (recall.surfaced ? 'surfaced' : 'ABSORBED') : 'not measured',
+    recall ? (recall.surfaced ? 'good' : 'bad') : '',
+    recall ? recall.entity + ' · ' + recall.signals + ' signals'
+           : 'no entity was named for this scenario'));
+
+  var purity = report.incident_purity || {};
+  var mixed = Object.keys(purity.incidents_mixing_entity_or_topology || {}).length;
+  var mixedGroups = Object.keys(purity.notification_groups_mixing_collectors || {}).length;
+  body.appendChild(metricRow('Incident purity',
+    purity.pure ? 'pure' : 'MIXED', purity.pure ? 'good' : 'bad',
+    purity.incidents + ' episodes · ' + mixed + ' mixing entity or topology · ' +
+    mixedGroups + ' groups mixing collectors'));
+
+  var frag = report.fragmentation || {};
+  var fragCount = Object.keys(frag.fragmented || {}).length;
+  body.appendChild(metricRow('Fragmentation',
+    fragCount ? fragCount + ' split' : 'none', fragCount ? 'bad' : 'good',
+    fragCount ? Object.keys(frag.fragmented).join(', ')
+              : 'no alert class made more episodes than it had entities'));
+
+  body.appendChild(metricRow('Time to notify', msText(report.time_to_notify_ms),
+    report.time_to_notify_ms == null ? 'bad' : '', 'from injection to the first delivery record'));
+  body.appendChild(metricRow('Time to resolve', msText(report.time_to_resolve_ms),
+    '', 'from injection to the first episode that resolved'));
+
+  var inhibit = report.false_inhibition || {};
+  body.appendChild(metricRow('False inhibition', String(inhibit.score),
+    Number(inhibit.score) ? 'bad' : 'good',
+    inhibit.page_signals + ' page signals · must be 0 before a rule is enabled'));
+
+  var glass = report.breakglass || {};
+  var glassBad = (glass.unexpected || []).length || (glass.missing_required || []).length;
+  body.appendChild(metricRow('Break-glass',
+    glassBad ? 'WRONG' : 'as specified', glassBad ? 'bad' : 'good',
+    'delivered ' + ((glass.delivered || []).join(', ') || 'none') +
+    ' · unexpected ' + ((glass.unexpected || []).join(', ') || 'none') +
+    ' · missing ' + ((glass.missing_required || []).join(', ') || 'none')));
+
+  body.appendChild(metricRow('Notifications', String(report.notification_volume),
+    '', 'reported only — never gated on, because suppressing everything would win'));
+
+  table.append(head, body);
+  return table;
+}
+function paintScorecard(x) {
+  var slot = document.getElementById('scorecard');
+  if (!x || !x.report) {
+    if (x && x.error) {
+      var box = document.createElement('div');
+      box.className = 'card';
+      var note = document.createElement('pre');
+      note.textContent = x.error;
+      box.appendChild(note);
+      slot.replaceChildren(box);
+      return;
+    }
+    slot.replaceChildren();
+    return;
+  }
+  var card = document.createElement('section');
+  card.className = 'card';
+  var head = document.createElement('div');
+  head.className = 'card-h';
+  var title = document.createElement('p');
+  title.className = 'card-t';
+  title.textContent = 'Scorecard · ' + (x.scenario || '?') +
+    (x.finished_at ? ' · ' + x.finished_at : '');
+  var verdict = document.createElement('span');
+  var passed = x.verdict === 'passed';
+  verdict.className = 'verdict ' + (passed ? 'pass' : 'fail');
+  verdict.textContent = String(x.verdict || 'unscored').replace(/-/g, ' ');
+  head.append(title, verdict);
+  var wrap = document.createElement('div');
+  wrap.className = 'card-b';
+  var scroll = document.createElement('div');
+  scroll.className = 'scroll';
+  scroll.appendChild(scorecardTable(x.report));
+  wrap.appendChild(scroll);
+  if (x.failures && x.failures.length) {
+    var list = document.createElement('ul');
+    list.className = 'fails';
+    for (var i = 0; i < x.failures.length; i++) {
+      var li = document.createElement('li');
+      li.textContent = x.failures[i];
+      list.appendChild(li);
+    }
+    wrap.appendChild(list);
+  }
+  if (x.restore_error) {
+    var warn = document.createElement('p');
+    warn.className = 'fails';
+    warn.textContent = 'Restore failed: ' + x.restore_error +
+      ' — put it back by hand before the next run.';
+    wrap.appendChild(warn);
+  }
+  card.append(head, wrap);
+  slot.replaceChildren(card);
+}
+function paintInject(x) {
+  x = x || {state: 'never-run', running: false};
+  var state = String(x.state || 'never-run').replace(/-/g, ' ');
+  var bits = [state];
+  if (x.scenario) { bits.push(x.scenario); }
+  if (x.running && x.state === 'observing' && x.remaining_seconds != null) {
+    bits.push(clockText(x.remaining_seconds) + ' left');
+  } else if (!x.running && x.verdict) {
+    bits.push('scorecard ' + String(x.verdict).replace(/-/g, ' '));
+  }
+  document.getElementById('inject-sub').textContent = bits.join(' · ');
+  document.getElementById('inject-meta').textContent = x.running
+    ? 'Running · ' + clockText(x.elapsed_seconds) : state;
+  if (!jobRunning) {
+    document.getElementById('inject-start').disabled = !!x.running;
+    document.getElementById('inject-stop').disabled = !x.running;
+  }
+  var fields = document.querySelectorAll('#inject-form select, #inject-form input');
+  for (var i = 0; i < fields.length; i++) { fields[i].disabled = !!x.running; }
+  if (!x.running) { syncScenarioFields(); }
+  paintScorecard(x);
+}
 function paint(s) {
   setMetric('total', s.count);
   setMetric('alerts', s.active_alerts);
@@ -948,6 +1423,8 @@ function paint(s) {
     document.getElementById('poison-start').disabled = !!poison.running;
     document.getElementById('poison-stop').disabled = !poison.running;
   }
+
+  paintInject(s.inject);
 
   document.getElementById('connection').className = 'clock';
   document.getElementById('last-updated').textContent =
@@ -1037,7 +1514,8 @@ function paintJob(job) {
     lines, problem && !jobRunning, false);
 }
 function runAction(form) {
-  var clicked = form.querySelector('button[type="submit"]');
+  var clicked = form.querySelector('button[type="submit"]') ||
+    document.querySelector('button[form="' + form.id + '"]');
   var label = clicked.querySelector('.button-label');
   if (!label.dataset.original) { label.dataset.original = label.textContent; }
   label.textContent = clicked.dataset.loadingLabel || 'Working…';
@@ -1045,8 +1523,13 @@ function runAction(form) {
   clicked.setAttribute('aria-busy', 'true');
   setControlsDisabled(true);
   busyStrip(true, form.dataset.busy);
+  var body = new URLSearchParams(new FormData(form)).toString();
   fetch(form.getAttribute('action'), {
-    method: 'POST', cache: 'no-store', headers: {'Accept': 'application/json'}
+    method: 'POST', cache: 'no-store', body: body || null,
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded'
+    }
   }).then(function (response) {
     return response.json().catch(function () { return {}; });
   }).then(function (payload) {
@@ -1072,6 +1555,9 @@ for (var f = 0; f < forms.length; f++) {
     runAction(this);
   });
 }
+document.getElementById('inject-scenario')
+  .addEventListener('change', syncScenarioFields);
+syncScenarioFields();
 window.addEventListener('pageshow', function () { clearLoading(); poll(); });
 if (window.location.search.indexOf('result=') !== -1) {
   window.history.replaceState(null,'',window.location.pathname);
@@ -1149,6 +1635,41 @@ def _poison_text(status):
     return html.escape(state)
 
 
+def _inject_text(status):
+    state = str(status.get("state") or "never-run").replace("-", " ")
+    parts = [state]
+    if status.get("scenario"):
+        parts.append(str(status["scenario"]))
+    if status.get("running") and status.get("state") == "observing":
+        remaining = int(status.get("remaining_seconds") or 0)
+        parts.append(f"{remaining // 60}m {remaining % 60:02d}s left")
+    elif not status.get("running") and status.get("verdict"):
+        parts.append(
+            "scorecard " + str(status["verdict"]).replace("-", " "))
+    return html.escape(" · ".join(parts))
+
+
+def _scenario_options(selected=""):
+    out = []
+    for name, _ in INJECT_SCENARIOS:
+        mark = " selected" if name == selected else ""
+        safe = html.escape(name)
+        out.append(f'<option value="{safe}"{mark}>{safe}</option>')
+    return "".join(out)
+
+
+def _worker_options():
+    if not INJECT_WORKERS:
+        return '<option value="">no workers configured</option>'
+    return "".join(
+        f'<option value="{html.escape(w)}">{html.escape(w)}</option>'
+        for w in INJECT_WORKERS)
+
+
+def _script_json(value):
+    return json.dumps(value).replace("</", "<\\/")
+
+
 def _has_problem(lines):
     return any(
         marker in line.upper()
@@ -1190,6 +1711,7 @@ def render(result_lines=None):
     workers = snap["replay_workers"]
     incidents = snap["incidents"]
     poison = snap.get("poison") or {"state": "never-run", "running": False}
+    inject = snap.get("inject") or {"state": "never-run", "running": False}
     configured = len(WORKERS)
     return PAGE.substitute(
         body_state="on" if running else "off",
@@ -1212,6 +1734,20 @@ def render(result_lines=None):
                      if configured else "No workers configured"),
         poison_text=_poison_text(poison),
         poison_stop_disabled="" if poison.get("running") else " disabled",
+        inject_text=_inject_text(inject),
+        inject_meta=(
+            f"Running · {int(inject.get('elapsed_seconds') or 0) // 60}m"
+            if inject.get("running")
+            else html.escape(
+                str(inject.get("state") or "never-run").replace("-", " "))),
+        inject_stop_disabled="" if inject.get("running") else " disabled",
+        scenario_options=_scenario_options(inject.get("scenario") or ""),
+        scenario_hint=html.escape(dict(INJECT_SCENARIOS).get(
+            inject.get("scenario") or "", INJECT_SCENARIOS[0][1])),
+        worker_options=_worker_options(),
+        observe_default=INJECT_OBSERVE_DEFAULT,
+        scenario_hints=_script_json(dict(INJECT_SCENARIOS)),
+        worker_scenarios=_script_json(sorted(INJECT_WORKER_SCENARIOS)),
         pill_class="live" if running else "idle",
         pill_text=(f"Replay active · {workers} worker"
                    + ("" if workers == 1 else "s")
@@ -1256,14 +1792,33 @@ class Handler(BaseHTTPRequestHandler):
     def _wants_json(self):
         return "application/json" in (self.headers.get("Accept") or "")
 
+    def _params(self):
+        try:
+            length = int(self.headers.get("Content-Length") or "0")
+        except ValueError:
+            return {}
+        if length <= 0 or length > 65536:
+            return {}
+        raw = self.rfile.read(length).decode("utf-8", "replace")
+        parsed = urllib.parse.parse_qs(raw, keep_blank_values=True)
+        return {key: values[0] for key, values in parsed.items()}
+
     def do_POST(self):
         path = self.path.split("?", 1)[0].rstrip("/")
         name = path.rsplit("/", 1)[-1]
         action = ACTIONS.get(name)
+        params = self._params()
         if action is None:
             self._send(404, render(["not found"]))
             return
-        label, work = action
+        label, action_work = action
+        if name == "inject" and params.get("scenario"):
+            label = (f"Arming the {params['scenario']} injection and starting "
+                     f"it in the background")
+
+        def work(lines):
+            return action_work(lines, params)
+
         job, busy = start_job(name, label, work)
         refusal = None
         if job is None:

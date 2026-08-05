@@ -1,0 +1,25 @@
+# {{ ansible_managed }}
+[Unit]
+Description=ALICE fault-injection agent ({{ node_id }}) — control-node triggered
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+MemoryAccounting=yes
+MemoryHigh={{ alice_service_memory_high }}
+MemoryMax={{ alice_service_memory_max }}
+User=root
+Group=root
+Environment=FAULT_AGENT_PORT={{ fault_agent_port }}
+Environment=FAULT_AGENT_TOKEN={{ fault_agent_token }}
+Environment=FAULT_AGENT_SERVICES={{ fault_agent_services | join(',') }}
+Environment=FAULT_AGENT_MAX_STRESS_SECONDS={{ fault_agent_cpu_stress_max_seconds }}
+Environment=FAULT_AGENT_NODE_ID={{ node_id }}
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 {{ fault_agent_script }}
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

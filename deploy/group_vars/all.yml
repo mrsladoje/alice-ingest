@@ -44,6 +44,15 @@ infologger_prefix: "infologger-2026/"
 replay_http_port: 8088
 node_count: "{{ groups['workers'] | length }}"
 
+# The fault agent is how the control host injects a physical failure it cannot
+# reach any other way: a worker's Fluent Bit, a worker's CPUs, the signal
+# projector on its own node. It runs on the workers and the projector host,
+# accepts only the services listed in its role defaults, and is firewalled to
+# the control host. Set a token to require one on every call.
+fault_agent_port: 8089
+fault_agent_token: ""
+fault_agent_cpu_stress_max_seconds: 5400
+
 cockpit_metrics_index: cockpit-metrics
 cockpit_metrics_interval_seconds: 30
 

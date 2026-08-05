@@ -1,0 +1,8 @@
+fault_agent_service_name: alice-fault-agent
+fault_agent_app_root: /opt/alice-ingest
+fault_agent_script: /opt/alice-ingest/fault_agent.py
+
+# A node may only fault the service it owns: a worker its Fluent Bit, the
+# projector host its signal projector. Nothing else is reachable this way.
+fault_agent_services: "{{ (['fluent-bit'] if inventory_hostname in groups['workers'] else []) +
+  (['alice-signal-projector'] if inventory_hostname == signal_projector_host else []) }}"

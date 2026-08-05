@@ -151,11 +151,11 @@ def test_ops_poison_route_precedes_generic_replay_suffix():
     server = None
     thread = None
     try:
-        def fake_poison(lines):
+        def fake_poison(lines, params):
             called.append("poison")
             lines.append("started")
 
-        def fake_replay(lines):
+        def fake_replay(lines, params):
             called.append("replay")
             lines.append("wrong")
 

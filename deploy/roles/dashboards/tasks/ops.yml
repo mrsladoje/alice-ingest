@@ -42,6 +42,39 @@
     group: root
     mode: "0644"
 
+- name: Create the fault-injection state and report directory
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  loop:
+    - "{{ dashboards_inject_state_dir }}"
+    - "{{ dashboards_inject_report_dir }}"
+
+- name: Install the injection engine (used by both make inject and the ops page button)
+  ansible.builtin.copy:
+    src: inject_run.py
+    dest: "{{ dashboards_inject_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Template the one-shot fault-injection systemd unit
+  ansible.builtin.template:
+    src: alice-inject.service.j2
+    dest: /etc/systemd/system/{{ dashboards_inject_service_name }}.service
+    owner: root
+    group: root
+    mode: "0644"
+  register: _inject_unit
+
+- name: Reload systemd so the injection unit is current
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: _inject_unit is changed
+
 - name: Install the fresh-replay reset script (used by both make replay-fresh and the ops page button)
   ansible.builtin.copy:
     src: reset_derived.py

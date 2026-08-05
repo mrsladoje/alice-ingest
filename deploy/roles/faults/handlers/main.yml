@@ -1,0 +1,7 @@
+---
+
+- name: restart alice-fault-agent
+  ansible.builtin.systemd:
+    name: "{{ fault_agent_service_name }}"
+    state: restarted
+    daemon_reload: true

@@ -938,36 +938,57 @@ def test_breakglass_has_its_own_delivery_contract():
 
 
 def test_stop_projector_waits_for_a_successful_catchup_cycle():
-    import yaml
-    here = os.path.dirname(os.path.abspath(__file__))
-    path = None
-    for _ in range(6):
-        candidate = os.path.join(here, "inject.yml")
-        if os.path.exists(candidate):
-            path = candidate
-            break
-        here = os.path.dirname(here)
-    if path is None:
-        print("[signal-contract] "
-              "test_stop_projector_waits_for_a_successful_catchup_cycle: "
-              "skipped, inject.yml not beside this checkout")
-        return
-    plays = yaml.safe_load(open(path))
-    tasks = []
-    for play in plays:
-        tasks.extend(play.get("tasks") or [])
-    names = [task.get("name") for task in tasks]
-    restore = names.index("Restore the injected component")
-    barrier = names.index("Wait for a successful projector catch-up cycle")
-    scoring = names.index("Score the run against all seven metrics")
-    check(restore < barrier < scoring,
-          "the projector catch-up barrier must sit between restart and scoring")
-    task = tasks[barrier]
-    contract = json.dumps(task)
-    check("projector_cycle_ok" in contract and
-          "_projector_restart_clock" in contract,
-          "the catch-up barrier does not require a successful cycle newer than "
-          "the restart boundary")
+    import inspect
+    import inject_run as engine
+
+    calls = []
+    original_agent, original_search = engine._agent, engine._search
+    original_projector = engine.PROJECTOR_AGENT
+    original_status = engine.STATUS_PATH
+    engine.PROJECTOR_AGENT = "http://projector-host:8089"
+    engine.STATUS_PATH = os.path.join(
+        tempfile.mkdtemp(prefix="inject-contract-"), "status.json")
+    started_at = []
+
+    def fake_agent(base, path, query=None):
+        started_at.append(engine.now_ms())
+        calls.append(("agent", path, dict(query or {})))
+        return ""
+
+    def fake_search(index, query):
+        calls.append(("search", index, json.dumps(query)))
+        return 1
+
+    try:
+        engine._agent = fake_agent
+        engine._search = fake_search
+        with redirect_stdout(StringIO()):
+            engine.restore({"scenario": "stop-projector", "restore": True,
+                            "target_worker": ""})
+    finally:
+        engine._agent, engine._search = original_agent, original_search
+        engine.PROJECTOR_AGENT = original_projector
+        engine.STATUS_PATH = original_status
+
+    kinds = [call[0] for call in calls]
+    check(kinds == ["agent", "search"],
+          f"the stop-projector restore did not restart the projector and then "
+          f"wait for it: {kinds}")
+    if kinds == ["agent", "search"]:
+        check(calls[0][1] == "/service-start",
+              "the projector was never started again after the drill")
+        barrier = calls[1][2]
+        check("projector_cycle_ok" in barrier,
+              "the catch-up barrier does not require a successful cycle")
+        window = json.loads(barrier)["bool"]["filter"][2]["range"]["@timestamp"]
+        check(int(window["gte"]) >= started_at[0] - 1000,
+              "the catch-up barrier accepts a cycle older than the restart "
+              "boundary, so a stale heartbeat would read as recovery")
+
+    source = inspect.getsource(engine.main)
+    check(source.index("restore(req)") < source.index("score(req"),
+          "scoring runs before the injected component is restored, so the "
+          "scorecard would measure the fault instead of the recovery")
 
 
 def test_signals_keep_their_own_episode():
@@ -1098,28 +1119,76 @@ def test_notifications_can_be_linked_back_to_signals():
           f"for one episode could cover another")
 
 
-def test_injected_pipeline_preserves_the_real_one():
+def test_both_injection_front_doors_offer_the_same_scenarios():
     import yaml
-    here = os.path.dirname(os.path.abspath(__file__))
-    path = None
-    for _ in range(6):
-        candidate = os.path.join(here, "inject.yml")
-        if os.path.exists(candidate):
-            path = candidate
-            break
-        here = os.path.dirname(here)
+    import inject_run as engine
+
+    path = _checkout_file("inject.yml")
     if path is None:
-        print("[signal-contract] test_injected_pipeline_preserves_the_real_one"
-              ": skipped, inject.yml not beside this checkout")
+        print("[signal-contract] "
+              "test_both_injection_front_doors_offer_the_same_scenarios: "
+              "skipped, inject.yml not beside this checkout")
         return
     plays = yaml.safe_load(open(path))
-    processors = None
+    allowed = None
     for play in plays:
-        for task in play.get("tasks", []):
-            body = (task.get("ansible.builtin.uri") or {}).get("body") or {}
-            if "processors" in body:
-                processors = body["processors"]
+        for task in play.get("tasks") or []:
+            assertion = (task.get("ansible.builtin.assert") or {})
+            for clause in assertion.get("that") or []:
+                if "scenario in [" in clause:
+                    allowed = set(json.loads(
+                        clause.split("in ", 1)[1].replace("'", '"')))
+    check(allowed is not None,
+          "make inject no longer states which scenarios it accepts")
+    page = {name for name, _ in ops.INJECT_SCENARIOS}
+    check(set(engine.SCENARIOS) == page,
+          f"the ops page and the injection engine disagree on scenarios: "
+          f"page-only {sorted(page - set(engine.SCENARIOS))}, engine-only "
+          f"{sorted(set(engine.SCENARIOS) - page)}")
+    if allowed:
+        check(allowed == set(engine.SCENARIOS),
+              f"make inject and the injection engine disagree on scenarios: "
+              f"{sorted(allowed ^ set(engine.SCENARIOS))}")
+    check(ops.INJECT_WORKER_SCENARIOS == set(engine.WORKER_SCENARIOS),
+          "the ops page and the engine disagree on which scenarios need a "
+          "target worker, so the page would accept a run the engine refuses")
+
+
+def test_injection_refuses_to_share_a_window_with_poison():
+    import inspect
+
+    check("REFUSED" in inspect.getsource(ops.start_inject)
+          and "POISON_SERVICE" in inspect.getsource(ops.start_inject),
+          "an injection can start while poison replay is running, and the "
+          "injected documents would be scored as the fault's own evidence")
+    check("INJECT_SERVICE" in inspect.getsource(ops.start_poison),
+          "poison replay can start inside a running injection window")
+
+
+def test_injected_pipeline_preserves_the_real_one():
+    import inject_run as engine
+
+    bodies = []
+    original = engine._request
+
+    def fake_request(method, url, body=None, timeout=30, headers=None):
+        bodies.append((method, url, body))
+        return 200, "{}"
+
+    try:
+        engine._request = fake_request
+        engine.install_injected_pipeline("epn001")
+    finally:
+        engine._request = original
+
+    processors = None
+    for _, _, body in bodies:
+        if isinstance(body, dict) and "processors" in body:
+            processors = body["processors"]
     check(processors is not None, "the drop-epn-stream pipeline is missing")
+    if processors:
+        check(any("epn001" in json.dumps(p) for p in processors),
+              "the injected pipeline does not name the host it must silence")
     if processors:
         check(any("drop" in p for p in processors),
               "the injected pipeline does not drop the target host")
@@ -1272,7 +1341,7 @@ def test_ops_actions_run_in_background_and_refresh_is_safe():
     try:
         ops.snapshot = lambda: dict(snapshot, job=ops.job_status())
 
-        def fake_stop(lines):
+        def fake_stop(lines, params):
             calls.append("stop")
             lines.append("test stop action ran exactly once")
             return lines
@@ -1438,9 +1507,16 @@ def test_projector_runtime_is_off_the_control_host():
           and "port=\"{{ alertmanager_port }}\"" in common,
           "the Alertmanager firewall path is not restricted to the projector "
           "host")
-    check(inject.count(
-        'delegate_to: "{{ signal_projector_host }}"') >= 2,
-          "the stop-projector drill still operates on the control host")
+    check("dashboards_inject_service_name" in inject
+          and "delegate_to" not in inject,
+          "make inject still reaches into the fleet itself instead of arming "
+          "the control-host engine both front doors share")
+    inject_unit = open(_checkout_file(
+        "roles", "dashboards", "templates", "alice-inject.service.j2")).read()
+    check("INJECT_PROJECTOR_AGENT=http://{{ "
+          "hostvars[signal_projector_host].ansible_host }}" in inject_unit,
+          "the stop-projector drill still operates on the control host "
+          "instead of the projector's own node")
 
 
 def test_dynamic_services_can_read_the_signal_catalog():
