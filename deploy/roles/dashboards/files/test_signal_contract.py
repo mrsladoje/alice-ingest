@@ -390,10 +390,15 @@ def test_cockpit_headlines_episodes_not_raw_detector_exhaust():
           and "operator_action" not in board_state["params"]["spec"],
           "episode board must render the diagnosis and no next-action line")
     spec = board_state["params"]["spec"]
-    check("alice-search-signals?_q=(query:" in spec
-          and "alice-search-open-incidents?_q=(query:" in spec
+    check("alice-search-signals?_g=(time:" in spec
+          and "alice-search-open-incidents?_g=(time:" in spec
+          and spec.count("_q=(query:(language:kuery,query:") >= 2
           and "episode_id" in spec,
           "episode board does not link cards to their signals and detail")
+    check("winFrom" in spec and "winTo" in spec
+          and "opened_at" in spec and "last_seen" in spec,
+          "episode links do not carry the episode's own time window, so "
+          "Discover opens on the leftover picker range and undercounts")
     check('"renderer": "svg"' in spec,
           "episode board must render as svg or its links are dead pixels")
 

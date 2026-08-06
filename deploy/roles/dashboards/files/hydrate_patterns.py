@@ -22,6 +22,13 @@ REQUIRED = {
     "alice-anomalies": ["@timestamp", "detector", "about", "scope",
                         "scope_kind", "grade", "confidence", "severity",
                         "run"],
+    "alice-incidents": ["@timestamp", "episode_id", "incident_id", "title",
+                        "severity", "state", "episode_state", "member_count",
+                        "opened_at", "last_seen", "worst_grade",
+                        "latest_confidence"],
+    "alice-signals": ["@timestamp", "episode_id", "incident_id", "source_id",
+                      "source_kind", "severity", "state", "entity_id",
+                      "grade", "confidence"],
 }
 
 SOFT_REQUIRED = {"alice-ad-results", "alice-alerts"}

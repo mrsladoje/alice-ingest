@@ -492,7 +492,9 @@ def incident_summary_strip(vid, title):
 
 def _episode_href(search_id):
     return ("'/app/data-explorer/discover#/view/" + search_id +
-            "?_q=(query:(language:kuery,query:\\'episode_id:\"' + "
+            "?_g=(time:(from:\\'' + datum.winFrom + '\\',to:\\'' + "
+            "datum.winTo + '\\'))"
+            "&_q=(query:(language:kuery,query:\\'episode_id:\"' + "
             "datum._source.episode_id + '\"\\'))'")
 
 
@@ -629,6 +631,14 @@ def incident_episode_board(vid, title):
                          "format(datum._source.latest_confidence || 0, '.3f')"},
                 {"type": "formula", "as": "diagText",
                  "expr": "datum._source.diagnosis || ''"},
+                {"type": "formula", "as": "winFrom",
+                 "expr": "utcFormat(toDate(time(toDate("
+                         "datum._source.opened_at)) - 300000), "
+                         "'%Y-%m-%dT%H:%M:%S.%LZ')"},
+                {"type": "formula", "as": "winTo",
+                 "expr": "utcFormat(toDate(time(toDate("
+                         "datum._source.last_seen)) + 300000), "
+                         "'%Y-%m-%dT%H:%M:%S.%LZ')"},
                 {"type": "formula", "as": "signalsUrl",
                  "expr": _episode_href("alice-search-signals")},
                 {"type": "formula", "as": "detailsUrl",
