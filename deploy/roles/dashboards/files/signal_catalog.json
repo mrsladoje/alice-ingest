@@ -143,63 +143,72 @@
       "entity_source": "bucket_key",
       "family": "infologger",
       "notification_scope": "fleet",
-      "feed": "logs"
+      "feed": "logs",
+      "healthy_windows_required": 3
     },
     "trend-il-ef": {
       "entity_kind": "epn",
       "entity_source": "bucket_key",
       "family": "infologger",
       "notification_scope": "fleet",
-      "feed": "logs"
+      "feed": "logs",
+      "healthy_windows_required": 3
     },
     "trend-il-entry-lag": {
       "entity_kind": "epn",
       "entity_source": "bucket_key",
       "family": "infologger",
       "notification_scope": "fleet",
-      "feed": "logs"
+      "feed": "logs",
+      "healthy_windows_required": 3
     },
     "trend-il-shipping-lag": {
       "entity_kind": "collector",
       "entity_source": "bucket_key",
       "family": "infologger",
       "notification_scope": "collector",
-      "feed": "logs"
+      "feed": "logs",
+      "healthy_windows_required": 3
     },
     "trend-other-volume": {
       "entity_kind": "epn",
       "entity_source": "bucket_key",
       "family": "other",
       "notification_scope": "fleet",
-      "feed": "logs"
+      "feed": "logs",
+      "healthy_windows_required": 3
     },
     "trend-other-errors": {
       "entity_kind": "epn",
       "entity_source": "bucket_key",
       "family": "other",
       "notification_scope": "fleet",
-      "feed": "logs"
+      "feed": "logs",
+      "healthy_windows_required": 3
     },
     "trend-info-volume": {
       "entity_kind": "epn",
       "entity_source": "bucket_key",
       "family": "info",
       "notification_scope": "fleet",
-      "feed": "logs"
+      "feed": "logs",
+      "healthy_windows_required": 3
     },
     "trend-info-entry-lag": {
       "entity_kind": "epn",
       "entity_source": "bucket_key",
       "family": "info",
       "notification_scope": "fleet",
-      "feed": "logs"
+      "feed": "logs",
+      "healthy_windows_required": 3
     },
     "trend-info-shipping-lag": {
       "entity_kind": "collector",
       "entity_source": "bucket_key",
       "family": "info",
       "notification_scope": "collector",
-      "feed": "logs"
+      "feed": "logs",
+      "healthy_windows_required": 3
     }
   },
   "detectors": {

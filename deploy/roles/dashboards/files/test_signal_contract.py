@@ -1019,6 +1019,54 @@ def test_signals_keep_their_own_episode():
           f"{by_id['a-s-new'].get('episode_id')}, not its own episode")
 
 
+def _trend_rows(specs):
+    history = ".opendistro-alerting-alert-history-000001"
+    hits = []
+    for aid, state, start, end in specs:
+        index = sp.ALERTS_CURRENT if state == "ACTIVE" else history
+        hits.append(alert_hit(aid, index, state, "trend-other-volume",
+                              ["epn001"], start=start, end=end))
+    rows = sp.merge_alert_rows(
+        [sp.alert_signal(h, h["_index"]) for h in hits])
+    for row in rows:
+        row["incident_id"] = sp.incident_id(row)
+    return rows
+
+
+def test_flapping_trend_monitor_stays_in_one_episode():
+    stub_roster(["node-01"], {"epn001": "node-01"})
+    rows = _trend_rows([("a-t-1", "COMPLETED", 1000, 2000),
+                        ("a-t-2", "COMPLETED", 3000, 4000),
+                        ("a-t-3", "ACTIVE", 5000, None)])
+    key = rows[0]["incident_id"]
+    episodes = {}
+    sp.apply_monitor(episodes, rows, {}, {})
+    check(sorted(episodes) == [sp.episode_id(key, 1000)],
+          f"a flapping trend monitor split into {sorted(episodes)}; clears "
+          f"below its healthy-window requirement must not close an episode")
+    ep = episodes[sp.episode_id(key, 1000)]
+    check(ep["member_count"] == 3 and ep["episode_state"] == sp.OPEN,
+          f"the flapping episode reports {ep['member_count']} members in "
+          f"state {ep['episode_state']}; it must fold all three and reopen")
+
+
+def test_trend_monitor_still_closes_after_its_healthy_windows():
+    stub_roster(["node-01"], {"epn001": "node-01"})
+    rows = _trend_rows([("a-c-1", "COMPLETED", 1000, 1500),
+                        ("a-c-2", "COMPLETED", 2000, 2500),
+                        ("a-c-3", "COMPLETED", 3000, 3500),
+                        ("a-c-4", "ACTIVE", 5000, None)])
+    key = rows[0]["incident_id"]
+    episodes = {}
+    sp.apply_monitor(episodes, rows, {}, {})
+    check(sorted(episodes) == sorted([sp.episode_id(key, 1000),
+                                      sp.episode_id(key, 5000)]),
+          f"hysteresis never releases: got {sorted(episodes)}; three clears "
+          f"must close the episode so a later breach opens its own")
+    check(episodes[sp.episode_id(key, 1000)]["episode_state"] == sp.RESOLVED,
+          "the episode that met its healthy-window requirement stayed open")
+
+
 def test_old_episode_notification_cannot_cover_a_new_one():
     stub_roster(["node-01"], {})
     old = sp.alert_signal(
