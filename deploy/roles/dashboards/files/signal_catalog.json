@@ -104,7 +104,8 @@
       "entity_id": "all",
       "family": "none",
       "notification_scope": "fleet",
-      "feed": "anomaly"
+      "feed": "anomaly",
+      "healthy_windows_required": 3
     },
     "trend-rollup-stale": {
       "entity_kind": "service",

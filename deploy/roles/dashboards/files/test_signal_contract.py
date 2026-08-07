@@ -391,14 +391,29 @@ def test_cockpit_headlines_episodes_not_raw_detector_exhaust():
           "episode board must render the diagnosis and no next-action line")
     spec = board_state["params"]["spec"]
     check("alice-search-signals?_g=(time:" in spec
-          and "alice-search-open-incidents?_g=(time:" in spec
-          and spec.count("_q=(query:(language:kuery,query:") >= 2
-          and "episode_id" in spec,
+          and "alice-search-incident-history?_g=(time:" in spec
+          and spec.count("_q=(query:(language:kuery,query:") >= 2,
           "episode board does not link cards to their signals and detail")
     check("winFrom" in spec and "winTo" in spec
           and "opened_at" in spec and "last_seen" in spec,
           "episode links do not carry the episode's own time window, so "
           "Discover opens on the leftover picker range and undercounts")
+    links = {t["as"]: t.get("expr", "")
+             for data in json.loads(spec)["data"]
+             for t in data.get("transform", [])
+             if isinstance(t.get("as"), str)}
+    check("episode_id" in links.get("signalsUrl", "")
+          and "incident_id" not in links.get("signalsUrl", ""),
+          "Signals must scope to the one episode whose card was clicked")
+    check("incident_id" in links.get("detailsUrl", "")
+          and "episode_id" not in links.get("detailsUrl", "")
+          and "from:now-" in links.get("detailsUrl", ""),
+          "Details must scope to the whole incident over a lookback window, "
+          "or it repeats the card instead of showing how often it came back")
+    ids = {o["id"] for o in objects}
+    check("alice-search-incident-history" in ids,
+          "the episode-history saved search the Details button opens is "
+          "missing from the cockpit objects")
     check('"renderer": "svg"' in spec,
           "episode board must render as svg or its links are dead pixels")
 

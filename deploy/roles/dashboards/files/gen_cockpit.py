@@ -16,6 +16,7 @@ INCIDENTS_ID = "alice-incidents"
 INCIDENTS_TITLE = "alice-incidents"
 SIGNALS_ID = "alice-signals"
 SIGNALS_TITLE = "alice-signals"
+INCIDENT_HISTORY_LOOKBACK = "7d"
 TIME_FIELD = "@timestamp"
 PANEL_VERSION = "3.7.0"
 
@@ -490,12 +491,19 @@ def incident_summary_strip(vid, title):
     return viz(vid, title, state, index_ref_on=False)
 
 
-def _episode_href(search_id):
+def _signals_href(search_id):
     return ("'/app/data-explorer/discover#/view/" + search_id +
             "?_g=(time:(from:\\'' + datum.winFrom + '\\',to:\\'' + "
             "datum.winTo + '\\'))"
             "&_q=(query:(language:kuery,query:\\'episode_id:\"' + "
             "datum._source.episode_id + '\"\\'))'")
+
+
+def _details_href(search_id):
+    return ("'/app/data-explorer/discover#/view/" + search_id +
+            "?_g=(time:(from:now-" + INCIDENT_HISTORY_LOOKBACK + ",to:now))"
+            "&_q=(query:(language:kuery,query:\\'incident_id:\"' + "
+            "datum._source.incident_id + '\"\\'))'")
 
 
 def _episode_card_text(as_field, expr, dy, fill, size, bold=False,
@@ -592,7 +600,8 @@ def incident_episode_board(vid, title):
                     "_source": ["title", "diagnosis", "affected", "severity",
                                 "episode_state", "opened_at", "last_seen",
                                 "member_count", "alertname", "episode_id",
-                                "worst_grade", "latest_confidence"],
+                                "incident_id", "worst_grade",
+                                "latest_confidence"],
                 },
             },
             "format": {"property": "hits.hits"},
@@ -640,9 +649,9 @@ def incident_episode_board(vid, title):
                          "datum._source.last_seen)) + 300000), "
                          "'%Y-%m-%dT%H:%M:%S.%LZ')"},
                 {"type": "formula", "as": "signalsUrl",
-                 "expr": _episode_href("alice-search-signals")},
+                 "expr": _signals_href("alice-search-signals")},
                 {"type": "formula", "as": "detailsUrl",
-                 "expr": _episode_href("alice-search-open-incidents")},
+                 "expr": _details_href("alice-search-incident-history")},
             ],
         }],
         "marks": [
@@ -1066,6 +1075,17 @@ def build():
                      "last_seen", "operator_action", "episode_id"],
             pattern=INCIDENTS_ID, sort_field="last_seen"),
         saved_search(
+            "alice-search-incident-history",
+            "Episode history — every episode of one incident",
+            "One row per episode of the same recurring problem, newest "
+            "first. The card's Details button opens this filtered to its "
+            "own incident_id, so you see how often it came back.",
+            "",
+            columns=["severity", "title", "episode_state", "member_count",
+                     "opened_at", "last_seen", "resolved_at",
+                     "operator_action", "episode_id"],
+            pattern=INCIDENTS_ID, sort_field="opened_at"),
+        saved_search(
             "alice-search-recent-incidents", "Recent resolved episodes",
             "Deduplicated episodes that have recovered, newest first.",
             "state:resolved",
@@ -1188,7 +1208,10 @@ def build():
                  "(/app/data-explorer/discover#/view/alice-search-open-incidents)** "
                  "for every field, **[raw signal evidence →]"
                  "(/app/data-explorer/discover#/view/alice-search-signals)** "
-                 "only while investigating, and **[resolved episodes →]"
+                 "only while investigating, **[episode history →]"
+                 "(/app/data-explorer/discover#/view/alice-search-incident-history)** "
+                 "to see how often one problem came back, and "
+                 "**[resolved episodes →]"
                  "(/app/data-explorer/discover#/view/alice-search-recent-incidents)** "
                  "for recent history."),
         markdown("alice-viz-detect-actions", "Act on this",
