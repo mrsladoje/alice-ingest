@@ -1277,7 +1277,6 @@ def build():
         ("visualization", "alice-viz-sev-time",        {"x": 0,  "y": 109, "w": 48, "h": 12}),
         ("visualization", "alice-viz-top-hosts",       {"x": 0,  "y": 121, "w": 24, "h": 12}),
         ("visualization", "alice-viz-top-systems",     {"x": 24, "y": 121, "w": 24, "h": 12}),
-        ("search",        "alice-search-errwarn",      {"x": 0,  "y": 133, "w": 48, "h": 16}),
     ]
     objects.append(dashboard(panels))
     return objects
