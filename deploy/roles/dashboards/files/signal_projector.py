@@ -544,30 +544,37 @@ def split_monitor_episodes(group, prior):
     runs = []
     end = None
     healthy = 0
+    last_healthy = 0
     if prior and prior.get("episode_state") not in TERMINAL:
         healthy = int(prior.get("healthy_windows", 0))
+        last_healthy = int(prior.get("last_healthy_window", 0))
     for row in group:
         if not runs:
-            runs.append([int(row["first_seen"]), [row], healthy])
+            runs.append({"start": int(row["first_seen"]), "members": [row]})
         elif end is not None and int(row["first_seen"]) > end:
             end = None
             healthy = 0
-            runs.append([int(row["first_seen"]), [row], 0])
+            last_healthy = 0
+            runs.append({"start": int(row["first_seen"]), "members": [row]})
         else:
-            runs[-1][1].append(row)
+            runs[-1]["members"].append(row)
         if row["state"] == "resolved":
-            healthy += 1
+            cleared = int(row.get("end_time") or row["last_seen"])
+            if cleared > last_healthy:
+                last_healthy = cleared
+                healthy += 1
             if healthy >= required:
-                terminated = int(row.get("end_time") or row["last_seen"])
-                end = terminated if end is None else max(end, terminated)
+                end = cleared if end is None else max(end, cleared)
         else:
             healthy = 0
+            last_healthy = 0
             end = None
-        runs[-1][2] = healthy
+        runs[-1]["healthy"] = healthy
+        runs[-1]["last_healthy"] = last_healthy
     if runs and prior and prior.get("episode_state") not in TERMINAL:
         prior_start = int(prior.get("episode_start", 0))
-        if prior_start <= runs[0][0]:
-            runs[0][0] = prior_start
+        if prior_start <= runs[0]["start"]:
+            runs[0]["start"] = prior_start
     return runs
 
 
@@ -592,8 +599,9 @@ def detector_episode_start(timeline, row):
 def apply_monitor(episodes, rows, latest, stored):
     for key, group in group_rows(rows).items():
         required = monitor_healthy_required(group)
-        for start, members, healthy in split_monitor_episodes(
-                group, latest.get(key)):
+        for run in split_monitor_episodes(group, latest.get(key)):
+            start, members = run["start"], run["members"]
+            healthy = run.get("healthy", 0)
             eid = episode_id(key, start)
             ep = episodes.get(eid) or stored.get(eid) \
                 or blank_incident(members[0], key, start)
@@ -617,6 +625,7 @@ def apply_monitor(episodes, rows, latest, stored):
                     ep["resolved_at"] = doc.get("end_time") or doc["last_seen"]
                 doc["episode_id"] = eid
             ep["healthy_windows"] = healthy
+            ep["last_healthy_window"] = run.get("last_healthy", 0)
             if healthy >= required:
                 ep["episode_state"] = RESOLVED
                 ep["state"] = "resolved"
@@ -1001,8 +1010,8 @@ def cycle():
 
     candidates = set()
     for key, group in group_rows(alert_rows).items():
-        for start, _, _ in split_monitor_episodes(group, latest.get(key)):
-            candidates.add(episode_id(key, start))
+        for run in split_monitor_episodes(group, latest.get(key)):
+            candidates.add(episode_id(key, run["start"]))
     stored.update(fetch_episodes(candidates))
 
     incidents = {}

@@ -1082,6 +1082,26 @@ def test_trend_monitor_still_closes_after_its_healthy_windows():
           "the episode that met its healthy-window requirement stayed open")
 
 
+def test_a_replayed_clear_cannot_count_twice_toward_closing():
+    stub_roster(["node-01"], {"epn001": "node-01"})
+    hit = alert_hit("a-r-linger", sp.ALERTS_CURRENT, "COMPLETED",
+                    "trend-other-volume", ["epn001"], start=1000, end=1100)
+    episodes = {}
+    for cycle in range(1, 7):
+        rows = sp.merge_alert_rows([sp.alert_signal(hit, sp.ALERTS_CURRENT)])
+        for row in rows:
+            row["incident_id"] = sp.incident_id(row)
+        sp.apply_monitor(episodes, rows, latest_from(episodes),
+                         dict(episodes))
+        ep = only(episodes)
+        check(ep["healthy_windows"] == 1
+              and ep["episode_state"] == sp.RECOVERING,
+              f"on cycle {cycle} one re-read clear had counted "
+              f"{ep['healthy_windows']} times and left the episode "
+              f"{ep['episode_state']}; a re-read clear must not close an "
+              f"episode that requires three distinct ones")
+
+
 def test_old_episode_notification_cannot_cover_a_new_one():
     stub_roster(["node-01"], {})
     old = sp.alert_signal(
