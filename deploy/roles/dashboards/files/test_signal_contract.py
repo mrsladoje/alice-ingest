@@ -648,6 +648,18 @@ def test_incident_identity_separates_monitor_and_detector_lanes():
           "entity-level episodes")
 
 
+def test_incident_identity_ignores_cluster_id():
+    stub_roster(["node-01"], {})
+    row = sp.alert_signal(
+        alert_hit("a-cluster", sp.ALERTS_CURRENT, "ACTIVE", "collector-down",
+                  ["node-01"]), sp.ALERTS_CURRENT)
+    other = dict(row)
+    other["cluster_id"] = "some-other-cluster"
+    check(sp.incident_id(row) == sp.incident_id(other),
+          "cluster_id is a constant on this stack and must not be hashed into "
+          "incident_id")
+
+
 def test_old_history_cannot_resolve_a_newer_active_alert():
     stub_roster(["node-01"], {})
     old = sp.alert_signal(

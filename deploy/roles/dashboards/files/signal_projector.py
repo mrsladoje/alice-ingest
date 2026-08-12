@@ -284,10 +284,14 @@ def anomaly_row(hit, detector_names):
 
 
 def incident_id(doc):
+    """Stable key for one (source, alertname, entity, scope).
+
+    cluster_id is a label for Alertmanager grouping and silences, not identity:
+    this stack is one cluster, so hashing it would only pretend to discriminate.
+    """
     scope = (doc["collector_id"] if doc["notification_scope"] == "collector"
              else "fleet")
     return os_cursor.content_hash({
-        "cluster_id": doc["cluster_id"],
         "source_kind": doc["source_kind"],
         "alertname": doc["alertname"],
         "entity_kind": doc["entity_kind"],
