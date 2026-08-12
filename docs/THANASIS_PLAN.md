@@ -511,22 +511,21 @@ network the limit. It is not the starting design.
 
 ### React, not Svelte
 
-Decided 12 Aug 2026, and not on performance. Once the list is virtualized the
-framework is not the bottleneck, and both do the same few DOM operations per
-frame. Svelte's real gain is bundle size, worth a fraction of a second on first
-load and nothing after it is cached.
+Decided 12 Aug 2026, on one reason: **whoever maintains this after us.**
 
-React wins on three things that outlast that:
+This has to still work in Run 4, which means someone we have not met will change
+it. React is the safer assumption about what that person already knows. That
+reason does not depend on anything else in this document, so it does not move
+when the rest does.
 
-- OpenSearch Dashboards is a React application. Every plugin example and every
-  piece of documentation is React. A Svelte plugin does work, because the mount
-  point is a plain DOM element, but it is written with no reference to follow.
-- The OUI component library is React only. With Svelte every control is rebuilt
-  from nothing, and the plugin looks foreign inside its host.
-- Handover. This system has to be maintainable by whoever comes next. React is
-  the safer assumption about who that is.
+It is not a performance decision. Once the list is virtualized the framework is
+not the bottleneck — both do the same few DOM operations per frame. Svelte's real
+gain is bundle size, worth a fraction of a second on first load and nothing after
+it is cached.
 
-Svelte would be the better choice if this view were standalone. It is not.
+Two earlier reasons were dropped when the page became standalone: that Dashboards
+is itself React, and that its OUI component library is React only. Neither
+applies now. Recorded so nobody re-derives a dead argument.
 
 ### Requirements
 
@@ -536,27 +535,43 @@ Svelte would be the better choice if this view were standalone. It is not.
 
 ### Where it lives
 
-Decided in favour of an OpenSearch Dashboards plugin, with the coupling isolated.
+**A standalone page, served by the nginx we already run. Not a Dashboards
+plugin.** Decided 12 Aug 2026 on Lubos's preference, and the engineering agrees
+with him.
 
-Plugin versions must match the Dashboards major, minor **and patch** version. A
-plugin built for 3.7.0 does not load on 3.7.1. Version pinning is normal, but
-patch releases carry security fixes and CERN networks are scanned, so we will take
-them.
+A Dashboards plugin must match the host's major, minor **and patch** version. A
+plugin built for 3.7.0 does not load on 3.7.1. Patch releases carry security
+fixes and CERN networks are scanned, so we would take every one of them. That is
+a forced rebuild several times a year, and a rebuild that fails takes the page
+down until someone fixes it. It is a permanent maintenance tax on a component
+that needs none.
 
-So the cost is a rebuild on each security update, a few times a year. Contain it:
+Standalone removes the tax completely. The page has no version relationship with
+Dashboards at all.
 
-- The React application is a self-contained bundle with no Dashboards API in it.
-- The plugin is a thin wrapper that mounts that bundle.
+What it costs, and why each is small here:
 
-Then a version bump is a rebuild, not a rewrite. If a rebuild ever fails, the
-fallback is Discover, which is already there and already powerful. Losing the
-live lane for a day costs convenience, not capability.
+- **We serve it ourselves.** nginx is already deployed and already terminates
+  basic authentication for Dashboards (`dashboards_basic_auth_user`). The page
+  sits behind the same authentication, on the same host, with no new component.
+- **We build our own controls.** True, but we were building this view by hand
+  anyway. Dashboards gave it a frame, not its content.
+- **Navigation.** The cockpit needs a link out to it, and it needs a link back.
+  Two links.
+
+This is only correct because the view is a fixed, purpose-built thing. A
+general-purpose query tool should not be rebuilt outside Dashboards — Discover
+already is one, and it stays where it is for real queries.
 
 ### Shared with Item 13
 
 The operator cockpit needs the same thing: a dense, filterable, virtualized log
 view that works on a phone. Build that view once. Give it two sources — the live
 WebSocket here, and a query against `infologger` there.
+
+Item 13 is standalone for the same reasons, and the shared component is what
+makes both cheap. Splitting them across a plugin and a page would mean two
+mounting paths for one component, which is the worst of each.
 
 ---
 
@@ -816,6 +831,20 @@ They answer different questions.
 The current cockpit answers "is the log pipeline healthy". That is a maintainer's
 question. A shifter never asks it. Their question is "what is the experiment
 saying right now". One dashboard serving both serves neither.
+
+### The Maintainer Cockpit stays in Dashboards. The Operator Cockpit does not
+
+The maintainer view is charts and saved searches over indices, which is what
+Dashboards is for. It stays where it is and only gets renamed.
+
+The operator view is a standalone page beside Item 7's, served by the same nginx,
+sharing the same log component. Three reasons:
+
+1. It has one fixed layout, copied from InfoLogger. Dashboards adds a frame
+   around it and nothing else.
+2. A shifter should never have to learn Dashboards navigation to read a log line.
+   InfoLogger is itself a standalone application, so this matches what they know.
+3. No plugin version lock, for the reasons written in Item 7.
 
 ### Why it copies InfoLogger
 
