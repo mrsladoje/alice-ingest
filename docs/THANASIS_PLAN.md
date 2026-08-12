@@ -471,6 +471,20 @@ One extra output on the collector, matching those two tags, posting to our own
 endpoint. Volume is low by construction, so the extra worker cost is small. No
 broker is needed for one extra consumer (see Item 9).
 
+### Which host runs it
+
+**alice-ingest-5.** Proxied by the nginx already on the control host, so
+operators and collectors keep one address.
+
+It must not be the control host. That machine already runs Dashboards, nginx,
+Alertmanager and the metrics poller, and the signal projector was deliberately
+moved off it for memory (`inventory.yml:40-45`). This service holds one open
+connection per viewer, so its cost grows with readers rather than with data.
+alice-ingest-5 carries only the anomaly digest and is the least loaded of the
+three.
+
+Give it a memory limit in its unit file, as the other services have.
+
 ### Browser behaviour
 
 - One ring buffer of the newest 10000 rows. Nothing older is ever kept.
@@ -711,10 +725,32 @@ Explicit event-time start and end fields remove the need for it. In real Run 4
 operation the two clocks converge to within seconds, so the wide default becomes
 pure cost with no benefit.
 
-### Shared with Item 12
+### Where it lives — the standalone page, not Dashboards
 
-The machine dropdown here is the same control as the pinning picker in Item 12.
-Build one.
+Corrected 12 Aug 2026. This item was written assuming a panel inside the
+Maintainer Cockpit. That is not buildable.
+
+OpenSearch Dashboards has no native control that selects an index. Its input
+controls produce filter pills on **fields**, and nothing native lets one panel
+change another panel's index pattern. Our own cockpit shows the available parts:
+7 index patterns, 13 saved searches, 31 visualizations, no control panels. He
+built his in Grafana, whose variables can drive a data source. Dashboards cannot.
+
+So a Dashboards version of this form would have to filter on the `node` field —
+the exact query the operating rule forbids. It would enforce the opposite of what
+it is for.
+
+The form therefore lives on the standalone operator page from Item 13, where we
+own the query and the dropdown is ordinary work. Item 7 already established the
+serving path, so this costs no new component.
+
+### Not shared with Item 12
+
+Item 12's picker looks similar and is not the same thing. It pins machines in
+charts over `cockpit-metrics`, where filtering on `collector_id` as a field is
+both correct and cheap, and where a native Dashboards control does the job. This
+form selects an index over log data. Different data, different mechanism, and
+only Item 12's version is native. Build them separately.
 
 ### Not taken
 
@@ -810,9 +846,15 @@ phone. Two hundred chart lines never will.
 Requirements: one column, cards rather than wide tables, no horizontal scroll,
 and touch targets that a thumb can hit.
 
-### The picker is Item 10's dropdown
+### The picker is native, and is not Item 10's dropdown
 
-Same control, same source of truth. Build it once.
+This picker filters `collector_id` as a field, over `cockpit-metrics` and
+`trend-rollup`. That is correct here: those indices are not partitioned per
+machine, so a field filter is the only filter available and it is cheap. A native
+Dashboards input control does it with no custom code.
+
+Item 10's dropdown selects an index over log data and cannot be native. The two
+look alike and share nothing. Do not try to build one control for both.
 
 ---
 
@@ -1034,10 +1076,15 @@ shards. A `node: epn345` filter over `generic-log-info-*` reads all 200 shards a
 discards 199.
 
 Item 10 is the enforcement path: the operator picks a machine from a dropdown and
-the form sets the index pattern. Until that ships, and afterwards as a backstop,
-this is enforced by measurement: query insights already records processor use and
-shard count per query (`templates.sh.j2:760-768`). Watch it on the storage tier
-and catch the expensive pattern when it appears.
+the form sets the index pattern. **That form is on the standalone page, not in
+Dashboards**, because Dashboards can only filter fields — a Dashboards version of
+it would enforce the opposite of this rule. Item 10 carries the detail.
+
+Inside Dashboards this rule stays unenforceable, so there it is enforced by
+measurement: query insights already records processor use and shard count per
+query (`templates.sh.j2:760-768`). Watch it on the storage tier and catch the
+expensive pattern when it appears. This backstop is permanent, not temporary,
+because Discover remains available and cannot be constrained.
 
 Daily rollover helps here on its own. The can-match phase skips indices whose time
 range does not overlap the query, so a short time range already prunes most of
