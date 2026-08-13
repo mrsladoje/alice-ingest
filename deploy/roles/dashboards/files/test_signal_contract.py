@@ -1,6 +1,8 @@
+import ast
 import http.client
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -1243,13 +1245,18 @@ def test_monitor_execution_error_is_the_monitors_own_incident():
 
 
 def test_the_deploy_gate_fails_on_a_board_query_opensearch_rejects():
+    fixture = _checkout_file("roles", "dashboards", "files", "cockpit.ndjson")
+    if not fixture:
+        print("[signal-contract] "
+              "test_the_deploy_gate_fails_on_a_board_query_opensearch_rejects: "
+              "skipped, cockpit.ndjson not beside this checkout")
+        return
     import verify_detection as verify
 
     body, prop = None, None
     prior_path = verify.COCKPIT_NDJSON
     try:
-        verify.COCKPIT_NDJSON = _checkout_file(
-            "roles", "dashboards", "files", "cockpit.ndjson")
+        verify.COCKPIT_NDJSON = fixture
         body, prop = verify.board_query()
     finally:
         verify.COCKPIT_NDJSON = prior_path
@@ -1279,7 +1286,6 @@ def test_the_deploy_gate_fails_on_a_board_query_opensearch_rejects():
         return errors
 
     good = (200, {"aggregations": {group_agg: {"buckets": [bucket()]}}})
-    fixture = _checkout_file("roles", "dashboards", "files", "cockpit.ndjson")
     check(not run(good, fixture),
           "the gate fails on a healthy board response")
 
@@ -1562,6 +1568,58 @@ def test_injected_pipeline_preserves_the_real_one():
               "the injected pipeline replaces alice-add-ingest-time instead "
               "of delegating to it, so every non-target record would lose "
               "ingest_time and both lag fields")
+
+
+def test_every_local_import_survives_the_on_vm_layout():
+    source = _checkout_file(
+        "roles", "dashboards", "files", "test_signal_contract.py")
+    defaults = _checkout_file(
+        "roles", "dashboards", "defaults", "main.yml")
+    if not source or not defaults:
+        print("[signal-contract] "
+              "test_every_local_import_survives_the_on_vm_layout"
+              ": skipped, roles/ not beside this checkout")
+        return
+    files_dir = os.path.dirname(source)
+    with open(defaults) as fh:
+        beside = set(re.findall(
+            r":\s*/opt/alice-ingest/(\w+)\.py\s*$", fh.read(), re.M))
+    with open(source) as fh:
+        tree = ast.parse(fh.read())
+
+    def local_imports(nodes):
+        return {alias.name
+                for node in nodes
+                for inner in ast.walk(node)
+                if isinstance(inner, ast.Import)
+                for alias in inner.names
+                if os.path.exists(
+                    os.path.join(files_dir, alias.name + ".py"))}
+
+    stranded = local_imports(
+        n for n in tree.body if isinstance(n, ast.Import)) - beside
+    check(not stranded,
+          f"{sorted(stranded)} is imported at module scope but is not staged "
+          f"in /opt/alice-ingest, so this file cannot even load on the control "
+          f"host where projector.yml runs it")
+
+    for fn in tree.body:
+        if not isinstance(fn, ast.FunctionDef):
+            continue
+        if not fn.name.startswith("test_"):
+            continue
+        risky = local_imports([fn]) - beside
+        if not risky:
+            continue
+        guarded = any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                      and n.func.id == "_checkout_file"
+                      for n in ast.walk(fn))
+        check(guarded,
+              f"{fn.name} imports {sorted(risky)}, which the deploy stages "
+              f"somewhere other than beside this file, and it reaches that "
+              f"import without a _checkout_file guard. It passes here and "
+              f"raises ModuleNotFoundError on the control host, failing the "
+              f"deploy at a task that has nothing to do with the contract")
 
 
 def test_episode_grouping_gate_runs_after_the_projector_upgrade():
