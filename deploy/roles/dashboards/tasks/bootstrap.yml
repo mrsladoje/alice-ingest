@@ -1,3 +1,17 @@
+- name: >-
+    Reject an unparsable admission-control mode here rather than at the cluster
+    settings PUT, which carries the detection pacing down with it
+  ansible.builtin.assert:
+    that:
+      - admission_control_mode in ['disabled', 'monitor_only', 'enforced']
+    fail_msg: >-
+      admission_control_mode is '{{ admission_control_mode }}'.
+      AdmissionControlMode.fromName parses only disabled, monitor_only and
+      enforced, and throws on everything else. OpenSearch answers 400 to the
+      whole persistent settings body, so the anomaly-detection batch pacing in
+      the same call is lost with it and templates.sh exits non-zero.
+    quiet: true
+
 - name: Ensure the bootstrap scripts directory exists
   ansible.builtin.file:
     path: "{{ dashboards_bootstrap_root }}"

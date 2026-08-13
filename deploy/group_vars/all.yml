@@ -29,10 +29,14 @@ ad_batch_task_piece_interval_seconds: 10
 # a rejected write is dropped records, so this is deliberately NOT enforced here.
 #
 # 95 percent rolling processor use is a genuine emergency on a 128-core EPN
-# node and an ordinary paced replay on a 2-vCPU staging VM. shadow gives the
-# measurement without the rejection: the valve reports what it would have done
-# and alice-admission-rejections still alarms on it. Set enforced on the farm.
-admission_control_mode: shadow
+# node and an ordinary paced replay on a 2-vCPU staging VM. monitor_only gives
+# the measurement without the rejection: the valve counts what it would have
+# rejected and alice-admission-rejections still alarms on it. Set enforced on
+# the farm.
+#
+# Only disabled, monitor_only and enforced parse. AdmissionControlMode.fromName
+# throws on anything else, so a wrong name is a 400 on the whole settings PUT.
+admission_control_mode: monitor_only
 admission_control_cpu_limit: 95
 
 alice_service_memory_high: "256M"

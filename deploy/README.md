@@ -1648,14 +1648,28 @@ its own failure mode.
    processor use is a genuine emergency on a 128-core EPN node and an ordinary
    paced replay on a 2-vCPU VM, and enforcing it here would reject exactly the
    writes and detector queries the plan says must never be rejected.
-   `admission_control_mode` is `shadow`: the valve reports what it would have
-   done, `admission-rejections` alarms on that, and nothing is dropped. Set it
-   to `enforced` on the farm. The IO valve is overridden off for the same
+   `admission_control_mode` is `monitor_only`: the valve counts what it would
+   have rejected, `admission-rejections` alarms on that, and nothing is dropped.
+   Set it to `enforced` on the farm. The IO valve is overridden off for the same
    reason, and stays off — the plan asks for a processor valve.
 
-   Unverified: whether shadow mode increments the rejection counter the monitor
-   reads. If it does not, the monitor is silent rather than wrong, and the fix
-   is to alarm on the node's processor use instead.
+   **Only `disabled`, `monitor_only` and `enforced` parse.**
+   `AdmissionControlMode.fromName` throws `IllegalArgumentException` on any
+   other name, so OpenSearch answers 400 to the *whole* persistent settings
+   body — including the anomaly-detection batch pacing that shares the call —
+   and `templates.sh` exits non-zero under `set -eu`. The mode is therefore
+   asserted in `roles/dashboards/tasks/bootstrap.yml` before anything renders.
+   An earlier revision shipped `shadow`, which is the word the OpenSearch source
+   comments use for this mode but not the name the enum accepts; it failed the
+   deploy at that PUT.
+
+   The counter does increment in `monitor_only`. `CpuBasedAdmissionController.
+   applyForTransportLayer` calls `addRejectionCount` as soon as the limit is
+   breached, and only then checks whether the mode is enforced before throwing.
+   So the monitor is fed in this mode — and on a 2-vCPU VM a paced replay will
+   breach 95 percent often enough that `admission-rejections` is an early
+   warning about VM size, not a rare emergency. Raise `admission_control_cpu_limit`
+   if that reads as noise.
 
 ### Item 7 — the live lane
 
