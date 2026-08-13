@@ -1096,6 +1096,26 @@ board. It reads the query rather than restating it: a second copy could drift
 from the panel the operator actually loads, and then the gate would validate a
 query nobody runs.
 
+**The grouping gate runs in one pass only, and only against fresh episodes.**
+`verify_detection.py` runs three times in a deploy, and `group_id` is written by
+the projector — which `projector.yml` installs *after* `detection.yml` has
+already verified the detection layer. Checking grouping in that first pass is
+unsatisfiable by construction: on the deploy that introduces the field, every
+episode still in the index was written by the previous projector and carries
+nothing. The gate then fails, `projector.yml` never runs, the new projector is
+never installed, and the next deploy fails identically. That deadlock shipped in
+`0a42bea` and is why `CHECK_EPISODE_GROUPING` now defaults to false, set true
+only by the post-projector re-verify.
+
+`GROUPING_SINCE` bounds it further. It is set to `_projector_gate_started` — the
+instant recorded just before the projector restart — so only episodes the
+running projector itself updated can fail the deploy. Older ungrouped episodes
+are reported as a warning and cleared from the ops page with **Clear findings**.
+Without that bound the gate would still block, because an episode the new
+projector never touched keeps whatever the old one wrote. This is a scope
+restriction, not a weakening: a projector that stops writing `group_id` still
+fails the deploy on its own next episode.
+
 **An alert that names no entity is never a fleet-wide breach.** A per-entity
 monitor declares one entity per alert. When no bucket key arrives, the entity
 used to fall back to the sentinel `none`, which hashed into `incident_id` and

@@ -23,6 +23,9 @@ COCKPIT_NDJSON = os.environ.get(
     "COCKPIT_NDJSON",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "cockpit.ndjson"))
 BOARD_PANEL_ID = "alice-viz-incidents"
+CHECK_EPISODE_GROUPING = os.environ.get(
+    "CHECK_EPISODE_GROUPING", "false").lower() == "true"
+GROUPING_SINCE = os.environ.get("GROUPING_SINCE", "now-1h")
 MAX_ACTIONABLE = int(
     os.environ.get("ALERTING_MAX_ACTIONABLE_ALERT_COUNT", "50"))
 EXPECT_PUSH_HEARTBEATS = os.environ.get(
@@ -606,6 +609,11 @@ def check_episode_grouping(errors):
     grouping fixes. Collapse is every entity folded into one incident that
     names nobody, which happens when a per-entity monitor produces an alert
     with no bucket key and the sentinel entity gets hashed into incident_id.
+
+    Only episodes updated since GROUPING_SINCE are the running projector's own
+    output, so only those can fail the deploy. An episode written before the
+    projector was upgraded predates the field and is not evidence against the
+    code now installed.
     """
     open_q = {"term": {"state": "firing"}}
     code, body = req(
@@ -613,7 +621,12 @@ def check_episode_grouping(errors):
         {"size": 0, "track_total_hits": True, "query": open_q,
          "aggs": {
              "groups": {"cardinality": {"field": "group_id"}},
-             "ungrouped": {"missing": {"field": "group_id"}},
+             "ungrouped": {"filter": {"bool": {
+                 "filter": [{"range": {"last_seen": {"gte": GROUPING_SINCE}}}],
+                 "must_not": [{"exists": {"field": "group_id"}}]}}},
+             "stale_ungrouped": {"filter": {"bool": {
+                 "filter": [{"range": {"last_seen": {"lt": GROUPING_SINCE}}}],
+                 "must_not": [{"exists": {"field": "group_id"}}]}}},
              "widest": {"terms": {"field": "group_id", "size": 1,
                                   "order": {"_count": "desc"}}},
              "anonymous": {"filter": {"bool": {
@@ -640,9 +653,16 @@ def check_episode_grouping(errors):
     ungrouped = (aggs.get("ungrouped") or {}).get("doc_count", 0)
     if ungrouped:
         errors.append(
-            f"{ungrouped} of {episodes} open episodes carry no group_id — the "
-            f"cockpit board aggregates on that field, so those episodes are "
-            f"invisible on it")
+            f"{ungrouped} of {episodes} open episodes updated since "
+            f"{GROUPING_SINCE} carry no group_id — the cockpit board "
+            f"aggregates on that field, so those episodes are invisible on it")
+    else:
+        stale = (aggs.get("stale_ungrouped") or {}).get("doc_count", 0)
+        if stale:
+            print(f"[verify-detection] WARNING: {stale} open episodes carry no "
+                  f"group_id but stopped updating before {GROUPING_SINCE}. "
+                  f"They predate the projector that writes the field; clear "
+                  f"them from the ops page with 'Clear findings'")
 
     live = (aggs.get("anonymous") or {})
     if live.get("doc_count"):
@@ -765,7 +785,8 @@ def main():
     check_forecast_shards(errors)
     check_forecasters(errors)
     check_signal_labels(errors)
-    check_episode_grouping(errors)
+    if CHECK_EPISODE_GROUPING:
+        check_episode_grouping(errors)
     check_cockpit_board_query(errors)
     check_ism(errors)
 

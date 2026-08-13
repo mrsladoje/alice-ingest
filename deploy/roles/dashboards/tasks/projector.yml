@@ -343,4 +343,9 @@
     SIGNAL_CATALOG: "{{ dashboards_bootstrap_signal_catalog }}"
     ALERTING_MAX_ACTIONABLE_ALERT_COUNT: "{{ alerting_max_actionable_alert_count }}"
     EXPECT_PUSH_HEARTBEATS: "false"
+    # Only here, and only against this projector's own output. The bootstrap
+    # pass runs before the projector is upgraded, so every episode still
+    # carries whatever the previous version wrote.
+    CHECK_EPISODE_GROUPING: "true"
+    GROUPING_SINCE: "{{ _projector_gate_started.stdout }}"
   changed_when: false

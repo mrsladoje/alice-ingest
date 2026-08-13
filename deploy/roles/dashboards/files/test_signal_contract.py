@@ -1564,6 +1564,41 @@ def test_injected_pipeline_preserves_the_real_one():
               "ingest_time and both lag fields")
 
 
+def test_episode_grouping_gate_runs_after_the_projector_upgrade():
+    here = os.path.dirname(os.path.abspath(__file__))
+    role = None
+    for _ in range(7):
+        task_dir = os.path.join(here, "roles", "dashboards", "tasks")
+        if os.path.isdir(task_dir):
+            role = task_dir
+            break
+        here = os.path.dirname(here)
+    if role is None:
+        print("[signal-contract] "
+              "test_episode_grouping_gate_runs_after_the_projector_upgrade"
+              ": skipped, roles/ not beside this checkout")
+        return
+    detection = open(os.path.join(role, "detection.yml")).read()
+    projector = open(os.path.join(role, "projector.yml")).read()
+    verifier = open(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "verify_detection.py")).read()
+    check("CHECK_EPISODE_GROUPING" not in detection,
+          "the bootstrap verifier checks episode grouping, but it runs before "
+          "projector.yml installs the projector that writes group_id, so every "
+          "pre-existing episode fails a gate no deploy can ever satisfy")
+    check('CHECK_EPISODE_GROUPING: "true"' in projector,
+          "no pass checks episode grouping, so a projector that stops writing "
+          "group_id ships silently and the cockpit board renders empty")
+    check("GROUPING_SINCE: \"{{ _projector_gate_started.stdout }}\""
+          in projector,
+          "the episode-grouping gate is not scoped to this projector's own "
+          "restart, so episodes written by the previous version fail it")
+    check("if CHECK_EPISODE_GROUPING:" in verifier,
+          "check_episode_grouping is not behind the opt-in flag, so it runs in "
+          "the bootstrap pass again")
+
+
 def test_push_heartbeat_gate_runs_after_collector_cutover():
     here = os.path.dirname(os.path.abspath(__file__))
     site = None
