@@ -64,12 +64,21 @@ volume volumes:
 # Control-node toolchain lives in a self-contained venv (override with VENV=...).
 # The deploy targets prefer it, but fall back to an already-activated venv on PATH
 # so `make bootstrap` is convenient without being mandatory.
+CHECKOUT_ON_AFS := $(filter /afs/%,$(CURDIR))
+ifeq (,$(CHECKOUT_ON_AFS))
 VENV ?= $(CURDIR)/.venv
+else
+LOCAL_SCRATCH := $(shell printf '%s/alice-ingest-%s' "$${TMPDIR:-/tmp}" "$$(id -un)" | tr -s /)
+VENV ?= $(LOCAL_SCRATCH)/venv
+export ANSIBLE_LOCAL_TEMP := $(LOCAL_SCRATCH)/ansible-tmp
+export ANSIBLE_COLLECTIONS_PATH := $(LOCAL_SCRATCH)/collections
+endif
 ANSIBLE_PLAYBOOK := $(if $(wildcard $(VENV)/bin/ansible-playbook),$(VENV)/bin/ansible-playbook,ansible-playbook)
 ANSIBLE_VAULT := $(if $(wildcard $(VENV)/bin/ansible-vault),$(VENV)/bin/ansible-vault,ansible-vault)
 DEPLOY_PYTHON := $(if $(wildcard $(VENV)/bin/python3),$(VENV)/bin/python3,python3)
 
 bootstrap:
+	mkdir -p $(dir $(VENV))
 	python3 -m venv $(VENV)
 	$(VENV)/bin/python -m pip install --upgrade pip
 	$(VENV)/bin/pip install -r deploy/requirements.txt
@@ -87,6 +96,13 @@ DEPLOY_ATTEMPTS ?= 2
 VAULT_PASSWORD_ATTEMPTS ?= 3
 
 deploy-preflight:
+	@if [ -n '$(CHECKOUT_ON_AFS)' ] && [ ! -x '$(VENV)/bin/ansible-playbook' ]; then \
+	  printf '%s\n' \
+	    'ERROR: $(VENV)/bin/ansible-playbook is missing.' \
+	    'This checkout is on AFS, so the toolchain is kept on local disk instead — see deploy/README.md section 3.2.' \
+	    'Local disk is per-machine. Run `make bootstrap` here; another lxplus node needs its own.' >&2; \
+	  exit 2; \
+	fi
 	@rc=0; \
 	if ! command -v "$(ANSIBLE_PLAYBOOK)" >/dev/null 2>&1; then \
 	  printf '%s\n' \

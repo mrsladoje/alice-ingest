@@ -179,8 +179,9 @@ not co-located with that UI stack: `alice-signal-projector` runs on
 
 ### 3.2 Control-node toolchain — `make bootstrap`
 
-One command from the repo root builds a self-contained venv (`.venv/`, gitignored)
-with every control-node dependency and installs the Galaxy collections:
+One command from the repo root builds a self-contained venv (`.venv/`, gitignored —
+but see "the toolchain is kept off AFS" below for where it goes on lxplus) with
+every control-node dependency and installs the Galaxy collections:
 
 ```bash
 make bootstrap
@@ -196,10 +197,48 @@ Then it installs the `requirements.yml` collections: `openstack.cloud`
 `community.general` (htpasswd, timezone), `community.crypto` (self-signed TLS
 for the nginx/Dashboards proxy).
 
-`make provision`/`deploy`/`teardown` use `.venv` automatically (falling back to
-an already-activated venv on `PATH` if `.venv` is absent), so after
+`make provision`/`deploy`/`teardown` use that venv automatically (falling back to
+an already-activated venv on `PATH` if it is absent), so after
 `make bootstrap` you don't need to activate anything. Override the location with
 `make bootstrap VENV=/path/to/venv` (pass the same `VENV=` to the other targets).
+
+**On lxplus the toolchain is kept off AFS, and that is deliberate.** When the
+checkout is under `/afs/...` the Makefile puts the venv in
+`$TMPDIR/alice-ingest-$USER/venv` (so `/tmp/alice-ingest-masladoj/venv`) and points
+`ANSIBLE_LOCAL_TEMP` and `ANSIBLE_COLLECTIONS_PATH` at siblings of it. A checkout
+anywhere else is untouched: still `./.venv`, still Ansible's own defaults.
+
+A deploy is an unusually hostile AFS workload. `site.yml` forks one Ansible worker
+per host; each worker imports several hundred small files out of the venv and the
+four Galaxy collections, and writes its compiled module payload into `local_tmp` —
+which defaults to `~/.ansible/tmp`, also AFS. AFS answers that load with
+`[Errno 5] Input/output error` often enough to kill a run mid-play, and it does not
+fail in a way that names the cause. In the run that prompted this change, Jinja2
+plugin loading failed and the very next task died claiming a variable was undefined:
+
+    [WARNING]: An unexpected error occurred during Jinja2 plugin loading:
+    [Errno 5] Input/output error: b'.../.venv/lib64/python3.9/site-packages/ansible/plugins/filter'
+    fatal: [alice-ingest-3]: FAILED! => {"msg": "The field 'environment' has an invalid
+    value, which includes an undefined variable. The error was:
+    'opensearch_http_port' is undefined ..."}
+
+`opensearch_http_port` is set in `group_vars/all.yml`, and four earlier tasks in that
+same file had already resolved it in that same run. Nothing was undefined — the
+templating engine was. Treat any mid-deploy "undefined variable" naming a variable
+that is plainly defined as an AFS I/O failure, not a playbook bug. Confirm with
+`fs listquota ~` (a full home volume behaves the same way), `tokens`, and
+`fs checkservers`.
+
+The cost is that local disk is per-machine, and lxplus is a load-balanced alias. A
+session on a different lxplus node has no venv, and `make deploy` then stops in
+pre-flight, before it contacts any VM, with a message saying to re-run
+`make bootstrap` — about a minute. That trade is the point: a missing venv fails
+cleanly at pre-flight, while an AFS venv fails at task 137 of a run that has already
+half-configured the cluster.
+
+The repo itself stays on AFS. It is read once per run rather than several hundred
+times per forked worker, and keeping it there is what lets `git pull` on lxplus work
+normally.
 
 > **Build prerequisite:** `keystoneauth1[kerberos]` compiles a small C extension
 > (`pykerberos`), so the box needs `gcc` and `krb5-devel` (`krb5-config`). lxplus
