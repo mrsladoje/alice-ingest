@@ -120,11 +120,24 @@ def score_page(source_id, state, alertname="collector-down"):
 
 def alert_hit(alert_id, index, state, monitor, bucket_keys=None,
               start=1000, end=None, severity="1"):
+    """A bucket-level alert in the shape OpenSearch actually indexes.
+
+    The key lives under agg_alert_content, never as a flat top-level
+    bucket_keys. A fixture carrying the flat field validated the projector
+    against a document the plugin never writes, so every bucket-level alert
+    reached production unattributed while this suite stayed green.
+    """
     src = {"id": alert_id, "monitor_name": monitor, "trigger_name": monitor,
            "state": state, "severity": severity, "start_time": start,
            "last_notification_time": start, "monitor_id": "m1"}
     if bucket_keys is not None:
-        src["bucket_keys"] = bucket_keys
+        keys = list(bucket_keys) if isinstance(bucket_keys, list) \
+            else [bucket_keys]
+        src["agg_alert_content"] = {
+            "parent_bucket_path": "composite_agg",
+            "bucket_keys": keys,
+            "bucket": {"key": {"entity": ",".join(str(k) for k in keys)},
+                       "doc_count": 7}}
     if end is not None:
         src["end_time"] = end
     return {"_id": alert_id, "_index": index, "_source": src}
@@ -1161,6 +1174,125 @@ def test_a_replayed_clear_cannot_count_twice_toward_closing():
               f"{ep['healthy_windows']} times and left the episode "
               f"{ep['episode_state']}; a re-read clear must not close an "
               f"episode that requires three distinct ones")
+
+
+def test_a_bucket_alert_names_the_entity_opensearch_actually_indexes():
+    """The fixture is written out literally, not built by alert_hit().
+
+    The helper and the projector can drift together into agreeing on a
+    document the plugin never writes. Only a hand-written copy of the real
+    alert keeps that agreement honest.
+    """
+    stub_roster(["node-01"], {"epn001": "node-01"})
+    indexed = {
+        "_id": "a-plugin-shape", "_index": sp.ALERTS_CURRENT,
+        "_source": {
+            "id": "a-plugin-shape", "monitor_name": "trend-other-volume",
+            "trigger_name": "trend-other-volume", "state": "ACTIVE",
+            "severity": "2", "start_time": 1000,
+            "last_notification_time": 1000, "monitor_id": "m1",
+            "agg_alert_content": {
+                "parent_bucket_path": "composite_agg",
+                "bucket_keys": ["epn001"],
+                "bucket": {"key": {"entity": "epn001"}, "doc_count": 7}}}}
+    row = sp.alert_signal(indexed, sp.ALERTS_CURRENT)
+    check(row["entity_id"] == "epn001" and row["entity_kind"] == "epn",
+          f"the projector read {row['entity_kind']}/{row['entity_id']} out of "
+          f"the document OpenSearch indexes. Alerting nests the key under "
+          f"agg_alert_content and exposes a flat bucket_keys only to the "
+          f"mustache context, so reading the flat field leaves every "
+          f"per-entity breach anonymous while the action payload still names "
+          f"the entity")
+    check(row["class"] == sp.SINGLE,
+          f"a fully-keyed bucket alert was classed {row['class']}, so a "
+          f"working monitor is reported as a broken rule")
+    check(row["collector_id"] == "node-01",
+          f"the named entity did not resolve to its collector: "
+          f"{row['collector_id']}")
+    check(row["evidence"]["bucket_keys"] == "epn001",
+          f"evidence dropped the key: {row['evidence']['bucket_keys']!r}")
+    helper = alert_hit("a-helper", sp.ALERTS_CURRENT, "ACTIVE",
+                       "trend-other-volume", ["epn001"], severity="2")
+    check("bucket_keys" not in helper["_source"]
+          and ((helper["_source"].get("agg_alert_content") or {})
+               .get("bucket_keys") == ["epn001"]),
+          f"alert_hit() stopped building the indexed shape: "
+          f"{helper['_source'].get('agg_alert_content')!r}. Every other "
+          f"bucket-level test in this file reads that fixture, so they would "
+          f"all go back to proving nothing")
+
+
+def test_bucket_key_gate_runs_only_after_the_projector_restart():
+    """The deploy gate for keyless bucket alerts, and the bound it needs.
+
+    verify_detection runs three times in a deploy. Only the pass after the
+    projector restarts carries GROUPING_SINCE as that restart instant. The two
+    earlier passes leave it relative, and there rows written by the previous
+    projector would fail the very deploy that replaces it.
+    """
+    verifier = _checkout_file(
+        "roles", "dashboards", "files", "verify_detection.py")
+    if verifier is None:
+        print("[signal-contract] "
+              "test_bucket_key_gate_runs_only_after_the_projector_restart"
+              ": skipped, roles/ not beside this checkout")
+        return
+    import verify_detection as verify
+    with open(verifier) as fh:
+        main = next(n for n in ast.parse(fh.read()).body
+                    if isinstance(n, ast.FunctionDef) and n.name == "main")
+    guarded, unguarded = set(), set()
+    for node in main.body:
+        called = {c.func.id for c in ast.walk(node)
+                  if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)}
+        if isinstance(node, ast.If) and isinstance(node.test, ast.Name) \
+                and node.test.id == "CHECK_EPISODE_GROUPING":
+            guarded |= called
+        else:
+            unguarded |= called
+    check("check_bucket_alert_entities" in guarded
+          and "check_bucket_alert_entities" not in unguarded,
+          "the bucket-key gate does not sit behind CHECK_EPISODE_GROUPING. "
+          "The bootstrap and post-collector passes run before the projector "
+          "restarts, so entity-missing rows the previous projector wrote "
+          "would fail the deploy that fixes them")
+
+    seen = []
+
+    def dirty(method, path, payload=None):
+        seen.append((path, payload))
+        return 200, {"hits": {"total": {"value": 12}},
+                     "aggregations": {"rules": {"buckets": [
+                         {"key": "trend-il-volume", "doc_count": 12}]}}}
+
+    prior = verify.req
+    try:
+        verify.req = dirty
+        dirty_errors = []
+        verify.check_bucket_alert_entities(dirty_errors, {"trend-il-volume"})
+        verify.req = lambda *a, **k: (200, {"hits": {"total": {"value": 0}}})
+        clean_errors = []
+        with redirect_stdout(StringIO()):
+            verify.check_bucket_alert_entities(
+                clean_errors, {"trend-il-volume"})
+        verify.req = lambda *a, **k: (404, {})
+        absent_errors = []
+        verify.check_bucket_alert_entities(absent_errors, {"trend-il-volume"})
+    finally:
+        verify.req = prior
+    check(len(dirty_errors) == 1 and "trend-il-volume" in dirty_errors[0],
+          f"a cluster projecting keyless bucket alerts did not fail the "
+          f"deploy: {dirty_errors}")
+    check(not clean_errors and not absent_errors,
+          f"the gate fails a healthy cluster ({clean_errors}) or one whose "
+          f"signals index does not exist yet ({absent_errors})")
+    filters = seen[0][1]["query"]["bool"]["filter"]
+    check(seen[0][0].startswith(f"/{verify.SIGNALS_INDEX}"),
+          f"the gate reads {seen[0][0]}, not the signals index")
+    check({"term": {"class": "entity-missing"}} in filters,
+          f"the gate does not select the entity-missing class: {filters}")
+    check({"range": {"last_seen": {"gte": verify.GROUPING_SINCE}}} in filters,
+          f"the gate is not scoped to this projector's own output: {filters}")
 
 
 def test_a_bucket_alert_with_no_key_never_becomes_a_fleet_incident():

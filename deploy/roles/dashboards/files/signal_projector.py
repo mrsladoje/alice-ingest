@@ -179,12 +179,22 @@ def watermark(lane, default_minutes):
 def bucket_entity(src):
     """The bucket key an alert names, or the empty string when it names none.
 
+    Alerting nests the bucket identity under agg_alert_content in the indexed
+    document. The flat top-level bucket_keys exists only in the mustache
+    template context an action renders, so an action payload names its entity
+    while the stored alert appears keyless. Reading the flat field alone made
+    every bucket-level breach anonymous; the flat read stays as a fallback.
+
     Never the sentinel. A bucket-level monitor declares one entity per alert,
     so a missing key is a broken contract, not a fleet-wide breach — and
     hashing the sentinel into incident_id folds every entity's breaches into
     one anonymous incident that names nobody.
     """
-    keys = src.get("bucket_keys")
+    content = src.get("agg_alert_content")
+    if isinstance(content, dict) and "bucket_keys" in content:
+        keys = content.get("bucket_keys")
+    else:
+        keys = src.get("bucket_keys")
     if isinstance(keys, list):
         return ",".join(str(k).strip() for k in keys if str(k).strip())
     if keys is None:

@@ -126,6 +126,7 @@ def check_monitors(errors):
                  {"query": {"match_all": {}}, "size": 200})
     monitors = mon.get("hits", {}).get("hits", [])
     mon_names = set()
+    bucket_names = set()
     throttle_missing = []
     wrong_source = []
     entity_missing = []
@@ -157,6 +158,8 @@ def check_monitors(errors):
         want_sink = (BREAKGLASS_ID if name in BREAKGLASS_MONITORS
                      else SINK_ID)
         is_bucket = mon_obj.get("monitor_type") == "bucket_level_monitor"
+        if is_bucket:
+            bucket_names.add(name)
         for t in mon_obj.get("triggers") or []:
             if "bucket_level_trigger" not in t \
                     and "query_level_trigger" not in t:
@@ -214,6 +217,63 @@ def check_monitors(errors):
         errors.append(
             f"monitors still bucketed on the ambiguous node field instead of "
             f"collector_id / os_node: {sorted(node_keyed)}")
+    return bucket_names
+
+
+def check_bucket_alert_entities(errors, bucket_monitors):
+    """Every bucket-level alert must reach the signals index named.
+
+    Alerting nests the key under agg_alert_content.bucket_keys, and exposes a
+    flat bucket_keys only to the mustache context an action renders. A
+    projector reading the flat field therefore sees a keyless alert, classes
+    it entity-missing, and folds each breach into one monitor-level card that
+    names nobody — while the notification payload still carries the entity, so
+    the two lanes disagree.
+
+    check_episode_grouping cannot catch this. It excludes the monitor classes
+    from its anonymity test on purpose, because those rows are the intended
+    output when a rule really is broken. This gate asks the prior question:
+    whether the rule was broken at all.
+
+    Runs only beside that gate, for its bound. GROUPING_SINCE is the instant
+    recorded just before the projector restarts, so only rows the running
+    projector wrote can fail the deploy. The two earlier verify runs in a
+    deploy happen before that restart and leave GROUPING_SINCE at its relative
+    default, where rows from the previous projector would fail the very deploy
+    that replaces it.
+    """
+    if not bucket_monitors:
+        return
+    code, body = req(
+        "POST", f"/{SIGNALS_INDEX}/_search",
+        {"size": 0, "track_total_hits": True,
+         "query": {"bool": {"filter": [
+             {"term": {"class": "entity-missing"}},
+             {"terms": {"alertname": sorted(bucket_monitors)}},
+             {"range": {"last_seen": {"gte": GROUPING_SINCE}}}]}},
+         "aggs": {"rules": {"terms": {"field": "alertname", "size": 20}}}})
+    if code == 404:
+        return
+    if code != 200:
+        errors.append(
+            f"cannot read {SIGNALS_INDEX} for bucket-key attribution: "
+            f"HTTP {code}")
+        return
+    total = ((body.get("hits") or {}).get("total") or {}).get("value", 0)
+    if not total:
+        print(f"[verify-detection] every bucket-level alert projected since "
+              f"{GROUPING_SINCE} named its entity")
+        return
+    rules = sorted(
+        f"{b.get('key')}={b.get('doc_count')}" for b in
+        (((body.get("aggregations") or {}).get("rules") or {})
+         .get("buckets") or []))
+    errors.append(
+        f"{total} bucket-level alerts projected since {GROUPING_SINCE} carry "
+        f"no bucket key ({rules}) — the breach is real but unattributable, "
+        f"and the entity is still recoverable from "
+        f"agg_alert_content.bucket_keys on the alert and from the entity "
+        f"field in {NOTIFICATIONS_INDEX}")
 
 
 def check_detectors(errors):
@@ -775,7 +835,7 @@ def main():
     errors = []
     check_channels(errors)
     check_actionable_limit(errors)
-    check_monitors(errors)
+    bucket_monitors = check_monitors(errors)
     check_live_mappings(errors)
     collectors = check_roster(errors)
     check_push_and_absence(errors, collectors)
@@ -786,6 +846,7 @@ def main():
     check_forecasters(errors)
     check_signal_labels(errors)
     if CHECK_EPISODE_GROUPING:
+        check_bucket_alert_entities(errors, bucket_monitors)
         check_episode_grouping(errors)
     check_cockpit_board_query(errors)
     check_ism(errors)

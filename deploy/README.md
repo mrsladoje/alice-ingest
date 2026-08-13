@@ -1169,6 +1169,27 @@ actionable. The same hole existed on the detector lane and closes the same way:
 a high-cardinality result carrying no entity is dropped and counted in the
 projector log, never averaged into a fleet incident.
 
+**Where the bucket key actually lives.** Alerting writes the bucket identity
+into the alert document nested under `agg_alert_content`: `parent_bucket_path`,
+`bucket_keys` (an array) and `bucket`. The flat top-level `bucket_keys` exists
+only in `Alert.asTemplateArg()`, the mustache context an action renders, and
+there it is one comma-joined string. The two shapes share a field name, so a
+reader of the flat field on a stored alert sees every bucket-level breach as
+keyless while the action payload for the same breach names its entity
+correctly. That mismatch made all 17 bucket-level monitors project
+`entity-missing` the first time a poison run pushed them into a sustained
+breach. The projector reads the nested field and keeps the flat read as a
+fallback; `test_a_bucket_alert_names_the_entity_opensearch_actually_indexes`
+pins a hand-written copy of the indexed document so the fixture cannot drift
+back; and `check_bucket_alert_entities` fails the deploy when a bucket-level
+monitor projects `entity-missing` after the projector restarts. That gate runs
+beside the episode-grouping gate and shares its `GROUPING_SINCE` bound, for the
+same reason: the two earlier verify runs in a deploy happen before the restart,
+where rows from the previous projector would fail the very deploy that replaces
+it. The grouping gate cannot cover this case itself, because it excludes the
+monitor classes on purpose — those rows are the wanted output when a rule is
+genuinely broken. The new gate asks whether the rule was broken at all.
+
 **How to see an incident's members.** `/ops` headlines open incidents; the
 cockpit's Incidents panel does the same and the `alice-signals` saved search
 sits directly beneath it. Every signal row carries the `incident_id` that ties
