@@ -7,8 +7,12 @@ import urllib.request
 OSD_URL = os.environ.get("OSD_URL", "http://127.0.0.1:5602")
 
 REQUIRED = {
+    # source_file must be a discovered keyword, not merely present in _source.
+    # Storing it as text is the exact mistake this field exists to avoid: it
+    # would then be unaggregatable, and grouping by the program that wrote a
+    # line is the whole value.
     "alice-unified": ["@timestamp", "severity", "log_source", "message",
-                      "host", "hostname", "system", "detector",
+                      "host", "hostname", "system", "detector", "source_file",
                       "collector_time", "ingest_lag_ms", "enter_system_lag_ms",
                       "synthetic", "poison_run_id", "poison_stage",
                       "poison_targets"],
@@ -19,16 +23,17 @@ REQUIRED = {
                       "poison_run_id", "poison_stage", "poison_targets"],
     "alice-ad-results": ["detector_id", "anomaly_grade", "confidence"],
     "alice-alerts": ["monitor_name.keyword", "state"],
-    "alice-anomalies": ["@timestamp", "detector", "about", "scope",
-                        "scope_kind", "grade", "confidence", "severity",
-                        "run"],
-    "alice-incidents": ["@timestamp", "episode_id", "incident_id", "title",
-                        "severity", "state", "episode_state", "member_count",
-                        "opened_at", "last_seen", "worst_grade",
-                        "latest_confidence"],
-    "alice-signals": ["@timestamp", "episode_id", "incident_id", "source_id",
-                      "source_kind", "severity", "state", "entity_id",
-                      "grade", "confidence"],
+    # group_id carries the cockpit board: it aggregates open episodes on that
+    # field, and both card buttons filter on it. Without the field the board
+    # renders empty rather than failing, so make its absence a deploy failure.
+    "alice-incidents": ["@timestamp", "episode_id", "incident_id", "group_id",
+                        "title", "severity", "state", "episode_state",
+                        "member_count", "opened_at", "last_seen",
+                        "worst_grade", "latest_confidence", "entity_id",
+                        "entity_kind", "affected"],
+    "alice-signals": ["@timestamp", "episode_id", "incident_id", "group_id",
+                      "source_id", "source_kind", "severity", "state",
+                      "entity_id", "class", "grade", "confidence"],
 }
 
 SOFT_REQUIRED = {"alice-ad-results", "alice-alerts"}

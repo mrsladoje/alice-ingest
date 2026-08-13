@@ -398,18 +398,65 @@ def test_cockpit_headlines_episodes_not_raw_detector_exhaust():
           and "opened_at" in spec and "last_seen" in spec,
           "episode links do not carry the episode's own time window, so "
           "Discover opens on the leftover picker range and undercounts")
+    board_data = json.loads(spec)["data"][0]
+    check(board_data["format"]["property"] == "aggregations.groups.buckets"
+          and board_data["url"]["body"]["aggs"]["groups"]["terms"]["field"]
+          == "group_id",
+          "the board must aggregate open episodes into notification groups; "
+          "listing raw episode documents puts one card per entity on screen "
+          "and a single rule can then fill the whole board")
+    group_aggs = board_data["url"]["body"]["aggs"]["groups"]["aggs"]
+    counted = group_aggs["entity_total"]["cardinality"]["field"]
+    check(group_aggs["entities"]["terms"]["field"] == "entity_id"
+          and counted == "entity_id",
+          "a grouped card must name the affected entities and count them, or "
+          "grouping only hides the fan-out instead of summarising it")
     links = {t["as"]: t.get("expr", "")
              for data in json.loads(spec)["data"]
              for t in data.get("transform", [])
              if isinstance(t.get("as"), str)}
-    check("episode_id" in links.get("signalsUrl", "")
-          and "incident_id" not in links.get("signalsUrl", ""),
-          "Signals must scope to the one episode whose card was clicked")
-    check("incident_id" in links.get("detailsUrl", "")
+    check("group_id" in links.get("signalsUrl", "")
+          and "episode_id" not in links.get("signalsUrl", ""),
+          "Signals must scope to the group whose card was clicked, so every "
+          "affected entity's rows arrive together")
+    check("group_id" in links.get("detailsUrl", "")
           and "episode_id" not in links.get("detailsUrl", "")
           and "from:now-" in links.get("detailsUrl", ""),
-          "Details must scope to the whole incident over a lookback window, "
-          "or it repeats the card instead of showing how often it came back")
+          "Details must scope to the group over a lookback window, so it "
+          "shows one row per affected entity and how often each came back")
+    shadowed = sorted(set(links) & set(group_aggs))
+    check(not shadowed,
+          f"board formulas shadow the aggregation objects they read: "
+          f"{shadowed}. A formula named after a sub-aggregation replaces that "
+          f"object with a scalar, so every later datum.<name>.value is "
+          f"undefined and the link windows become NaN.")
+
+    import re
+    read = set()
+    for expr in links.values():
+        read |= set(re.findall(
+            r"datum\.(\w+)\.(?:value|doc_count|buckets)", expr))
+    undeclared = sorted(read - set(group_aggs))
+    check(not undeclared,
+          f"board expressions read sub-aggregations the query never declares: "
+          f"{undeclared}. Vega resolves those to undefined and prints them on "
+          f"the card rather than failing, so the typo reaches the operator.")
+
+    import verify_detection as verify
+    prior_path = verify.COCKPIT_NDJSON
+    try:
+        verify.COCKPIT_NDJSON = _checkout_file(
+            "roles", "dashboards", "files", "cockpit.ndjson")
+        body, prop = verify.board_query()
+    finally:
+        verify.COCKPIT_NDJSON = prior_path
+    check(body is not None and prop == "aggregations.groups.buckets",
+          f"the deploy gate cannot extract the board query from the shipped "
+          f"saved objects (property {prop!r}); it would pass without ever "
+          f"running the query it exists to run")
+    check(body == board_data["url"]["body"],
+          "the gate and the panel disagree on the query body, so the deploy "
+          "would validate a query the operator never loads")
     ids = {o["id"] for o in objects}
     check("alice-search-incident-history" in ids,
           "the episode-history saved search the Details button opens is "
@@ -1114,6 +1161,224 @@ def test_a_replayed_clear_cannot_count_twice_toward_closing():
               f"episode that requires three distinct ones")
 
 
+def test_a_bucket_alert_with_no_key_never_becomes_a_fleet_incident():
+    stub_roster(["node-01"], {"epn001": "node-01"})
+    named = sp.alert_signal(
+        alert_hit("a-named", sp.ALERTS_CURRENT, "ACTIVE", "trend-other-volume",
+                  ["epn001"], severity="2"), sp.ALERTS_CURRENT)
+    for keys in (None, [], [""], ["  "]):
+        row = sp.alert_signal(
+            alert_hit("a-keyless", sp.ALERTS_CURRENT, "ACTIVE",
+                      "trend-other-volume", keys, severity="2"),
+            sp.ALERTS_CURRENT)
+        check(row["entity_id"] != signal_identity.sentinel("entity_id"),
+              f"bucket_keys={keys!r} produced the sentinel entity. Hashing it "
+              f"into incident_id folds every EPN's breach into one anonymous "
+              f"incident that says 'whole fleet' and names nobody.")
+        check(row["class"] == sp.ENTITY_MISSING
+              and row["entity_kind"] == "monitor"
+              and row["entity_id"] == "trend-other-volume",
+              f"bucket_keys={keys!r} was not attributed to the monitor: "
+              f"{row['entity_kind']}/{row['entity_id']} class {row['class']}")
+        check(sp.incident_id(row) != sp.incident_id(named),
+              f"bucket_keys={keys!r} shares an incident with a real breach of "
+              f"the same rule")
+        ep = sp.blank_incident(row, sp.incident_id(row), row["first_seen"])
+        check(ep["affected"] == "monitor trend-other-volume"
+              and "without naming an entity" in ep["title"],
+              f"the operator is not told the rule is broken: "
+              f"{ep['title']!r} / {ep['affected']!r}")
+
+
+def test_an_orphaned_anonymous_episode_closes_instead_of_paging_forever():
+    stub_roster(["node-01"], {"epn001": "node-01"})
+    named = sp.alert_signal(
+        alert_hit("a-keep", sp.ALERTS_CURRENT, "ACTIVE", "trend-other-volume",
+                  ["epn001"], severity="2"), sp.ALERTS_CURRENT)
+    named["incident_id"] = sp.incident_id(named)
+    incidents = {}
+    sp.apply_monitor(incidents, [named], {}, {})
+
+    stranded = dict(list(incidents.values())[0])
+    stranded["entity_id"] = signal_identity.sentinel("entity_id")
+    stranded["episode_id"] = "stranded.1000"
+    stranded["episode_state"] = sp.OPEN
+    stranded["state"] = "firing"
+    incidents["stranded.1000"] = stranded
+
+    sp.age_episodes(incidents, 900000)
+    check(stranded["episode_state"] == sp.CLOSED_EXPECTED
+          and stranded["state"] == "resolved",
+          f"an episode built on the sentinel entity stayed "
+          f"{stranded['episode_state']}. Nothing produces that identity any "
+          f"more, so it can never gather a healthy window and would re-send "
+          f"to Alertmanager and hold a cockpit card for ever.")
+    live = [ep for eid, ep in incidents.items() if eid != "stranded.1000"]
+    check(all(ep["episode_state"] == sp.OPEN for ep in live),
+          "closing the orphan also closed the real per-entity episodes")
+
+
+def test_monitor_execution_error_is_the_monitors_own_incident():
+    stub_roster(["node-01"], {})
+    hit = alert_hit("a-err", sp.ALERTS_CURRENT, "ERROR", "collector-down",
+                    None)
+    hit["_source"]["error_message"] = "x" * (sp.MAX_ERROR_NOTE + 500)
+    row = sp.alert_signal(hit, sp.ALERTS_CURRENT)
+    check(row["class"] == sp.MONITOR_ERROR
+          and row["entity_id"] == "collector-down"
+          and row["notification_scope"] == "fleet",
+          f"an execution error was projected as an ordinary breach: "
+          f"{row['class']} {row['entity_kind']}/{row['entity_id']} "
+          f"scope {row['notification_scope']}")
+    check(len(row["evidence"]["note"]) == sp.MAX_ERROR_NOTE,
+          f"the error message was stored at {len(row['evidence']['note'])} "
+          f"characters; an unbounded keyword can exceed the Lucene term limit "
+          f"and reject the whole bulk request")
+    ep = sp.blank_incident(row, sp.incident_id(row), row["first_seen"])
+    check("cannot run" in ep["title"] and "collector-down" in ep["diagnosis"],
+          f"the card does not say the rule cannot run: {ep['title']!r}")
+    check(sp.classify_mass_silence([row]) is None,
+          "a broken collector-down monitor was counted as a silent collector, "
+          "so one monitor error could page as fleet-wide silence")
+
+
+def test_the_deploy_gate_fails_on_a_board_query_opensearch_rejects():
+    import verify_detection as verify
+
+    body, prop = None, None
+    prior_path = verify.COCKPIT_NDJSON
+    try:
+        verify.COCKPIT_NDJSON = _checkout_file(
+            "roles", "dashboards", "files", "cockpit.ndjson")
+        body, prop = verify.board_query()
+    finally:
+        verify.COCKPIT_NDJSON = prior_path
+    if body is None:
+        check(False, "cannot stage the board-query gate fixture")
+        return
+    group_agg = prop.split(".")[1]
+    declared = sorted(body["aggs"][group_agg]["aggs"])
+
+    def bucket(**overrides):
+        row = {"key": "alice-logs/il-per-epn/fleet", "doc_count": 3}
+        row.update({name: {"value": 1} for name in declared})
+        row.update(overrides)
+        return row
+
+    def run(reply, path=prior_path):
+        errors = []
+        prior_req, prior_ndjson = verify.req, verify.COCKPIT_NDJSON
+        try:
+            verify.req = lambda *a, **k: reply
+            verify.COCKPIT_NDJSON = path
+            with redirect_stdout(StringIO()):
+                verify.check_cockpit_board_query(errors)
+        finally:
+            verify.req = prior_req
+            verify.COCKPIT_NDJSON = prior_ndjson
+        return errors
+
+    good = (200, {"aggregations": {group_agg: {"buckets": [bucket()]}}})
+    fixture = _checkout_file("roles", "dashboards", "files", "cockpit.ndjson")
+    check(not run(good, fixture),
+          "the gate fails on a healthy board response")
+
+    rejected = (400, {"error": {"type": "aggregation_execution_exception",
+                                "reason": "no mapping found for [group_id]"}})
+    errors = run(rejected, fixture)
+    check(errors and "rejects" in errors[0] and "400" in errors[0],
+          f"a board query OpenSearch refuses did not fail the deploy: "
+          f"{errors}. That is the whole point of the gate — the panel would "
+          f"draw an empty board and say nothing about why.")
+
+    stripped = bucket()
+    stripped.pop(declared[0])
+    errors = run((200, {"aggregations": {group_agg: {"buckets": [stripped]}}}),
+                 fixture)
+    check(errors and declared[0] in errors[0],
+          f"a bucket missing the {declared[0]!r} sub-aggregation passed; "
+          f"every card expression reads it and would render undefined: "
+          f"{errors}")
+
+    empty = tempfile.NamedTemporaryFile(
+        "w", suffix=".ndjson", delete=False)
+    empty.write('{"type": "search", "id": "not-the-board"}\n')
+    empty.close()
+    errors = run(good, empty.name)
+    check(errors and "incident board" in errors[0],
+          f"a cockpit shipped without its incident board passed the gate: "
+          f"{errors}")
+
+
+def test_a_stale_error_message_cannot_steal_a_named_breach():
+    stub_roster(["node-01"], {"epn001": "node-01"})
+    hit = alert_hit("a-lingering", sp.ALERTS_CURRENT, "ACTIVE",
+                    "trend-other-volume", ["epn001"], severity="2")
+    hit["_source"]["error_message"] = "failed to evaluate 40 minutes ago"
+    row = sp.alert_signal(hit, sp.ALERTS_CURRENT)
+    check(row["class"] == sp.SINGLE and row["entity_id"] == "epn001"
+          and row["entity_kind"] == "epn",
+          f"an active alert that names epn001 was reclassified as "
+          f"{row['class']} on {row['entity_kind']}/{row['entity_id']}. A "
+          f"recovered alert can keep the error message from an earlier "
+          f"failure, so reading the message as the class loses a real "
+          f"per-entity breach — the exact fault this change prevents.")
+
+
+def test_a_detector_result_with_no_entity_is_dropped_not_averaged():
+    stub_roster(["node-01"], {})
+    hit = result_hit("r-anon", "d1", 0.9, "origin_host", "epn001", 5000)
+    hit["_source"].pop("entity")
+    sp._dropped_rows.clear()
+    row = sp.anomaly_row(hit, {"d1": "il-per-epn"})
+    check(row is None,
+          "a high-cardinality anomaly result carrying no entity became a "
+          "signal; its sentinel entity would fold every EPN's anomalies into "
+          "one anonymous fleet incident")
+    check(any("no entity at all" in reason for reason in sp._dropped_rows),
+          f"the drop was silent: {sorted(sp._dropped_rows)}")
+    sp._dropped_rows.clear()
+
+
+def test_one_card_covers_one_alertmanager_notification():
+    stub_roster(["node-01", "node-02"], {"epn034": "node-01",
+                                         "epn088": "node-02"})
+    rows = [
+        sp.anomaly_row(result_hit(f"r-g{i}", "d1", 0.9, "origin_host", host,
+                                  5000), {"d1": "il-per-epn"})
+        for i, host in enumerate(("epn034", "epn088"))]
+    groups = {sp.group_id(row) for row in rows}
+    check(len(groups) == 1,
+          f"two EPNs breaching one fleet-scoped rule produced {len(groups)} "
+          f"cards: {sorted(groups)}")
+    check(len({sp.incident_id(row) for row in rows}) == 2,
+          "grouping collapsed the per-entity episodes themselves; each entity "
+          "must keep its own state machine and its own recovery")
+
+    collector_rows = [
+        sp.anomaly_row(result_hit(f"r-c{i}", "d2", 0.9, "collector_id", node,
+                                  5000), {"d2": "ingest-flow"})
+        for i, node in enumerate(("node-01", "node-02"))]
+    check(len({sp.group_id(row) for row in collector_rows}) == 2,
+          "collector-scoped rows shared one card, but Alertmanager routes "
+          "them to separate notifications per collector, so one card would "
+          "claim to be a notification nobody receives")
+
+    for row in rows + collector_rows:
+        row["incident_id"] = sp.incident_id(row)
+        ep = sp.blank_incident(row, row["incident_id"], row["first_seen"])
+        labels = sp.labels_for(ep)
+        expected = "/".join((row["cluster_id"], row["alertname"],
+                             labels["notification_scope"]))
+        check(ep["group_id"] == expected,
+              f"the card key {ep['group_id']!r} is not the key Alertmanager "
+              f"groups on ({expected!r}); the two must be the same fields or "
+              f"one card stops meaning one notification")
+        payload = sp.alertmanager_payload({ep["episode_id"]: ep})[0]
+        check(payload["annotations"]["group_id"] == ep["group_id"],
+              "the notification cannot be traced back to the card")
+
+
 def test_old_episode_notification_cannot_cover_a_new_one():
     stub_roster(["node-01"], {})
     old = sp.alert_signal(
@@ -1657,14 +1922,16 @@ def test_dynamic_services_can_read_the_signal_catalog():
     projector_unit_path = _checkout_file(
         "roles", "dashboards", "templates",
         "alice-signal-projector.service.j2")
-    digest = open(digest_path).read() if digest_path else ""
+    site_path = _checkout_file("site.yml")
     projector = open(projector_path).read() if projector_path else ""
     projector_unit = (open(projector_unit_path).read()
                       if projector_unit_path else "")
-    check("Wait for the digest to complete a new lossless traversal cycle"
-          in digest and ".get('updated_at', 0)" in digest,
-          "deploy does not require a post-start digest cycle to advance its "
-          "watermark")
+    site = open(site_path).read() if site_path else ""
+    check(digest_path is None,
+          "digest.yml still exists; the live anomaly digest was removed")
+    check("tasks_from: digest.yml" not in site
+          and "anomaly-realtime" not in site,
+          "deploy still waits on the digest watermark or includes digest.yml")
     check("Wait for the newest signal-projector heartbeat to prove a "
           "successful cycle" in projector
           and "projector_cycle_ok" in projector
@@ -1739,9 +2006,13 @@ def test_status_exposes_functional_projector_and_replay_health():
     check("SIGNAL PROJECTOR (functional heartbeat)" in probe
           and "projector_cycle_ok" in probe,
           "the detection probe does not inspect the projector heartbeat")
-    check("realtime raw anomalies above 0.5 exist" in probe,
-          "the detection probe cannot distinguish an empty digest from a "
-          "broken digest")
+    check("alice-signals" in probe and "source_kind" in probe
+          and "nothing projected into alice-signals" in probe,
+          "the detection probe cannot distinguish raw AD firing from a "
+          "silent projector")
+    check("digest projected none" not in probe
+          and "ANOMALY DIGEST" not in probe,
+          "the detection probe still talks about the removed digest")
 
 
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_")]

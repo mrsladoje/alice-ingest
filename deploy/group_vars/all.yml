@@ -3,6 +3,38 @@ opensearch_cluster_name: alice-logs
 
 opensearch_heap_size: "1g"
 
+# Worker-tier OpenSearch footprint. Reasoning in README section 9, Item 4.
+#
+# The farm value is 2g; inventory.yml overrides it down for the m2.medium
+# staging workers, which cannot hold it beside Fluent Bit and the producer.
+opensearch_worker_heap_size: "2g"
+
+# A cap, never a floor — opensearch.yml.j2 takes the smaller of this and the
+# processors the machine really has.
+opensearch_worker_processors: 4
+opensearch_worker_index_buffer_size: "5%"
+
+# Must stay well under the one-minute detector interval or it is inert. Measure
+# the refresh rate before and after; if it does not drop, this value is wrong.
+opensearch_info_search_idle_after: "10s"
+opensearch_info_translog_sync_interval: "30s"
+opensearch_info_merge_threads: 1
+
+# Anomaly detection cost. Backtests take longer and return the same result.
+# model_max_size_percent is deliberately not set — lowering it evicts models.
+ad_max_batch_task_per_node: 2
+ad_batch_task_piece_interval_seconds: 10
+
+# Emergency valve. A rejected search is a detection interval that never ran and
+# a rejected write is dropped records, so this is deliberately NOT enforced here.
+#
+# 95 percent rolling processor use is a genuine emergency on a 128-core EPN
+# node and an ordinary paced replay on a 2-vCPU staging VM. shadow gives the
+# measurement without the rejection: the valve reports what it would have done
+# and alice-admission-rejections still alarms on it. Set enforced on the farm.
+admission_control_mode: shadow
+admission_control_cpu_limit: 95
+
 alice_service_memory_high: "256M"
 alice_service_memory_max: "512M"
 
@@ -33,6 +65,28 @@ log_root: /var/log/node
 fluent_bit_storage_path: /var/log/flb-storage
 fluent_bit_http_port: 2020
 fluent_bit_version: "5.0.8"
+
+# Service-level, so this also delays the live lane by the same 5 seconds.
+fluent_bit_flush_seconds: 5
+
+# The live lane. README section 9, Item 7.
+live_lane_enabled: true
+live_lane_host: "{{ hostvars[groups['livelane'][0]].ansible_host }}"
+live_lane_port: 8092
+live_lane_bind: 0.0.0.0
+live_lane_ingest_path: /ingest
+live_lane_token: ""
+
+live_lane_buffer_rows: 10000
+
+# Held for a viewer who connects mid-stream, so a fresh page is not blank.
+live_lane_replay_rows: 500
+
+# Per viewer. A full queue drops for that viewer; it is never allowed to grow.
+live_lane_client_queue_max: 2000
+
+live_lane_memory_high: "192M"
+live_lane_memory_max: "384M"
 
 s3_endpoint: "https://s3.cern.ch"
 s3_bucket: epn-backup-logs
@@ -90,13 +144,6 @@ trend_min_slice_docs: 50
 trend_min_slice_errors: 10
 trend_min_lag_docs: 100
 
-anomaly_digest_index: alice-anomalies
-anomaly_digest_interval_seconds: 60
-anomaly_digest_retention_days: 14
-anomaly_digest_overlap_minutes: 15
-anomaly_digest_initial_lookback_minutes: 120
-anomaly_digest_page: 500
-
 anomaly_grade_floor: 0.5
 
 cluster_id: "{{ opensearch_cluster_name }}"
@@ -125,6 +172,8 @@ notification_ingest_token: ""
 alertmanager_resolve_timeout: 5m
 signal_projector_interval_seconds: 30
 signal_projector_resolve_timeout_seconds: 300
+signal_projector_overlap_minutes: 15
+signal_projector_initial_lookback_minutes: 120
 
 alertmanager_group_wait: 5m
 alertmanager_group_interval: 10m
@@ -133,7 +182,9 @@ alertmanager_repeat_interval: 4h
 alertmanager_page_group_wait: 30s
 alertmanager_page_group_interval: 2m
 
-alertmanager_proven_inhibit_rules: []
+# One declaration per causal edge; its proven flag decides whether it explains
+# or suppresses. Replaced alertmanager_proven_inhibit_rules. README section 9.
+causal_edges_file: "{{ playbook_dir }}/roles/dashboards/files/causal_edges.json"
 alertmanager_page_wait_covers_inhibition: false
 
 signal_projector_retention_days: 30
@@ -172,7 +223,24 @@ forecast_disk_threshold_percent: 85
 forecast_max_primary_shards: 1
 forecast_result_retention: "14d"
 
+# Primaries for the two storage-tier log families. The farm value is one per
+# storage node, which spreads the bulk fan-out instead of funnelling it through
+# whichever node holds the single primary.
+#
+# It is pinned to 1 here because on THIS tier shard budget is the binding
+# constraint, not disk: ~20 shards per GB of heap, so ~60 across three 1 GB
+# nodes. At 3 primaries the two families reach ~135 shards at full retention,
+# and that is the documented reason they were dropped to 1 in the first place.
+#
+# Raise this to "{{ groups['storage'] | length }}" when the storage tier has
+# real heap. Shard count is fixed at index creation, so the change lands at the
+# next rollover with no reindex.
+log_primary_shards_storage: 1
+
 log_rollover_period: "7d"
+
+# DO NOT SHORTEN. At 200 boxes this is already ~1600 indices and shards; a
+# shorter period is the one setting here that breaks the design at farm scale.
 log_rollover_period_info: "1d"
 log_rollover_max_size: "20gb"
 log_rollover_migrate_existing: false

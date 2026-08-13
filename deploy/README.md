@@ -47,7 +47,7 @@ the local dev path (Docker Compose on a single machine — see the root
 │ Dashboards :5602   │   │  + infologger:     │   │  + generic-log-other:
 │ idempotent bootstrap│   │  3 shards, 2 repl, require.role=storage, balanced across the 3
 │ alice-ops (/ops)   │   │  + cockpit-metrics: 1 shard, 2 repl, storage-pinned
-│ alice-metrics      │   │ alice-trend-rollup │   │ alice-anomaly-digest│
+│ alice-metrics      │   │ alice-trend-rollup │   │ alice-live-lane     │
 │ alertmanager       │   │ alice-signal-      │   │                    │
 │ notification-ingest│   │ projector          │   │                    │
 │ alice-inject       │   │ alice-fault-agent  │   │                    │
@@ -77,7 +77,7 @@ additionally runs OpenSearch Dashboards, an nginx reverse proxy in front of it,
 and the idempotent cluster bootstrap (tier-aware index templates + per-worker
 index pre-creates, Dashboards index patterns). The heavier Python traversal is
 not co-located with that UI stack: `alice-signal-projector` runs on
-`alice-ingest-4`, while `alice-anomaly-digest` runs on `alice-ingest-5`.
+`alice-ingest-4`. The live lane runs on `alice-ingest-5`.
 
 ---
 
@@ -1064,6 +1064,52 @@ resolve an episode. Alertmanager decides *when someone is told*;
 `alice-incidents` decides *what is true*. Alertmanager does not persist alerts
 and never becomes the database.
 
+**One card is one notification.** An episode is per entity, and that is
+deliberate: 40 EPNs breaching one rule are 40 episodes, because epn034 can
+recover while epn159 is still bad and one shared state machine cannot hold two
+answers. But 40 cards on a board that shows 20 is a fan-out that hides every
+other problem, so the cockpit groups them for display only. Each episode
+carries `group_id`, built from the same fields Alertmanager groups on —
+`cluster_id`, `alertname`, and `notification_scope` on the collector route
+(`alertmanager.yml.j2:7,14`). `scope_label()` in the projector produces both
+that segment and the Alertmanager label, so the two can never drift, and one
+card is exactly one message the operator would receive.
+
+The board aggregates open episodes on `group_id` and draws one card per group,
+naming the affected-entity count and sampling the first three. Grouping is
+presentation only: `incident_id` is unchanged, per-entity recovery is
+unchanged, and the *incident purity* gate — no incident may mix `entity_id` —
+still holds, which it would not if episodes themselves were merged. **SIGNALS**
+opens `alice-signals` filtered to the group over the group's own window;
+filtering the `entity_id` field there narrows to one EPN. **DETAILS** opens one
+row per affected entity. The projector heartbeat records `incident_groups` and
+`incident_group_max`, so the fold ratio is measurable rather than assumed.
+
+Three independent guards stand behind that board, because each of its failures
+is silent. `hydrate_patterns.py` fails the deploy if `group_id` is absent from
+either index pattern. `verify_detection.check_episode_grouping` fails it if an
+open episode carries no `group_id`, or if a per-entity rule wrote an anonymous
+episode in the last hour. And `verify_detection.check_cockpit_board_query`
+**reads the board's own aggregation out of `cockpit.ndjson` and runs it**, so a
+query OpenSearch would reject fails the deploy instead of drawing an empty
+board. It reads the query rather than restating it: a second copy could drift
+from the panel the operator actually loads, and then the gate would validate a
+query nobody runs.
+
+**An alert that names no entity is never a fleet-wide breach.** A per-entity
+monitor declares one entity per alert. When no bucket key arrives, the entity
+used to fall back to the sentinel `none`, which hashed into `incident_id` and
+folded every entity's breach into one anonymous incident reading "whole fleet"
+— the exact mirror of fan-out, and invisible to the purity gate because every
+member carried the same sentinel. The projector now attributes such an alert to
+the monitor itself: `entity_kind: monitor`, `entity_id` the monitor name, and
+`class` either `monitor-error` (Alerting reported an execution error, which the
+projector already counted as firing) or `entity-missing` (the alert simply
+carried no key). The card then says the rule cannot run, which is true and
+actionable. The same hole existed on the detector lane and closes the same way:
+a high-cardinality result carrying no entity is dropped and counted in the
+projector log, never averaged into a fleet incident.
+
 **How to see an incident's members.** `/ops` headlines open incidents; the
 cockpit's Incidents panel does the same and the `alice-signals` saved search
 sits directly beneath it. Every signal row carries the `incident_id` that ties
@@ -1380,3 +1426,625 @@ deploys rather than farm health.
 the `brain` method has not been run against 3.7.0 on these VMs. The first soak
 should run the query above once; if `method=brain` is rejected, the fallback is
 `method=simple_pattern`, and the plugin assertion still holds either way.
+
+---
+
+## 9. Ported from logstack — what changed and why
+
+Everything in this section comes from `docs/THANASIS_PLAN.md`, which compared
+Thanasis's `logstack` against this tree. The plan is the argument; this section
+is what was built. Items waiting on EPN access are named at the end.
+
+### The three rules every port obeys
+
+**R1 — every ported parser reads a full date or an epoch.** His parsers use
+`Time_Format %H:%M:%S` with no date part, so Fluent Bit fills in the current
+date. Any line that crosses midnight, or that is replayed on another day, gets
+a wrong date and no warning. Our replay does exactly that, so the fault would
+be certain rather than possible. The three parsers we already had comply;
+`source_path` carries no `time_key` at all, so the rule does not bite there.
+
+**R2 — ported parsers attach to source tags, before the severity split.** He
+routes by source: one tag, one topic and one index per program, which costs
+four edits in lockstep for every new log source. We route by severity, and that
+stays. Our pipeline already parses per source before it routes per severity, so
+a ported parser chain attaches at that point and never changes output routing.
+
+**R3 — per-node values come from the environment, not from Ansible.** Ansible
+writes `/etc/alice-ingest/node.env` once, at install time, and the collector
+reads `${ALICE_NODE_ID}`, `${ALICE_LOG_ROOT}` and the ports from it. The
+original reason was portability to Kubernetes, which is off the table; the
+surviving reason is self-registration below — a machine cannot register itself
+if its identity exists only in a central inventory.
+
+The trap this introduces is handled: Fluent Bit expands an unset variable to an
+empty string and says nothing, so a missing node id would write into an index
+literally named `generic-log-info-`. `EnvironmentFile=` is declared without a
+leading dash, so systemd fails the unit if the file is absent, and
+`register_node.sh` exits non-zero if `ALICE_NODE_ID` is empty.
+
+### Item 2 — the source filename is kept
+
+`Path_Key source_file`, normalised to the basename, mapped as `keyword`. We
+used to capture the path as `file`, extract the host from it, and delete it.
+
+The value is the per-process entity key. Detection groups by host today; this
+lets it group by the program that wrote the line, which is the level at which
+an ALICE fault actually appears. Storing it as `keyword` rather than text is
+the whole point — he extracts these values and stores them as text, so they can
+never be aggregated or charted.
+
+### Item 3 — a node registers itself
+
+`deploy/files/register_node.sh` is the single definition of the three
+per-worker objects: the `generic-log-info-<box>-*` index template, the
+retention-policy attachment, and a writable rollover index behind the alias.
+Two callers run the same file:
+
+- `templates.sh`, once per worker, during the deploy. Ordering still matters
+  there, because the detectors provisioned later in that play refuse an index
+  that does not exist and cannot wait for the collectors to start.
+- `fluent-bit.service`, as `ExecStartPre`, on the machine itself at every boot.
+
+What this fixes: adding a machine needs no central action beyond installing it;
+a machine that leaves needs no cleanup, because its indices expire on the 8-day
+retention; and a machine that returns after a reinstall repairs its own write
+alias at boot instead of waiting for the next deploy.
+
+That last case is the one that survives regardless of how the farm is managed,
+and it needed more than a create-if-absent check. After a reinstall the alias is
+still in cluster state, pointing at a backing index whose shards died with the
+old disk, so the alias exists and every write still fails. The script rolls the
+alias onto a fresh index instead of deleting the red one — red can also mean
+"recovering right now", and deleting that would destroy data that was coming
+back.
+
+Failure behaviour differs by caller on purpose. Under `REGISTER_STRICT=true`
+(the deploy) an unreachable cluster fails the run. At boot it warns and exits
+zero, because the same collector also ships `infologger` and
+`generic-log-other` to the storage tier and that lane must not be held hostage
+by the local one. `ExecStartPre` counts against the unit's start timeout, so
+`TimeoutStartSec` is raised to cover the wait — change both together.
+
+### Item 4 — what a data node costs on a machine that does reconstruction
+
+The design does not change: one cluster, workers as `data, ingest` but never
+cluster-manager eligible, the info tier pinned to its own box with no replicas.
+Lubos requires that the bulk tier never crosses the wire. Only the cost changes.
+
+1. **`node.processors`** caps every thread pool at once, and also shrinks the
+   merge-scheduler default, which derives from the same number. OpenSearch
+   otherwise builds pools for all 128 cores of an EPN node. `opensearch.yml.j2`
+   takes the *smaller* of `opensearch_worker_processors` and the processors the
+   machine really has — it is a cap, never a floor, or a 2-vCPU staging VM would
+   have its pools inflated instead of trimmed.
+2. **`refresh_interval` is never set on the info tier, and must stay unset.**
+   With no explicit interval a shard refreshes every second until no search has
+   touched it for `index.search.idle.after`, then goes idle and stops. Setting
+   an explicit interval silently turns search idle *off*. It reads as a tuning
+   improvement and is the opposite of one.
+
+   `index.search.idle.after` is set against the detector interval, not on its
+   own. Three detectors query this tier every minute — `info-volume`,
+   `info-per-epn-entry-lag`, `info-collector-shipping-lag` — and a detector
+   query counts as a search, so the shard never sleeps for long; it cycles. Any
+   value at or above one minute is therefore **inert**.
+
+   | `search.idle.after` | Refreshes per minute | Saving |
+   |---|---|---|
+   | 5m (or any value ≥ 1m) | 60 | none, the setting is inert |
+   | 30s | about 31 | roughly half |
+   | 10s | about 11 | roughly six times |
+
+   We use 10s. The cost is that a search arriving during the idle period waits
+   one refresh: irrelevant to a detector, a fraction of a second to a person on
+   Discover, on a tier people query rarely. **Measure the refresh rate before
+   and after — if it does not drop, the value is wrong and the setting is inert.**
+3. **Async translog** on the info tier. The default fsyncs on every bulk
+   request. The cost is up to one sync interval of records lost on an unclean
+   crash, on a tier that already has zero replicas and an 8-day life. Disk input
+   and output is what competes with reconstruction, so this is the largest
+   saving on that axis.
+4. **One merge thread per shard.** Merges are the irregular cost — they arrive
+   when nobody chose. `auto_throttle` stays at its default of true; it already
+   adjusts merge input and output against indexing load.
+5. **The worker heap is written down, not inherited.** Every other number here
+   derives from it. `opensearch_worker_heap_size` carries the EPN-farm value of
+   2 GB, which holds a handful of small shards without strain and implies
+   roughly 3 to 4 GB resident once the Java runtime and Lucene take memory
+   outside the heap — under one percent of a 512 GB EPN machine.
+
+   **The staging workers override it down to 1g in `inventory.yml`.** They are
+   `m2.medium` with 3.75 GB in total, which 2 GB of heap would take from Fluent
+   Bit and the replay producer. Raise the inventory value, not the group_vars
+   one, when the workers get real memory.
+6. **The smaller levers.** `indices.memory.index_buffer_size` drops from the
+   10%-of-heap default to 5%. `bootstrap.memory_lock` stays on, so locked memory
+   never swaps and this node can never push physics pages to disk. The `zstd`
+   codec stays: it costs a little processor and saves a lot of disk, which is
+   the right side of the trade on a machine where disk is contended. Query
+   insights stays on — it is cluster-wide with no per-tier scope, it records at
+   the node that coordinates the query, and workers coordinate their own writes
+   but rarely serve searches, so the cost there is already near zero.
+7. **Hold the index count. Do not shorten `log_rollover_period_info`.** The info
+   tier rolls daily and deletes at 8 days. At 200 boxes that is about 1600
+   indices and 1600 shards, inside what a cluster handles, with each index
+   storing its own resolved mapping in cluster state. Shortening the period is
+   the one setting here that would break this at farm scale.
+
+### Item 5 — the collector filters got cheaper, and output did not change
+
+1. `normalize_fields` ran twice on every record. `rewrite_tag` re-injects each
+   record under a new tag and the record re-enters the filter chain from the
+   top, and that filter matched both the source tags and the family tags. It is
+   gone entirely — see 4 below.
+2. `stamp_collector_time` no longer matches the family tags. The re-injected
+   record still carries `collector_time`, so the second pass only ever ran the
+   guard and returned unmodified.
+3. Both `set_host` Lua filters are replaced by one native `parser` filter. Each
+   did a single pattern match to pull `epnNNN` out of the path, and converting
+   the record into a Lua table and back is the expensive part of any Lua filter.
+   The `source_path` parser does the same work in C and also produces Item 2's
+   `source_file`. It runs before the body parsers, which is safe because it
+   reads `file` while they read `log`.
+4. `severity_norm` and `origin_host` moved into the `alice-add-ingest-time`
+   ingest pipeline as a literal port of the Lua. Routing reads the raw
+   `severity` field, so nothing upstream depended on them, and all three log
+   families already run that pipeline as their `default_pipeline`. **The
+   collector now runs zero per-record Lua.** `health_deltas` remains and runs
+   once per interval, not once per record.
+5. `flush: 5` cuts bulk requests fivefold. `flush` is service-level, so it also
+   delays the live lane by the same five seconds. That is accepted; ten is also
+   acceptable if measurement shows the extra saving is worth it.
+
+   **Clear the trend baselines when this first deploys.** `ingest_lag_ms` is
+   `ingest_time - collector_time`, and `collector_time` is stamped when the
+   record enters Fluent Bit — so the buffer wait is inside the measurement, and
+   raising `flush` moves that metric by up to five seconds in one step. Four
+   detectors and two trend monitors watch it. `trend-il-shipping-lag` and
+   `trend-info-shipping-lag` fire at **twice a seven-day baseline**, and
+   `trend_lag_floor_ms` of 250 says normal lag is sub-second, so an unmitigated
+   step would hold both monitors firing fleet-wide until the baseline rolls
+   forward. Run **Clear findings** on the ops page with the change; the RCF
+   detectors re-learn on their own but will flag the step once.
+
+One consequence to remember: because the enrichment now happens in OpenSearch,
+anything that bypasses OpenSearch does not get it. The live lane bypasses
+OpenSearch by design, so `live_lane.py` carries the same severity table.
+
+**Rejected:** emitting `@timestamp` as epoch milliseconds to speed the Painless
+parse. It is Fluent Bit's record time, set by the parser's `time_format`, and
+making it an ordinary numeric field fights the time-key mechanism and breaks the
+strict date mapping.
+
+### Item 6 — anomaly detection stays on the workers and costs less
+
+The detectors and their output do not change. Removing the plugins from workers
+is rejected: the results matter, and an uneven plugin set across a cluster is
+its own failure mode.
+
+1. **Concurrent segment search is off on the info tier.** From OpenSearch 3.0 it
+   is on by default in `auto` mode, which parallelises aggregations across a
+   separate `index_searcher` pool. Detector feature queries *are* aggregations,
+   so they are exactly what it parallelises — the 3.0 release notes warn that
+   aggregation workloads may use more processor after upgrade for this reason.
+   Turning it off runs the same query on one thread: identical results, higher
+   latency, much smaller processor spike. The index-level setting overrides the
+   cluster-level one, so the storage tier keeps the default.
+2. **Historical analysis is slowed, not shrunk.** `batch_task_piece_interval_seconds`
+   inserts a pause between pieces of a batch task and `max_batch_task_per_node`
+   caps concurrency. Backtests take longer and return the same result; nothing
+   about a backtest is time-critical. These are cluster-wide, so storage is
+   slowed too. Accepted.
+3. **`model_max_size_percent` is deliberately untouched.** It defaults to ten
+   percent of each node's heap, and because it is a percentage a 2 GB worker
+   already contributes far less model memory than a storage node. Lowering it
+   would evict models and force cold starts, which **would** change the output.
+4. **Admission control is an emergency valve, not a throttle.** A node whose
+   rolling average processor use passes the limit answers HTTP 429 to `_search`
+   and `_bulk`, so it sheds load rather than fighting reconstruction. But a
+   rejected detector query is a missing detection interval, which *is* a change
+   in output, so **the valve is not enforced on this tier.** 95 percent rolling
+   processor use is a genuine emergency on a 128-core EPN node and an ordinary
+   paced replay on a 2-vCPU VM, and enforcing it here would reject exactly the
+   writes and detector queries the plan says must never be rejected.
+   `admission_control_mode` is `shadow`: the valve reports what it would have
+   done, `admission-rejections` alarms on that, and nothing is dropped. Set it
+   to `enforced` on the farm. The IO valve is overridden off for the same
+   reason, and stays off — the plan asks for a processor valve.
+
+   Unverified: whether shadow mode increments the rejection counter the monitor
+   reads. If it does not, the monitor is silent rather than wrong, and the fix
+   is to alarm on the node's processor use instead.
+
+### Item 7 — the live lane
+
+One extra Fluent Bit output, one small service on **alice-ingest-5**, one
+standalone page behind the nginx we already run. Scope is `infologger` and
+`generic-log-other` only, never the info tier — our severity routing is the rate
+limiter his design lacks, because he pushes every non-system record to a browser
+and at farm scale that is a blur.
+
+**Cost on the cluster is zero.** The lane never touches OpenSearch. That is the
+point: Discover stays for real queries, and the common act of watching becomes
+free.
+
+It is not on the control host. That machine already runs Dashboards, nginx,
+Alertmanager and the metrics poller, and the projector was deliberately moved
+off it for memory. This service holds one open connection per viewer, so its
+cost grows with readers rather than with data.
+
+**A standalone page, not a Dashboards plugin.** A plugin must match the host's
+major, minor *and patch* version — a plugin built for 3.7.0 does not load on
+3.7.1. Patch releases carry security fixes and CERN networks are scanned, so we
+would take every one of them: a forced rebuild several times a year, and a
+rebuild that fails takes the page down. Standalone removes that tax completely.
+This is only correct because the view is a fixed, purpose-built thing; a
+general-purpose query tool should not be rebuilt outside Dashboards, and
+Discover stays where it is.
+
+Browser behaviour, as specified:
+
+- One ring buffer of the newest 10000 rows. Nothing older is ever kept.
+- New records enter the buffer and **the view does not move.** A button shows how
+  many arrived since the last look; pressing it renders the newest and resets.
+  One buffer is enough because the view always shows the newest — there is no
+  second frozen copy and no unbounded growth.
+- **Only visible rows are rendered.** This is about how many rows exist in the
+  page, not about processor speed: ten thousand drawn rows is ten thousand
+  layout boxes the browser must measure, style and paint, and that cost sits in
+  the rendering engine where faster hardware does not remove it. Verified in a
+  headless browser — 1200 buffered records paint 28 row elements.
+- **The server drops for a slow client and never queues per client.** Each viewer
+  has a bounded queue; a full queue drops the record for that viewer and counts
+  it. Verified: a viewer that never reads had 7785 records dropped while the
+  server stayed up.
+- Filtering runs in the browser, over the buffer it already holds. Ten thousand
+  rows filtered on each change is ordinary work for consumer hardware, the lane
+  is low volume by construction, and the experience is better — instant results,
+  history stays searchable, no round trip. Server-side matching stays available
+  if a measured arrival rate ever makes the network the limit.
+- Mobile: one column, no horizontal scroll, two lines per record, tap for the
+  full record.
+
+#### Two deviations from the plan's wording, both deliberate
+
+**Server-Sent Events, not WebSocket.** The lane is one-way — the server pushes
+and the browser filters locally — which is exactly what SSE is for. WebSocket
+would mean hand-rolling RFC 6455 framing inside a stdlib server for a
+bidirectional channel we never use, plus our own reconnect logic. SSE needs
+`proxy_buffering off` in nginx, which is configured, and the browser reconnects
+by itself. This changes the plan's wording, not its requirements.
+
+**React is vendored, not built.** The plan chose React on one reason — whoever
+maintains this after us — and that reason stands. But this tree has no Node, no
+npm and no bundler, and adding a JavaScript toolchain to an Ansible deploy is
+the same kind of permanent tax the plan rejected for Dashboards plugins. So
+`react.production.min.js` and `react-dom.production.min.js` are committed under
+`roles/dashboards/files/live/`, and the page calls `React.createElement`
+directly, which is what JSX compiles into. Nothing builds and nothing fetches at
+deploy time. See `live/VENDORED.md` for versions, hashes and provenance. React
+19 removed UMD builds, which is why the vendored line is 18.
+
+### Item 8 — the write load, and why the shard count is still 1 here
+
+**The mechanism is built and the value is deliberately not yet raised.** The
+primary count for `infologger` and `generic-log-other` is one setting,
+`log_primary_shards_storage`, and it is pinned to **1** on this tier.
+
+The plan asks for one primary per storage node. That is right on the farm and
+wrong here, and the reason is already written above under *"Shard budget is the
+binding constraint, not disk"*: roughly 20 shards per GB of heap gives about 60
+across three 1 GB nodes, and dropping these two families from 3 primaries to 1
+is what bought that budget. At 3 primaries they reach about 135 shards at full
+retention — `infologger` alone is 9 backing indices × 9 copies = 81 — against a
+budget of 60. The plan's own instruction is to set the primary count equal to
+the number of storage nodes and *revisit it only if the tier is resized*; this
+tier is three small VMs, so the honest reading is that the farm value waits for
+farm hardware.
+
+Raise `log_primary_shards_storage` to `{{ groups['storage'] | length }}` when
+the storage tier has real heap. Nothing else has to change.
+
+Every collector writes to its own localhost, so its OpenSearch node coordinates
+the write. With a single primary that node had to forward every bulk request to
+whichever node held it: one machine received the whole fleet's InfoLogger
+traffic, indexed it, sent two copies back out, and serialised every write in the
+cluster. Processor cost was already spread, because a replica does the same
+indexing work as a primary — the funnel was not.
+
+Durability is unchanged at three copies, still surviving the loss of two nodes.
+Three primaries with one replica would cut per-node indexing and disk by a
+third, but drops us to surviving one node loss; Lubos said farm storage can be
+treated as unlimited, so we buy durability with it.
+
+The change is cheap whenever it is made, because shard count is fixed at index
+creation: it reaches an existing family at its next rollover, with no reindex and
+no downtime. That is also why leaving it at 1 for now costs nothing later — the
+funnel only bites at farm volume, and the farm is where the setting gets raised.
+
+### Item 9 — the durable queue is not built, and has a named trigger
+
+A queue in front of the storage tier would add durability across a worker loss
+and let readers be added without touching the collectors. It is not built:
+
+1. The OpenStack machines cannot host it. Getting the current stack up was
+   already tight on memory.
+2. The gain lands in the wrong place. It would mainly relieve the storage tier,
+   and farm storage can be treated as unlimited. The worker tier is where we are
+   short, and a queue does not help there.
+3. The bulk tier must not cross the wire at all, so a queue could only ever
+   carry `generic-log-other` and `infologger` — the small fraction.
+
+**The trigger is a third consumer of the stream.** Two consumers — OpenSearch
+and the live lane — are served by two Fluent Bit outputs. A third means editing
+the collector on every machine, and that is when a queue pays for itself. The
+live stream during Run 4 is the other trigger: today a lost record is
+recoverable because the source is an S3 bucket and the replay runs again; on a
+live farm it is gone.
+
+A third thing a queue would fix, recorded so it is not forgotten: because every
+collector writes to `localhost`, a worker whose own OpenSearch node is down
+stops shipping `infologger` too, not only its local tier.
+
+**If it is ever built it must be Apache Kafka.** CERN requires fully open
+source, which rules out Redpanda — its core is source-available under a business
+licence, not an open-source one. Make it the primary path for the durable tier,
+not a failure path: Fluent Bit has no on-failure route, retries are internal to
+the output plugin, and when `retry_limit` is reached the chunk is dropped with
+no hook and no alternate destination, so a dead-letter design cannot be built.
+Record the queue coordinates on every document — topic, partition, offset and
+key. The offset is a replay position and partition-plus-offset is a
+deduplication key; neither is reproducible from any other field.
+
+### Item 10 — the operator's node-and-time form
+
+**Not built yet, and it cannot be built inside Dashboards.** This is the
+enforcement path for the index-filter rule below, and it is deferred with the
+Operator Cockpit it belongs to.
+
+Dashboards has no native control that selects an index: its input controls
+produce filter pills on *fields*, and nothing native lets one panel change
+another panel's index pattern. Our own cockpit shows the available parts — index
+patterns, saved searches, visualisations, no control panels. He built his in
+Grafana, whose variables can drive a data source. So a Dashboards version of
+this form would have to filter on the `node` field, which is the exact query the
+operating rule forbids: it would enforce the opposite of what it is for.
+
+The form therefore lives on the standalone operator page, where we own the query
+and the dropdown is ordinary work. Item 7 already established the serving path,
+so it costs no new component. **Not taken:** his confirm modal showing old
+against new values — it adds a click to guard a mistake that one dropdown change
+undoes.
+
+### Item 11 — every ops-page action is documented beside its button
+
+All nine actions carry a paragraph under the button answering what it does, what
+it deletes by name, roughly how long it takes, whether it is safe while other
+people are using the system, and what to do if it fails. The safety question is
+not optional: the staging machines are shared, and physicists run test runs
+through the staging experiment control system.
+
+The documentation is on the page, not in this repository, because a person about
+to press `wipe` does not go and read a repository. It is written for a tired
+person at three in the morning who has not used the page before: short
+sentences, consequence before mechanism, real names for real things, no warning
+tone on safe actions and no soft language on destructive ones.
+
+The destructive actions are also grouped visually and boxed, apart from the safe
+ones. They used to sit in one column and look alike.
+
+### Item 12 — panels that hold their shape at any fleet size
+
+**The rule: a panel's size must not grow with the fleet.** Everything follows
+from that one sentence. `alice-viz-fb-status` drew one row per collector and the
+shipping charts grouped by `collector_id` — fine at two collectors, a grey smear
+at two hundred, and slow to draw.
+
+- **A counter strip.** Collectors, healthy, degraded, down. Four numbers, the
+  same four at any scale. Each counts distinct `collector_id` values in the
+  window, so a machine that flapped can appear in two of them.
+- **Ten-row tables.** "Not healthy now" names the machines that are down or
+  unhealthy; "Worst ten by records lost" ranks by dropped records. On a small
+  fleet they show however many exist, so there is no separate small-fleet design.
+- **Charts show distribution, not machines.** Fleet median, 95th percentile and
+  worst value — one line each, whatever the fleet size. Each document is one
+  collector's sample in that window, so a percentile across documents *is* the
+  distribution across the fleet.
+- **A picker for detail**, so an operator can pin named machines over the
+  distribution.
+
+Mobile falls out of the same rule for free: four counters and a ten-row list fit
+a phone; two hundred chart lines never will.
+
+**The picker is native, and is not Item 10's dropdown.** This one filters
+`collector_id` as a field over `cockpit-metrics`, which is correct here because
+those indices are not partitioned per machine, so a field filter is the only
+filter available and it is cheap. Item 10's dropdown selects an *index* over log
+data and cannot be native. The two look alike and share nothing.
+
+### Item 13 — two cockpits, for two different people
+
+The current dashboard is renamed **Maintainer Cockpit**. It answers "is the log
+pipeline healthy", which is a maintainer's question that a shifter never asks. A
+shifter asks what the experiment is saying right now. One dashboard serving both
+serves neither.
+
+The Maintainer Cockpit stays in Dashboards — charts and saved searches over
+indices is what Dashboards is for — and only gets renamed. It now links out to
+the live log page, and that page links back.
+
+**The Operator Cockpit is not built. It needs EPN access to finish**, and the
+reason is adoption rather than plumbing. It must copy the InfoLogger interface
+shifters have used for years: a tool that looks like the one they know needs no
+training, and a tool that needs training does not get used. That is the
+strongest single lever we have on whether this system is still running in Run 4,
+and it cannot be done from memory. Two things happen in the same pass as the
+Item 1 survey: find the InfoLogger interface documentation in the ALICE EPN
+documentation, and look at the running interface to record its columns, filter
+controls, severity colours and default view.
+
+The data is already there. `templates.sh.j2` maps the full InfoLogger column
+set, so this is a user-interface job with no data work behind it — but confirm
+field by field against the real interface before building.
+
+The log view itself is shared with Item 7 and is built once: dense, virtualised,
+filterable, mobile. Item 7 feeds it from the live stream; the Operator Cockpit
+will feed the same component from a query against `infologger`. Both are
+standalone for the same reasons, and the shared component is what makes both
+cheap — splitting them across a plugin and a page would mean two mounting paths
+for one component, which is the worst of each.
+
+### Item 14 — one causal edge file
+
+Alertmanager `inhibit_rules` are a causal graph. We never called it one.
+
+| His model | Ours |
+|---|---|
+| `ErrorPattern -> Cause` | `source_matchers` to `target_matchers` |
+| `SeqCondition.context_keys` | `equal: ['cluster_id', 'collector_id']` |
+| `SeqCondition.time_window` | `group_wait` and the episode window |
+| `prob` on the edge | measured from injection runs, not authored |
+| emits a ranked cause list | now both: it advises, and when proven it acts |
+
+The difference was direction and confidence, not structure. Every edge is now
+declared once in `roles/dashboards/files/causal_edges.json` — cause, symptom,
+scope keys, probability and a `proven` flag — and the flag decides what the edge
+does:
+
+- **`proven: false`** — the edge appears on the incident card as a ranked
+  candidate cause. It suppresses nothing.
+- **`proven: true`** — the edge is rendered into `inhibit_rules`. It suppresses.
+
+**This is the point of the item. The explanation feature ships now, on no
+evidence, at zero risk.** A wrong ranking costs an operator half a minute; a
+wrong suppression loses a page. Every edge earns promotion by surviving
+injection, and the same file records that it did. All 22 edges ship
+`proven: false`, so the generated `inhibit_rules` block is empty — byte-for-byte
+the behaviour we had, from one declaration instead of hand-written rules plus a
+separate enabled list in `group_vars`.
+
+**Not a graph database.** About thirty edges, every query one hop. Neo4j exists
+for millions of nodes and paths of unknown length. A new datastore also means
+new backup, a new upgrade path and a new failure mode on a control host that
+already runs four services — and his own prototype consumes a topic absent from
+his topic list, so there is no evidence it ever ran.
+
+**Probabilities are measured, not authored.** Every `make inject` run is a
+labelled experiment, because we know what we broke. `score_injection.py` counts,
+per edge, how often the symptom appears inside the episode window when the cause
+is present, across the scopes where the cause fired. That is an empirical
+conditional probability. Ordering needs no new storage either: the projector
+already stamps signals into episodes with timestamps, so "collector-down
+preceded data-loss by under two minutes" is answerable from `alice-signals`
+today. That is his `SeqCondition`.
+
+Noisy-OR, `B = 1 - product(1 - Bi)`, is kept **for ranking only**. It assumes
+causes are independent and ours are not — `collector-down` and
+`fleet-fb-silence` overlap by construction. Good enough to sort a list, not good
+enough to silence a page. An unmeasured edge ranks on a neutral prior, and the
+card records whether the ranking rests on measurement.
+
+#### Two gates before any edge is promoted
+
+1. **The scorecard measured harm, not effect.** It counted pages that were muted
+   and should not have been, and nothing counted symptoms that were correctly
+   muted, so **a rule that never fires scored a perfect zero.**
+   `correct_suppressions` now counts the symptoms an enabled edge actually
+   suppressed, and the scorecard fails if proven edges suppressed nothing.
+2. **The cause may arrive too late to suppress anything.** Alertmanager applies
+   inhibition when it notifies, and the page route waits
+   `alertmanager_page_group_wait`. But `collector-down` is absence-based: it
+   needs `heartbeat_grace_seconds` plus a monitor interval before it can
+   conclude, while symptoms fired from observed counters reach Alertmanager
+   first. The scorecard now reports every cause-to-symptom pair where the
+   symptom arrived first and fails on it, and the Alertmanager role still
+   refuses to run with proven edges unless
+   `alertmanager_page_wait_covers_inhibition` is set.
+
+#### Order of promotion, narrowest blast radius first
+
+1. **`collector-down`** — scoped to one collector, ten symptoms. Needs the
+   roster populated first, or it falls closed to the `none` sentinel and does
+   nothing.
+2. **`telemetry-silence`** — cluster-scoped, but its seven targets are all
+   control-plane monitors, disjoint from the collector set. When the poller is
+   dead those monitors have no fresh input, so their firing carries no
+   information.
+3. **`fleet-fb-silence`** — last, and the dangerous one. It mutes
+   `collector-down` itself across the whole fleet, so a staged restart that
+   trips the 50 percent threshold would hide every real per-collector failure at
+   once.
+
+### Operating rules
+
+**Host and machine metrics are not ours.** Another person owns machine health at
+CERN, using Mimir. We do not collect processor, memory, load or filesystem
+figures for the machine. What we collect is Fluent Bit health and OpenSearch
+cluster health — the log pipeline and the log cluster. Building our own host
+metrics would create a second source of truth for numbers someone else already
+owns, which is worse than not having them. If we ever do need one, it goes into
+`cockpit-metrics`, never into a new store.
+
+**The farm runs Ansible, not Kubernetes.** Kubernetes is not available on the EPN
+farm; Ansible is. So Ansible manages every tier, on the farm and on our own
+machines. Recorded because a container plan was considered in detail and dropped
+on this fact alone. Do not reopen it without new information about the farm.
+
+**Decommissioning a machine must wipe `path.data`.** OpenSearch identifies a node
+by an identifier stored there, not by its name. If a replacement machine reuses
+the hostname, the old and the new both claim that name and `require.box` matches
+both, so shards could land on either. A returning machine whose indices were
+deleted is otherwise safe — its shard files are dangling, and OpenSearch has not
+imported dangling indices automatically since Elasticsearch 7.9, so they sit
+unused. But wipe the disk.
+
+**Alarm on storage-tier index health, never on cluster health.** The info tier is
+pinned to one box with no replica, so every reboot turns those indices red and
+the cluster goes red with them. On a farm that is constant, which makes cluster
+health unusable as a signal. Watch the storage-tier indices.
+
+**Node selection in the cockpit is an index filter, never a field filter.**
+Picking a machine must produce a filter on `_index`, which lets OpenSearch skip
+shards; a `node: epn345` filter over `generic-log-info-*` reads all 200 shards
+and discards 199. Item 10 is the enforcement path and lives on the standalone
+page, because Dashboards can only filter fields.
+
+Inside Dashboards this rule stays unenforceable, so there it is enforced by
+measurement: query insights already records processor use and shard count per
+query. Watch it on the storage tier and catch the expensive pattern when it
+appears. **This backstop is permanent, not temporary**, because Discover remains
+available and cannot be constrained. Daily rollover helps on its own — the
+can-match phase skips indices whose time range does not overlap the query, so a
+short time range already prunes most of each machine's eight indices.
+
+### Still waiting on EPN access
+
+**Item 1, the parser library.** His parser chains extract numbers from message
+bodies: per-timeframe processing time, CTF size, decoding-error counts, tracks
+and vertices per timeframe, encoder word counts, beam position. Our detectors
+currently see only infrastructure signals, so they can say the log platform is
+sick but not that the experiment is sick. **This is the single largest gain
+available to us — nothing else changes what the system can detect; this changes
+the subject.**
+
+Nothing structural is missing. One input per program, one parser chain on that
+tag, and the existing severity router handles the rest. The mechanism is not the
+work; the regexes are. Writing 28 parsers against a subset of the data would
+produce parsers we cannot test, for message shapes we have never seen.
+
+**The gate is a survey, on one EPN, before a single parser is written:** list
+every file under the log roots with path, size and modification time; count lines
+per program; sample enough lines per program to see the message shapes; run his
+28 regexes against that sample and count matches per regex. Then port only the
+parsers with matching lines and drop the rest.
+
+The survey has a second output that matters as much: the real file layout, with
+real paths, real names and real rotation. Our tail patterns and the
+`source_file` normalisation are guesses until we see it. Every ported parser also
+needs a strict numeric mapping in `templates.sh.j2` — he extracts these fields
+and stores them as text, so they cannot be aggregated or charted, and parsers
+without mappings repeat his mistake. Rule R1 applies to every ported
+`Time_Format`.
+
+**Item 13's Operator Cockpit**, for the reasons given above.

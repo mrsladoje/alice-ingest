@@ -19,13 +19,12 @@
                    | list) }}"
       when: replay_fresh | default(false) | bool
 
-    - name: Clear everything derived from the log data being wiped (rollup, digest, alerts, anomaly results)
+    - name: Clear everything derived from the log data being wiped (rollup, projector, alerts, anomaly results)
       ansible.builtin.command:
         cmd: "python3 {{ dashboards_reset_derived_script }}"
       environment:
         OS_URL: "http://localhost:{{ opensearch_http_port }}"
         ROLLUP_INDEX: "{{ trend_rollup_index }}"
-        DIGEST_INDEX: "{{ anomaly_digest_index }}"
         LOG_FAMILIES: "{{ (['infologger', 'generic-log-other']
                            + (groups['workers']
                               | map('extract', hostvars, 'node_id')

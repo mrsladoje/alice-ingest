@@ -31,6 +31,31 @@ server {
         proxy_read_timeout 120s;
     }
 
+{% if live_lane_enabled | bool %}
+    location = /live {
+        return 301 /live/;
+    }
+
+    # Server-Sent Events: buffering must be off or nginx holds records back
+    # until its buffer fills. The long read timeout keeps an idle stream open;
+    # the server sends its own keepalive well inside it.
+    location /live/ {
+        proxy_pass http://{{ live_lane_host }}:{{ live_lane_port }}/;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_cache off;
+        gzip off;
+        chunked_transfer_encoding off;
+        proxy_set_header Connection        "";
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+{% endif %}
+
     location = /alertmanager {
         return 301 /alertmanager/;
     }

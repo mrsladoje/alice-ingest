@@ -64,6 +64,15 @@ MONITOR_PRESENTATION = {
         "minutes.",
         "Inspect hot queries, indexing pressure, and garbage collection on "
         "{entity}."),
+    "admission-rejections": (
+        "OpenSearch refused requests to protect a node",
+        "OpenSearch node {entity} rejected at least one search or write in the "
+        "last five minutes because its rolling average processor use passed "
+        "the admission-control limit. A refused search is a detection interval "
+        "that never ran; a refused write is log records that were dropped.",
+        "Find what is loading {entity}. On a worker that is usually "
+        "reconstruction, not this stack. Read Query Insights for expensive "
+        "searches, then confirm the detectors on that node still report."),
     "cluster-red": (
         "OpenSearch cluster is red",
         "The alice-logs cluster reported RED during the last two minutes, so "
@@ -179,6 +188,28 @@ MONITOR_PRESENTATION = {
 }
 
 
+# An alert that names no entity is never a fleet-wide breach. Both classes
+# below describe the monitor itself, so the entity is the monitor name and the
+# operator is told the rule is broken rather than shown an anonymous incident.
+CLASS_PRESENTATION = {
+    "monitor-error": (
+        "Monitor {entity} cannot run",
+        "OpenSearch Alerting reported an execution error for monitor "
+        "{entity}, so the rule produced no per-entity result. Nothing it "
+        "watches is being judged while this holds.",
+        "Open Alerting, read the error message on {entity}, then check its "
+        "input query and the index it reads."),
+    "entity-missing": (
+        "Monitor {entity} fired without naming an entity",
+        "Monitor {entity} is declared per-entity, but its alert carried no "
+        "bucket key. Folding those breaches together would produce one "
+        "anonymous fleet incident and hide which entity broke.",
+        "Check the monitor's composite aggregation and its trigger's "
+        "parent_bucket_path, then confirm bucket_keys reaches the alert "
+        "document."),
+}
+
+
 DETECTOR_PRESENTATION = {
     "ingest-flow": ("Unusual collector ingest flow",
                     "throughput, output errors, or output retries"),
@@ -287,6 +318,15 @@ def presentation(name, path=None):
         f"say what is wrong and what to inspect next")
 
 
+def class_presentation(name):
+    entry = CLASS_PRESENTATION.get(name)
+    if entry is None:
+        raise UnknownSignal(
+            f"incident class {name!r} has no operator presentation")
+    title, diagnosis, action = entry
+    return {"title": title, "diagnosis": diagnosis, "action": action}
+
+
 def entity_pairs(source):
     ents = source.get("entity") or []
     if isinstance(ents, dict):
@@ -316,7 +356,10 @@ def entity_of(name, source, path=None):
         raise UnknownSignal(
             f"detector {name!r} declares category_field {field!r} but the "
             f"result carries {[n for n, _ in pairs]}")
-    return (meta["entity_kind"], sentinel("entity_id", path), field)
+    raise UnknownSignal(
+        f"detector {name!r} declares category_field {field!r} but the result "
+        f"carries no entity at all; a sentinel entity here folds every "
+        f"entity's anomalies into one anonymous fleet incident")
 
 
 def scope_string(source):

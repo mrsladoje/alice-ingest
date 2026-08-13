@@ -76,6 +76,16 @@
   register: _projector_remote_catalog
   delegate_to: "{{ signal_projector_host }}"
 
+- name: Stage the causal edges the projector ranks candidate causes from
+  ansible.builtin.copy:
+    src: causal_edges.json
+    dest: "{{ dashboards_bootstrap_causal_edges }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: _projector_remote_edges
+  delegate_to: "{{ signal_projector_host }}"
+
 - name: Prove an unprivileged projector process can parse its remote catalog
   ansible.builtin.command:
     argv:
@@ -127,6 +137,7 @@
       {{ 'restarted'
          if ((_projector_remote_modules.changed | default(false))
              or (_projector_remote_catalog.changed | default(false))
+             or (_projector_remote_edges.changed | default(false))
              or (_projector_remote_script.changed | default(false))
              or (_projector_remote_unit.changed | default(false)))
          else 'started' }}
@@ -325,7 +336,6 @@
     ROLLUP_INDEX: "{{ trend_rollup_index }}"
     METRICS_INDEX: "{{ cockpit_metrics_index }}"
     ROSTER_INDEX: "{{ fleet_roster_index }}"
-    DIGEST_INDEX: "{{ anomaly_digest_index }}"
     SIGNALS_INDEX: "{{ signals_index }}"
     INCIDENTS_INDEX: "{{ incidents_index }}"
     NOTIFICATIONS_INDEX: "{{ notifications_index }}"

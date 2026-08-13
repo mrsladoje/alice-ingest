@@ -7,7 +7,6 @@
   vars:
     background_status_services: >-
       {{ ([dashboards_trend_rollup_service_name] if 'rollup' in background_services else [])
-         + ([dashboards_anomaly_digest_service_name] if 'digest' in background_services else [])
          + ([dashboards_signal_projector_service_name]
             if inventory_hostname in groups['projector'] else []) }}
   tasks:
@@ -146,7 +145,7 @@
       environment:
         OS_URL: "http://localhost:{{ opensearch_http_port }}"
         OSD_URL: "http://127.0.0.1:{{ dashboards_internal_port }}"
-        DIGEST_INDEX: "{{ anomaly_digest_index }}"
+        SIGNALS_INDEX: "{{ signals_index }}"
         INFO_NODES: "{{ groups['workers'] | map('extract', hostvars, 'node_id') | join(',') }}"
       register: _status
       changed_when: false

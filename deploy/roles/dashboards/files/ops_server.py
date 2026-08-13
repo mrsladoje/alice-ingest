@@ -794,6 +794,28 @@ PAGE = Template("""<!doctype html>
  .pbody{padding:18px}
 
  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
+ .grid.docs{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;align-items:start}
+ .act{display:flex;flex-direction:column;gap:0}
+ .act .doc{
+   margin:0;padding:9px 12px;border:1px solid var(--hair);border-top:none;
+   border-radius:0 0 3px 3px;color:var(--faint);font-size:11px;line-height:1.5
+ }
+ .act form button{border-radius:3px 3px 0 0}
+ .actgroup{margin-top:16px}
+ .actgroup:first-of-type{margin-top:0}
+ .actgroup>h3{
+   margin:0 0 8px;font-size:11px;font-weight:600;letter-spacing:.08em;
+   text-transform:uppercase;color:var(--faint)
+ }
+ .actgroup.destructive{
+   margin-top:22px;padding:14px;border:1px solid rgba(224,100,93,.28);
+   border-radius:3px;background:rgba(224,100,93,.04)
+ }
+ .actgroup.destructive>h3{color:#efaba6}
+ .actgroup.destructive>h3 .note{
+   display:block;margin-top:4px;font-weight:400;letter-spacing:0;
+   text-transform:none;color:rgba(224,100,93,.72)
+ }
  form{margin:0}
  button{
    display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;
@@ -985,50 +1007,108 @@ PAGE = Template("""<!doctype html>
       </div>
       <div class="pbody">
         <div id="result-slot">$result</div>
-        <div class="grid">
-          <form method="post" action="replay" data-busy="Starting another paced replay pass.">
-            <button class="primary" type="submit" data-loading-label="Starting replay…">
-              <span><span class="button-label">Append replay</span><span class="button-sub">Adds one more paced pass to the data already loaded.</span></span>
-              <span class="button-spinner" aria-hidden="true"></span>
-            </button>
-          </form>
-          <form method="post" action="stop" data-busy="Asking the workers to stop the current pass." data-confirm="Stop the replay currently running on the workers?">
-            <button class="neutral" type="submit" data-loading-label="Stopping replay…">
-              <span><span class="button-label">Stop replay</span><span class="button-sub">Ends the pass after the record in flight. Data stays.</span></span>
-              <span class="button-spinner" aria-hidden="true"></span>
-            </button>
-          </form>
-          <form method="post" action="replay-fresh" data-busy="Cancelling any running replay, wiping derived data, rebuilding aliases, and starting a clean reload. This can take up to a minute." data-confirm="Fresh reload deletes the current replayed logs and all derived findings before starting again. Continue?">
-            <button class="danger" type="submit" data-loading-label="Resetting and reloading…">
-              <span><span class="button-label">Reload data · fresh</span><span class="button-sub">Deletes logs and findings, rebuilds aliases, reloads.</span></span>
-              <span class="button-spinner" aria-hidden="true"></span>
-            </button>
-          </form>
-          <form method="post" action="wipe" data-busy="Stopping any replay, deleting the logs and everything derived from them, and rebuilding the aliases."
-                data-confirm="Delete every replayed log and every finding derived from it? Any running replay is stopped first, and nothing starts loading afterwards — the stack stays empty until you start a replay yourself.">
-            <button class="danger" type="submit" data-loading-label="Deleting logs…">
-              <span><span class="button-label">Delete logs</span><span class="button-sub">Empties the indices, rebuilds aliases, loads nothing.</span></span>
-              <span class="button-spinner" aria-hidden="true"></span>
-            </button>
-          </form>
-          <form method="post" action="clear" data-busy="Purging alerts, anomalies, incidents, signals, and trend baselines." data-confirm="Clear all derived findings and trend baselines while keeping the logs?">
-            <button class="warning" type="submit" data-loading-label="Clearing findings…">
-              <span><span class="button-label">Clear findings</span><span class="button-sub">Drops alerts, incidents and baselines. Keeps the logs.</span></span>
-              <span class="button-spinner" aria-hidden="true"></span>
-            </button>
-          </form>
-          <form method="post" action="poison-replay" data-busy="Starting the background detector calibration run." data-confirm="Inject labelled synthetic outliers into trained production detector lanes? The evidence remains until normal index retention removes it.">
-            <button id="poison-start" class="warning" type="submit" data-loading-label="Starting poison…">
-              <span><span class="button-label">Poison replay</span><span id="poison-status" class="button-sub">$poison_text</span></span>
-              <span class="button-spinner" aria-hidden="true"></span>
-            </button>
-          </form>
-          <form method="post" action="poison-stop" data-busy="Stopping the poison calibration process cleanly.">
-            <button id="poison-stop" class="neutral" type="submit" data-loading-label="Stopping poison…"$poison_stop_disabled>
-              <span><span class="button-label">Stop poison</span><span class="button-sub">Cancels warm-up or observation. Indexed evidence stays labelled.</span></span>
-              <span class="button-spinner" aria-hidden="true"></span>
-            </button>
-          </form>
+        <div class="actgroup">
+          <h3>Safe — nothing is deleted</h3>
+          <div class="grid docs">
+            <div class="act">
+              <form method="post" action="replay" data-busy="Starting another paced replay pass.">
+                <button class="primary" type="submit" data-loading-label="Starting replay…">
+                  <span><span class="button-label">Append replay</span><span class="button-sub">Adds one more paced pass to the data already loaded.</span></span>
+                  <span class="button-spinner" aria-hidden="true"></span>
+                </button>
+              </form>
+              <p class="doc">Loads the archive again on top of what is already there. Deletes
+              nothing. Takes about an hour, because the load is paced so the detectors get
+              enough separate minutes to learn from. Safe while other people are using the
+              system; they will see the record count climb. If it stops partway, press it
+              again — a second pass only adds more.</p>
+            </div>
+            <div class="act">
+              <form method="post" action="stop" data-busy="Asking the workers to stop the current pass." data-confirm="Stop the replay currently running on the workers?">
+                <button class="neutral" type="submit" data-loading-label="Stopping replay…">
+                  <span><span class="button-label">Stop replay</span><span class="button-sub">Ends the pass after the record in flight. Data stays.</span></span>
+                  <span class="button-spinner" aria-hidden="true"></span>
+                </button>
+              </form>
+              <p class="doc">Ends the pass that is running now. Deletes nothing — every record
+              already loaded stays. Takes a few seconds. Safe at any time. If it says no replay
+              is running, there was nothing to stop and nothing went wrong.</p>
+            </div>
+            <div class="act">
+              <form method="post" action="poison-replay" data-busy="Starting the background detector calibration run." data-confirm="Inject labelled synthetic outliers into trained production detector lanes? The evidence remains until normal index retention removes it.">
+                <button id="poison-start" class="warning" type="submit" data-loading-label="Starting poison…">
+                  <span><span class="button-label">Poison replay</span><span id="poison-status" class="button-sub">$poison_text</span></span>
+                  <span class="button-spinner" aria-hidden="true"></span>
+                </button>
+              </form>
+              <p class="doc">Adds fake, clearly labelled bad records so you can check the
+              detectors still catch things. Deletes nothing, but it does write into the real
+              indices, and those records stay until normal retention removes them. It waits for
+              a paced load to finish training first, so it can take over an hour before
+              anything happens. Do not run it while someone is reading a result, because it
+              will raise real alerts. If it fails, press Stop poison, then start it again.</p>
+            </div>
+            <div class="act">
+              <form method="post" action="poison-stop" data-busy="Stopping the poison calibration process cleanly.">
+                <button id="poison-stop" class="neutral" type="submit" data-loading-label="Stopping poison…"$poison_stop_disabled>
+                  <span><span class="button-label">Stop poison</span><span class="button-sub">Cancels warm-up or observation. Indexed evidence stays labelled.</span></span>
+                  <span class="button-spinner" aria-hidden="true"></span>
+                </button>
+              </form>
+              <p class="doc">Stops the poison run. Deletes nothing — the fake records it already
+              wrote stay, and stay labelled as fake. Takes a few seconds. Safe at any time. If
+              the button is greyed out, nothing is running.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="actgroup destructive">
+          <h3>Destructive — these delete data
+            <span class="note">Read the paragraph under a button before you press it. None of this can be undone, and the staging machines are shared.</span>
+          </h3>
+          <div class="grid docs">
+            <div class="act">
+              <form method="post" action="clear" data-busy="Purging alerts, anomalies, incidents, signals, and trend baselines." data-confirm="Clear all derived findings and trend baselines while keeping the logs?">
+                <button class="warning" type="submit" data-loading-label="Clearing findings…">
+                  <span><span class="button-label">Clear findings</span><span class="button-sub">Drops alerts, incidents and baselines. Keeps the logs.</span></span>
+                  <span class="button-spinner" aria-hidden="true"></span>
+                </button>
+              </form>
+              <p class="doc">Deletes every alert, anomaly, incident, signal and trend baseline.
+              Keeps all the logs. Takes a few seconds. Do not run it while someone is looking at
+              an incident — it will vanish from under them. The detectors then have to learn
+              again, so the system says little for the next half hour. If it fails partway, run
+              it again; it is safe to repeat.</p>
+            </div>
+            <div class="act">
+              <form method="post" action="replay-fresh" data-busy="Cancelling any running replay, wiping derived data, rebuilding aliases, and starting a clean reload. This can take up to a minute." data-confirm="Fresh reload deletes the current replayed logs and all derived findings before starting again. Continue?">
+                <button class="danger" type="submit" data-loading-label="Resetting and reloading…">
+                  <span><span class="button-label">Reload data · fresh</span><span class="button-sub">Deletes logs and findings, rebuilds aliases, reloads.</span></span>
+                  <span class="button-spinner" aria-hidden="true"></span>
+                </button>
+              </form>
+              <p class="doc">Deletes every replayed log and everything found from them, then
+              loads the archive again from the start. Takes about an hour. Do not run this while
+              someone is looking at a result they care about, and remember physicists run test
+              runs through the staging control system. If it stops partway, run it again; it
+              always starts clean.</p>
+            </div>
+            <div class="act">
+              <form method="post" action="wipe" data-busy="Stopping any replay, deleting the logs and everything derived from them, and rebuilding the aliases."
+                    data-confirm="Delete every replayed log and every finding derived from it? Any running replay is stopped first, and nothing starts loading afterwards — the stack stays empty until you start a replay yourself.">
+                <button class="danger" type="submit" data-loading-label="Deleting logs…">
+                  <span><span class="button-label">Delete logs</span><span class="button-sub">Empties the indices, rebuilds aliases, loads nothing.</span></span>
+                  <span class="button-spinner" aria-hidden="true"></span>
+                </button>
+              </form>
+              <p class="doc">Deletes every replayed log and everything found from them, and then
+              loads nothing. The stack sits empty until you start a replay yourself. Takes under
+              a minute. Do not run it while anyone else is using the system — they will find an
+              empty stack with no warning. If it refuses because a replay would not stop, restart
+              alice-replay on the workers it names and press it again. Nothing was deleted when
+              it refuses.</p>
+            </div>
+          </div>
         </div>
         <div id="busy" class="busy" role="status" aria-live="polite">
           <span class="spinner" aria-hidden="true"></span><span id="busytext">Working…</span>
@@ -1077,17 +1157,31 @@ PAGE = Template("""<!doctype html>
         <form id="inject-stop-form" method="post" action="inject-stop"
               data-busy="Stopping the injection run, restoring what it stopped, and scoring the shortened window."
               data-confirm="Stop the running injection? It restores the component and scores the shortened window."></form>
-        <div class="grid">
+        <div class="grid docs">
+          <div class="act">
           <button class="warning" type="submit" form="inject-form" id="inject-start"
                   data-loading-label="Starting injection…">
             <span><span class="button-label">Run injection</span><span class="button-sub" id="inject-sub">$inject_text</span></span>
             <span class="button-spinner" aria-hidden="true"></span>
           </button>
+          <p class="doc">Breaks something on purpose to check the system notices. It stops a
+          real component, leaves it stopped for the window you chose, then starts it again and
+          scores what was detected. Deletes nothing, but real alerts fire and the part it stops
+          genuinely stops working for that whole time. Takes the observe window plus a few
+          minutes. Do not run it while anyone depends on the system — pick a quiet moment. If
+          it fails or you press Stop, the component is still restored.</p>
+          </div>
+          <div class="act">
           <button class="neutral" type="submit" form="inject-stop-form" id="inject-stop"
                   data-loading-label="Stopping injection…"$inject_stop_disabled>
             <span><span class="button-label">Stop injection</span><span class="button-sub">Ends the window early. Still restores and still scores.</span></span>
             <span class="button-spinner" aria-hidden="true"></span>
           </button>
+          <p class="doc">Ends the run early. It still starts the stopped component again and
+          still scores the shortened window, so the system is left healthy either way. Deletes
+          nothing. Takes a few seconds. Safe at any time. If the button is greyed out, no run is
+          in progress.</p>
+          </div>
         </div>
         <div id="scorecard"></div>
       </div>

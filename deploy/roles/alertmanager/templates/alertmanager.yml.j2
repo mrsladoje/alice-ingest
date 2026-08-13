@@ -22,29 +22,28 @@ route:
       group_wait: {{ alertmanager_page_group_wait }}
       group_interval: {{ alertmanager_page_group_interval }}
 
+{# Generated from causal_edges.json, the one place an edge is declared. Only
+   proven edges reach this file; the rest rank as candidate causes instead. #}
+{% set _edges = (lookup('file', causal_edges_file) | from_json)['edges'] %}
+{% set _rules = {} %}
+{% for e in _edges if e.proven %}
+{%   set _key = e.cause ~ '|' ~ (e.cause_severity | default('')) ~ '|' ~ (e.equal | join(',')) %}
+{%   if _key not in _rules %}
+{%     set _ = _rules.update({_key: {'cause': e.cause, 'severity': e.cause_severity | default(none), 'equal': e.equal, 'symptoms': []}}) %}
+{%   endif %}
+{%   set _ = _rules[_key]['symptoms'].append(e.symptom) %}
+{% endfor %}
 inhibit_rules:
-{% if 'collector-down' in alertmanager_proven_inhibit_rules %}
+{% for r in _rules.values() %}
   - source_matchers:
-      - alertname = "collector-down"
-      - severity = "page"
-    target_matchers:
-      - alertname =~ "collector-unhealthy|data-loss|shipping-breaking|ingest-flow|il-collector-shipping-lag|il-collector-shipping-lag-slow|info-collector-shipping-lag|info-collector-shipping-lag-slow|trend-il-shipping-lag|trend-info-shipping-lag"
-    equal: ['cluster_id', 'collector_id']
+      - alertname = "{{ r.cause }}"
+{% if r.severity %}
+      - severity = "{{ r.severity }}"
 {% endif %}
-{% if 'telemetry-silence' in alertmanager_proven_inhibit_rules %}
-  - source_matchers:
-      - alertname = "telemetry-silence"
     target_matchers:
-      - alertname =~ "cluster-red|shards-stuck|disk-cliff-warn|disk-cliff-page|heap-spiral|node-health|dashboards-health"
-    equal: ['cluster_id']
-{% endif %}
-{% if 'fleet-fb-silence' in alertmanager_proven_inhibit_rules %}
-  - source_matchers:
-      - alertname = "fleet-fb-silence"
-    target_matchers:
-      - alertname =~ "collector-down|collector-unhealthy|data-loss|shipping-breaking|ingest-flow"
-    equal: ['cluster_id']
-{% endif %}
+      - alertname =~ "{{ r.symptoms | unique | join('|') }}"
+    equal: {{ r.equal | to_json }}
+{% endfor %}
 
 receivers:
   - name: alice-notification-ingest

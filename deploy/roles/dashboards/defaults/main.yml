@@ -29,6 +29,7 @@ dashboards_bootstrap_alerting_script: "{{ dashboards_bootstrap_root }}/alerting.
 dashboards_bootstrap_detectors_script: "{{ dashboards_bootstrap_root }}/detectors.sh"
 dashboards_bootstrap_forecasters_script: "{{ dashboards_bootstrap_root }}/forecasters.sh"
 dashboards_bootstrap_ism_script: "{{ dashboards_bootstrap_root }}/ism.sh"
+dashboards_bootstrap_register_node_script: "{{ dashboards_bootstrap_root }}/register_node.sh"
 dashboards_bootstrap_verify_script: "{{ dashboards_bootstrap_root }}/verify_detection.py"
 dashboards_bootstrap_monitors_dir: "{{ dashboards_bootstrap_root }}/monitors"
 dashboards_bootstrap_detectors_dir: "{{ dashboards_bootstrap_root }}/detectors"
@@ -38,6 +39,11 @@ dashboards_bootstrap_hydrate_script: "{{ dashboards_bootstrap_root }}/hydrate_pa
 
 dashboards_ops_service_name: alice-ops
 dashboards_ops_script: /opt/alice-ingest/ops_server.py
+
+live_lane_service_name: alice-live-lane
+live_lane_script: /opt/alice-ingest/live_lane.py
+live_lane_static_dir: /opt/alice-ingest/live
+live_lane_cockpit_url: "/app/dashboards"
 ops_internal_port: 8090
 
 dashboards_poison_replay_service_name: alice-poison-replay
@@ -60,10 +66,7 @@ dashboards_metrics_script: /opt/alice-ingest/metrics_poller.py
 dashboards_trend_rollup_service_name: alice-trend-rollup
 dashboards_trend_rollup_script: /opt/alice-ingest/trend_rollup.py
 
-dashboards_anomaly_digest_service_name: alice-anomaly-digest
-dashboards_anomaly_digest_script: /opt/alice-ingest/anomaly_digest.py
-
-expected_monitors: 26
+expected_monitors: 27
 expected_detectors: 17
 expected_forecasters: 1
 dashboards_backtest_script: /opt/alice-ingest/backtest.py
@@ -75,6 +78,7 @@ dashboards_signal_identity_script: /opt/alice-ingest/signal_identity.py
 dashboards_roster_publish_script: /opt/alice-ingest/roster_publish.py
 dashboards_discover_roster_script: /opt/alice-ingest/discover_roster.py
 dashboards_bootstrap_signal_catalog: "{{ dashboards_bootstrap_root }}/signal_catalog.json"
+dashboards_bootstrap_causal_edges: "{{ dashboards_bootstrap_root }}/causal_edges.json"
 
 dashboards_signal_projector_service_name: alice-signal-projector
 dashboards_signal_projector_script: /opt/alice-ingest/signal_projector.py

@@ -77,7 +77,6 @@
     ROLLUP_INDEX: "{{ trend_rollup_index }}"
     METRICS_INDEX: "{{ cockpit_metrics_index }}"
     ROSTER_INDEX: "{{ fleet_roster_index }}"
-    DIGEST_INDEX: "{{ anomaly_digest_index }}"
     SIGNALS_INDEX: "{{ signals_index }}"
     INCIDENTS_INDEX: "{{ incidents_index }}"
     NOTIFICATIONS_INDEX: "{{ notifications_index }}"

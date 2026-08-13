@@ -44,6 +44,36 @@
     mode: "0755"
   notify: restart fluent-bit
 
+- name: Ensure the per-node environment directory exists
+  ansible.builtin.file:
+    path: "{{ collector_env_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: >-
+    Write the per-node environment file (rule R3 — this machine's identity stops
+    living only in the central inventory, so it can register itself at boot)
+  ansible.builtin.template:
+    src: node.env.j2
+    dest: "{{ collector_env_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart fluent-bit
+
+- name: >-
+    Install the node self-registration script (Item 3 — the same file the
+    control host runs once per worker during the deploy)
+  ansible.builtin.copy:
+    src: register_node.sh
+    dest: "{{ collector_register_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: restart fluent-bit
+
 - name: Create log_root and its dds/stdout subdirectories (local producers write here, this collector tails them)
   ansible.builtin.file:
     path: "{{ item }}"

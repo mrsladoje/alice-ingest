@@ -21,6 +21,7 @@ Environment=INJECT_REQUEST_PATH={{ dashboards_inject_request }}
 Environment=INJECT_STATUS_PATH={{ dashboards_inject_status }}
 Environment=INJECT_REPORT_DIR={{ dashboards_inject_report_dir }}
 Environment=INJECT_SCORE_SCRIPT={{ dashboards_score_injection_script }}
+Environment=CAUSAL_EDGES={{ dashboards_bootstrap_causal_edges }}
 Environment=INJECT_WORKER_AGENTS={% for h in groups['workers'] %}{{ h }}=http://{{ hostvars[h].ansible_host }}:{{ fault_agent_port }}{% if not loop.last %},{% endif %}{% endfor +%}
 Environment=INJECT_WORKER_REPLAY={% for h in groups['workers'] %}{{ h }}=http://{{ hostvars[h].ansible_host }}:{{ replay_http_port }}{% if not loop.last %},{% endif %}{% endfor +%}
 Environment=INJECT_PROJECTOR_AGENT=http://{{ hostvars[signal_projector_host].ansible_host }}:{{ fault_agent_port }}

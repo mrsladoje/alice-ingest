@@ -8,3 +8,15 @@ collector_systemd_dropin_dir: /etc/systemd/system/fluent-bit.service.d
 
 collector_health_script: /opt/alice-ingest/fb_health.py
 collector_health_interval_seconds: "{{ cockpit_metrics_interval_seconds }}"
+
+# Rule R3 — the one file that tells this machine which machine it is.
+collector_env_dir: /etc/alice-ingest
+collector_env_file: "{{ collector_env_dir }}/node.env"
+
+# Item 3 — run as ExecStartPre, so a node registers itself at every boot.
+collector_register_script: /opt/alice-ingest/register_node.sh
+
+# ExecStartPre counts against the unit's start timeout, and register_node.sh
+# waits for the local OpenSearch. This must stay above that wait's worst case:
+# REGISTER_WAIT_ATTEMPTS x (REGISTER_WAIT_MAX_TIME + REGISTER_WAIT_SLEEP).
+collector_start_timeout_seconds: 600

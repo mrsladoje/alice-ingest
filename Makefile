@@ -226,9 +226,9 @@ poison-status:
 poison-stop:
 	cd deploy && $(ANSIBLE_PLAYBOOK) poison_stop.yml $(ANSIBLE_EXTRA)
 
-# Runs each log detector over the window already sitting in the indices and
-# writes what it finds into the cockpit's anomaly index. Does not touch the
-# real-time detectors.
+# Runs each log detector's historical analysis over the window already
+# sitting in the indices and prints a report. Does not write into
+# alice-signals. Does not touch the real-time detectors.
 backtest:
 	cd deploy && $(ANSIBLE_PLAYBOOK) backtest.yml $(ANSIBLE_EXTRA)
 

@@ -10,24 +10,27 @@ AD_RESULTS_ID = "alice-ad-results"
 AD_RESULTS_TITLE = ".opendistro-anomaly-results*"
 ALERTS_ID = "alice-alerts"
 ALERTS_TITLE = ".opendistro-alerting-alerts*"
-ANOMALIES_ID = "alice-anomalies"
-ANOMALIES_TITLE = "alice-anomalies"
 INCIDENTS_ID = "alice-incidents"
 INCIDENTS_TITLE = "alice-incidents"
 SIGNALS_ID = "alice-signals"
 SIGNALS_TITLE = "alice-signals"
 INCIDENT_HISTORY_LOOKBACK = "7d"
+GROUP_CARDS = 20
+GROUP_ENTITY_SAMPLES = 3
 TIME_FIELD = "@timestamp"
 PANEL_VERSION = "3.7.0"
 
 LOG_TIME_FROM = "now-1y"
 HEALTH_RANGE = {"from": "now-1h", "to": "now"}
+# The fleet counters answer "how many collectors are in this state now", so they
+# get a window just wider than the heartbeat grace instead of the health hour.
+# Over an hour a collector that flapped once would be counted down for the rest
+# of it, which reads as a fleet in trouble when the fleet is fine.
+FLEET_NOW_RANGE = {"from": "now-3m", "to": "now"}
 REFRESH_MS = 30000
 STALE_SECONDS = 90
 
 ERRWARN_Q = "severity_norm:(error or fatal or warning)"
-REALTIME_Q = "run:realtime"
-ANOMALY_FLOOR_Q = "run:realtime and grade > 0.5"
 
 FONT_STACK = ("Inter UI, -apple-system, BlinkMacSystemFont, 'Segoe UI', "
               "Helvetica, Arial, sans-serif")
@@ -279,42 +282,6 @@ def latest_table(vid, title, bucket_field, columns, query, size=15):
     return viz(vid, title, state, query=dql(query), pattern=METRICS_ID)
 
 
-def anomaly_table(vid, title):
-    state = {
-        "title": title,
-        "type": "table",
-        "aggs": [
-            {"id": "1", "enabled": True, "type": "max", "schema": "metric",
-             "params": {"field": "grade", "customLabel": "worst grade"}},
-            {"id": "2", "enabled": True, "type": "max", "schema": "metric",
-             "params": {"field": "confidence", "customLabel": "confidence"}},
-            {"id": "3", "enabled": True, "type": "count", "schema": "metric",
-             "params": {"customLabel": "times seen"}},
-            {"id": "4", "enabled": True, "type": "max", "schema": "metric",
-             "params": {"field": TIME_FIELD, "customLabel": "last seen"}},
-            {"id": "5", "enabled": True, "type": "terms", "schema": "bucket",
-             "params": {"field": "about", "orderBy": "1", "order": "desc",
-                        "size": 10, "otherBucket": False,
-                        "missingBucket": False,
-                        "customLabel": "what looks wrong"}},
-            {"id": "6", "enabled": True, "type": "terms", "schema": "bucket",
-             "params": {"field": "scope", "orderBy": "1", "order": "desc",
-                        "size": 5, "otherBucket": False,
-                        "missingBucket": False, "customLabel": "where"}},
-        ],
-        "params": {
-            "perPage": 10,
-            "showPartialRows": False,
-            "showMetricsAtAllLevels": False,
-            "showTotal": False,
-            "totalFunc": "sum",
-            "percentageCol": "",
-        },
-    }
-    return viz(vid, title, state, query=dql(ANOMALY_FLOOR_Q),
-               pattern=ANOMALIES_ID)
-
-
 def alerts_table(vid, title):
     state = {
         "title": title,
@@ -495,15 +462,26 @@ def _signals_href(search_id):
     return ("'/app/data-explorer/discover#/view/" + search_id +
             "?_g=(time:(from:\\'' + datum.winFrom + '\\',to:\\'' + "
             "datum.winTo + '\\'))"
-            "&_q=(query:(language:kuery,query:\\'episode_id:\"' + "
-            "datum._source.episode_id + '\"\\'))'")
+            "&_q=(query:(language:kuery,query:\\'group_id:\"' + "
+            "datum.key + '\"\\'))'")
 
 
 def _details_href(search_id):
     return ("'/app/data-explorer/discover#/view/" + search_id +
             "?_g=(time:(from:now-" + INCIDENT_HISTORY_LOOKBACK + ",to:now))"
-            "&_q=(query:(language:kuery,query:\\'incident_id:\"' + "
-            "datum._source.incident_id + '\"\\'))'")
+            "&_q=(query:(language:kuery,query:\\'group_id:\"' + "
+            "datum.key + '\"\\'))'")
+
+
+def _group_entity_list():
+    """Join the sampled entity keys without pluck(), which needs Vega 5.19."""
+    parts = []
+    for index in range(GROUP_ENTITY_SAMPLES):
+        separator = "', ' + " if index else ""
+        parts.append(
+            f"(length(datum.entities.buckets) > {index} ? {separator}"
+            f"datum.entities.buckets[{index}].key : '')")
+    return " + ".join(parts)
 
 
 def _episode_card_text(as_field, expr, dy, fill, size, bold=False,
@@ -526,7 +504,7 @@ def _episode_card_text(as_field, expr, dy, fill, size, bold=False,
 
 
 def _episode_button(x_signal, label, href_field):
-    button_opacity = {"signal": "datum._source.episode_id ? 1 : 0"}
+    button_opacity = {"signal": "datum.key ? 1 : 0"}
     rect = {"type": "rect", "from": {"data": "episodes"},
             "encode": {"update": {
                 "x": {"signal": x_signal},
@@ -594,59 +572,121 @@ def incident_episode_board(vid, title):
             "url": {
                 "index": INCIDENTS_TITLE,
                 "body": {
-                    "size": 20,
-                    "sort": [{"last_seen": {"order": "desc"}}],
+                    "size": 0,
                     "query": {"term": {"state": "firing"}},
-                    "_source": ["title", "diagnosis", "affected", "severity",
-                                "episode_state", "opened_at", "last_seen",
-                                "member_count", "alertname", "episode_id",
-                                "incident_id", "worst_grade",
-                                "latest_confidence"],
+                    "aggs": {"groups": {
+                        "terms": {"field": "group_id",
+                                  "size": GROUP_CARDS,
+                                  "order": {"last": "desc"}},
+                        "aggs": {
+                            "last": {"max": {"field": "last_seen"}},
+                            "opened": {"min": {"field": "opened_at"}},
+                            "members": {"sum": {"field": "member_count"}},
+                            "worst": {"max": {"field": "worst_grade"}},
+                            "conf": {"max": {"field": "latest_confidence"}},
+                            "entity_total": {
+                                "cardinality": {"field": "entity_id"}},
+                            "entities": {
+                                "terms": {"field": "entity_id",
+                                          "size": GROUP_ENTITY_SAMPLES,
+                                          "order": {"_key": "asc"}}},
+                            "pages": {
+                                "filter": {"term": {"severity": "page"}}},
+                            "opens": {
+                                "filter": {"term": {"episode_state": "OPEN"}}},
+                            "stales": {
+                                "filter": {"term": {
+                                    "episode_state": "STALE"}}},
+                            "top": {"top_hits": {
+                                "size": 1,
+                                "sort": [{"severity": {"order": "asc"}},
+                                         {"last_seen": {"order": "desc"}}],
+                                "_source": ["title", "diagnosis", "affected",
+                                            "severity", "episode_state",
+                                            "entity_kind", "alertname",
+                                            "class"]}},
+                        },
+                    }},
                 },
             },
-            "format": {"property": "hits.hits"},
+            "format": {"property": "aggregations.groups.buckets"},
             "transform": [
+                {"type": "formula", "as": "src",
+                 "expr": "datum.top.hits.hits[0]._source"},
                 {"type": "formula", "as": "severityRank",
-                 "expr": "datum._source.severity == 'page' ? 0 : 1"},
-                {"type": "formula", "as": "last",
-                 "expr": "time(toDate(datum._source.last_seen))"},
+                 "expr": "datum.pages.doc_count > 0 ? 0 : 1"},
+                # Never name this "last": a formula that shadows the
+                # aggregation object leaves datum.last.value undefined for
+                # every later expression, and the link windows silently
+                # become NaN.
+                {"type": "formula", "as": "lastMs",
+                 "expr": "datum.last.value"},
                 {"type": "collect", "sort": {
-                    "field": ["severityRank", "last"],
+                    "field": ["severityRank", "lastMs"],
                     "order": ["ascending", "descending"]}},
                 {"type": "window", "ops": ["row_number"], "as": ["rank"]},
                 {"type": "formula", "as": "row",
                  "expr": "datum.rank - 1"},
+                {"type": "formula", "as": "groupState",
+                 "expr": "datum.opens.doc_count > 0 ? 'OPEN' : "
+                         "datum.stales.doc_count > 0 ? 'STALE' : "
+                         "'RECOVERING'"},
                 {"type": "formula", "as": "accent",
-                 "expr": "datum._source.severity == 'page' ? '#BD271E' : "
-                         "datum._source.episode_state == 'STALE' ? '#98A2B3' : "
-                         "datum._source.episode_state == 'RECOVERING' ? "
-                         "'#017D73' : '#F5A700'"},
+                 "expr": "datum.pages.doc_count > 0 ? '#BD271E' : "
+                         "datum.groupState == 'STALE' ? '#98A2B3' : "
+                         "datum.groupState == 'RECOVERING' ? '#017D73' : "
+                         "'#F5A700'"},
                 {"type": "formula", "as": "titleText",
-                 "expr": "datum._source.title || datum._source.alertname || "
+                 "expr": "datum.src.title || datum.src.alertname || "
                          "'Untitled episode'"},
+                {"type": "formula", "as": "kindLabel",
+                 "expr": "datum.src.entity_kind == 'epn' ? 'EPNs' : "
+                         "datum.src.entity_kind == 'collector' ? "
+                         "'collectors' : "
+                         "datum.src.entity_kind == 'os_node' ? "
+                         "'OpenSearch nodes' : "
+                         "datum.src.entity_kind == 'monitor' ? 'monitors' : "
+                         "'entities'"},
+                {"type": "formula", "as": "entityList",
+                 "expr": _group_entity_list()},
+                {"type": "formula", "as": "affectedText",
+                 "expr": "datum.entity_total.value <= 1 ? "
+                         "(datum.src.affected || '') : "
+                         "(datum.entity_total.value + ' ' + datum.kindLabel + "
+                         "': ' + datum.entityList + "
+                         f"(datum.entity_total.value > {GROUP_ENTITY_SAMPLES}"
+                         " ? ' +' + (datum.entity_total.value - "
+                         f"{GROUP_ENTITY_SAMPLES}) + ' more' : ''))"},
+                {"type": "formula", "as": "mixedText",
+                 "expr": "datum.pages.doc_count > 0 && "
+                         "datum.pages.doc_count < datum.doc_count ? "
+                         "'  ·  ' + datum.pages.doc_count + ' page' : ''"},
                 {"type": "formula", "as": "meta",
-                 "expr": "upper(datum._source.severity || '?') + '  ·  ' + "
-                         "(datum._source.episode_state || 'OPEN') + "
-                         "(datum._source.affected ? '  ·  ' + "
-                         "datum._source.affected : '') + '  ·  ' + "
-                         "(datum._source.member_count || 0) + ' signals  ·  "
-                         "since ' + timeFormat(toDate(datum._source.opened_at), "
+                 "expr": "upper(datum.pages.doc_count > 0 ? 'page' : "
+                         "(datum.src.severity || '?')) + datum.mixedText + "
+                         "'  ·  ' + datum.groupState + "
+                         "(datum.affectedText ? '  ·  ' + "
+                         "datum.affectedText : '') + '  ·  ' + "
+                         "datum.doc_count + "
+                         "(datum.doc_count == 1 ? ' episode / ' "
+                         ": ' episodes / ') + "
+                         "(datum.members.value || 0) + "
+                         "' signals  ·  since ' + "
+                         "timeFormat(toDate(datum.opened.value), "
                          "'%b %d %H:%M')"},
                 {"type": "formula", "as": "score",
-                 "expr": "datum._source.worst_grade == null ? '' : "
+                 "expr": "datum.worst.value == null ? '' : "
                          "'  ·  worst grade ' + "
-                         "format(datum._source.worst_grade, '.3f') + "
+                         "format(datum.worst.value, '.3f') + "
                          "' / confidence ' + "
-                         "format(datum._source.latest_confidence || 0, '.3f')"},
+                         "format(datum.conf.value || 0, '.3f')"},
                 {"type": "formula", "as": "diagText",
-                 "expr": "datum._source.diagnosis || ''"},
+                 "expr": "datum.src.diagnosis || ''"},
                 {"type": "formula", "as": "winFrom",
-                 "expr": "utcFormat(toDate(time(toDate("
-                         "datum._source.opened_at)) - 300000), "
+                 "expr": "utcFormat(toDate(datum.opened.value - 300000), "
                          "'%Y-%m-%dT%H:%M:%S.%LZ')"},
                 {"type": "formula", "as": "winTo",
-                 "expr": "utcFormat(toDate(time(toDate("
-                         "datum._source.last_seen)) + 300000), "
+                 "expr": "utcFormat(toDate(datum.last.value + 300000), "
                          "'%Y-%m-%dT%H:%M:%S.%LZ')"},
                 {"type": "formula", "as": "signalsUrl",
                  "expr": _signals_href("alice-search-signals")},
@@ -731,32 +771,6 @@ def incident_episode_board(vid, title):
     return viz(vid, title, state, index_ref_on=False)
 
 
-def scope_kind_table(vid, title):
-    state = {
-        "title": title,
-        "type": "table",
-        "aggs": [
-            {"id": "1", "enabled": True, "type": "cardinality",
-             "schema": "metric",
-             "params": {"field": "scope", "customLabel": "how many"}},
-            {"id": "2", "enabled": True, "type": "terms", "schema": "bucket",
-             "params": {"field": "scope_kind", "orderBy": "1", "order": "desc",
-                        "size": 6, "otherBucket": False,
-                        "missingBucket": False, "customLabel": "what kind"}},
-        ],
-        "params": {
-            "perPage": 6,
-            "showPartialRows": False,
-            "showMetricsAtAllLevels": False,
-            "showTotal": False,
-            "totalFunc": "sum",
-            "percentageCol": "",
-        },
-    }
-    return viz(vid, title, state, query=dql(ANOMALY_FLOOR_Q),
-               pattern=ANOMALIES_ID)
-
-
 def metric_timechart(vid, title, metrics, query, group_field=None,
                      kind="line", mode="normal", y_title="Count"):
     aggs = []
@@ -782,6 +796,117 @@ def metric_timechart(vid, title, metrics, query, group_field=None,
     params["seriesParams"] = _series(mode, kind=kind, labels=labels)
     state = {"title": title, "type": kind, "aggs": aggs, "params": params}
     return viz(vid, title, state, query=dql(query), pattern=METRICS_ID)
+
+
+def fleet_counter(vid, title, query, font_size=48):
+    state = {
+        "title": title,
+        "type": "metric",
+        "aggs": [
+            {"id": "1", "enabled": True, "type": "cardinality",
+             "schema": "metric",
+             "params": {"field": "collector_id", "customLabel": "collectors"}}
+        ],
+        "params": _metric_params(font_size),
+    }
+    return viz(vid, title, state, query=dql(query), pattern=METRICS_ID)
+
+
+def worst_table(vid, title, columns, query, order_by, size=10,
+                bucket_field="collector_id"):
+    aggs = []
+    for i, (agg_type, field, label) in enumerate(columns, start=1):
+        aggs.append({"id": str(i), "enabled": True, "type": agg_type,
+                     "schema": "metric",
+                     "params": {"field": field, "customLabel": label}})
+    aggs.append({"id": str(len(columns) + 1), "enabled": True,
+                 "type": "terms", "schema": "bucket",
+                 "params": {"field": bucket_field, "orderBy": str(order_by),
+                            "order": "desc", "size": size,
+                            "otherBucket": False, "missingBucket": False}})
+    state = {
+        "title": title,
+        "type": "table",
+        "aggs": aggs,
+        "params": {
+            "perPage": size,
+            "showPartialRows": False,
+            "showMetricsAtAllLevels": False,
+            "showTotal": False,
+            "totalFunc": "sum",
+            "percentageCol": "",
+        },
+    }
+    return viz(vid, title, state, query=dql(query), pattern=METRICS_ID)
+
+
+def distribution_timechart(vid, title, field, query, y_title="Count",
+                           kind="line"):
+    labels = ["fleet median", "95th percentile", "worst"]
+    aggs = [
+        {"id": "1", "enabled": True, "type": "percentiles", "schema": "metric",
+         "params": {"field": field, "percents": [50],
+                    "customLabel": labels[0]}},
+        {"id": "2", "enabled": True, "type": "percentiles", "schema": "metric",
+         "params": {"field": field, "percents": [95],
+                    "customLabel": labels[1]}},
+        {"id": "3", "enabled": True, "type": "max", "schema": "metric",
+         "params": {"field": field, "customLabel": labels[2]}},
+        {"id": "4", "enabled": True, "type": "date_histogram",
+         "schema": "segment",
+         "params": {"field": TIME_FIELD, "interval": "auto",
+                    "min_doc_count": 0, "drop_partials": False}},
+    ]
+    params = _bar_params(kind, "normal", "bottom", "left", y_title)
+    params["seriesParams"] = _series("normal", kind=kind, labels=labels)
+    state = {"title": title, "type": kind, "aggs": aggs, "params": params}
+    return viz(vid, title, state, query=dql(query), pattern=METRICS_ID)
+
+
+def collector_picker(vid, title):
+    ref_name = "control_0_index_pattern"
+    state = {
+        "title": title,
+        "type": "input_control_vis",
+        "aggs": [],
+        "params": {
+            "controls": [{
+                "id": "collector-pin",
+                "type": "list",
+                "label": "Pin collectors",
+                "fieldName": "collector_id",
+                "indexPattern": ref_name,
+                "parent": "",
+                "options": {
+                    "type": "terms",
+                    "multiselect": True,
+                    "dynamicOptions": True,
+                    "size": 100,
+                    "order": "desc",
+                },
+            }],
+            "updateFiltersOnChange": True,
+            "useTimeFilter": True,
+            "pinFilters": False,
+        },
+    }
+    return {
+        "type": "visualization",
+        "id": vid,
+        "attributes": {
+            "title": title,
+            "visState": json.dumps(state),
+            "uiStateJSON": "{}",
+            "description": "",
+            "kibanaSavedObjectMeta": {
+                "searchSourceJSON": json.dumps(
+                    search_source(index_ref=False))
+            },
+        },
+        "references": [
+            {"name": ref_name, "type": "index-pattern", "id": METRICS_ID}
+        ],
+    }
 
 
 def markdown(vid, title, md):
@@ -934,7 +1059,7 @@ def dashboard(panels):
         "type": "dashboard",
         "id": "alice-cockpit",
         "attributes": {
-            "title": "ALICE Cockpit",
+            "title": "Maintainer Cockpit",
             "description": "Unified operations view over InfoLogger, DDS and "
                            "stdout logs, plus cluster, Fluent Bit and "
                            "Dashboards health.",
@@ -984,13 +1109,6 @@ def build():
         "type": "index-pattern",
         "id": ALERTS_ID,
         "attributes": {"title": ALERTS_TITLE, "timeFieldName": "start_time"},
-        "references": [],
-    })
-
-    objects.append({
-        "type": "index-pattern",
-        "id": ANOMALIES_ID,
-        "attributes": {"title": ANOMALIES_TITLE, "timeFieldName": TIME_FIELD},
         "references": [],
     })
 
@@ -1047,22 +1165,16 @@ def build():
             columns=["monitor_name", "trigger_name", "severity", "state"],
             pattern=ALERTS_ID, sort_field="start_time"),
         saved_search(
-            "alice-search-anomalies", "Anomalies — what looks wrong, and where",
-            "One row per anomalous window, newest first. 'about' says what "
-            "the detector watches, 'scope' says which host or collector it "
-            "was watching. Real-time results only — a historical analysis "
-            "run now would otherwise be counted as something happening now.",
-            REALTIME_Q,
-            columns=["severity", "about", "entity_kind", "entity_id",
-                     "grade", "confidence"],
-            pattern=ANOMALIES_ID),
-        saved_search(
             "alice-search-signals", "Signals — every raw row behind an incident",
             "One lossless row per source signal. Grouping never destroys "
-            "these: an incident references them, it does not replace them.",
+            "these: an incident references them, it does not replace them. "
+            "The card's SIGNALS button opens this filtered to its group_id "
+            "over the group's own window, so every affected entity is here at "
+            "once — click a value in the entity_id field list to narrow to "
+            "one EPN or one collector.",
             "",
             columns=["alertname", "state", "severity", "entity_kind",
-                     "entity_id", "collector_id", "incident_id"],
+                     "entity_id", "collector_id", "class", "incident_id"],
             pattern=SIGNALS_ID),
         saved_search(
             "alice-search-open-incidents", "Open episodes — complete detail",
@@ -1076,14 +1188,16 @@ def build():
             pattern=INCIDENTS_ID, sort_field="last_seen"),
         saved_search(
             "alice-search-incident-history",
-            "Episode history — every episode of one incident",
-            "One row per episode of the same recurring problem, newest "
-            "first. The card's Details button opens this filtered to its "
-            "own incident_id, so you see how often it came back.",
+            "Episode history — every episode behind one card",
+            "One row per episode, newest first. The card's DETAILS button "
+            "opens this filtered to its group_id, so one row is one affected "
+            "entity and repeated rows for the same entity are how often the "
+            "problem came back. Sort or filter on entity_id to read one EPN.",
             "",
-            columns=["severity", "title", "episode_state", "member_count",
-                     "opened_at", "last_seen", "resolved_at",
-                     "operator_action", "episode_id"],
+            columns=["severity", "title", "affected", "entity_id",
+                     "episode_state", "member_count", "opened_at",
+                     "last_seen", "resolved_at", "operator_action",
+                     "episode_id"],
             pattern=INCIDENTS_ID, sort_field="opened_at"),
         saved_search(
             "alice-search-recent-incidents", "Recent resolved episodes",
@@ -1096,7 +1210,10 @@ def build():
     ]
 
     header_md = (
-        "## \U0001F6F0️ ALICE Cockpit\n"
+        "## \U0001F6F0️ Maintainer Cockpit\n"
+        "This dashboard answers **is the log pipeline healthy**, which is a "
+        "maintainer's question. A shifter asks what the experiment is saying "
+        "instead, and reads the **[live log →](/live/)** page for that.\n\n"
         "The operational headline is the **deduplicated incident episode** "
         "board below. Health panels are live (last hour, refresh 30 s); "
         "raw alerts and anomaly windows are deliberately kept out of the "
@@ -1121,6 +1238,20 @@ def build():
         "Sampled every 30 s by `alice-metrics` into `cockpit-metrics`. "
         "These panels ignore the time picker."
     )
+    fleet_detail_md = (
+        "### \U0001F5A5 The collector fleet — live, last hour\n"
+        "**No panel here grows with the fleet.** Four counters, two ten-row "
+        "tables and distribution lines read the same at two collectors and at "
+        "two hundred, on a desktop or on a phone. The counters read the last "
+        "**three minutes**, not the hour the panels below use, so they answer "
+        "*how many collectors are in this state now*; a machine that flapped "
+        "inside those three minutes can still appear in two of them. To follow "
+        "named machines instead of the "
+        "distribution, pin them with the picker — it filters `collector_id` "
+        "as a field, which is correct here because `cockpit-metrics` is not "
+        "partitioned per machine. **Selecting a machine's logs is a different "
+        "act and must filter `_index`, never the `node` field.**"
+    )
     log_detail_md = (
         "### Raw log evidence — secondary\n"
         "Use this section after an episode tells you where to look. These "
@@ -1143,6 +1274,8 @@ def build():
                       "system"),
         markdown("alice-viz-health-header", "Platform health header",
                  health_detail_md),
+        markdown("alice-viz-fleet-header", "Collector fleet header",
+                 fleet_detail_md),
         markdown("alice-viz-log-header", "Log evidence header",
                  log_detail_md),
         latest_metric("alice-viz-cluster-status", "Cluster status",
@@ -1152,15 +1285,28 @@ def build():
                       label="unassigned"),
         latest_metric("alice-viz-osd-status", "Dashboards health",
                       "osd_state", "kind:osd", label="state"),
-        latest_table("alice-viz-fb-status", "Fluent Bit by collector",
-                     "collector_id",
-                     [("fb_up", "max", "up (1=yes)"),
-                      ("fb_healthy", "max", "healthy (1=yes)"),
-                      ("output_records", "max", "records shipped"),
-                      ("output_errors", "max", "errors"),
-                      ("output_retries_failed", "max", "failed retries"),
-                      ("output_dropped", "max", "dropped")],
-                     "kind:fluentbit"),
+        fleet_counter("alice-viz-fleet-total", "Collectors",
+                      "kind:fluentbit"),
+        fleet_counter("alice-viz-fleet-healthy", "Healthy",
+                      "kind:fluentbit and fb_up:1 and fb_healthy:1"),
+        fleet_counter("alice-viz-fleet-degraded", "Degraded",
+                      "kind:fluentbit and fb_up:1 and fb_healthy:0"),
+        fleet_counter("alice-viz-fleet-down", "Down",
+                      "kind:fluentbit and fb_up:0"),
+        worst_table("alice-viz-fb-unhealthy", "Not healthy now",
+                    [("min", "fb_up", "up (1=yes)"),
+                     ("min", "fb_healthy", "healthy (1=yes)"),
+                     ("sum", "output_dropped_delta", "dropped"),
+                     ("sum", "output_errors_delta", "errors")],
+                    "kind:fluentbit and (fb_up:0 or fb_healthy:0)",
+                    order_by=3),
+        worst_table("alice-viz-fb-worst", "Worst ten by records lost",
+                    [("sum", "output_dropped_delta", "dropped"),
+                     ("sum", "output_retries_failed_delta", "failed retries"),
+                     ("sum", "output_errors_delta", "errors"),
+                     ("min", "fb_up", "up (1=yes)")],
+                    "kind:fluentbit", order_by=1),
+        collector_picker("alice-viz-fb-picker", "Pin collectors"),
         metric_timechart("alice-viz-ingest-rate",
                          "Indexing rate by index (ops / 30 s)",
                          [("sum", "indexing_delta", "index ops")],
@@ -1172,18 +1318,14 @@ def build():
                          [("max", "store_bytes", "bytes")],
                          "kind:index", group_field="index_name",
                          y_title="bytes"),
-        metric_timechart("alice-viz-fb-throughput",
-                         "Fluent Bit records shipped per node",
-                         [("sum", "output_records_delta", "records")],
-                         "kind:fluentbit", group_field="collector_id",
-                         y_title="records / 30 s"),
-        metric_timechart("alice-viz-fb-trouble",
-                         "Fluent Bit errors / retries / drops",
-                         [("sum", "output_errors_delta", "errors"),
-                          ("sum", "output_retries_delta", "retries"),
-                          ("sum", "output_dropped_delta", "dropped")],
-                         "kind:fluentbit", group_field="collector_id",
-                         y_title="events / 30 s"),
+        distribution_timechart("alice-viz-fb-throughput",
+                               "Records shipped — fleet distribution",
+                               "output_records_delta", "kind:fluentbit",
+                               y_title="records / 30 s"),
+        distribution_timechart("alice-viz-fb-trouble",
+                               "Records lost — fleet distribution",
+                               "output_dropped_delta", "kind:fluentbit",
+                               y_title="dropped / 30 s"),
         latest_table("alice-viz-index-health", "Indices now", "index_name",
                      [("index_health", "concat", "health"),
                       ("pri", "max", "pri"),
@@ -1201,9 +1343,11 @@ def build():
                          "kind:osd", y_title="ms"),
         markdown("alice-viz-detect-header", "Detection drill-down",
                  "### Evidence, not another problem list\n"
-                 "The cockpit shows **episodes**, not every alert evaluation "
-                 "or anomalous time window. One episode may contain many raw "
-                 "signals; `member_count` says how many were folded into it. "
+                 "The cockpit shows **grouped episodes**, not every alert "
+                 "evaluation or anomalous time window. One card is one rule "
+                 "and scope, one episode inside it is one entity, and "
+                 "`member_count` says how many raw signals that episode "
+                 "folded in. "
                  "Use **[open episode detail →]"
                  "(/app/data-explorer/discover#/view/alice-search-open-incidents)** "
                  "for every field, **[raw signal evidence →]"
@@ -1230,26 +1374,31 @@ def build():
                  "again on the next window that still breaches it."),
         markdown("alice-viz-incident-header", "Incidents header",
                  "## Live incident episodes\n"
-                 "One card is one deduplicated episode: **what is wrong, "
-                 "what is affected, and the exact rule/model meaning**. "
-                 "**SIGNALS** opens the raw evidence folded into the episode; "
-                 "**DETAILS** its full record. PAGE is urgent; WARNING needs "
+                 "One card is **one notification**: every open episode of the "
+                 "same rule and scope, grouped exactly as Alertmanager groups "
+                 "them. The card names how many entities are affected and "
+                 "samples the first three, so 40 EPNs breaching one rule is "
+                 "one card, not 40. Per-entity state is still its own episode "
+                 "document — the count on the card says how many were folded "
+                 "in.\n\n"
+                 "**SIGNALS** opens every raw row behind the whole group; "
+                 "filter the `entity_id` field there to read one EPN. "
+                 "**DETAILS** opens one row per affected entity, each with "
+                 "its own state and history. PAGE is urgent; WARNING needs "
                  "attention; STALE means the model stopped evaluating and is "
-                 "not evidence of recovery. The board shows five episodes "
-                 "and scrolls; it ignores the global time picker, so an "
-                 "old-but-open episode cannot disappear."),
+                 "not evidence of recovery. The board scrolls and ignores the "
+                 "global time picker, so an old-but-open episode cannot "
+                 "disappear."),
         incident_summary_strip("alice-viz-open-incidents",
                                "Episode summary"),
         incident_episode_board("alice-viz-incidents",
                                "Open episodes — deduplicated and actionable"),
         active_alert_metric("alice-viz-active-alerts", "Active alerts"),
-        scope_kind_table("alice-viz-anomaly-count",
-                         "What is affected (realtime, grade>0.5)"),
         alerts_table("alice-viz-alerts", "Active alerts by rule"),
-        anomaly_table("alice-viz-anomalies", "Anomalies by what looks wrong"),
     ]
 
     live = {"timeRange": HEALTH_RANGE}
+    now = {"timeRange": FLEET_NOW_RANGE}
     panels = [
         ("visualization", "alice-viz-header",          {"x": 0,  "y": 0, "w": 48, "h": 6}),
         ("visualization", "alice-viz-status-strip",    {"x": 0,  "y": 6, "w": 48, "h": 5}),
@@ -1258,25 +1407,32 @@ def build():
         ("visualization", "alice-viz-incidents",       {"x": 0,  "y": 23, "w": 48, "h": 22}),
         ("visualization", "alice-viz-detect-header",   {"x": 0,  "y": 45, "w": 48, "h": 5}),
         ("visualization", "alice-viz-health-header",   {"x": 0,  "y": 50, "w": 48, "h": 3}),
-        ("visualization", "alice-viz-cluster-status",  {"x": 0,  "y": 53, "w": 8, "h": 8}, live),
-        ("visualization", "alice-viz-unassigned",      {"x": 8,  "y": 53, "w": 8, "h": 8}, live),
-        ("visualization", "alice-viz-osd-status",      {"x": 16, "y": 53, "w": 8, "h": 8}, live),
-        ("visualization", "alice-viz-fb-status",       {"x": 24, "y": 53, "w": 14, "h": 8}, live),
-        ("visualization", "alice-viz-health-links",    {"x": 38, "y": 53, "w": 10, "h": 8}),
-        ("visualization", "alice-viz-ingest-rate",     {"x": 0,  "y": 61, "w": 24, "h": 12}, live),
-        ("visualization", "alice-viz-index-size",      {"x": 24, "y": 61, "w": 24, "h": 12}, live),
-        ("visualization", "alice-viz-fb-throughput",   {"x": 0,  "y": 73, "w": 24, "h": 12}, live),
-        ("visualization", "alice-viz-fb-trouble",      {"x": 24, "y": 73, "w": 24, "h": 12}, live),
-        ("visualization", "alice-viz-index-health",    {"x": 0,  "y": 85, "w": 16, "h": 12}, live),
-        ("visualization", "alice-viz-node-heap",       {"x": 16, "y": 85, "w": 16, "h": 12}, live),
-        ("visualization", "alice-viz-osd-perf",        {"x": 32, "y": 85, "w": 16, "h": 12}, live),
-        ("visualization", "alice-viz-log-header",      {"x": 0,  "y": 97, "w": 48, "h": 4}),
-        ("visualization", "alice-viz-total",           {"x": 0,  "y": 101, "w": 16, "h": 8}),
-        ("visualization", "alice-viz-errwarn",         {"x": 16, "y": 101, "w": 16, "h": 8}),
-        ("visualization", "alice-viz-bysource",        {"x": 32, "y": 101, "w": 16, "h": 8}),
-        ("visualization", "alice-viz-sev-time",        {"x": 0,  "y": 109, "w": 48, "h": 12}),
-        ("visualization", "alice-viz-top-hosts",       {"x": 0,  "y": 121, "w": 24, "h": 12}),
-        ("visualization", "alice-viz-top-systems",     {"x": 24, "y": 121, "w": 24, "h": 12}),
+        ("visualization", "alice-viz-cluster-status",  {"x": 0,  "y": 53, "w": 12, "h": 8}, live),
+        ("visualization", "alice-viz-unassigned",      {"x": 12, "y": 53, "w": 12, "h": 8}, live),
+        ("visualization", "alice-viz-osd-status",      {"x": 24, "y": 53, "w": 12, "h": 8}, live),
+        ("visualization", "alice-viz-health-links",    {"x": 36, "y": 53, "w": 12, "h": 8}),
+        ("visualization", "alice-viz-fleet-header",    {"x": 0,  "y": 61, "w": 48, "h": 4}),
+        ("visualization", "alice-viz-fleet-total",     {"x": 0,  "y": 65, "w": 12, "h": 7}, now),
+        ("visualization", "alice-viz-fleet-healthy",   {"x": 12, "y": 65, "w": 12, "h": 7}, now),
+        ("visualization", "alice-viz-fleet-degraded",  {"x": 24, "y": 65, "w": 12, "h": 7}, now),
+        ("visualization", "alice-viz-fleet-down",      {"x": 36, "y": 65, "w": 12, "h": 7}, now),
+        ("visualization", "alice-viz-fb-unhealthy",    {"x": 0,  "y": 72, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-fb-worst",        {"x": 24, "y": 72, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-fb-picker",       {"x": 0,  "y": 84, "w": 12, "h": 8}, live),
+        ("visualization", "alice-viz-fb-throughput",   {"x": 12, "y": 84, "w": 18, "h": 12}, live),
+        ("visualization", "alice-viz-fb-trouble",      {"x": 30, "y": 84, "w": 18, "h": 12}, live),
+        ("visualization", "alice-viz-ingest-rate",     {"x": 0,  "y": 96, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-index-size",      {"x": 24, "y": 96, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-index-health",    {"x": 0,  "y": 108, "w": 16, "h": 12}, live),
+        ("visualization", "alice-viz-node-heap",       {"x": 16, "y": 108, "w": 16, "h": 12}, live),
+        ("visualization", "alice-viz-osd-perf",        {"x": 32, "y": 108, "w": 16, "h": 12}, live),
+        ("visualization", "alice-viz-log-header",      {"x": 0,  "y": 120, "w": 48, "h": 4}),
+        ("visualization", "alice-viz-total",           {"x": 0,  "y": 124, "w": 16, "h": 8}),
+        ("visualization", "alice-viz-errwarn",         {"x": 16, "y": 124, "w": 16, "h": 8}),
+        ("visualization", "alice-viz-bysource",        {"x": 32, "y": 124, "w": 16, "h": 8}),
+        ("visualization", "alice-viz-sev-time",        {"x": 0,  "y": 132, "w": 48, "h": 12}),
+        ("visualization", "alice-viz-top-hosts",       {"x": 0,  "y": 144, "w": 24, "h": 12}),
+        ("visualization", "alice-viz-top-systems",     {"x": 24, "y": 144, "w": 24, "h": 12}),
     ]
     objects.append(dashboard(panels))
     return objects

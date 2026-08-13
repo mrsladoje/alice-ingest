@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import time
+from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -26,6 +27,10 @@ REQUIRE_INDEPENDENT_RECALL = os.environ.get(
 STRICT = os.environ.get("STRICT", "true").lower() == "true"
 PAGE = int(os.environ.get("PAGE", "500"))
 BREAKGLASS_ALERTS = {"signal-projector-stale", "alertmanager-down"}
+CAUSAL_EDGES = os.environ.get(
+    "CAUSAL_EDGES",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                 "causal_edges.json"))
 
 
 def out(msg):
@@ -92,6 +97,126 @@ def notifications():
                              {"term": {"record_kind": "notification"}}]}},
         "@timestamp")
     return [h.get("_source") or {} for h in rows]
+
+
+def causal_edges():
+    try:
+        with open(CAUSAL_EDGES) as fh:
+            return json.load(fh)
+    except Exception as e:
+        out(f"WARNING: causal edges unreadable at {CAUSAL_EDGES}: {e}")
+        return {"edges": [], "default_window_seconds": 120}
+
+
+def epoch_ms(value):
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    text = str(value).strip()
+    if text.isdigit():
+        return int(text)
+    try:
+        text = text.replace("Z", "+00:00")
+        return int(datetime.fromisoformat(text).timestamp() * 1000)
+    except Exception:
+        return None
+
+
+def scope_key(row, keys):
+    return tuple(str(row.get(k) or "none") for k in keys)
+
+
+def causal_report(sig, notified, notified_incidents):
+    doc = causal_edges()
+    edges = doc.get("edges", [])
+    if not edges:
+        return None, []
+    window_ms = int(doc.get("default_window_seconds", 120)) * 1000
+
+    first_seen = {}
+    rows_by = {}
+    for s in sig:
+        name = s.get("alertname")
+        when = epoch_ms(s.get("@timestamp"))
+        if not name or when is None:
+            continue
+        rows_by.setdefault(name, []).append((when, s))
+        for keys in (("cluster_id",), ("cluster_id", "collector_id")):
+            key = (name, keys, scope_key(s, keys))
+            if key not in first_seen or when < first_seen[key]:
+                first_seen[key] = when
+
+    measured = []
+    correct = 0
+    correct_examples = []
+    late = []
+    for edge in edges:
+        keys = tuple(edge.get("equal") or ["cluster_id"])
+        cause = edge.get("cause")
+        symptom = edge.get("symptom")
+        scopes_with_cause = {
+            scope_key(s, keys) for _, s in rows_by.get(cause, ())}
+        if not scopes_with_cause:
+            continue
+        hits = 0
+        for scope in scopes_with_cause:
+            cause_at = first_seen.get((cause, keys, scope))
+            symptom_at = first_seen.get((symptom, keys, scope))
+            if symptom_at is None or cause_at is None:
+                continue
+            if abs(symptom_at - cause_at) > window_ms:
+                continue
+            hits += 1
+            lead_ms = symptom_at - cause_at
+            if lead_ms < 0:
+                late.append({
+                    "cause": cause, "symptom": symptom,
+                    "scope": "/".join(scope), "cause_late_by_ms": -lead_ms})
+            if edge.get("proven"):
+                for _, s in rows_by.get(symptom, ()):
+                    if scope_key(s, keys) != scope:
+                        continue
+                    if (str(s.get("source_id")) not in notified
+                            and str(s.get("episode_id"))
+                            not in notified_incidents):
+                        correct += 1
+                        if len(correct_examples) < 20:
+                            correct_examples.append(
+                                f"{cause} -> {symptom} @ {'/'.join(scope)}")
+        measured.append({
+            "cause": cause,
+            "symptom": symptom,
+            "scopes_with_cause": len(scopes_with_cause),
+            "scopes_with_symptom_in_window": hits,
+            "observed_probability": (
+                round(hits / len(scopes_with_cause), 4)
+                if scopes_with_cause else None),
+            "proven": bool(edge.get("proven")),
+        })
+
+    proven_edges = [e for e in edges if e.get("proven")]
+    report = {
+        "edges_declared": len(edges),
+        "edges_proven": len(proven_edges),
+        "window_seconds": window_ms // 1000,
+        "correct_suppressions": correct,
+        "correct_suppression_examples": correct_examples,
+        "cause_arrived_after_symptom": late[:20],
+        "observed_probabilities": measured,
+    }
+    verdict = []
+    if proven_edges and correct == 0:
+        verdict.append(
+            "no symptom was correctly suppressed, so the false-inhibition "
+            "score of 0 proves nothing — a rule that never fires scores a "
+            "perfect zero. Either the causes never fired in this scenario, or "
+            "the proven edges are inert")
+    if late:
+        verdict.append(
+            f"{len(late)} cause-to-symptom pairs had the symptom arrive first, "
+            f"so the cause was too late to suppress anything: {late[:3]}")
+    return report, verdict
 
 
 def main():
@@ -197,6 +322,8 @@ def main():
                   and str(s.get("episode_id")) not in notified_incidents
                   and str(s.get("alertname") or "") not in breakglass_delivered]
 
+    causal, causal_verdict = causal_report(sig, notified, notified_incidents)
+
     first_note = min((n.get("@timestamp") for n in notes), default=None)
     resolved = [i.get("resolved_at") for i in inc if i.get("resolved_at")]
     first_resolve = min(resolved) if resolved else None
@@ -225,6 +352,7 @@ def main():
             "page_signals_never_notified": unnotified[:20],
             "score": len(unnotified),
         },
+        "causal_edges": causal,
         "breakglass": {
             "delivered": sorted(breakglass_delivered),
             "unexpected": unexpected_breakglass,
@@ -252,6 +380,11 @@ def main():
     out(f"  time to resolve        : {report['time_to_resolve_ms']} ms")
     out(f"  false inhibition       : {len(unnotified)} "
         f"(must be 0 on the approved rules)")
+    if causal:
+        out(f"  correct suppressions   : {causal['correct_suppressions']} "
+            f"(0 with proven edges means the gate passed vacuously)")
+        out(f"  cause arrived too late : "
+            f"{len(causal['cause_arrived_after_symptom'])} pairs")
     out(f"  break-glass             : "
         f"delivered={sorted(breakglass_delivered)} "
         f"unexpected={unexpected_breakglass} "
@@ -292,6 +425,7 @@ def main():
         verdict.append(
             f"false inhibition score {len(unnotified)}, must be 0 — a page "
             f"was muted that should have reached a human")
+    verdict.extend(causal_verdict)
     if REQUIRE_INDEPENDENT_RECALL and not (recall and recall["surfaced"]):
         verdict.append(
             "independent-event recall failed — the separately injected entity "

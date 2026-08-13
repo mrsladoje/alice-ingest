@@ -1,12 +1,12 @@
 service:
-  flush: 1
+  flush: {{ fluent_bit_flush_seconds }}
   log_level: info
   parsers_file: {{ collector_config_dir }}/parsers.yaml
-  storage.path: {{ fluent_bit_storage_path }}/
+  storage.path: ${ALICE_FB_STORAGE_PATH}/
   storage.max_chunks_up: 64
   http_server: on
-  http_listen: {{ fluent_bit_http_listen }}
-  http_port: {{ fluent_bit_http_port }}
+  http_listen: ${ALICE_FB_HTTP_LISTEN}
+  http_port: ${ALICE_FB_HTTP_PORT}
   health_check: on
   hc_errors_count: 1
   hc_retry_failure_count: 1
@@ -37,35 +37,35 @@ multiline_parsers:
 pipeline:
   inputs:
     - name: tail
-      path: {{ log_root }}/dds.log,{{ log_root }}/dds/*.log
+      path: ${ALICE_LOG_ROOT}/dds.log,${ALICE_LOG_ROOT}/dds/*.log
       path_key: file
       tag: dds
       multiline.parser: dds_multiline
       read_from_head: true
       refresh_interval: 5
       storage.type: filesystem
-      db: {{ fluent_bit_storage_path }}/dds.db
+      db: ${ALICE_FB_STORAGE_PATH}/dds.db
 
     - name: tail
-      path: {{ log_root }}/stdout.log,{{ log_root }}/stdout/*.log
+      path: ${ALICE_LOG_ROOT}/stdout.log,${ALICE_LOG_ROOT}/stdout/*.log
       path_key: file
       tag: stdout
       multiline.parser: stdout_multiline
       read_from_head: true
       refresh_interval: 5
       storage.type: filesystem
-      db: {{ fluent_bit_storage_path }}/stdout.db
+      db: ${ALICE_FB_STORAGE_PATH}/stdout.db
 
     - name: tcp
       listen: 0.0.0.0
-      port: {{ infologger_tcp_port }}
+      port: ${ALICE_INFOLOGGER_TCP_PORT}
       tag: infologger
       format: json
       storage.type: filesystem
 
     - name: exec
       tag: health
-      command: COLLECTOR_ID={{ node_id }} FB_HTTP_PORT={{ fluent_bit_http_port }} FB_EMIT_LEGACY_NODE={{ health_metrics_emit_legacy_node | bool | ternary('true', 'false') }} /usr/bin/python3 {{ collector_health_script }}
+      command: COLLECTOR_ID=${ALICE_NODE_ID} FB_HTTP_PORT=${ALICE_FB_HTTP_PORT} FB_EMIT_LEGACY_NODE={{ health_metrics_emit_legacy_node | bool | ternary('true', 'false') }} /usr/bin/python3 {{ collector_health_script }}
       interval_sec: {{ collector_health_interval_seconds }}
       parser: fb_health_json
       buf_size: 32k
@@ -96,8 +96,10 @@ pipeline:
           end
           return 1, ts, record
         end
+    # The family tags are gone from this match: a re-injected record already
+    # carries collector_time, so the second pass only ever ran the guard.
     - name: lua
-      match_regex: ^(dds|stdout|infologger|family\.(info|other))$
+      match_regex: ^(dds|stdout|infologger)$
       call: stamp_collector_time
       time_as_table: true
       type_int_key: collector_time
@@ -113,6 +115,13 @@ pipeline:
           end
           return 2, ts, record
         end
+    # Replaces both set_host Lua filters and keeps the filename as source_file.
+    # Safe before the body parsers: this reads `file`, they read `log`.
+    - name: parser
+      match_regex: ^(dds|stdout)$
+      key_name: file
+      parser: source_path
+      reserve_data: on
     - name: lua
       match: infologger
       call: set_event_time
@@ -139,7 +148,7 @@ pipeline:
       match: infologger
       record:
         - log_source infologger
-        - node {{ node_id }}
+        - node ${ALICE_NODE_ID}
       remove_key:
         - timestamp
     - name: parser
@@ -147,23 +156,12 @@ pipeline:
       key_name: log
       parser: dds_text
       reserve_data: on
-    - name: lua
-      match: dds
-      call: set_host
-      code: |
-        function set_host(tag, ts, record)
-          local f = record['file']
-          if f ~= nil then
-            local h = string.match(f, 'dds/(epn%d+)%.log$')
-            if h ~= nil then record['host'] = h end
-          end
-          return 1, ts, record
-        end
+    # remove_key file is a backstop: source_path consumes it when it matches.
     - name: record_modifier
       match: dds
       record:
         - log_source dds
-        - node {{ node_id }}
+        - node ${ALICE_NODE_ID}
       remove_key:
         - file
     - name: rewrite_tag
@@ -176,23 +174,11 @@ pipeline:
       key_name: log
       parser: stdout_root
       reserve_data: on
-    - name: lua
-      match: stdout
-      call: set_host
-      code: |
-        function set_host(tag, ts, record)
-          local f = record['file']
-          if f ~= nil then
-            local h = string.match(f, 'stdout/(epn%d+)%.log$')
-            if h ~= nil then record['host'] = h end
-          end
-          return 1, ts, record
-        end
     - name: record_modifier
       match: stdout
       record:
         - log_source stdout
-        - node {{ node_id }}
+        - node ${ALICE_NODE_ID}
       remove_key:
         - file
     - name: rewrite_tag
@@ -200,38 +186,16 @@ pipeline:
       rule: $severity ^Info$  family.info false
       rule: $message ^.*$  family.other false
       emitter_name: stdout_router
-    - name: lua
-      match_regex: ^(dds|stdout|infologger|family\.(info|other))$
-      call: normalize_fields
-      code: |
-        local SEVERITY_NORM = {
-          I = 'info', W = 'warning', E = 'error', F = 'fatal', D = 'debug',
-          Info = 'info', Warning = 'warning', Error = 'error',
-          Fatal = 'fatal', Sys = 'system',
-          inf = 'info', err = 'error', cout = 'info'
-        }
-        function normalize_fields(tag, ts, record)
-          local s = record['severity']
-          local n = nil
-          if s ~= nil then
-            n = SEVERITY_NORM[s]
-          end
-          record['severity_norm'] = n or 'unknown'
-          local h = record['hostname']
-          if h == nil then
-            h = record['host']
-          end
-          if h ~= nil then
-            record['origin_host'] = h
-          end
-          return 2, ts, record
-        end
+
+  # normalize_fields moved into the alice-add-ingest-time ingest pipeline, so
+  # there is no per-record Lua left here. Anything bypassing OpenSearch — the
+  # live lane — must do that enrichment itself.
 
   outputs:
     - name: opensearch
       match: infologger
       host: localhost
-      port: {{ opensearch_http_port }}
+      port: ${ALICE_OS_HTTP_PORT}
       index: infologger
       suppress_type_name: true
       trace_error: true
@@ -241,8 +205,8 @@ pipeline:
     - name: opensearch
       match: family.info
       host: localhost
-      port: {{ opensearch_http_port }}
-      index: generic-log-info-{{ node_id }}
+      port: ${ALICE_OS_HTTP_PORT}
+      index: generic-log-info-${ALICE_NODE_ID}
       suppress_type_name: true
       trace_error: true
       storage.total_limit_size: 1M
@@ -251,7 +215,7 @@ pipeline:
     - name: opensearch
       match: family.other
       host: localhost
-      port: {{ opensearch_http_port }}
+      port: ${ALICE_OS_HTTP_PORT}
       index: generic-log-other
       suppress_type_name: true
       trace_error: true
@@ -261,10 +225,29 @@ pipeline:
     - name: opensearch
       match: health
       host: localhost
-      port: {{ opensearch_http_port }}
+      port: ${ALICE_OS_HTTP_PORT}
       index: {{ cockpit_metrics_index }}
       suppress_type_name: true
       trace_error: true
       storage.total_limit_size: 512K
       retry_limit: 5
       workers: 0
+
+{% if live_lane_enabled | bool %}
+    # The live lane: the second consumer of the stream, and the reason no queue
+    # is needed yet. Never the info tier. Best-effort by construction — a small
+    # buffer and one retry, so a dead viewer never pushes back on OpenSearch.
+    - name: http
+      match_regex: ^(infologger|family\.other)$
+      host: {{ live_lane_host }}
+      port: {{ live_lane_port }}
+      uri: {{ live_lane_ingest_path }}
+      format: json
+      json_date_key: '@timestamp'
+      json_date_format: iso8601
+      compress: gzip
+      header: Content-Type application/json
+      storage.total_limit_size: 1M
+      retry_limit: 1
+      net.keepalive: on
+{% endif %}

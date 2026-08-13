@@ -9,6 +9,10 @@ all:
         workers:
           vars:
             node_tier: worker
+            # m2.medium has 3.75 GB in total, so the farm's 2g worker heap
+            # would take memory Fluent Bit and the replay producer need. Raise
+            # this to opensearch_worker_heap_size on real hardware.
+            opensearch_heap_size: "1g"
           hosts:
             alice-ingest-1:
               ansible_host: 203.0.113.11
@@ -48,5 +52,9 @@ all:
       hosts:
         alice-ingest-4:
           background_services: [rollup]
-        alice-ingest-5:
-          background_services: [digest]
+
+    # The live lane holds one open connection per viewer, so its cost grows
+    # with readers.  Deliberately not the control host.
+    livelane:
+      hosts:
+        alice-ingest-5: {}

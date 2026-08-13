@@ -1,11 +1,19 @@
+- name: Read the causal edges that decide what may suppress
+  ansible.builtin.set_fact:
+    alertmanager_proven_edges: >-
+      {{ (lookup('file', causal_edges_file) | from_json)['edges']
+         | selectattr('proven') | list }}
+
 - name: Refuse inhibition while the page tier still runs on an underived group_wait
   ansible.builtin.assert:
     that:
-      - alertmanager_proven_inhibit_rules | length == 0
+      - alertmanager_proven_edges | length == 0
         or alertmanager_page_wait_covers_inhibition | bool
     fail_msg: >-
-      alertmanager_proven_inhibit_rules is
-      {{ alertmanager_proven_inhibit_rules }}, but the page tier still waits
+      {{ alertmanager_proven_edges | length }} edges in
+      {{ causal_edges_file | basename }} carry proven: true
+      ({{ alertmanager_proven_edges | map(attribute='cause') | unique | list }}),
+      but the page tier still waits
       {{ alertmanager_page_group_wait }} before its first notification. That
       wait was chosen for speed, not to cover a cause-to-symptom delay, so a
       suppressed page can notify before the page that should suppress it. Five
@@ -18,8 +26,8 @@
       the delay with `make inject`, raise alertmanager_page_group_wait to cover
       it, then set alertmanager_page_wait_covers_inhibition to true.
     success_msg: >-
-      inhibition is off, so the page tier may stay at
-      {{ alertmanager_page_group_wait }}
+      {{ alertmanager_proven_edges | length }} proven edges; the page tier may
+      stay at {{ alertmanager_page_group_wait }}
 
 - name: Create the alertmanager system user
   ansible.builtin.user:

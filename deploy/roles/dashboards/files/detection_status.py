@@ -357,36 +357,30 @@ def results_index_report():
         print(f"  grade >= {b['key']:.1f}: {b['doc_count']}")
 
 
-def digest_report():
-    rule("ANOMALY DIGEST (what the cockpit shows)")
-    index = os.environ.get("DIGEST_INDEX", "alice-anomalies")
+def detector_signals_report():
+    rule("DETECTOR WINDOWS IN alice-signals")
+    index = os.environ.get("SIGNALS_INDEX", "alice-signals")
     code, body = req(
         "POST", f"/{index}/_search?ignore_unavailable=true",
         {"size": 10, "track_total_hits": True,
          "sort": [{"@timestamp": "desc"}],
-         "query": {"range": {"grade": {"gt": 0.5}}}})
+         "query": {"bool": {"filter": [
+             {"term": {"source_kind": "detector"}},
+             {"range": {"grade": {"gt": 0.5}}},
+         ]}}})
     if code != 200:
-        print(f"{index} not readable: HTTP {code} — alice-anomaly-digest has "
-              f"not run yet")
+        print(f"{index} not readable: HTTP {code} — alice-signal-projector "
+              "has not run yet")
         return
-    code_all, body_all = req(
-        "POST", f"/{index}/_search?ignore_unavailable=true",
-        {"size": 1, "track_total_hits": True,
-         "sort": [{"@timestamp": "desc"}]})
-    all_rows = ((body_all.get("hits", {}).get("total") or {}).get("value", 0)
-                if code_all == 200 else 0)
-    newest = ""
-    if all_rows:
-        newest = (body_all["hits"]["hits"][0].get("_source", {})
-                  .get("@timestamp", ""))
-    print(f"{all_rows} digest rows in total (any grade); newest {newest}")
     total = (body.get("hits", {}).get("total") or {}).get("value", 0)
-    print(f"{total} digest rows above grade 0.5; newest first:")
+    print(f"{total} {index} rows with source_kind:detector above grade 0.5; "
+          "newest first:")
     for h in body.get("hits", {}).get("hits", []):
         s = h.get("_source", {})
         print(f"  {s.get('@timestamp')}  {s.get('severity', '?'):<6} "
               f"grade={s.get('grade')} conf={s.get('confidence')}  "
-              f"{s.get('about')} @ {s.get('scope')}")
+              f"{s.get('alertname') or s.get('title') or s.get('source_id')} "
+              f"@ {s.get('entity_kind')}/{s.get('entity_id')}")
     if not total:
         raw_code, raw_body = req(
             "POST",
@@ -402,7 +396,8 @@ def digest_report():
         raw = raw_body.get("count", 0) if raw_code == 200 else "?"
         if isinstance(raw, int) and raw > 0:
             print(f"  FATAL: {raw} realtime raw anomalies above 0.5 exist "
-                  "in the last 2h, but the digest projected none")
+                  "in the last 2h, but nothing projected into alice-signals "
+                  "with source_kind:detector — check the projector heartbeat")
         else:
             print("  (none — no realtime detector has scored above 0.5 in "
                   "the last 2h)")
@@ -488,7 +483,7 @@ def patterns_report():
     rule("DASHBOARDS INDEX PATTERNS (field catalog)")
     osd = os.environ.get("OSD_URL", "http://127.0.0.1:5602")
     for pid in ("alice-unified", "alice-metrics", "alice-ad-results",
-                "alice-alerts", "alice-anomalies"):
+                "alice-alerts", "alice-signals"):
         try:
             r = urllib.request.Request(
                 f"{osd}/api/saved_objects/index-pattern/{pid}",
@@ -512,7 +507,7 @@ def main():
     jobs_report()
     result_errors_report()
     results_index_report()
-    digest_report()
+    detector_signals_report()
     projector_report()
     alerts_report()
     monitors_report()

@@ -14,6 +14,12 @@ parsers:
     time_key: time
     time_format: '%Y-%m-%d %H:%M:%S.%L'
 
+  # source_file is the basename, always; host is the EPN when the file is named
+  # after one, and the optional group adds no key when it does not participate.
+  - name: source_path
+    format: regex
+    regex: '^(?:.*/)?(?<source_file>(?<host>epn\d+)?[^/]*)$'
+
   - name: il_event_time
     format: regex
     regex: '^(?<epoch>.+)$'

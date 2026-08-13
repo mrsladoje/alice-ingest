@@ -9,10 +9,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import os_cursor  # noqa: E402
 import signal_identity  # noqa: E402
-from anomaly_digest import project  # noqa: E402
 
 OS_URL = os.environ.get("OS_URL", "http://localhost:9200")
-DIGEST_INDEX = os.environ.get("DIGEST_INDEX", "alice-anomalies")
 GRADE_FLOOR = float(os.environ.get("GRADE_FLOOR", "0.5"))
 ONLY = [d.strip() for d in os.environ.get("DETECTORS", "").split(",")
         if d.strip()]
@@ -151,13 +149,33 @@ def wait(det):
     return {"state": "TIMEOUT", "task_id": task.get("task_id")}
 
 
-def project_task(det, task_id):
+def project(hit, meta):
+    src = hit.get("_source", {})
+    grade = src.get("anomaly_grade")
+    if grade is None:
+        return None
+    name = meta["detector"]
+    entity_kind, entity_id, _entity_field = signal_identity.entity_of(
+        name, src)
+    _scope_field, scope = signal_identity.scope_string(src)
+    return {
+        "detector": name,
+        "about": meta["about"],
+        "entity_kind": entity_kind,
+        "entity_id": entity_id,
+        "scope": scope,
+        "grade": round(float(grade), 4),
+        "confidence": round(float(src.get("confidence") or 0), 4),
+    }
+
+
+def count_task(det, task_id):
     meta = {"detector": det["name"], "about": det["about"],
             "measures": det["measures"]}
     query = {"bool": {"filter": [
         {"term": {"task_id": task_id}},
         {"range": {"anomaly_grade": {"gt": GRADE_FLOOR}}}]}}
-    written = 0
+    found = 0
     try:
         for hits in os_cursor.scan(
                 OS_URL, ".opendistro-anomaly-results*",
@@ -166,23 +184,14 @@ def project_task(det, task_id):
                         "data_end_time", "data_start_time",
                         "execution_end_time", "entity", "task_id"],
                 page=PAGE):
-            lines = []
             for h in hits:
-                doc_id, doc = project(h, meta, "backtest")
-                if doc is None:
+                row = project(h, meta)
+                if row is None:
                     continue
-                lines.append(json.dumps(
-                    {"index": {"_index": DIGEST_INDEX, "_id": doc_id}}))
-                lines.append(json.dumps(doc))
-            ok, failures = os_cursor.bulk(OS_URL, lines)
-            written += ok
-            if failures:
-                log(f"  {det['name']}: {len(failures)} rejected; first: "
-                    f"{json.dumps(failures[0])[:200]}")
-                return written
+                found += 1
     except (os_cursor.CursorError, signal_identity.UnknownSignal) as e:
-        log(f"  {det['name']}: historical projection aborted: {e}")
-    return written
+        log(f"  {det['name']}: historical count aborted: {e}")
+    return found
 
 
 def main():
@@ -220,20 +229,19 @@ def main():
         if state != "FINISHED":
             log(f"  {det['name']}: ended {state} "
                 f"{task.get('error') or ''}".rstrip())
-        found = project_task(det, tid) if tid else 0
-        log(f"  {det['name']}: {state}, {found} anomalies written to "
-            f"{DIGEST_INDEX}")
+        found = count_task(det, tid) if tid else 0
+        log(f"  {det['name']}: {state}, {found} historical anomalies above "
+            f"grade {GRADE_FLOOR}")
         summary.append((det["name"], state, found, int(intervals)))
 
-    req("POST", f"/{DIGEST_INDEX}/_refresh")
     log("")
     log(f"{'detector':34s} {'state':12s} {'anomalies':>10s} {'intervals':>10s}")
     for name, state, found, intervals in summary:
         log(f"{name:34s} {state:12s} {found:10d} {intervals:10d}")
     total_found = sum(s[2] for s in summary)
     log("")
-    log(f"{total_found} anomalies now visible in the cockpit — set the time "
-        f"picker to cover the replayed window, not the last hour")
+    log(f"{total_found} historical anomalies above grade {GRADE_FLOOR} "
+        "(report only; not written to alice-signals)")
     return 0
 
 

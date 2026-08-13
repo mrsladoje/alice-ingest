@@ -58,6 +58,13 @@
       "notification_scope": "fleet",
       "feed": "control-plane"
     },
+    "admission-rejections": {
+      "entity_kind": "os_node",
+      "entity_source": "bucket_key",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane"
+    },
     "disk-fill-forecast": {
       "entity_kind": "fleet",
       "entity_source": "constant",

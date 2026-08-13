@@ -1,0 +1,260 @@
+{
+  "version": 1,
+  "default_window_seconds": 120,
+  "causes": {
+    "collector-down": {
+      "promotion_order": 1,
+      "rationale": "Scoped to one collector, so a wrong suppression hides one machine. Needs the roster populated first, or it falls closed to the none sentinel and does nothing."
+    },
+    "telemetry-silence": {
+      "promotion_order": 2,
+      "rationale": "Cluster-scoped, but its targets are all control-plane monitors, disjoint from the collector set. When the poller is dead those monitors have no fresh input, so their firing carries no information."
+    },
+    "fleet-fb-silence": {
+      "promotion_order": 3,
+      "rationale": "Last, and the dangerous one. It mutes collector-down itself across the whole fleet. A staged restart that trips the 50 percent threshold would hide every real per-collector failure at once."
+    }
+  },
+  "edges": [
+    {
+      "cause": "collector-down",
+      "cause_severity": "page",
+      "symptom": "collector-unhealthy",
+      "equal": [
+        "cluster_id",
+        "collector_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 1
+    },
+    {
+      "cause": "collector-down",
+      "cause_severity": "page",
+      "symptom": "data-loss",
+      "equal": [
+        "cluster_id",
+        "collector_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 1
+    },
+    {
+      "cause": "collector-down",
+      "cause_severity": "page",
+      "symptom": "shipping-breaking",
+      "equal": [
+        "cluster_id",
+        "collector_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 1
+    },
+    {
+      "cause": "collector-down",
+      "cause_severity": "page",
+      "symptom": "ingest-flow",
+      "equal": [
+        "cluster_id",
+        "collector_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 1
+    },
+    {
+      "cause": "collector-down",
+      "cause_severity": "page",
+      "symptom": "il-collector-shipping-lag",
+      "equal": [
+        "cluster_id",
+        "collector_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 1
+    },
+    {
+      "cause": "collector-down",
+      "cause_severity": "page",
+      "symptom": "il-collector-shipping-lag-slow",
+      "equal": [
+        "cluster_id",
+        "collector_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 1
+    },
+    {
+      "cause": "collector-down",
+      "cause_severity": "page",
+      "symptom": "info-collector-shipping-lag",
+      "equal": [
+        "cluster_id",
+        "collector_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 1
+    },
+    {
+      "cause": "collector-down",
+      "cause_severity": "page",
+      "symptom": "info-collector-shipping-lag-slow",
+      "equal": [
+        "cluster_id",
+        "collector_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 1
+    },
+    {
+      "cause": "collector-down",
+      "cause_severity": "page",
+      "symptom": "trend-il-shipping-lag",
+      "equal": [
+        "cluster_id",
+        "collector_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 1
+    },
+    {
+      "cause": "collector-down",
+      "cause_severity": "page",
+      "symptom": "trend-info-shipping-lag",
+      "equal": [
+        "cluster_id",
+        "collector_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 1
+    },
+    {
+      "cause": "telemetry-silence",
+      "symptom": "cluster-red",
+      "equal": [
+        "cluster_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 2
+    },
+    {
+      "cause": "telemetry-silence",
+      "symptom": "shards-stuck",
+      "equal": [
+        "cluster_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 2
+    },
+    {
+      "cause": "telemetry-silence",
+      "symptom": "disk-cliff-warn",
+      "equal": [
+        "cluster_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 2
+    },
+    {
+      "cause": "telemetry-silence",
+      "symptom": "disk-cliff-page",
+      "equal": [
+        "cluster_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 2
+    },
+    {
+      "cause": "telemetry-silence",
+      "symptom": "heap-spiral",
+      "equal": [
+        "cluster_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 2
+    },
+    {
+      "cause": "telemetry-silence",
+      "symptom": "node-health",
+      "equal": [
+        "cluster_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 2
+    },
+    {
+      "cause": "telemetry-silence",
+      "symptom": "dashboards-health",
+      "equal": [
+        "cluster_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 2
+    },
+    {
+      "cause": "fleet-fb-silence",
+      "symptom": "collector-down",
+      "equal": [
+        "cluster_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 3
+    },
+    {
+      "cause": "fleet-fb-silence",
+      "symptom": "collector-unhealthy",
+      "equal": [
+        "cluster_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 3
+    },
+    {
+      "cause": "fleet-fb-silence",
+      "symptom": "data-loss",
+      "equal": [
+        "cluster_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 3
+    },
+    {
+      "cause": "fleet-fb-silence",
+      "symptom": "shipping-breaking",
+      "equal": [
+        "cluster_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 3
+    },
+    {
+      "cause": "fleet-fb-silence",
+      "symptom": "ingest-flow",
+      "equal": [
+        "cluster_id"
+      ],
+      "probability": null,
+      "proven": false,
+      "promotion_order": 3
+    }
+  ]
+}

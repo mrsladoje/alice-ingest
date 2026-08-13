@@ -1,0 +1,115 @@
+{
+  "type": "monitor",
+  "name": "admission-rejections",
+  "description": "Fire when an OpenSearch node rejected a _search or _bulk request under CPU admission control in the last five minutes. Bucketed on os_node. Admission control is an emergency valve set at the 95 percent default, so any rejection means the node shed real load: a rejected detector query is a missing detection interval and a rejected bulk is dropped records. Every action payload names its entity, so a fleet-wide breach is attributable even when the plugin rewrites per_alert to per_execution above the actionable-alert limit.",
+  "monitor_type": "bucket_level_monitor",
+  "enabled": true,
+  "schedule": {
+    "period": {
+      "interval": 1,
+      "unit": "MINUTES"
+    }
+  },
+  "inputs": [
+    {
+      "search": {
+        "indices": [
+          "cockpit-metrics"
+        ],
+        "query": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "term": {
+                    "kind": "node"
+                  }
+                },
+                {
+                  "range": {
+                    "@timestamp": {
+                      "gte": "{{period_end}}||-5m",
+                      "lte": "{{period_end}}",
+                      "format": "epoch_millis"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "aggregations": {
+            "composite_agg": {
+              "composite": {
+                "size": 1000,
+                "sources": [
+                  {
+                    "os_node": {
+                      "terms": {
+                        "field": "os_node"
+                      }
+                    }
+                  }
+                ]
+              },
+              "aggregations": {
+                "rejections": {
+                  "sum": {
+                    "field": "admission_rejections_delta"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "triggers": [
+    {
+      "bucket_level_trigger": {
+        "name": "admission-rejections",
+        "severity": "2",
+        "condition": {
+          "buckets_path": {
+            "rejections": "rejections"
+          },
+          "parent_bucket_path": "composite_agg",
+          "script": {
+            "source": "params.rejections > 0",
+            "lang": "painless"
+          }
+        },
+        "actions": [
+          {
+            "name": "notify",
+            "destination_id": "alice-incluster-alert-sink",
+            "subject_template": {
+              "source": "{{ctx.monitor.name}}",
+              "lang": "mustache"
+            },
+            "message_template": {
+              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_start\":\"{{ctx.periodStart}}\",\"period_end\":\"{{ctx.periodEnd}}\",\"entity_kind\":\"os_node\",\"notification_scope\":\"fleet\",\"feed\":\"control-plane\",\"delivery_path\":\"alertmanager\",\"entity\":\"{{#ctx.newAlerts}}{{{bucket_keys}}} {{/ctx.newAlerts}}\"}",
+              "lang": "mustache"
+            },
+            "throttle_enabled": true,
+            "throttle": {
+              "value": 30,
+              "unit": "MINUTES"
+            },
+            "action_execution_policy": {
+              "action_execution_scope": {
+                "per_alert": {
+                  "actionable_alerts": [
+                    "DEDUPED",
+                    "NEW"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

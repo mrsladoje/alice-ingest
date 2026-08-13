@@ -155,6 +155,7 @@ GENERIC_MAPPINGS=$(cat <<'JSON'
         "poison_stage":  { "type": "keyword" },
         "poison_targets": { "type": "keyword" },
         "host":       { "type": "keyword" },
+        "source_file": { "type": "keyword" },
         "source":     { "type": "keyword" },
         "tid":        { "type": "keyword" },
         "facility":   { "type": "keyword" },
@@ -190,6 +191,7 @@ INFOLOGGER_MAPPINGS=$(cat <<'JSON'
         "poison_run_id": { "type": "keyword" },
         "poison_stage":  { "type": "keyword" },
         "poison_targets": { "type": "keyword" },
+        "source_file": { "type": "keyword" },
         "level":      { "type": "short" },
         "hostname":   { "type": "keyword" },
         "rolename":   { "type": "keyword" },
@@ -214,26 +216,14 @@ INFOLOGGER_MAPPINGS=$(cat <<'JSON'
 JSON
 )
 
-generic_info_tpl() {
-  wn="$1"
-  printf '{
-  "index_patterns": ["generic-log-info-%s-*"],
-  "composed_of": ["alice-logs-generic-mappings"],
-  "priority": 300,
-  "template": {
-    "settings": {
-      "number_of_shards": 1,
-      "number_of_replicas": 0,
-      "codec": "zstd",
-      "index.default_pipeline": "alice-add-ingest-time",
-      "index.routing.allocation.require.box": "%s",
-      "index.plugins.index_state_management.rollover_alias": "generic-log-info-%s"
-    }
-  },
-  "_meta": { "note": "worker tier: local, disposable, rolled weekly; pinned by require.box" }
-}' "$wn" "$wn" "$wn"
-}
+# The worker-tier template and write alias live in register_node.sh, which each
+# worker also runs as ExecStartPre. Called here too, because the detectors
+# provisioned later in this play cannot wait for the collectors to start.
+REGISTER_NODE="$(dirname "$0")/register_node.sh"
 
+# Bulk fan-out spreads across primaries instead of funnelling through the one
+# node that holds a single primary. Pinned low here by shard budget, not by
+# design — see log_primary_shards_storage in group_vars/all.yml.
 GENERIC_OTHER_TPL=$(cat <<'JSON'
 {
   "index_patterns": ["generic-log-other-*"],
@@ -241,7 +231,7 @@ GENERIC_OTHER_TPL=$(cat <<'JSON'
   "priority": 200,
   "template": {
     "settings": {
-      "number_of_shards": 1,
+      "number_of_shards": {{ log_primary_shards_storage }},
       "number_of_replicas": 2,
       "codec": "zstd",
       "index.default_pipeline": "alice-add-ingest-time",
@@ -261,7 +251,7 @@ INFOLOGGER_INDEX_TPL=$(cat <<'JSON'
   "priority": 200,
   "template": {
     "settings": {
-      "number_of_shards": 1,
+      "number_of_shards": {{ log_primary_shards_storage }},
       "number_of_replicas": 2,
       "codec": "zstd",
       "index.default_pipeline": "alice-add-ingest-time",
@@ -302,6 +292,8 @@ COCKPIT_METRICS_TPL=$(cat <<'JSON'
         "am_latency_ms":         { "type": "long" },
         "signals_open":          { "type": "integer" },
         "incidents_open":        { "type": "integer" },
+        "incident_groups":       { "type": "integer" },
+        "incident_group_max":    { "type": "integer" },
         "projector_cycle_ok":    { "type": "short" },
         "projector_cycle_ms":    { "type": "long" },
         "stale_episodes":        { "type": "integer" },
@@ -332,6 +324,8 @@ COCKPIT_METRICS_TPL=$(cat <<'JSON'
         "disk_used_percent":     { "type": "float" },
         "indexing_total":        { "type": "long" },
         "indexing_delta":        { "type": "long" },
+        "admission_rejections_total": { "type": "long" },
+        "admission_rejections_delta": { "type": "long" },
         "fb_up":                 { "type": "short" },
         "fb_healthy":            { "type": "short" },
         "input_records":         { "type": "long" },
@@ -415,25 +409,6 @@ TREND_ROLLUP_TPL=$(cat <<'JSON'
 JSON
 )
 
-ANOMALY_DIGEST_FIELDS=$(cat <<'JSON'
-{
-  "properties": {
-    "scope_kind":          { "type": "keyword" },
-    "run":                 { "type": "keyword" },
-    "entity_kind":         { "type": "keyword" },
-    "entity_id":           { "type": "keyword" },
-    "entity_field":        { "type": "keyword" },
-    "family":              { "type": "keyword" },
-    "execution_end_time":  { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
-    "source_index":        { "type": "keyword" },
-    "source_id":           { "type": "keyword" },
-    "source_uid":          { "type": "keyword" },
-    "task_id":             { "type": "keyword" }
-  }
-}
-JSON
-)
-
 COCKPIT_IDENTITY_FIELDS=$(cat <<'JSON'
 {
   "properties": {
@@ -448,6 +423,8 @@ COCKPIT_IDENTITY_FIELDS=$(cat <<'JSON'
     "am_latency_ms":      { "type": "long" },
     "signals_open":       { "type": "integer" },
     "incidents_open":     { "type": "integer" },
+    "incident_groups":    { "type": "integer" },
+    "incident_group_max": { "type": "integer" },
     "projector_cycle_ok": { "type": "short" },
     "projector_cycle_ms": { "type": "long" },
     "stale_episodes":     { "type": "integer" },
@@ -473,55 +450,6 @@ TREND_COMMIT_FIELDS=$(cat <<'JSON'
       "doc_count":    { "type": "long" },
       "truncated":    { "type": "boolean" }
     } }
-  }
-}
-JSON
-)
-
-ANOMALY_DIGEST_TPL=$(cat <<'JSON'
-{
-  "index_patterns": ["{{ anomaly_digest_index }}"],
-  "priority": 200,
-  "template": {
-    "settings": {
-      "number_of_shards": 1,
-      "number_of_replicas": 2,
-      "codec": "zstd",
-      "refresh_interval": "30s",
-      "index.routing.allocation.require.role": "storage"
-    },
-    "mappings": {
-      "dynamic": false,
-      "properties": {
-        "@timestamp":         { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
-        "window_start":       { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
-        "execution_end_time": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
-        "detector":     { "type": "keyword" },
-        "about":        { "type": "keyword" },
-        "measures":     { "type": "keyword" },
-        "scope_field":  { "type": "keyword" },
-        "scope":        { "type": "keyword" },
-        "scope_kind":   { "type": "keyword" },
-        "entity_kind":  { "type": "keyword" },
-        "entity_id":    { "type": "keyword" },
-        "entity_field": { "type": "keyword" },
-        "family":       { "type": "keyword" },
-        "grade":        { "type": "double" },
-        "confidence":   { "type": "double" },
-        "severity":     { "type": "keyword" },
-        "detector_id":  { "type": "keyword" },
-        "run":          { "type": "keyword" },
-        "source_index": { "type": "keyword" },
-        "source_id":    { "type": "keyword" },
-        "source_uid":   { "type": "keyword" },
-        "task_id":      { "type": "keyword" }
-      }
-    }
-  },
-  "_meta": {
-    "family": "anomaly-digest",
-    "written_by": "alice-anomaly-digest",
-    "note": "readable projection of .opendistro-anomaly-results — detector name and entity instead of internal ids"
   }
 }
 JSON
@@ -629,6 +557,8 @@ SIGNALS_TPL=$(cat <<'JSON'
         "topology_version":   { "type": "keyword" },
         "incident_id":        { "type": "keyword" },
         "episode_id":         { "type": "keyword" },
+        "group_id":           { "type": "keyword" },
+        "class":              { "type": "keyword" },
         "suppressed_by":      { "type": "keyword" },
         "first_seen":         { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
         "last_seen":          { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
@@ -678,6 +608,11 @@ INCIDENTS_TPL=$(cat <<'JSON'
         "diagnosis":          { "type": "text" },
         "operator_action":    { "type": "text" },
         "affected":           { "type": "keyword" },
+        "candidate_causes":   { "type": "keyword" },
+        "candidate_cause_ids": { "type": "keyword" },
+        "cause_belief":       { "type": "float" },
+        "cause_measured":     { "type": "boolean" },
+        "cause_precedes":     { "type": "boolean" },
         "source_label":       { "type": "keyword" },
         "state":              { "type": "keyword" },
         "severity":           { "type": "keyword" },
@@ -692,6 +627,7 @@ INCIDENTS_TPL=$(cat <<'JSON'
         "feed":               { "type": "keyword" },
         "episode_state":      { "type": "keyword" },
         "episode_id":         { "type": "keyword" },
+        "group_id":           { "type": "keyword" },
         "episode_start":      { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
         "healthy_windows":    { "type": "integer" },
         "last_evaluation":    { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
@@ -768,11 +704,38 @@ QUERY_INSIGHTS_SETTINGS=$(cat <<'JSON'
 JSON
 )
 
+# Cluster-wide, so these reach storage too. model_max_size_percent is
+# deliberately absent — lowering it evicts models and changes the output.
+# The IO valve is overridden off: it reaches 95% on a staging VM during an
+# ordinary replay, which would reject writes for no emergency at all.
+DETECTION_COST_SETTINGS=$(cat <<'JSON'
+{
+  "persistent": {
+    "plugins.anomaly_detection.max_batch_task_per_node": {{ ad_max_batch_task_per_node }},
+    "plugins.anomaly_detection.batch_task_piece_interval_seconds": {{ ad_batch_task_piece_interval_seconds }},
+    "admission_control.transport.mode": "{{ admission_control_mode }}",
+    "admission_control.transport.io_usage.mode_override": "disabled",
+    "admission_control.search.cpu_usage.limit": {{ admission_control_cpu_limit }},
+    "admission_control.indexing.cpu_usage.limit": {{ admission_control_cpu_limit }},
+    "admission_control.cluster.admin.cpu_usage.limit": {{ admission_control_cpu_limit }}
+  }
+}
+JSON
+)
+
 INGEST_PIPELINE=$(cat <<'JSON'
 {
-  "description": "Stamp ingest_time; ingest_lag_ms = ingest_time - collector_time; enter_system_lag_ms = collector_time - @timestamp.",
+  "description": "Stamp ingest_time; ingest_lag_ms = ingest_time - collector_time; enter_system_lag_ms = collector_time - @timestamp; severity_norm and origin_host, moved off the collector by Item 5.4.",
   "processors": [
     { "set": { "field": "ingest_time", "value": "{% raw %}{{{_ingest.timestamp}}}{% endraw %}" } },
+    {
+      "script": {
+        "lang": "painless",
+        "ignore_failure": true,
+        "description": "severity_norm and origin_host. This is a literal port of the collector's normalize_fields Lua filter, which Item 5.4 deleted so the collector runs no per-record Lua at all. All three log families run this pipeline as their default_pipeline, so every document that used to be enriched still is.",
+        "source": "{% raw %}Map m = ['I':'info','W':'warning','E':'error','F':'fatal','D':'debug','Info':'info','Warning':'warning','Error':'error','Fatal':'fatal','Sys':'system','inf':'info','err':'error','cout':'info']; def s = ctx.severity; def n = s == null ? null : m.get(s.toString()); ctx.severity_norm = n == null ? 'unknown' : n; def h = ctx.hostname == null ? ctx.host : ctx.hostname; if (h != null) { ctx.origin_host = h; }{% endraw %}"
+      }
+    },
     {
       "script": {
         "lang": "painless",
@@ -801,6 +764,27 @@ NORM_MAPPING=$(cat <<'JSON'
   "properties": {
     "severity_norm": { "type": "keyword" },
     "origin_host":   { "type": "keyword" }
+  }
+}
+JSON
+)
+
+# Existing indices predate source_file, and a new field only reaches them
+# through a live mapping update. Without this it is stored but not aggregatable.
+SOURCE_FILE_MAPPING=$(cat <<'JSON'
+{
+  "properties": {
+    "source_file": { "type": "keyword" }
+  }
+}
+JSON
+)
+
+ADMISSION_MAPPING=$(cat <<'JSON'
+{
+  "properties": {
+    "admission_rejections_total": { "type": "long" },
+    "admission_rejections_delta": { "type": "long" }
   }
 }
 JSON
@@ -849,8 +833,9 @@ put "/_cluster/settings" \
   "{\"persistent\":{\"action.auto_create_index\":\"$AUTO_CREATE\"}}" \
   "auto-create guard on the log family alias names ($AUTO_CREATE)"
 
-del "/_index_template/alice-logs"         "legacy index template alice-logs"
-del "/_index_template/alice-logs-generic" "superseded index template alice-logs-generic"
+del "/_index_template/alice-logs"             "legacy index template alice-logs"
+del "/_index_template/alice-logs-generic"     "superseded index template alice-logs-generic"
+del "/_index_template/alice-anomaly-digest"   "legacy index template alice-anomaly-digest"
 
 put "/_ingest/pipeline/alice-add-ingest-time" "$INGEST_PIPELINE" "ingest pipeline alice-add-ingest-time"
 
@@ -861,36 +846,38 @@ put "/_index_template/alice-logs-generic-other" "$GENERIC_OTHER_TPL"    "index t
 put "/_index_template/alice-logs-infologger"    "$INFOLOGGER_INDEX_TPL" "index template alice-logs-infologger"
 put "/_index_template/alice-cockpit-metrics"    "$COCKPIT_METRICS_TPL"  "index template alice-cockpit-metrics"
 put "/_index_template/alice-trend-rollup"       "$TREND_ROLLUP_TPL"     "index template alice-trend-rollup"
-put "/_index_template/alice-anomaly-digest"     "$ANOMALY_DIGEST_TPL"   "index template alice-anomaly-digest"
 put "/_index_template/alice-fleet-roster"       "$FLEET_ROSTER_TPL"     "index template alice-fleet-roster"
 put "/_index_template/alice-lane-state"         "$LANE_STATE_TPL"       "index template alice-lane-state"
 put "/_index_template/alice-signals"            "$SIGNALS_TPL"          "index template alice-signals"
 put "/_index_template/alice-incidents"          "$INCIDENTS_TPL"        "index template alice-incidents"
 put "/_index_template/alice-notifications"      "$NOTIFICATIONS_TPL"    "index template alice-notifications"
 
-for wn in $WORKER_NODES; do
-  put "/_index_template/alice-logs-generic-info-$wn" "$(generic_info_tpl "$wn")" \
-    "index template alice-logs-generic-info-$wn"
-done
-
 put "/_cluster/settings" "$QUERY_INSIGHTS_SETTINGS" "query insights top-n settings"
+put "/_cluster/settings" "$DETECTION_COST_SETTINGS" "anomaly-detection batch pacing and admission control"
 
+# One call per worker, running exactly what that worker runs at boot. STRICT
+# fails the deploy on an unreachable cluster, which must not happen at boot.
 for wn in $WORKER_NODES; do
-  ensure_rollover_index "generic-log-info-$wn" ""
+  ALICE_NODE_ID="$wn" \
+  OS_URL="$OS" \
+  REGISTER_STRICT=true \
+  REGISTER_MIGRATE_EXISTING="$MIGRATE_EXISTING" \
+  ALICE_INFO_SEARCH_IDLE_AFTER="{{ opensearch_info_search_idle_after }}" \
+  ALICE_INFO_TRANSLOG_SYNC_INTERVAL="{{ opensearch_info_translog_sync_interval }}" \
+  ALICE_INFO_MERGE_THREADS="{{ opensearch_info_merge_threads }}" \
+  sh "$REGISTER_NODE"
 done
 
 ensure_rollover_index "infologger" ""
 ensure_rollover_index "generic-log-other" ""
 ensure_index "{{ cockpit_metrics_index }}" '{}'
 ensure_index "{{ trend_rollup_index }}" '{}'
-ensure_index "{{ anomaly_digest_index }}" '{}'
 ensure_index "{{ fleet_roster_index }}" '{}'
 ensure_index "{{ lane_state_index }}" '{}'
 ensure_index "{{ signals_index }}" '{}'
 ensure_index "{{ incidents_index }}" '{}'
 ensure_index "{{ notifications_index }}" '{}'
 
-put "/{{ anomaly_digest_index }}/_mapping" "$ANOMALY_DIGEST_FIELDS" "live mapping: provenance + identity fields on {{ anomaly_digest_index }}"
 put "/{{ cockpit_metrics_index }}/_mapping" "$COCKPIT_IDENTITY_FIELDS" "live mapping: collector_id/os_node + fleet/projector fields on {{ cockpit_metrics_index }}"
 put "/{{ trend_rollup_index }}/_mapping" "$TREND_COMMIT_FIELDS" "live mapping: bucket-commit fields on {{ trend_rollup_index }}"
 
@@ -929,7 +916,13 @@ put "/generic-log-other*/_mapping" "$NORM_MAPPING" "mapping severity_norm/origin
 for wn in $WORKER_NODES; do
   put "/generic-log-info-$wn*/_mapping" "$NORM_MAPPING" "mapping severity_norm/origin_host on generic-log-info-$wn"
 done
+put "/generic-log-other*/_mapping" "$SOURCE_FILE_MAPPING" "mapping source_file on generic-log-other"
+for wn in $WORKER_NODES; do
+  put "/generic-log-info-$wn*/_mapping" "$SOURCE_FILE_MAPPING" "mapping source_file on generic-log-info-$wn"
+done
+
 put "/{{ cockpit_metrics_index }}/_mapping" "$RETRIES_FAILED_DELTA_MAPPING" "mapping output_retries_failed_delta on cockpit-metrics"
+put "/{{ cockpit_metrics_index }}/_mapping" "$ADMISSION_MAPPING" "mapping admission-control rejection counters on cockpit-metrics"
 put "/infologger*/_mapping" "$POISON_MAPPING" "mapping labelled poison-replay evidence on infologger"
 put "/generic-log-other*/_mapping" "$POISON_MAPPING" "mapping labelled poison-replay evidence on generic-log-other"
 for wn in $WORKER_NODES; do

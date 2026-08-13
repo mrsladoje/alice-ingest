@@ -11,7 +11,6 @@
       - alice-metrics
       - alice-trend-rollup
       - alice-signal-projector
-      - alice-anomaly-digest
       - alice-notification-ingest
       - alice-ops
       - alice-poison-replay
@@ -81,7 +80,6 @@
   vars:
     moved_services:
       - alice-trend-rollup
-      - alice-anomaly-digest
       - alice-signal-projector
     quiesce_services:
       - alice-metrics
@@ -116,6 +114,35 @@
       ansible.builtin.systemd:
         daemon_reload: true
       when: _moved_units is changed
+
+- name: Retire alice-anomaly-digest from every storage node
+  hosts: storage
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Stop and disable the retired anomaly digest
+      ansible.builtin.systemd:
+        name: alice-anomaly-digest
+        state: stopped
+        enabled: false
+      failed_when: false
+
+    - name: Remove the retired anomaly digest unit
+      ansible.builtin.file:
+        path: /etc/systemd/system/alice-anomaly-digest.service
+        state: absent
+      failed_when: false
+
+    - name: Remove the leftover anomaly digest script
+      ansible.builtin.file:
+        path: /opt/alice-ingest/anomaly_digest.py
+        state: absent
+      failed_when: false
+
+    - name: Reload systemd so the retired unit is forgotten
+      ansible.builtin.systemd:
+        daemon_reload: true
+      failed_when: false
 
 - name: Common host prep (all 5 VMs — workers + storage)
   hosts: alice_nodes
@@ -184,11 +211,15 @@
         tasks_from: rollup.yml
       when: "'rollup' in background_services"
 
-    - name: Anomaly digest service
+- name: Live lane — the standalone log viewer, off the control host
+  hosts: livelane
+  become: true
+  tasks:
+    - name: Serve the live lane and its page
       ansible.builtin.include_role:
         name: dashboards
-        tasks_from: digest.yml
-      when: "'digest' in background_services"
+        tasks_from: livelane.yml
+      when: live_lane_enabled | bool
 
 - name: Fluent Bit collector (worker VMs only)
   hosts: workers

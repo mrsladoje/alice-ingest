@@ -10,6 +10,10 @@ node.attr.role: storage
 node.roles: [data, ingest]
 node.attr.role: worker
 node.attr.box: {{ node_id }}
+
+# min() because this is a cap, never a floor.
+node.processors: {{ [opensearch_worker_processors | int, ansible_processor_vcpus | int] | min }}
+indices.memory.index_buffer_size: {{ opensearch_worker_index_buffer_size }}
 {% endif %}
 
 path.data: {{ opensearch_data_path }}
@@ -33,6 +37,7 @@ cluster.initial_cluster_manager_nodes:
   - {{ n }}
 {% endfor %}
 
+# Keep. Locked memory never swaps, so this node cannot push physics pages out.
 bootstrap.memory_lock: true
 
 plugins.security.disabled: true

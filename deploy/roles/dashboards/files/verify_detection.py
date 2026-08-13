@@ -11,7 +11,6 @@ EXPECTED_FORECASTERS = int(os.environ.get("EXPECTED_FORECASTERS", "1"))
 ROLLUP_INDEX = os.environ.get("ROLLUP_INDEX", "trend-rollup")
 METRICS_INDEX = os.environ.get("METRICS_INDEX", "cockpit-metrics")
 ROSTER_INDEX = os.environ.get("ROSTER_INDEX", "cockpit-fleet")
-DIGEST_INDEX = os.environ.get("DIGEST_INDEX", "alice-anomalies")
 SIGNALS_INDEX = os.environ.get("SIGNALS_INDEX", "alice-signals")
 INCIDENTS_INDEX = os.environ.get("INCIDENTS_INDEX", "alice-incidents")
 NOTIFICATIONS_INDEX = os.environ.get(
@@ -19,6 +18,11 @@ NOTIFICATIONS_INDEX = os.environ.get(
 LANE_STATE_INDEX = os.environ.get("LANE_STATE_INDEX", "alice-lane-state")
 CATALOG_PATH = os.environ.get(
     "SIGNAL_CATALOG", "/opt/alice-ingest/init/signal_catalog.json")
+# Staged beside this script by bootstrap.yml, so the default needs no variable.
+COCKPIT_NDJSON = os.environ.get(
+    "COCKPIT_NDJSON",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "cockpit.ndjson"))
+BOARD_PANEL_ID = "alice-viz-incidents"
 MAX_ACTIONABLE = int(
     os.environ.get("ALERTING_MAX_ACTIONABLE_ALERT_COUNT", "50"))
 EXPECT_PUSH_HEARTBEATS = os.environ.get(
@@ -52,6 +56,8 @@ TREND_MONITOR_NAMES = {
     n for n in EXPECTED_MONITOR_NAMES if n.startswith("trend-")
     and n not in ("trend-rollup-stale", "trend-entity-cap")}
 TREND_LANE_MONITORS = {"trend-rollup-stale", "trend-entity-cap"}
+ENTITY_SENTINEL = (CATALOG.get("sentinels") or {}).get("entity_id", "none")
+MONITOR_CLASSES = {"monitor-error", "entity-missing"}
 
 
 def req(method, path, payload=None):
@@ -405,8 +411,6 @@ def check_live_mappings(errors):
                         "signals_open", "projector_cycle_ok"],
         ROLLUP_INDEX: ["complete", "committed_at", "expected_cohorts",
                        "commit_cohorts"],
-        DIGEST_INDEX: ["entity_kind", "entity_id", "run", "source_index",
-                       "source_id", "source_uid", "execution_end_time"],
         SIGNALS_INDEX: ["alertname", "entity_kind", "entity_id",
                         "collector_id", "notification_scope", "incident_id",
                         "episode_id", "topology_version",
@@ -595,6 +599,147 @@ def check_signal_labels(errors):
               f"identity label with an explicit value")
 
 
+def check_episode_grouping(errors):
+    """The board aggregates on group_id, and no rule may fire anonymously.
+
+    Two opposite failures live here. Fan-out is one card per entity, which the
+    grouping fixes. Collapse is every entity folded into one incident that
+    names nobody, which happens when a per-entity monitor produces an alert
+    with no bucket key and the sentinel entity gets hashed into incident_id.
+    """
+    open_q = {"term": {"state": "firing"}}
+    code, body = req(
+        "POST", f"/{INCIDENTS_INDEX}/_search",
+        {"size": 0, "track_total_hits": True, "query": open_q,
+         "aggs": {
+             "groups": {"cardinality": {"field": "group_id"}},
+             "ungrouped": {"missing": {"field": "group_id"}},
+             "widest": {"terms": {"field": "group_id", "size": 1,
+                                  "order": {"_count": "desc"}}},
+             "anonymous": {"filter": {"bool": {
+                 "filter": [{"term": {"entity_id": ENTITY_SENTINEL}},
+                            {"range": {"last_seen": {"gte": "now-1h"}}}],
+                 "must_not": [{"terms": {"class": sorted(MONITOR_CLASSES)}}]}},
+                 "aggs": {"rules": {"terms": {"field": "alertname",
+                                              "size": 10}}}},
+             "stale_anonymous": {"filter": {"bool": {
+                 "filter": [{"term": {"entity_id": ENTITY_SENTINEL}}],
+                 "must_not": [
+                     {"terms": {"class": sorted(MONITOR_CLASSES)}}]}}},
+         }})
+    if code != 200:
+        errors.append(f"cannot read {INCIDENTS_INDEX}: HTTP {code}")
+        return
+    aggs = body.get("aggregations") or {}
+    episodes = ((body.get("hits") or {}).get("total") or {}).get("value", 0)
+    if not episodes:
+        print(f"[verify-detection] {INCIDENTS_INDEX} has no open episode "
+              f"(expected on a quiet cluster)")
+        return
+
+    ungrouped = (aggs.get("ungrouped") or {}).get("doc_count", 0)
+    if ungrouped:
+        errors.append(
+            f"{ungrouped} of {episodes} open episodes carry no group_id — the "
+            f"cockpit board aggregates on that field, so those episodes are "
+            f"invisible on it")
+
+    live = (aggs.get("anonymous") or {})
+    if live.get("doc_count"):
+        rules = [b.get("key") for b in
+                 ((live.get("rules") or {}).get("buckets") or [])]
+        errors.append(
+            f"{live['doc_count']} open episodes written in the last hour name "
+            f"no entity ({sorted(rules)}) — a per-entity rule is folding "
+            f"every breach into one anonymous incident, so the operator "
+            f"cannot see which entity broke")
+    else:
+        old = (aggs.get("stale_anonymous") or {}).get("doc_count", 0)
+        if old:
+            print(f"[verify-detection] WARNING: {old} open episodes name no "
+                  f"entity but stopped updating over an hour ago. The running "
+                  f"projector is no longer producing them; clear the stale "
+                  f"records from the ops page with 'Clear findings'")
+
+    groups = (aggs.get("groups") or {}).get("value", 0)
+    widest = ((aggs.get("widest") or {}).get("buckets") or [{}])[0]
+    print(f"[verify-detection] {episodes} open episodes fold into {groups} "
+          f"cockpit card(s); widest is {widest.get('key', 'none')} with "
+          f"{widest.get('doc_count', 0)}")
+
+
+def board_query():
+    """The incident board's own aggregation, read from the saved objects.
+
+    Read rather than restated. A copy here could drift from the panel the
+    operator actually loads, and then the gate would pass on a query nobody
+    runs.
+    """
+    with open(COCKPIT_NDJSON) as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            obj = json.loads(line)
+            if obj.get("id") != BOARD_PANEL_ID:
+                continue
+            spec = json.loads(json.loads(
+                obj["attributes"]["visState"])["params"]["spec"])
+            data = spec["data"][0]
+            return data["url"]["body"], data["format"]["property"]
+    return None, None
+
+
+def check_cockpit_board_query(errors):
+    """Run the board's own query so a malformed one fails the deploy.
+
+    A Vega panel whose query is rejected draws an empty card list. An empty
+    board and a quiet cluster look identical to an operator, so the failure
+    that matters most here is the one that is silent by default.
+    """
+    try:
+        body, prop = board_query()
+    except (OSError, ValueError, KeyError, IndexError) as e:
+        errors.append(
+            f"cannot read the incident board query from {COCKPIT_NDJSON}: {e}")
+        return
+    if body is None:
+        errors.append(
+            f"{COCKPIT_NDJSON} carries no {BOARD_PANEL_ID} panel, so the "
+            f"cockpit has no incident board")
+        return
+
+    code, response = req("POST", f"/{INCIDENTS_INDEX}/_search", body)
+    if code != 200:
+        errors.append(
+            f"OpenSearch rejects the incident board's own aggregation: HTTP "
+            f"{code} {json.dumps(response)[:300]}. The panel would render an "
+            f"empty board and say nothing about why.")
+        return
+
+    node = response
+    for step in prop.split("."):
+        node = node.get(step) if isinstance(node, dict) else None
+    if node is None:
+        errors.append(
+            f"the board query ran but returned nothing at {prop}; the panel "
+            f"reads its cards from exactly that path")
+        return
+
+    group_agg = prop.split(".")[1]
+    declared = set(body["aggs"][group_agg]["aggs"])
+    missing = set()
+    for bucket in node:
+        missing |= declared.difference(bucket)
+    if missing:
+        errors.append(
+            f"the board query returned buckets without {sorted(missing)}; "
+            f"every card expression reads those sub-aggregations and would "
+            f"render undefined")
+        return
+    print(f"[verify-detection] the incident board's own aggregation runs and "
+          f"returns {len(node)} card(s) with every declared sub-aggregation")
+
+
 def check_ism(errors):
     for pid in ("alice-generic-info-retention",
                 "alice-generic-other-retention",
@@ -620,6 +765,8 @@ def main():
     check_forecast_shards(errors)
     check_forecasters(errors)
     check_signal_labels(errors)
+    check_episode_grouping(errors)
+    check_cockpit_board_query(errors)
     check_ism(errors)
 
     if errors:

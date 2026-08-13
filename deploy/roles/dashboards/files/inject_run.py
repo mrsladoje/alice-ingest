@@ -39,6 +39,8 @@ REPORT_DIR = os.environ.get(
     "INJECT_REPORT_DIR", "/var/lib/alice-inject/runs")
 SCORE_SCRIPT = os.environ.get(
     "INJECT_SCORE_SCRIPT", "/opt/alice-ingest/score_injection.py")
+CAUSAL_EDGES = os.environ.get(
+    "CAUSAL_EDGES", "/opt/alice-ingest/init/causal_edges.json")
 
 FAULT_TOKEN = os.environ.get("INJECT_FAULT_TOKEN", "")
 METRICS_SERVICE = os.environ.get("INJECT_METRICS_SERVICE", "alice-metrics")
@@ -191,13 +193,15 @@ def install_injected_pipeline(entity):
     code, body = _request(
         "PUT", f"{OS_URL}/_ingest/pipeline/{INJECTED_PIPELINE}",
         {"description":
-            "Injection only. Drops every record born on one EPN so that host "
-            "goes silent while the rest of the fleet keeps logging, then "
-            "delegates to the real pipeline so every other record still gets "
-            "its ingest_time and both lag fields.",
+            "Injection only. Delegates to the real pipeline first, so every "
+            "record still gets its ingest_time, both lag fields and "
+            "origin_host, then drops every record born on one EPN so that host "
+            "goes silent while the rest of the fleet keeps logging. The order "
+            "matters: origin_host is set by the real pipeline, so a drop that "
+            "ran first would test a null field and silently never fire.",
          "processors": [
-             {"drop": {"if": f"ctx.origin_host == '{entity}'"}},
-             {"pipeline": {"name": INGEST_PIPELINE}}]})
+             {"pipeline": {"name": INGEST_PIPELINE}},
+             {"drop": {"if": f"ctx.origin_host == '{entity}'"}}]})
     if code not in (200, 201):
         raise InjectError(
             f"could not create {INJECTED_PIPELINE}: HTTP {code} {body[:300]}")
@@ -318,6 +322,7 @@ def score(req, start_ms):
         INCIDENTS_INDEX=INCIDENTS_INDEX,
         NOTIFICATIONS_INDEX=NOTIFICATIONS_INDEX,
         GRADE_FLOOR=str(GRADE_FLOOR),
+        CAUSAL_EDGES=CAUSAL_EDGES,
         SCENARIO=req["scenario"],
         START_MS=str(start_ms),
         END_MS=str(now_ms()),

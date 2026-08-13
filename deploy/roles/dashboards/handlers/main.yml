@@ -32,13 +32,6 @@
     daemon_reload: true
   listen: restart alice-trend-rollup
 
-- name: Restart alice-anomaly-digest
-  ansible.builtin.systemd:
-    name: "{{ dashboards_anomaly_digest_service_name }}"
-    state: restarted
-    daemon_reload: true
-  listen: restart alice-anomaly-digest
-
 - name: Restart alice-notification-ingest
   ansible.builtin.systemd:
     name: "{{ dashboards_notification_ingest_service_name }}"

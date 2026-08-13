@@ -17,6 +17,17 @@
     group: root
     mode: "0750"
 
+- name: >-
+    Install the node self-registration script beside it (Item 3 — templates.sh
+    calls this once per worker, and each worker runs the same file as
+    ExecStartPre, so the per-worker index template has exactly one definition)
+  ansible.builtin.copy:
+    src: register_node.sh
+    dest: "{{ dashboards_bootstrap_register_node_script }}"
+    owner: root
+    group: root
+    mode: "0750"
+
 - name: Render the Dashboards index-pattern bootstrap script
   ansible.builtin.template:
     src: patterns.sh.j2
@@ -87,10 +98,10 @@
     dest: "{{ dashboards_bootstrap_signal_catalog }}"
     owner: root
     group: root
-    # alice-anomaly-digest and alice-signal-projector use DynamicUser=true,
-    # so neither can join a stable Unix group.  The catalog contains only
-    # public classifiers, never credentials; make that file readable while
-    # leaving the neighboring detector/monitor definitions root-only.
+    # alice-signal-projector uses DynamicUser=true, so it cannot join a
+    # stable Unix group.  The catalog contains only public classifiers,
+    # never credentials; make that file readable while leaving the
+    # neighboring detector/monitor definitions root-only.
     mode: "0644"
 
 - name: Prove a sandbox-style unprivileged service can read and parse the signal identity catalog
@@ -103,6 +114,28 @@
       - /usr/bin/python3
       - -c
       - "import json; json.load(open('{{ dashboards_bootstrap_signal_catalog }}'))"
+  changed_when: false
+
+- name: Stage the causal edges (one declaration per edge; proven decides whether it explains or suppresses)
+  ansible.builtin.copy:
+    src: causal_edges.json
+    dest: "{{ dashboards_bootstrap_causal_edges }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Verify the staged causal edges parse and every edge is complete
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - >-
+        import json,sys;
+        d=json.load(open('{{ dashboards_bootstrap_causal_edges }}'));
+        e=d['edges'];
+        bad=[x for x in e if not x.get('cause') or not x.get('symptom')
+             or not x.get('equal') or 'proven' not in x];
+        sys.exit('incomplete causal edges: %s' % bad[:3] if bad else 0)
   changed_when: false
 
 - name: Ensure the control-node app root exists
@@ -131,6 +164,14 @@
   notify:
     - restart alice-metrics
 
+- name: Stage the historical-analysis backtest runner
+  ansible.builtin.copy:
+    src: backtest.py
+    dest: "{{ dashboards_backtest_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Stage the detection-layer verify script
   ansible.builtin.copy:
     src: verify_detection.py
@@ -139,7 +180,7 @@
     group: root
     mode: "0750"
 
-- name: Stage the ALICE Cockpit saved-objects NDJSON
+- name: Stage the Maintainer Cockpit saved-objects NDJSON
   ansible.builtin.copy:
     src: cockpit.ndjson
     dest: "{{ dashboards_bootstrap_cockpit_ndjson }}"
@@ -177,7 +218,7 @@
     OS_URL: "http://localhost:{{ opensearch_http_port }}"
   changed_when: true
 
-- name: Import the ALICE Cockpit saved objects (idempotent overwrite, every run)
+- name: Import the Maintainer Cockpit saved objects (idempotent overwrite, every run)
   ansible.builtin.command:
     argv:
       - curl
@@ -212,6 +253,20 @@
         sys.exit(0 if ok else 1)
   changed_when: false
 
+- name: Remove retired cockpit saved objects that import cannot delete
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ dashboards_internal_port }}/api/saved_objects/{{ item }}"
+    method: DELETE
+    headers:
+      osd-xsrf: "true"
+    status_code: [200, 404]
+  loop:
+    - index-pattern/alice-anomalies
+    - search/alice-search-anomalies
+    - visualization/alice-viz-anomalies
+    - visualization/alice-viz-anomaly-count
+  failed_when: false
+
 - name: Hydrate every index pattern with its serialized field catalog
   ansible.builtin.command:
     cmd: "python3 {{ dashboards_bootstrap_hydrate_script }}"
@@ -236,7 +291,7 @@
   delay: 3
   until: _set_default_index.status == 200
 
-- name: Land users on the ALICE Cockpit dashboard by default
+- name: Land users on the Maintainer Cockpit dashboard by default
   ansible.builtin.uri:
     url: "http://127.0.0.1:{{ dashboards_internal_port }}/api/opensearch-dashboards/settings/defaultRoute"
     method: POST

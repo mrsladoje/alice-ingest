@@ -26,7 +26,6 @@ Environment=OPS_INJECT_REQUEST={{ dashboards_inject_request }}
 Environment=OPS_INJECT_WORKERS={% for h in groups['workers'] %}{{ h }}{% if not loop.last %},{% endif %}{% endfor +%}
 Environment=OPS_INJECT_OBSERVE_MINUTES={{ dashboards_inject_default_observe_minutes }}
 Environment=ROLLUP_INDEX={{ trend_rollup_index }}
-Environment=DIGEST_INDEX={{ anomaly_digest_index }}
 Environment=SIGNALS_INDEX={{ signals_index }}
 Environment=INCIDENTS_INDEX={{ incidents_index }}
 Environment=NOTIFICATIONS_INDEX={{ notifications_index }}

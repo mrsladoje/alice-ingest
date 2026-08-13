@@ -189,10 +189,41 @@ def index_docs():
     return docs
 
 
+def _rejection_count(node_stats):
+    total = 0
+    stack = [node_stats.get("admission_control", {})]
+    while stack:
+        cur = stack.pop()
+        if isinstance(cur, dict):
+            for key, value in cur.items():
+                if key == "rejection_count":
+                    if isinstance(value, dict):
+                        total += sum(
+                            v for v in value.values() if isinstance(v, int))
+                    elif isinstance(value, int):
+                        total += value
+                else:
+                    stack.append(value)
+        elif isinstance(cur, list):
+            stack.extend(cur)
+    return total
+
+
+def admission_rejections():
+    stats = get_json(f"{OS_URL}/_nodes/stats/admission_control")
+    if stats is None:
+        return {}
+    return {
+        n.get("name", "unknown"): _rejection_count(n)
+        for n in stats.get("nodes", {}).values()
+    }
+
+
 def node_docs():
     stats = get_json(f"{OS_URL}/_nodes/stats/jvm,os,fs,indices")
     if stats is None:
         return []
+    rejections = admission_rejections()
     docs = []
     for n in stats.get("nodes", {}).values():
         name = n.get("name", "unknown")
@@ -213,6 +244,9 @@ def node_docs():
                 "size_in_bytes", 0),
             "indexing_total": indexing,
             "indexing_delta": delta(("node", name), indexing),
+            "admission_rejections_total": rejections.get(name, 0),
+            "admission_rejections_delta": delta(
+                ("admission", name), rejections.get(name)),
         }
         if EMIT_LEGACY_NODE:
             doc["node"] = name

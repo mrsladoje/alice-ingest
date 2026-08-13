@@ -1,3 +1,13 @@
+# {{ ansible_managed }}
 [Service]
+# No leading dash on purpose: a missing file must fail the unit, because Fluent
+# Bit expands an unset variable to an empty string without saying anything.
+EnvironmentFile={{ collector_env_file }}
+
+# The node registers and repairs its own index before the collector starts.
+# ExecStartPre counts against TimeoutStartSec, so change the two together.
+ExecStartPre={{ collector_register_script }}
+TimeoutStartSec={{ collector_start_timeout_seconds }}
+
 ExecStart=
 ExecStart={{ collector_binary_path }} -c {{ collector_config_dir }}/collector.yaml

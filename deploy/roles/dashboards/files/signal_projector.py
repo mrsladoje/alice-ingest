@@ -49,9 +49,22 @@ MAX_ANNOTATION_IDS = int(os.environ.get("MAX_ANNOTATION_IDS", "50"))
 EPISODE_LOOKBACK_HOURS = int(os.environ.get("EPISODE_LOOKBACK_HOURS", "24"))
 MONITOR_HEALTHY_REQUIRED = int(
     os.environ.get("MONITOR_HEALTHY_REQUIRED", "1"))
+CAUSAL_EDGES = os.environ.get(
+    "CAUSAL_EDGES",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                 "causal_edges.json"))
+UNMEASURED_PRIOR = float(os.environ.get("UNMEASURED_PRIOR", "0.5"))
+MAX_CANDIDATE_CAUSES = int(os.environ.get("MAX_CANDIDATE_CAUSES", "5"))
 
 ACTIVE_ALERT_STATES = {"ACTIVE", "ERROR"}
 CLOSED_ALERT_STATES = {"COMPLETED", "DELETED"}
+ERROR_ALERT_STATES = {"ERROR"}
+
+SINGLE = "single"
+MONITOR_ERROR = "monitor-error"
+ENTITY_MISSING = "entity-missing"
+MONITOR_CLASSES = (MONITOR_ERROR, ENTITY_MISSING)
+MAX_ERROR_NOTE = 300
 
 OPEN = "OPEN"
 RECOVERING = "RECOVERING"
@@ -62,10 +75,21 @@ TERMINAL = {RESOLVED, CLOSED_EXPECTED}
 
 _roster_cache = []
 _roster_loaded_at = 0.0
+_dropped_rows = {}
 
 
 def log(msg):
     print(f"[signal-projector] {msg}", flush=True)
+
+
+def note_dropped_row(reason):
+    _dropped_rows[reason] = _dropped_rows.get(reason, 0) + 1
+
+
+def report_dropped_rows():
+    for reason, count in sorted(_dropped_rows.items()):
+        log(f"dropped {count} row(s): {reason}")
+    _dropped_rows.clear()
 
 
 def now_ms():
@@ -152,6 +176,38 @@ def watermark(lane, default_minutes):
     return value
 
 
+def bucket_entity(src):
+    """The bucket key an alert names, or the empty string when it names none.
+
+    Never the sentinel. A bucket-level monitor declares one entity per alert,
+    so a missing key is a broken contract, not a fleet-wide breach — and
+    hashing the sentinel into incident_id folds every entity's breaches into
+    one anonymous incident that names nobody.
+    """
+    keys = src.get("bucket_keys")
+    if isinstance(keys, list):
+        return ",".join(str(k).strip() for k in keys if str(k).strip())
+    if keys is None:
+        return ""
+    return str(keys).strip()
+
+
+def monitor_class(src, state, entity_id, meta):
+    """Classify on the alert state alone, never on error_message.
+
+    An alert that recovered can still carry the error message from an earlier
+    failure. Reading that message as the class would move a real per-entity
+    breach onto the monitor and lose the entity, which is the fault this whole
+    change exists to prevent. The state is authoritative; the message is only
+    evidence.
+    """
+    if state in ERROR_ALERT_STATES:
+        return MONITOR_ERROR
+    if not entity_id and meta["entity_source"] != "constant":
+        return ENTITY_MISSING
+    return SINGLE
+
+
 def alert_signal(hit, source_index):
     src = hit.get("_source") or {}
     source_alert_id = src.get("id")
@@ -177,16 +233,19 @@ def alert_signal(hit, source_index):
     state = str(src.get("state") or "").upper()
     if meta["entity_source"] == "constant":
         entity_id = meta.get("entity_id") or sentinel("entity_id")
+        bucket = entity_id
     else:
-        keys = src.get("bucket_keys")
-        if isinstance(keys, list):
-            entity_id = ",".join(str(k) for k in keys)
-        else:
-            entity_id = str(keys) if keys else sentinel("entity_id")
+        entity_id = bucket = bucket_entity(src)
+    klass = monitor_class(src, state, entity_id, meta)
+    entity_kind = meta["entity_kind"]
+    scope = meta["notification_scope"]
+    family = meta.get("family") or sentinel("family")
+    if klass != SINGLE:
+        entity_kind, entity_id = "monitor", alertname
+        scope, family = "fleet", sentinel("family")
     start = int(src.get("start_time") or src.get("last_notification_time")
                 or now_ms())
-    collector_id, version = topology_for(
-        meta["entity_kind"], entity_id, start)
+    collector_id, version = topology_for(entity_kind, entity_id, start)
     doc = {
         "@timestamp": start,
         "source_id": alert_id,
@@ -197,23 +256,27 @@ def alert_signal(hit, source_index):
         "state": "firing" if state in ACTIVE_ALERT_STATES else "resolved",
         "severity": severity_of(src.get("severity")),
         "cluster_id": CLUSTER_ID,
-        "entity_kind": meta["entity_kind"],
+        "entity_kind": entity_kind,
         "entity_id": entity_id,
         "collector_id": collector_id,
-        "family": meta.get("family") or sentinel("family"),
-        "notification_scope": meta["notification_scope"],
+        "family": family,
+        "notification_scope": scope,
         "feed": meta["feed"],
         "run": sentinel("run_id"),
         "topology_version": version,
         "monitor_id": src.get("monitor_id"),
+        "class": klass,
         "first_seen": start,
         "last_seen": int(src.get("last_notification_time") or start),
         "start_time": start,
         "evidence": {
-            "bucket_keys": entity_id,
+            "bucket_keys": bucket,
             "period_end": str(src.get("last_notification_time") or ""),
         },
     }
+    if klass != SINGLE:
+        doc["evidence"]["note"] = str(
+            src.get("error_message") or klass)[:MAX_ERROR_NOTE]
     if src.get("end_time"):
         doc["end_time"] = int(src["end_time"])
     if state in CLOSED_ALERT_STATES:
@@ -249,7 +312,8 @@ def anomaly_row(hit, detector_names):
     try:
         entity_kind, entity_id, _ = signal_identity.entity_of(name, src)
         meta = signal_identity.detector(name)
-    except signal_identity.UnknownSignal:
+    except signal_identity.UnknownSignal as e:
+        note_dropped_row(str(e))
         return None
     event_ms = int(src.get("data_end_time") or now_ms())
     collector_id, version = topology_for(entity_kind, entity_id, event_ms)
@@ -275,6 +339,7 @@ def anomaly_row(hit, detector_names):
         "run": sentinel("run_id"),
         "topology_version": version,
         "detector_id": src.get("detector_id"),
+        "class": SINGLE,
         "grade": round(grade, 4),
         "confidence": round(float(src.get("confidence") or 0), 4),
         "first_seen": event_ms,
@@ -298,6 +363,27 @@ def incident_id(doc):
         "entity_id": doc["entity_id"],
         "scope": scope,
     })
+
+
+def scope_label(doc):
+    """The notification_scope label Alertmanager routes and groups on."""
+    if doc.get("notification_scope") == "fleet":
+        return "fleet"
+    return f"collector:{doc.get('collector_id') or sentinel('collector_id')}"
+
+
+def group_id(doc):
+    """The set of episodes one Alertmanager notification covers.
+
+    Deliberately the same fields Alertmanager groups on — cluster_id and
+    alertname, plus notification_scope on the collector route
+    (alertmanager.yml.j2). One cockpit card is then one notification, and
+    per-entity state stays in its own episode document, which is what keeps
+    per-entity recovery and the incident-purity gate intact.
+    """
+    return "/".join((doc.get("cluster_id") or CLUSTER_ID,
+                     doc["alertname"],
+                     scope_label(doc)))
 
 
 def snapshot_current_alerts():
@@ -449,12 +535,17 @@ def affected_label(doc):
         "os_node": "OpenSearch node",
         "service": "service",
         "cluster": "cluster",
+        "monitor": "monitor",
     }
     return f"{labels.get(kind, kind)} {entity}"
 
 
 def decorate_incident(ep):
-    presentation = signal_identity.presentation(ep["alertname"])
+    klass = ep.get("class")
+    if klass in MONITOR_CLASSES:
+        presentation = signal_identity.class_presentation(klass)
+    else:
+        presentation = signal_identity.presentation(ep["alertname"])
     values = {
         "entity": ep.get("entity_id") or sentinel("entity_id"),
         "collector": ep.get("collector_id") or sentinel("collector_id"),
@@ -467,7 +558,79 @@ def decorate_incident(ep):
     ep["affected"] = affected_label(ep)
     ep["source_label"] = ("threshold rule" if ep.get("source_kind") == "monitor"
                           else "learned anomaly")
+    ep["group_id"] = group_id(ep)
     return ep
+
+
+_edges_cache = None
+
+
+def causal_edges():
+    global _edges_cache
+    if _edges_cache is not None:
+        return _edges_cache
+    try:
+        with open(CAUSAL_EDGES) as fh:
+            doc = json.load(fh)
+        edges = [e for e in doc.get("edges", []) if not e.get("proven")]
+    except Exception as e:
+        log(f"causal edges unreadable at {CAUSAL_EDGES}: {e}; incident cards "
+            f"will name no candidate cause")
+        edges = []
+    _edges_cache = edges
+    return edges
+
+
+def scope_of(ep, keys):
+    return tuple(str(ep.get(k) or sentinel(k)) for k in keys)
+
+
+def noisy_or(probabilities):
+    combined = 1.0
+    for p in probabilities:
+        combined *= (1.0 - p)
+    return round(1.0 - combined, 4)
+
+
+def annotate_causes(incidents):
+    edges = causal_edges()
+    if not edges:
+        return
+    firing = [ep for ep in incidents.values() if ep.get("state") == "firing"]
+    by_name = {}
+    for ep in firing:
+        by_name.setdefault(ep.get("alertname"), []).append(ep)
+    for ep in firing:
+        matches = []
+        for edge in edges:
+            if edge.get("symptom") != ep.get("alertname"):
+                continue
+            keys = edge.get("equal") or ["cluster_id"]
+            want = scope_of(ep, keys)
+            for cause_ep in by_name.get(edge.get("cause"), ()):
+                if cause_ep is ep or scope_of(cause_ep, keys) != want:
+                    continue
+                probability = edge.get("probability")
+                if probability is None:
+                    probability = UNMEASURED_PRIOR
+                matches.append({
+                    "cause": edge["cause"],
+                    "probability": float(probability),
+                    "measured": edge.get("probability") is not None,
+                    "opened_at": int(cause_ep.get("opened_at", 0)),
+                    "incident_id": cause_ep.get("incident_id", ""),
+                })
+                break
+        if not matches:
+            continue
+        matches.sort(key=lambda m: (-m["probability"], m["cause"]))
+        matches = matches[:MAX_CANDIDATE_CAUSES]
+        ep["candidate_causes"] = [m["cause"] for m in matches]
+        ep["candidate_cause_ids"] = [m["incident_id"] for m in matches]
+        ep["cause_belief"] = noisy_or([m["probability"] for m in matches])
+        ep["cause_measured"] = all(m["measured"] for m in matches)
+        ep["cause_precedes"] = all(
+            m["opened_at"] <= int(ep.get("opened_at", 0)) for m in matches)
 
 
 def blank_incident(doc, key, episode_start):
@@ -475,7 +638,7 @@ def blank_incident(doc, key, episode_start):
         "incident_id": key,
         "episode_start": int(episode_start),
         "episode_id": episode_id(key, episode_start),
-        "class": "single",
+        "class": doc.get("class") or SINGLE,
         "source_kind": doc["source_kind"],
         "alertname": doc["alertname"],
         "state": "resolved",
@@ -750,6 +913,16 @@ def age_episodes(incidents, moment):
     for key, ep in incidents.items():
         if ep.get("episode_state") in TERMINAL:
             continue
+        # An episode built on the sentinel entity can never receive another
+        # member: nothing produces that identity now. Left open it would
+        # re-send to Alertmanager forever and hold a cockpit card that names
+        # nobody, so close it the way a retired entity closes.
+        if ep.get("entity_id") == sentinel("entity_id") \
+                and ep.get("class", SINGLE) not in MONITOR_CLASSES:
+            ep["episode_state"] = CLOSED_EXPECTED
+            ep["state"] = "resolved"
+            ep["resolved_at"] = moment
+            continue
         if ep.get("source_kind") != "detector":
             continue
         if (ep.get("entity_kind") == "collector" and roster
@@ -784,7 +957,10 @@ def percentile(values, fraction):
 
 
 def classify_mass_silence(rows):
-    firing = [r for r in rows if r["state"] == "firing"]
+    # A monitor-scoped row names the monitor, not a machine, so it must never
+    # be counted as one more silent collector.
+    firing = [r for r in rows if r["state"] == "firing"
+              and r.get("class", SINGLE) == SINGLE]
     if any(r["alertname"] == "fleet-fb-silence" for r in firing):
         return "unknown-mass-silence"
     silent = {r["entity_id"] for r in firing
@@ -826,6 +1002,7 @@ def write_incidents(incidents, mass_class):
     written = 0
     for key, ep in incidents.items():
         if mass_class and ep.get("state") == "firing" \
+                and ep.get("class", SINGLE) == SINGLE \
                 and ep.get("alertname") in ("fleet-fb-silence",
                                             "collector-down"):
             ep["class"] = mass_class
@@ -843,8 +1020,7 @@ def write_incidents(incidents, mass_class):
 
 
 def labels_for(ep):
-    scope = ("fleet" if ep["notification_scope"] == "fleet"
-             else f"collector:{ep['collector_id']}")
+    scope = scope_label(ep)
     return {
         "alertname": ep["alertname"],
         "source": ep["source_kind"],
@@ -875,11 +1051,14 @@ def alertmanager_payload(incidents):
                     or bool(ep.get("member_count_truncated"))).lower(),
                 "entity_samples": ",".join(ep.get("entity_samples") or []),
                 "topology_version": ep.get("topology_version", "none"),
-                "class": ep.get("class", "single"),
+                "class": ep.get("class", SINGLE),
+                "group_id": ep.get("group_id", group_id(ep)),
                 "title": ep.get("title", ep["alertname"]),
                 "diagnosis": ep.get("diagnosis", ""),
                 "operator_action": ep.get("operator_action", ""),
                 "affected": ep.get("affected", affected_label(ep)),
+                "candidate_causes": ",".join(ep.get("candidate_causes") or []),
+                "cause_belief": str(ep.get("cause_belief", "")),
                 "run_id": sentinel("run_id"),
             },
             "startsAt": iso(ep.get("opened_at", now_ms())),
@@ -927,6 +1106,8 @@ def heartbeat(result, stale_count, stale_dwell):
          "signals_open": result["open_signals"],
          "incidents_open": result["open_incidents"],
          "projector_cycle_ok": 1 if result["cycle_ok"] else 0,
+         "incident_groups": result["open_groups"],
+         "incident_group_max": result["largest_group"],
          "stale_episodes": sum(stale_count.values()),
          "stale_dwell_p50_ms": percentile(dwells, 0.5),
          "stale_dwell_p95_ms": percentile(dwells, 0.95),
@@ -996,6 +1177,7 @@ def cycle():
     alert_rows = merge_alert_rows(current + history)
     for row in alert_rows:
         row["incident_id"] = incident_id(row)
+        row["group_id"] = group_id(row)
         row["suppressed_by"] = sentinel("entity_id")
 
     timelines = load_episode_timelines()
@@ -1026,6 +1208,7 @@ def cycle():
         nonlocal anomaly_firing
         for row in rows:
             row["incident_id"] = incident_id(row)
+            row["group_id"] = group_id(row)
             row["suppressed_by"] = sentinel("entity_id")
         prefetch_detector_episodes(rows, timelines, stored)
         apply_detector(incidents, rows, timelines, stored)
@@ -1056,6 +1239,7 @@ def cycle():
         write_signals(alert_rows)
 
     mass_class = classify_mass_silence(alert_rows)
+    annotate_causes(incidents)
     if incidents:
         write_incidents(incidents, mass_class)
 
@@ -1068,8 +1252,14 @@ def cycle():
              "after a complete traversal")
 
     am_ok, am_latency = send_to_alertmanager(alertmanager_payload(incidents))
-    open_incidents = sum(1 for e in incidents.values()
-                         if e.get("state") == "firing")
+    open_episodes = [e for e in incidents.values()
+                     if e.get("state") == "firing"]
+    open_incidents = len(open_episodes)
+    per_group = {}
+    for ep in open_episodes:
+        key = ep.get("group_id") or group_id(ep)
+        per_group[key] = per_group.get(key, 0) + 1
+    report_dropped_rows()
     if mass_class:
         log(f"mass silence observed — class {mass_class}; it pages, because "
             f"only authoritative run/phase telemetry may downgrade it to a "
@@ -1081,6 +1271,8 @@ def cycle():
         "open_signals": (sum(1 for row in alert_rows
                              if row["state"] == "firing") + anomaly_firing),
         "open_incidents": open_incidents,
+        "open_groups": len(per_group),
+        "largest_group": max(per_group.values()) if per_group else 0,
         "cycle_ok": True,
         "cycle_ms": int((time.time() - started) * 1000),
         "am_ok": am_ok,
@@ -1103,8 +1295,9 @@ def main():
     log("starting the first projection cycle before retention maintenance")
     while True:
         started = time.time()
-        result = {"open_signals": 0, "open_incidents": 0, "cycle_ms": 0,
-                  "cycle_ok": False, "am_ok": False, "am_latency_ms": 0}
+        result = {"open_signals": 0, "open_incidents": 0, "open_groups": 0,
+                  "largest_group": 0, "cycle_ms": 0, "cycle_ok": False,
+                  "am_ok": False, "am_latency_ms": 0}
         stale_count, stale_dwell = {}, {}
         try:
             result, stale_count, stale_dwell = cycle()

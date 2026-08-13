@@ -480,7 +480,7 @@ It must not be the control host. That machine already runs Dashboards, nginx,
 Alertmanager and the metrics poller, and the signal projector was deliberately
 moved off it for memory (`inventory.yml:40-45`). This service holds one open
 connection per viewer, so its cost grows with readers rather than with data.
-alice-ingest-5 carries only the anomaly digest and is the least loaded of the
+alice-ingest-5 carries the live lane and is the least loaded of the
 three.
 
 Give it a memory limit in its unit file, as the other services have.
