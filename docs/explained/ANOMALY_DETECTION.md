@@ -272,6 +272,18 @@ These watch the detection stack, not the experiment. If they fail, other monitor
 page through the path they are reporting dead. Their action skips the
 projector and posts straight to a side channel.
 
+**Cluster DEAD itself!!??!?**
+ 
+Every monitor above runs *inside* OpenSearch, so a
+dead cluster silences all of them at once — and silence reads as health. The
+projector covers that from outside: after two failed cluster probes (~1 min)
+it raises `opensearch-unreachable` straight to Alertmanager. Neither end of
+that path needs OpenSearch, so it is the one alert that survives a
+cluster-wide outage. Constant labels, so re-sends update one alert rather
+than stacking. The mirror case, a dead projector, is caught from the other
+side by `signal-projector-stale`. Both dying together — site or network loss
+— needs an off-site heartbeat, which does not exist yet.
+
 
 | Monitor                  | Fires when                                                                 | Means                                                                                                                                                               |
 | ------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

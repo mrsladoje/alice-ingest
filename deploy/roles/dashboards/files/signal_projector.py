@@ -39,6 +39,9 @@ INITIAL_LOOKBACK_MINUTES = int(
     os.environ.get("INITIAL_LOOKBACK_MINUTES", "120"))
 RESOLVE_TIMEOUT_SECONDS = int(
     os.environ.get("RESOLVE_TIMEOUT_SECONDS", "300"))
+OS_UNREACHABLE_ALERTNAME = "opensearch-unreachable"
+OS_UNREACHABLE_CYCLES = max(
+    1, int(os.environ.get("OS_UNREACHABLE_CYCLES", "2")))
 RETENTION_DAYS = int(os.environ.get("RETENTION_DAYS", "30"))
 PRUNE_EVERY_SECONDS = int(os.environ.get("PRUNE_EVERY_SECONDS", "3600"))
 MASS_SILENCE_FRACTION = float(
@@ -1108,6 +1111,55 @@ def probe_alertmanager():
     return ok, int((time.time() - started) * 1000)
 
 
+def probe_opensearch():
+    started = time.time()
+    try:
+        with urllib.request.urlopen(
+                f"{OS_URL}/_cluster/health?local=true", timeout=10) as r:
+            ok = 200 <= r.status < 300
+    except Exception as e:
+        log(f"opensearch readiness probe failed: {e}")
+        ok = False
+    return ok, int((time.time() - started) * 1000)
+
+
+def opensearch_unreachable_alert(opened_ms, resolved_ms=None):
+    alert = {
+        "labels": {
+            "alertname": OS_UNREACHABLE_ALERTNAME,
+            "source": "projector",
+            "cluster_id": CLUSTER_ID,
+            "severity": "page",
+            "entity_kind": "service",
+            "entity_id": "opensearch",
+            "collector_id": sentinel("collector_id"),
+            "family": sentinel("family"),
+            "notification_scope": "fleet",
+        },
+        "annotations": {
+            "title": "OpenSearch is unreachable from the signal projector",
+            "class": SINGLE,
+            "episode_state": OPEN,
+            "delivery_path": "projector-direct",
+            "diagnosis": (
+                f"The projector cannot reach OpenSearch at {OS_URL}. Every "
+                f"monitor, every detector and the delivery log live inside "
+                f"that cluster, so the whole detection stack is silent, not "
+                f"healthy. No in-cluster watchdog can report this."),
+            "operator_action": (
+                "Check the OpenSearch service and the storage nodes. This "
+                "alert is raised by the projector itself and reaches "
+                "Alertmanager without touching OpenSearch, so it is the only "
+                "notice of a cluster-wide outage."),
+            "run_id": sentinel("run_id"),
+        },
+        "startsAt": iso(opened_ms),
+    }
+    if resolved_ms is not None:
+        alert["endsAt"] = iso(resolved_ms)
+    return alert
+
+
 def heartbeat(result, stale_count, stale_dwell):
     ts = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
     dwells = [d for values in stale_dwell.values() for d in values]
@@ -1290,6 +1342,32 @@ def cycle():
     }, stale_count, stale_dwell
 
 
+def track_opensearch_reach(state, cycle_ok):
+    reachable = True if cycle_ok else probe_opensearch()[0]
+    if reachable:
+        if state["alert_sent"]:
+            send_to_alertmanager([opensearch_unreachable_alert(
+                state["since_ms"], now_ms())])
+            log("opensearch reachable again; the direct Alertmanager alert "
+                "was resolved")
+        state["failures"] = 0
+        state["since_ms"] = None
+        state["alert_sent"] = False
+        return state
+    state["failures"] += 1
+    if state["since_ms"] is None:
+        state["since_ms"] = now_ms()
+    if state["failures"] >= OS_UNREACHABLE_CYCLES:
+        delivered, _ = send_to_alertmanager(
+            [opensearch_unreachable_alert(state["since_ms"])])
+        if not state["alert_sent"]:
+            log(f"opensearch unreachable for {state['failures']} cycles; "
+                f"raising {OS_UNREACHABLE_ALERTNAME} straight to "
+                f"{ALERTMANAGER_URL}, delivered={delivered}")
+        state["alert_sent"] = True
+    return state
+
+
 def main():
     log(f"projecting alerts and anomalies into {SIGNALS_INDEX} / "
         f"{INCIDENTS_INDEX} every {INTERVAL}s; re-sending every open episode "
@@ -1302,6 +1380,7 @@ def main():
         return 1
     last_prune = 0.0
     first_cycle_succeeded = False
+    os_reach = {"failures": 0, "since_ms": None, "alert_sent": False}
     log("starting the first projection cycle before retention maintenance")
     while True:
         started = time.time()
@@ -1314,6 +1393,7 @@ def main():
         except Exception as e:
             log(f"cycle failed, watermarks held: {e}")
             result["am_ok"], result["am_latency_ms"] = probe_alertmanager()
+        track_opensearch_reach(os_reach, result["cycle_ok"])
         heartbeat(result, stale_count, stale_dwell)
         if result["cycle_ok"] and not first_cycle_succeeded:
             first_cycle_succeeded = True

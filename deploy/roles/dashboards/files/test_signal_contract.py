@@ -2240,6 +2240,81 @@ def test_status_exposes_functional_projector_and_replay_health():
           "the detection probe still talks about the removed digest")
 
 
+def test_unreachable_opensearch_pages_without_touching_opensearch():
+    sent = []
+    saved = (sp.probe_opensearch, sp.send_to_alertmanager,
+             sp.os_cursor.request, sp.OS_UNREACHABLE_CYCLES)
+
+    def refuse(*a, **kw):
+        raise AssertionError(
+            "the opensearch-unreachable path called OpenSearch, which is the "
+            "one component it must never depend on")
+
+    def capture(alerts):
+        sent.extend(alerts)
+        return True, 1
+
+    sp.probe_opensearch = lambda: (False, 1)
+    sp.send_to_alertmanager = capture
+    sp.os_cursor.request = refuse
+    sp.OS_UNREACHABLE_CYCLES = 2
+    try:
+        state = {"failures": 0, "since_ms": None, "alert_sent": False}
+        sp.track_opensearch_reach(state, False)
+        check(not sent,
+              "a single failed probe paged; one dropped connection must not "
+              "raise a cluster-wide outage")
+        sp.track_opensearch_reach(state, False)
+        check(len(sent) == 1,
+              f"two failed probes produced {len(sent)} alerts, expected 1")
+        alert = sent[0]
+        check(alert["labels"]["alertname"] == sp.OS_UNREACHABLE_ALERTNAME,
+              f"unexpected alertname {alert['labels'].get('alertname')!r}")
+        check(alert["labels"]["severity"] == "page",
+              "an unreachable cluster must route as a page")
+        for label in REQUIRED_LABELS:
+            value = alert["labels"].get(label)
+            check(value is not None and value != "",
+                  f"opensearch-unreachable: label {label} missing or empty")
+        check("endsAt" not in alert,
+              "the firing alert already carried an end time")
+
+        sp.track_opensearch_reach(state, False)
+        check(len(sent) == 2 and "endsAt" not in sent[1],
+              "the alert is not re-sent every cycle, so Alertmanager would "
+              "resolve a live outage on its own timeout")
+        check(sent[1]["labels"] == sent[0]["labels"],
+              "the re-send carries different labels, so Alertmanager would "
+              "fingerprint it as a second alert instead of updating the "
+              "first")
+        check(sent[1]["startsAt"] == sent[0]["startsAt"],
+              "the re-send moved the outage start, so one outage would read "
+              "as a stream of new ones")
+
+        sp.probe_opensearch = lambda: (True, 1)
+        sp.track_opensearch_reach(state, True)
+        check(len(sent) == 3 and "endsAt" in sent[2],
+              "recovery did not resolve the direct alert")
+        check(sent[2]["labels"] == sent[0]["labels"],
+              "the resolve carries different labels, so it would resolve "
+              "nothing and the outage would stay firing until it timed out")
+        check(state["alert_sent"] is False and state["since_ms"] is None,
+              "the outage state survived recovery, so the next outage would "
+              "reuse a stale start time")
+
+        sp.track_opensearch_reach(state, True)
+        check(len(sent) == 3,
+              "a healthy cycle kept re-resolving an alert that was never "
+              "firing")
+    finally:
+        (sp.probe_opensearch, sp.send_to_alertmanager,
+         sp.os_cursor.request, sp.OS_UNREACHABLE_CYCLES) = saved
+
+    check(sp.OS_UNREACHABLE_ALERTNAME not in signal_identity.monitor_names(),
+          "opensearch-unreachable is declared as an in-cluster monitor; it "
+          "exists precisely because in-cluster monitors cannot report this")
+
+
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
 
 

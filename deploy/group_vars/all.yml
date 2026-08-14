@@ -178,6 +178,7 @@ signal_projector_interval_seconds: 30
 signal_projector_resolve_timeout_seconds: 300
 signal_projector_overlap_minutes: 15
 signal_projector_initial_lookback_minutes: 120
+signal_projector_os_unreachable_cycles: 2
 
 alertmanager_group_wait: 5m
 alertmanager_group_interval: 10m
