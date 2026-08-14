@@ -1,7 +1,7 @@
 {
   "type": "monitor",
   "name": "log-family-silence",
-  "description": "Page when a whole log family stops arriving. Bucketed on family, so the entity is infologger, info or other rather than a host. This is the monitor that owns fleet-wide log silence, and the per-host share monitors defer to it: when fleet_count is 0 a host's share of fleet volume is undefined, not zero, so trend-*-volume skips the slice instead of turning one dead stream into one warning per host. Fires when the family produced rollup buckets in the last 24h, averaging >=50 docs per entity bucket, but none in the last 40m. The 24h precondition keeps a fresh deploy from paging on its own bootstrap, and the offset matches the trend monitors so a normal settle delay is never read as silence.",
+  "description": "Page when a whole log family stops arriving. Bucketed on cohort_family, so the entity is infologger, info or other rather than a host. This is the monitor that owns fleet-wide log silence, and the per-host share monitors defer to it: when fleet_count is 0 a host's share of fleet volume is undefined, not zero, so trend-*-volume skips the slice instead of turning one dead stream into one warning per host. Deliberately reads the rollup's own _meta rows, never the per-host rows. A dead alice-trend-rollup makes host rows vanish exactly like a dead log family does, so a monitor watching those would answer 'three log streams stopped' when the truth is 'one service stopped' \u2014 the same one-fault-many-alerts failure this monitor exists to remove. The _meta lane separates them: the rollup writes one row per cohort per bucket whatever the cohort collected, so a live rollup reporting doc_count 0 means the family really is silent, and no recent _meta row at all means the rollup is down and trend-rollup-stale owns it. Fires when recent _meta rows exist, report 0 records, and the family averaged >=50 records per bucket over the last 24h. The 24h precondition keeps a fresh deploy from paging on its own bootstrap, and the 40m offset matches the trend monitors so a normal settle delay is never read as silence.",
   "monitor_type": "bucket_level_monitor",
   "enabled": true,
   "schedule": {
@@ -23,7 +23,12 @@
               "filter": [
                 {
                   "term": {
-                    "entity_kind": "host"
+                    "family": "_meta"
+                  }
+                },
+                {
+                  "term": {
+                    "cohort_kind": "host"
                   }
                 },
                 {
@@ -44,9 +49,9 @@
                 "size": 20,
                 "sources": [
                   {
-                    "family": {
+                    "cohort_family": {
                       "terms": {
-                        "field": "family"
+                        "field": "cohort_family"
                       }
                     }
                   }
@@ -60,6 +65,13 @@
                         "gte": "{{period_end}}||-40m",
                         "lte": "{{period_end}}",
                         "format": "epoch_millis"
+                      }
+                    }
+                  },
+                  "aggregations": {
+                    "rdocs": {
+                      "sum": {
+                        "field": "doc_count"
                       }
                     }
                   }
@@ -89,12 +101,13 @@
         "condition": {
           "buckets_path": {
             "recent": "recent._count",
+            "rdocs": "recent>rdocs",
             "rows": "rows",
             "docs": "docs"
           },
           "parent_bucket_path": "composite_agg",
           "script": {
-            "source": "double minDocs = 50.0; double minRows = 6.0; if (params.recent > 0) { return false; } if (params.rows < minRows) { return false; } if (params.docs <= 0) { return false; } return (params.docs / params.rows) >= minDocs;",
+            "source": "double minDocs = 50.0; double minRows = 6.0; if (params.recent <= 0) { return false; } if (params.rdocs > 0) { return false; } if (params.rows < minRows) { return false; } if (params.docs <= 0) { return false; } return (params.docs / params.rows) >= minDocs;",
             "lang": "painless"
           }
         },

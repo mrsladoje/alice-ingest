@@ -330,11 +330,18 @@ def entity_docs(combo, start_ms, entities):
 
 def meta_docs(combo, start_ms, entity_count, fleet_count, fleet_ef_count,
               truncated, imputed_count=0):
+    # cohort_family and cohort_kind carry what family and entity_kind cannot:
+    # those two are pinned to _meta so the metadata lane stays out of every
+    # per-family query. log-family-silence keys on these instead, which is how
+    # it can say "the rollup is alive and this family reported nothing" rather
+    # than "these rows are missing", a sentence a dead rollup also satisfies.
     meta = {
         "ts": start_ms,
         "family": "_meta",
         "entity_kind": "_meta",
         "entity": cohort_name(combo),
+        "cohort_family": combo["family"],
+        "cohort_kind": combo["entity_kind"],
         "doc_count": fleet_count,
         "ef_count": fleet_ef_count,
         "fleet_count": fleet_count,

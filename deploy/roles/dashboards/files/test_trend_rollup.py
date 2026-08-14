@@ -163,6 +163,96 @@ def test_the_share_monitors_skip_a_slice_with_no_fleet():
           "the cohort breaches at once")
 
 
+def test_the_meta_lane_carries_the_cohort_it_describes():
+    stub_roster([])
+    meta = json.loads(rollup.meta_docs(COMBO, NOW, 0, 0, 0, False, 0)[1])
+    check(meta["cohort_family"] == "infologger"
+          and meta["cohort_kind"] == "host",
+          "a _meta row must name its cohort in its own fields. family and "
+          "entity_kind are pinned to _meta so the metadata lane stays out of "
+          "per-family queries, which leaves log-family-silence nothing to "
+          "bucket on")
+    check(meta["doc_count"] == 0,
+          "a cohort that collected nothing must still publish a _meta row "
+          "reporting 0. That row is the only thing that distinguishes a "
+          "silent family from a dead rollup")
+
+
+def _silence_trigger(recent, rdocs, rows, docs):
+    """Python mirror of the log-family-silence painless condition.
+
+    Guarded by test_the_silence_trigger_matches_this_model below, which fails
+    if the shipped script stops matching what this evaluates.
+    """
+    if recent <= 0:
+        return False
+    if rdocs > 0:
+        return False
+    if rows < 6:
+        return False
+    if docs <= 0:
+        return False
+    return (docs / rows) >= 50
+
+
+def test_the_silence_trigger_matches_this_model():
+    path = HERE / "monitors" / "log-family-silence.json"
+    script = json.loads(path.read_text())["triggers"][0][
+        "bucket_level_trigger"]["condition"]["script"]["source"]
+    for clause in ("if (params.recent <= 0) { return false; }",
+                   "if (params.rdocs > 0) { return false; }",
+                   "if (params.rows < minRows) { return false; }",
+                   "if (params.docs <= 0) { return false; }",
+                   "return (params.docs / params.rows) >= minDocs;"):
+        check(clause in script,
+              f"the shipped condition no longer contains {clause!r}, so the "
+              f"scenarios below no longer describe what deploys")
+    paths = json.loads(path.read_text())["triggers"][0][
+        "bucket_level_trigger"]["condition"]["buckets_path"]
+    check(paths.get("rdocs") == "recent>rdocs",
+          "rdocs must read the record count inside the recent window; "
+          "reading it over 24h would keep the alert firing after recovery")
+
+
+def test_a_dead_rollup_is_not_three_dead_log_streams():
+    # alice-trend-rollup stops: no _meta row lands at all. The log families
+    # may be perfectly healthy.
+    check(_silence_trigger(recent=0, rdocs=0, rows=144, docs=7000000) is False,
+          "a dead rollup must not page as a silent log family. Both make the "
+          "per-host rows vanish, which is why this monitor reads _meta and "
+          "requires a recent row to exist before it judges anything. "
+          "trend-rollup-stale owns that failure, and answering it with one "
+          "page per family is the fan-out this whole change removes")
+
+
+def test_a_live_rollup_reporting_zero_is_a_silent_family():
+    # The 2026-08-14 shape: InfoLogger ran 10:10-11:10 at ~54k per bucket,
+    # then stopped while the rollup kept committing.
+    check(_silence_trigger(recent=4, rdocs=0, rows=10, docs=322866) is True,
+          "a live rollup reporting 0 records for a family that was busy must "
+          "page once, naming the family")
+
+
+def test_a_healthy_family_stays_quiet():
+    check(_silence_trigger(recent=4, rdocs=54000, rows=144, docs=7000000)
+          is False,
+          "a family still producing records must never fire")
+
+
+def test_a_fresh_deploy_does_not_page_on_its_own_bootstrap():
+    check(_silence_trigger(recent=1, rdocs=0, rows=1, docs=0) is False,
+          "a rollup with one bucket of history must not page; every family "
+          "looks silent to a monitor that has never seen it busy")
+    check(_silence_trigger(recent=4, rdocs=0, rows=8, docs=0) is False,
+          "a family that never produced anything has nothing to stop")
+
+
+def test_a_barely_used_family_does_not_page():
+    check(_silence_trigger(recent=4, rdocs=0, rows=144, docs=1000) is False,
+          "a family averaging 7 records per bucket is below the floor every "
+          "other trend rule uses; alerting on it would page on noise")
+
+
 TESTS = [value for name, value in sorted(globals().items())
          if name.startswith("test_") and callable(value)]
 

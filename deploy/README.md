@@ -607,7 +607,7 @@ is applied.
 | `heap-spiral` | heap > 90% for 5 min on an `os_node` | GC death spiral risk; check load / queries |
 | `telemetry-silence` | no `kind:cluster` **and** no `kind:osd` docs for 5 min | `alice-metrics` poller dead on control host |
 | `fleet-fb-silence` | ≥ 50% of the roster missing heartbeats at once | Whole-fleet cause: credentials, network, OpenSearch rejecting writes |
-| `log-family-silence` | a whole log family (`infologger`, `info`, `other`) produced rollup buckets for 24 h and then none for 40 min | The stream stopped: producers, replay, or the collectors for that family. **Read this before any per-host volume alert** |
+| `log-family-silence` | the rollup is still committing but reports 0 records for a whole log family (`infologger`, `info`, `other`) that averaged ≥ 50 records/bucket over 24 h | The stream stopped: producers, replay, or the collectors for that family. **Read this before any per-host volume alert** |
 | `ad-high-grade` | real-time RCF anomaly grade/confidence high | Open Anomaly Detection UI; correlate with Layer 0 |
 | `signal-projector-stale` | `alice-signal-projector` stopped | **Break-glass** page. Nothing is re-sending to Alertmanager, so live incidents are resolving themselves |
 | `alertmanager-down` | the projector cannot reach Alertmanager | **Break-glass** page. Alertmanager does not persist alerts |
@@ -785,7 +785,7 @@ Generic families do not have this problem: DDS is **2,013 objects, one per EPN, 
 | `trend-info-shipping-lag` | `generic-log-info-*` | `node` | p95 `ingest_lag_ms` | yes |
 | `trend-rollup-stale` | — | — | rollup heartbeat absent 40 min | yes |
 | `trend-entity-cap` | — | — | entity ceiling approached | yes |
-| `log-family-silence` | all three | `family` | family produced no rollup bucket for 40 min | yes |
+| `log-family-silence` | all three | `cohort_family` (`_meta` rows) | live rollup reports 0 records for the family | yes |
 
 **Share-of-fleet has a zero denominator, and it is not a share of zero.** The
 share monitors ask "what fraction of the family's records came from this
@@ -795,6 +795,20 @@ dead stream arrives as one warning per EPN — 167 of them on the 2026-08-14
 poison run, folded into one card that no longer named the cause. The monitors
 now skip a slice whose `fleet_count` is 0, and `log-family-silence` owns that
 case as a single page naming the family.
+
+**`log-family-silence` reads `_meta`, never the per-host rows.** A dead
+`alice-trend-rollup` removes per-host rows from the query's view exactly like a
+dead log family does. A monitor watching those rows would answer *three log
+streams stopped* when the truth is *one service stopped* — the same
+one-fault-many-alerts failure this section exists to remove, reintroduced one
+layer up. The `_meta` lane separates them, because `roll_bucket()` publishes
+one row per cohort per bucket whatever the cohort collected: a recent `_meta`
+row reporting `doc_count: 0` means the rollup is alive and the family really is
+silent, and **no** recent `_meta` row means the rollup is down and
+`trend-rollup-stale` owns it. That is what `cohort_family` and `cohort_kind`
+are for — `family` and `entity_kind` are pinned to `_meta` so the metadata lane
+stays out of every per-family query, which would otherwise leave this monitor
+nothing to bucket on.
 
 Telling the two apart is the **rollup's** job, not the monitor's: a host with
 no rollup row contributes no `fleet_count` either, so inside a per-entity

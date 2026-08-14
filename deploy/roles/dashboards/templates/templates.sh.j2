@@ -435,6 +435,8 @@ TREND_ROLLUP_TPL=$(cat <<'JSON'
         "family":                { "type": "keyword" },
         "entity_kind":           { "type": "keyword" },
         "entity":                { "type": "keyword" },
+        "cohort_family":         { "type": "keyword" },
+        "cohort_kind":           { "type": "keyword" },
         "doc_count":             { "type": "long" },
         "ef_count":              { "type": "long" },
         "fleet_count":           { "type": "long" },
@@ -502,6 +504,8 @@ TREND_COMMIT_FIELDS=$(cat <<'JSON'
   "properties": {
     "imputed":               { "type": "boolean" },
     "imputed_count":         { "type": "integer" },
+    "cohort_family":         { "type": "keyword" },
+    "cohort_kind":           { "type": "keyword" },
     "complete":              { "type": "boolean" },
     "committed_at":          { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
     "expected_cohorts":      { "type": "keyword" },

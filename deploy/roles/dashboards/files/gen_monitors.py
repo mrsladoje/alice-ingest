@@ -665,20 +665,30 @@ for name, family, kind, label, metric, field, extra in [
 
 monitors.append(bucket_monitor(
     "log-family-silence",
-    "Page when a whole log family stops arriving. Bucketed on family, so the "
-    "entity is infologger, info or other rather than a host. This is the "
-    "monitor that owns fleet-wide log silence, and the per-host share "
+    "Page when a whole log family stops arriving. Bucketed on cohort_family, "
+    "so the entity is infologger, info or other rather than a host. This is "
+    "the monitor that owns fleet-wide log silence, and the per-host share "
     "monitors defer to it: when fleet_count is 0 a host's share of fleet "
     "volume is undefined, not zero, so trend-*-volume skips the slice "
-    "instead of turning one dead stream into one warning per host. Fires "
-    f"when the family produced rollup buckets in the last 24h, averaging "
-    f">={MIN_SLICE_DOCS} docs per entity bucket, but none in the last "
-    f"{B * (DWELL_SLICES + 1)}m. The 24h precondition keeps a fresh deploy "
-    "from paging on its own bootstrap, and the offset matches the trend "
+    "instead of turning one dead stream into one warning per host. "
+    "Deliberately reads the rollup's own _meta rows, never the per-host "
+    "rows. A dead alice-trend-rollup makes host rows vanish exactly like a "
+    "dead log family does, so a monitor watching those would answer 'three "
+    "log streams stopped' when the truth is 'one service stopped' — the "
+    "same one-fault-many-alerts failure this monitor exists to remove. The "
+    "_meta lane separates them: the rollup writes one row per cohort per "
+    "bucket whatever the cohort collected, so a live rollup reporting "
+    "doc_count 0 means the family really is silent, and no recent _meta row "
+    "at all means the rollup is down and trend-rollup-stale owns it. Fires "
+    f"when recent _meta rows exist, report 0 records, and the family "
+    f"averaged >={MIN_SLICE_DOCS} records per bucket over the last 24h. The "
+    f"24h precondition keeps a fresh deploy from paging on its own "
+    f"bootstrap, and the {B * (DWELL_SLICES + 1)}m offset matches the trend "
     "monitors so a normal settle delay is never read as silence.",
     ROLLUP,
     {"bool": {"filter": [
-        {"term": {"entity_kind": "host"}},
+        {"term": {"family": "_meta"}},
+        {"term": {"cohort_kind": "host"}},
         {"range": {"ts": {
             "gte": "{{period_end}}||-24h",
             "lte": "{{period_end}}",
@@ -686,17 +696,20 @@ monitors.append(bucket_monitor(
     {"recent": {"filter": {"range": {"ts": {
         "gte": "{{period_end}}||" + OFFSET,
         "lte": "{{period_end}}",
-        "format": "epoch_millis"}}}},
+        "format": "epoch_millis"}}},
+        "aggregations": {"rdocs": {"sum": {"field": "doc_count"}}}},
      "rows": {"value_count": {"field": "ts"}},
      "docs": {"sum": {"field": "doc_count"}}},
-    {"recent": "recent._count", "rows": "rows", "docs": "docs"},
+    {"recent": "recent._count", "rdocs": "recent>rdocs",
+     "rows": "rows", "docs": "docs"},
     f"double minDocs = {MIN_SLICE_DOCS}.0;"
     f" double minRows = {MIN_BASELINE_BUCKETS}.0;"
-    " if (params.recent > 0) { return false; }"
+    " if (params.recent <= 0) { return false; }"
+    " if (params.rdocs > 0) { return false; }"
     " if (params.rows < minRows) { return false; }"
     " if (params.docs <= 0) { return false; }"
     " return (params.docs / params.rows) >= minDocs;",
-    "1", B, "family", 20))
+    "1", B, "cohort_family", 20))
 
 monitors.append(query_monitor(
     "trend-rollup-stale",
