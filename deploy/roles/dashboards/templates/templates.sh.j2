@@ -89,6 +89,65 @@ ensure_rollover_index() {
   put "/$alias-000001" "$body" "first rollover index $alias-000001 (write alias $alias)"
 }
 
+ensure_alert_actions_alias() {
+  alias="alice-alert-actions"
+  first="$alias-000001"
+  existing=$(curl -s $CURL_TIMEOUTS "$OS/_cat/aliases/$alias?h=index" 2>/dev/null || true)
+  if [ -n "$existing" ]; then
+    echo "[os-init] write alias already present (skip): $alias -> $existing"
+    return 0
+  fi
+  icode=$(curl -s $CURL_TIMEOUTS -o /dev/null -w '%{http_code}' "$OS/$alias" || echo 000)
+  if [ "$icode" != "200" ]; then
+    ensure_rollover_index "$alias" ""
+    return 0
+  fi
+  echo "[os-init] MIGRATING: '$alias' is a legacy concrete index and nothing bounds its size"
+  fcode=$(curl -s $CURL_TIMEOUTS -o /dev/null -w '%{http_code}' "$OS/$first" || echo 000)
+  if [ "$fcode" = "200" ]; then
+    echo "[os-init] $first already exists (resuming an interrupted migration)"
+  else
+    put "/$first" '{}' "first rollover index $first"
+  fi
+  code=$(curl -s --connect-timeout "${OS_CONNECT_TIMEOUT:-5}" \
+    --max-time "${ALERT_ACTIONS_REINDEX_MAX_TIME:-600}" \
+    -o /tmp/os-alert-reindex -w '%{http_code}' \
+    -XPOST "$OS/_reindex?wait_for_completion=true&refresh=true" \
+    -H 'Content-Type: application/json' \
+    -d "{\"source\":{\"index\":\"$alias\"},\"dest\":{\"index\":\"$first\"}}" || echo 000)
+  moved=$(python3 -c '
+import json,sys
+try:
+    r=json.load(open("/tmp/os-alert-reindex"))
+except Exception:
+    print("-1"); raise SystemExit
+if r.get("failures") or r.get("timed_out"):
+    print("-1")
+else:
+    print(int(r.get("created",0))+int(r.get("updated",0)))
+' 2>/dev/null || echo -1)
+  if [ "$code" != "200" ] || [ "$moved" = "-1" ]; then
+    echo "[os-init] FATAL: reindex $alias -> $first HTTP $code: $(cat /tmp/os-alert-reindex 2>/dev/null)"
+    echo "[os-init] FATAL: the legacy index is untouched, and re-running this is safe"
+    echo "[os-init] FATAL: because reindex keeps document ids. Retry, or delete the"
+    echo "[os-init] FATAL: legacy index by hand if its history is not worth keeping."
+    return 1
+  fi
+  echo "[os-init] reindexed $alias -> $first ($moved documents)"
+  del "/$alias" "legacy concrete index $alias (its records now live in $first)"
+  code=$(curl -s $CURL_TIMEOUTS -o /tmp/os-alert-alias -w '%{http_code}' \
+    -XPOST "$OS/_aliases" -H 'Content-Type: application/json' \
+    -d "{\"actions\":[{\"add\":{\"index\":\"$first\",\"alias\":\"$alias\",\"is_write_index\":true}}]}" \
+    || echo 000)
+  case "$code" in
+    200|201) echo "[os-init] applied: write alias $alias -> $first" ;;
+    *)
+      echo "[os-init] FATAL: alias $alias -> $first HTTP $code: $(cat /tmp/os-alert-alias 2>/dev/null)"
+      return 1
+      ;;
+  esac
+}
+
 seed_if_empty() {
   alias="$1"
   if [ "$SEED_EMPTY_INDICES" != "true" ]; then
@@ -693,6 +752,37 @@ NOTIFICATIONS_TPL=$(cat <<'JSON'
 JSON
 )
 
+ALERT_ACTIONS_TPL=$(cat <<'JSON'
+{
+  "index_patterns": ["alice-alert-actions-*"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "index.plugins.index_state_management.rollover_alias": "alice-alert-actions"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "monitor":            { "type": "keyword" },
+        "trigger":            { "type": "keyword" },
+        "severity":           { "type": "keyword" },
+        "period_start":       { "type": "keyword" },
+        "period_end":         { "type": "keyword" },
+        "entity":             { "type": "keyword" },
+        "entity_kind":        { "type": "keyword" },
+        "notification_scope": { "type": "keyword" },
+        "feed":               { "type": "keyword" },
+        "delivery_path":      { "type": "keyword" }
+      }
+    }
+  },
+  "_meta": { "family": "alert-actions", "written_by": "alice-incluster-alert-sink", "note": "write-only action log: it gives the per-alert throttle a destination and keeps a record of each fire computed independently of the projector. Nothing reads it. dynamic false keeps the mapping stable across rollovers; unmapped fields still survive in _source" }
+}
+JSON
+)
+
 QUERY_INSIGHTS_SETTINGS=$(cat <<'JSON'
 {
   "persistent": {
@@ -824,7 +914,7 @@ wait_os
 # better. The backing indices (family-000001) are unaffected: they carry a
 # suffix so they do not match these exact patterns, and explicit index creation
 # is never governed by this setting anyway.
-AUTO_CREATE="-infologger,-generic-log-other"
+AUTO_CREATE="-infologger,-generic-log-other,-alice-alert-actions"
 for wn in $WORKER_NODES; do
   AUTO_CREATE="$AUTO_CREATE,-generic-log-info-$wn"
 done
@@ -851,6 +941,7 @@ put "/_index_template/alice-lane-state"         "$LANE_STATE_TPL"       "index t
 put "/_index_template/alice-signals"            "$SIGNALS_TPL"          "index template alice-signals"
 put "/_index_template/alice-incidents"          "$INCIDENTS_TPL"        "index template alice-incidents"
 put "/_index_template/alice-notifications"      "$NOTIFICATIONS_TPL"    "index template alice-notifications"
+put "/_index_template/alice-alert-actions"      "$ALERT_ACTIONS_TPL"    "index template alice-alert-actions"
 
 put "/_cluster/settings" "$QUERY_INSIGHTS_SETTINGS" "query insights top-n settings"
 put "/_cluster/settings" "$DETECTION_COST_SETTINGS" "anomaly-detection batch pacing and admission control"
@@ -870,6 +961,7 @@ done
 
 ensure_rollover_index "infologger" ""
 ensure_rollover_index "generic-log-other" ""
+ensure_alert_actions_alias
 ensure_index "{{ cockpit_metrics_index }}" '{}'
 ensure_index "{{ trend_rollup_index }}" '{}'
 ensure_index "{{ fleet_roster_index }}" '{}'

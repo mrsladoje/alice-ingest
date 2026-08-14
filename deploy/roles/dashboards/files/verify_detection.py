@@ -626,6 +626,15 @@ def check_aliases():
                   f"not a rollover write alias — it will still be wiped "
                   f"whole when it ages out. Convert once with "
                   f"'make deploy-migrate-rollover'")
+    code, body = req("GET", "/_alias/alice-alert-actions")
+    if code == 200 and body:
+        print(f"[verify-detection] alice-alert-actions: write alias over "
+              f"{len(body)} backing index(es) {sorted(body)}")
+    else:
+        print("[verify-detection] WARNING: alice-alert-actions is a plain "
+              "index, not a rollover write alias, so nothing bounds the "
+              "alert action log and it grows without limit. The next "
+              "'make deploy' migrates it and keeps its records")
 
 
 def check_signal_labels(errors):
@@ -825,7 +834,8 @@ def check_ism(errors):
                 "alice-generic-other-retention",
                 "alice-infologger-retention",
                 "alice-ad-results-retention",
-                "alice-alert-history-retention"):
+                "alice-alert-history-retention",
+                "alice-alert-actions-retention"):
         code, _ = req("GET", f"/_plugins/_ism/policies/{pid}")
         if code != 200:
             errors.append(f"ISM policy missing: {pid}")

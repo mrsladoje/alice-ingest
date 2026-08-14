@@ -255,6 +255,17 @@ ism_retention_infologger: "56d"
 ism_retention_ad_results: "14d"
 ism_retention_alert_history: "30d"
 
+# The in-cluster action log behind the alice-alert-actions write alias. It is
+# write-only — no monitor, dashboard or service reads it — so it had no bound of
+# any kind until this policy existed. A quiet cluster writes almost nothing; a
+# fleet-wide trend storm is the load case, at roughly 200 hosts x 9 trend
+# monitors x 2 fires an hour x a few hundred bytes, so tens of MB a day on a
+# tier where disk is already a paged alert. Matched to alert history, because
+# the two record the same fires by different routes.
+ism_retention_alert_actions: "30d"
+alert_actions_rollover_period: "7d"
+alert_actions_rollover_max_size: "1gb"
+
 cockpit_metrics_retention_days: 7
 
 # Replay pacing. The defaults are baked into the alice-replay unit, so they are

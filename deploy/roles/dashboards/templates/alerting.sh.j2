@@ -40,56 +40,21 @@ pin_actionable_limit() {
   fi
 }
 
-ensure_alert_sink_index() {
-  code=$(curl -s -o /tmp/alert-sink-idx -w '%{http_code}' \
-    -XPUT "$OS/$SINK_INDEX" \
-    -H 'Content-Type: application/json' \
-    -d '{
-      "settings": {"number_of_shards": 1, "number_of_replicas": 0},
-      "mappings": {
-        "properties": {
-          "monitor": {"type": "keyword"},
-          "trigger": {"type": "keyword"},
-          "severity": {"type": "keyword"},
-          "period_end": {"type": "keyword"}
-        }
-      }
-    }' || echo 000)
-  case "$code" in
-    200|201)
-      echo "[alerting] ensured index: $SINK_INDEX"
-      ;;
-    400)
-      if grep -q 'resource_already_exists_exception' /tmp/alert-sink-idx 2>/dev/null; then
-        echo "[alerting] index exists: $SINK_INDEX"
-      else
-        echo "[alerting] FATAL: create index $SINK_INDEX -> HTTP $code: $(cat /tmp/alert-sink-idx)"
-        return 1
-      fi
-      ;;
-    *)
-      echo "[alerting] FATAL: create index $SINK_INDEX -> HTTP $code: $(cat /tmp/alert-sink-idx)"
-      return 1
-      ;;
-  esac
-  code=$(curl -s -o /tmp/alert-sink-map -w '%{http_code}' \
-    -XPUT "$OS/$SINK_INDEX/_mapping" -H 'Content-Type: application/json' \
-    -d '{
-      "properties": {
-        "entity": {"type": "keyword"},
-        "entity_kind": {"type": "keyword"},
-        "notification_scope": {"type": "keyword"},
-        "feed": {"type": "keyword"},
-        "delivery_path": {"type": "keyword"},
-        "period_start": {"type": "keyword"}
-      }
-    }' || echo 000)
-  if put_ok "$code"; then
-    echo "[alerting] live mapping applied on $SINK_INDEX (entity + scope fields)"
-  else
-    echo "[alerting] FATAL: mapping $SINK_INDEX -> HTTP $code: $(cat /tmp/alert-sink-map)"
-    return 1
+ensure_alert_sink_alias() {
+  existing=$(curl -s "$OS/_cat/aliases/$SINK_INDEX?h=index" 2>/dev/null || true)
+  if [ -n "$existing" ]; then
+    echo "[alerting] sink write alias present: $SINK_INDEX -> $existing"
+    return 0
   fi
+  echo "[alerting] FATAL: '$SINK_INDEX' is not a rollover write alias."
+  echo "[alerting] FATAL: templates.sh owns its index template, its first backing"
+  echo "[alerting] FATAL: index and the alias; ism.sh attaches the policy that rolls"
+  echo "[alerting] FATAL: and deletes it. This script used to create the name as a"
+  echo "[alerting] FATAL: concrete index, which is exactly what left the sink growing"
+  echo "[alerting] FATAL: without any retention. Creating it here again would take the"
+  echo "[alerting] FATAL: alias name back and disable retention permanently."
+  echo "[alerting] FATAL: Run templates.sh first — 'make deploy' does both in order."
+  return 1
 }
 
 upsert_channel() {
@@ -248,9 +213,9 @@ upsert_monitor() {
 
 echo "[alerting] provisioning alert sinks + monitors from $MONITORS_DIR"
 pin_actionable_limit
-ensure_alert_sink_index
+ensure_alert_sink_alias
 upsert_channel "$SINK_ID" "$SINK_URL" \
-  "In-cluster webhook sink for alert action throttle (indexes into alice-alert-actions)"
+  "In-cluster action log, not a notification path: it delivers to no human. Every trigger action writes one document into the alice-alert-actions write alias. It exists to give the 30-minute per-alert throttle a real destination, and to keep a record of each fire computed independently of the signal projector. Nothing reads it. External delivery goes to the nginx Alertmanager seam instead."
 upsert_channel "$BREAKGLASS_ID" "$BREAKGLASS_URL" \
   "Break-glass sink for the two dead-man monitors only (signal-projector-stale, alertmanager-down). It deliberately bypasses the projector and Alertmanager, because those are the components it reports dead. Nothing else may use it."
 count=0

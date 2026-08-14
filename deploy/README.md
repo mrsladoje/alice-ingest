@@ -1010,6 +1010,7 @@ The guarantee is one subtraction:
 | `infologger` | 7d / 20 GB | 56d | ≥49d | 8 × 3 = 24 |
 | `generic-log-other` | 7d / 20 GB | 35d | ≥28d | 5 × 3 = 15 |
 | `generic-log-info-<node>` | **1d** / 20 GB | 8d | ≥7d | 8 × 1 per worker |
+| `alice-alert-actions` | 7d / 1 GB | 30d | ≥23d | 5 × 1 |
 | `cockpit-metrics` | — | 7d, **by document** | exactly 7d | 3 |
 | `trend-rollup` | — | 30d, **by document** | exactly 30d | 3 |
 | AD result history | plugin-rolled | 14d | — | small |
@@ -1023,6 +1024,16 @@ lowest-value family. Rolling it daily (`log_rollover_period_info`) gets the same
 8 shards per worker instead of 2, which those nodes can easily afford since they
 hold nothing else. The reverse trade applies to `infologger`: low volume, high
 value, so a weekly roll and its coarser granularity cost almost nothing.
+
+**`alice-alert-actions` is an action log, not a notification path.** Every
+trigger action writes one document into it, which is what gives the 30-minute
+per-alert throttle a destination and keeps a record of each fire computed
+independently of the signal projector. Nothing reads it, and the name "sink"
+misled: it notifies nobody. It shipped as a concrete index with no retention of
+any kind, so it grew without limit on a tier where disk is a paged alert. It now
+writes through a rollover alias like the log families. A cluster that still has
+the old concrete index is migrated on the next `make deploy`: the records are
+reindexed into `alice-alert-actions-000001` first, so nothing is lost.
 
 **Why the two small indices prune by document instead.** Deleting a whole index
 is nearly free; deleting documents forces the engine to rewrite data files. That

@@ -8,6 +8,9 @@ RET_OTHER="{{ ism_retention_generic_other }}"
 RET_IL="{{ ism_retention_infologger }}"
 RET_AD="{{ ism_retention_ad_results }}"
 RET_ALERT="{{ ism_retention_alert_history }}"
+RET_ACTIONS="{{ ism_retention_alert_actions }}"
+ROLL_AGE_ACTIONS="{{ alert_actions_rollover_period }}"
+ROLL_SIZE_ACTIONS="{{ alert_actions_rollover_max_size }}"
 ROLL_AGE="{{ log_rollover_period }}"
 ROLL_AGE_INFO="{{ log_rollover_period_info }}"
 ROLL_SIZE="{{ log_rollover_max_size }}"
@@ -140,8 +143,13 @@ put_policy "alice-ad-results-retention" \
 put_policy "alice-alert-history-retention" \
   "$(age_delete_policy "delete alert history after $RET_ALERT" "$RET_ALERT" ".opendistro-alerting-alert-history-*" 100)"
 
+put_policy "alice-alert-actions-retention" \
+  "$(rollover_delete_policy "roll alice-alert-actions every $ROLL_AGE_ACTIONS/$ROLL_SIZE_ACTIONS, delete backing indices at $RET_ACTIONS" \
+     "$ROLL_AGE_ACTIONS" "$ROLL_SIZE_ACTIONS" "$RET_ACTIONS" "alice-alert-actions-*" 100)"
+
 attach_policy "alice-generic-other-retention" "generic-log-other-*"
 attach_policy "alice-infologger-retention" "infologger-*"
+attach_policy "alice-alert-actions-retention" "alice-alert-actions-*"
 for wn in $WORKER_NODES; do
   attach_policy "alice-generic-info-retention" "generic-log-info-$wn-*"
 done
