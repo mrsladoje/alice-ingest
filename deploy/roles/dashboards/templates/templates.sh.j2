@@ -500,6 +500,8 @@ JSON
 TREND_COMMIT_FIELDS=$(cat <<'JSON'
 {
   "properties": {
+    "imputed":               { "type": "boolean" },
+    "imputed_count":         { "type": "integer" },
     "complete":              { "type": "boolean" },
     "committed_at":          { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
     "expected_cohorts":      { "type": "keyword" },
@@ -973,7 +975,7 @@ ensure_index "{{ incidents_index }}" '{}'
 ensure_index "{{ notifications_index }}" '{}'
 
 put "/{{ cockpit_metrics_index }}/_mapping" "$COCKPIT_IDENTITY_FIELDS" "live mapping: collector_id/os_node + fleet/projector fields on {{ cockpit_metrics_index }}"
-put "/{{ trend_rollup_index }}/_mapping" "$TREND_COMMIT_FIELDS" "live mapping: bucket-commit fields on {{ trend_rollup_index }}"
+put "/{{ trend_rollup_index }}/_mapping" "$TREND_COMMIT_FIELDS" "live mapping: bucket-commit and silence-imputation fields on {{ trend_rollup_index }}"
 
 for idx_tpl in \
   "{{ fleet_roster_index }}:alice-fleet-roster" \
