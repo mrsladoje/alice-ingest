@@ -1,4 +1,4 @@
-# Anomaly detection
+# 🔎 Anomaly detection
 
 Two OpenSearch plugins do the work. **Detectors** (Anomaly Detection) score
 “is this interval surprising?”. **Monitors** (Alerting) run scheduled searches
@@ -7,7 +7,7 @@ detector writes a grade; a monitor decides whether anyone should be paged.
 
 ---
 
-## How OpenSearch detectors work
+## 🌲 How OpenSearch detectors work
 
 A detector does **not** look at raw log lines. Each interval it runs
 aggregations over an index, optionally split by a **category field** (one
@@ -44,7 +44,7 @@ Each run writes a result doc (`anomaly_grade`, `confidence`) into
 `.opendistro-anomaly-results*`. Grade is surprise, not “bad”. `ad-high-grade`
 is what turns a high grade into an alert.
 
-**Dual clock.** Metrics detectors key on `@timestamp` (the poller stamps wall
+**🕰️ Dual clock.** Metrics detectors key on `@timestamp` (the poller stamps wall
 clock). Log detectors key on `collector_time` (when Fluent Bit accepted the
 line). Replayed June logs therefore look “live” to AD. `ingest_lag_ms`
 (collector → OpenSearch) is a real shipping signal even on replay.
@@ -55,13 +55,13 @@ replay, so those scores are noise until live EPNs exist.
 
 
 
-## The detectors (17 + one forecaster)
+## 🧭 The detectors (17 + one forecaster)
 
 Same failure mode, two horizons: **1 min** (shingle ≈ 8 minutes of context)
 and `-slow` **at 30 min** (hours). The slow twin is the same features, not a
 different idea.
 
-### Telemetry (over `cockpit-metrics`, real-time poller)
+### 📈 Telemetry (over `cockpit-metrics`, real-time poller)
 
 
 | Detector            | Per             | Watches                                                                                                                                 |
@@ -73,7 +73,7 @@ different idea.
 
 
 
-### Logs, per EPN (`origin_host`)
+### 🖥️ Logs, per EPN (`origin_host`)
 
 
 | Detector                          | Index                | Watches                                                                                                  |
@@ -87,7 +87,7 @@ different idea.
 
 
 
-### Logs, per collector (`node`)
+### 🚚 Logs, per collector (`node`)
 
 Shipping lag is a collector problem, not an EPN problem — that split is
 load-bearing.
@@ -102,7 +102,7 @@ load-bearing.
 No “other” shipping-lag detector: `generic-log-other` sits with Infologger on
 storage.
 
-### Forecaster (same RCF family, different job)
+### 🔮 Forecaster (same RCF family, different job)
 
 `disk-fill` predicts `disk_used_percent` per OpenSearch node on a 60-minute
 interval. Forecasting answers “when does this cross a threshold?”, so it only
@@ -113,7 +113,7 @@ Disk is the one that qualifies.
 
 
 
-## How OpenSearch monitors work
+## ⏰ How OpenSearch monitors work
 
 A monitor is a **cron job inside the cluster**. Every N minutes OpenSearch
 runs a search the monitor authored, hands the result to a small Painless
@@ -126,7 +126,7 @@ will absorb.
 The two monitor types differ only in **how many times that script runs**
 and **what it can name**.
 
-### Query-level: one question, one answer
+### ❓ Query-level: one question, one answer
 
 The search returns a single result. The script looks at that result once and
 says yes or no. If yes, one alert fires, and it is about the whole
@@ -146,7 +146,7 @@ fires. Asking “which poller?” would be meaningless — there is one.
 Use query-level when the fact is fleet-wide or there is only one of the
 thing (`ad-high-grade`, `fleet-fb-silence`, `trend-rollup-stale`).
 
-### Bucket-level: group the hits, then ask per group
+### 🪣 Bucket-level: group the hits, then ask per group
 
 A **bucket** is one group in a `GROUP BY`. The monitor's search does not
 just count matching documents; it groups them by a field (`collector_id`,
@@ -169,7 +169,7 @@ Throttle follows the same split. Query-level has one mute for the whole
 monitor (30 min). Bucket-level mutes **per alert key**, so `node-01` being
 down does not silence a later `node-02` page.
 
-### What happens after the script says yes
+### ✅ What happens after the script says yes
 
 The action POSTs JSON to `alice-incluster-alert-sink`. Most of that later
 becomes Alertmanager via the signal projector. Two watchdogs
@@ -180,11 +180,11 @@ they cannot page through the thing they are reporting dead.
 
 
 
-## The monitors
+## 🚨 The monitors
 
 
 
-### Layer 0 — hard rules on `cockpit-metrics`
+### 🧱 Layer 0 — hard rules on `cockpit-metrics`
 
 Hard cliffs, no model. They all query `cockpit-metrics`.
 
@@ -214,7 +214,7 @@ A dead collector writes nothing, so “down” is the poller noticing a missing 
 
 
 
-### Trend lane — the anchored baseline RCF never keeps
+### 📉 Trend lane — the anchored baseline RCF never keeps
 
 Reads `trend-rollup` (10-minute pre-aggregates written by
 `alice-trend-rollup`), not raw logs. Compares **three consecutive 10m
@@ -233,9 +233,9 @@ the last 40 minutes so the dwell window is not in the baseline.
 Guards: ≥50 docs (volume/errors), ≥10 error docs, ≥100 docs for lag (otherwise
 p95 is just the max), 250 ms lag floor, retired-host guard on collapse.
 
-### Alerts on model output (detectors can't alert without these)
+### 🎯 Alerts on model output (detectors can't alert without these)
 
-**One sentence essence:** detectors only write a score; `ad-high-grade` and
+**💡 One sentence essence:** detectors only write a score; `ad-high-grade` and
 `disk-fill-forecast` are the monitors that turn those scores into alerts.
 
 Same monitors as Layer 0. Same Alerting plugin, same alert, same 30-minute
@@ -264,15 +264,15 @@ anything with that field, so a historical run cannot page.
 
 
 
-### Watchdogs for our own machinery
+### 🐕 Watchdogs for our own machinery
 
 These watch the detection stack, not the experiment. If they fail, other monitors go blind or alerts vanish while looking healthy.
 
-**Break-glass:** `signal-projector-stale` and `alertmanager-down` cannot
+**🧯 Break-glass:** `signal-projector-stale` and `alertmanager-down` cannot
 page through the path they are reporting dead. Their action skips the
 projector and posts straight to a side channel.
 
-**Cluster DEAD itself!!??!?**
+**💀 Cluster DEAD itself!!??!?**
  
 Every monitor above runs *inside* OpenSearch, so a
 dead cluster silences all of them at once — and silence reads as health. The
@@ -297,7 +297,7 @@ side by `signal-projector-stale`. Both dying together — site or network loss
 
 
 
-## How the two lanes fit
+## 🧩 How the two lanes fit
 
 ```
 logs / cockpit-metrics
@@ -315,3 +315,47 @@ logs / cockpit-metrics
 
 Static rules catch cliffs. RCF catches unfamiliar shapes and per-entity
 silence. Trend monitors catch the frog-boil that RCF will learn as normal.
+
+---
+
+## 🚫 What we rejected
+
+### 🧮 k-NN on log messages
+
+Turn every line into a vector — numbers where similar sentences sit close
+together — keep those vectors in a searchable index, and score a new line by
+how far it is from the closest one already seen. Far away means “this is
+unlike anything we have logged”.
+
+**💸 Rejected on cost.** Every single line has to run through a model at ingest,
+and the index of vectors then has to stay in memory. We ingest millions of
+lines per run on small VMs whose memory is already rationed between the
+forest models and normal search. What the detectors use instead — counts,
+error counts, lag — the cluster computes anyway, for free.
+
+### 🧾 Log templating
+
+Collapse every line to its skeleton: `Processing timeslice:41, tfCounter:9`
+becomes `Processing timeslice:<N>, tfCounter:<N>`. Millions of lines shrink to
+a few thousand templates, and a template nobody has seen before looks like a
+free anomaly signal.
+
+**📉 Rejected because that signal runs out.** The software can only print the
+messages that are written in its source code, so the set of templates is
+finite. The first hours find many new ones, then almost none. Once the whole
+set has been seen, “new template” stops firing — for good, except after a
+software update. A detector that goes permanently quiet is not a detector.
+
+**🔓 Still open:** extract the templates, then run k-NN on the *templates* rather
+than on the lines. That fixes the cost problem — a few thousand vectors
+instead of millions — but it inherits some of the saturation problem, so
+whether it earns its keep is unsettled.
+
+### 🤖 Model families
+
+| Idea | Why not |
+| --- | --- |
+| Deep sequence models (DeepLog family) | Every *unseen* template reads as an anomaly, and O2 templates drift constantly. F1 ~0.23–0.27 under drift, against ~0.71 for plain PCA. |
+| Time-series foundation models | Gradient boosting, autoencoders and moving-variance one-liners match or beat them at a fraction of the compute. |
+| A language model in the detection path | Cost and latency per line, no fair benchmark win. Fine offline, explaining an anomaly that already fired. |
+| External detection pipeline off a bus | A service to keep alive; in-cluster detectors cost none. Earn it when the plugin's ceiling blocks something. |
