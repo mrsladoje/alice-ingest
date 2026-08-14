@@ -73,6 +73,12 @@ fluent_bit_version: "5.0.8"
 # Service-level, so this also delays the live lane by the same 5 seconds.
 fluent_bit_flush_seconds: 5
 
+fluent_bit_log_buffer_limit: "256M"
+fluent_bit_log_farm_buffer_limit: "2G"
+fluent_bit_log_retry_limit: 10
+fluent_bit_memory_high: "384M"
+fluent_bit_memory_max: "768M"
+
 # The live lane. README section 9, Item 7.
 live_lane_enabled: true
 live_lane_host: "{{ hostvars[groups['livelane'][0]].ansible_host }}"

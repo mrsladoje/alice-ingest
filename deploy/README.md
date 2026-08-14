@@ -1771,6 +1771,107 @@ parse. It is Fluent Bit's record time, set by the parser's `time_format`, and
 making it an ordinary numeric field fights the time-key mechanism and breaks the
 strict date mapping.
 
+### Item 5a — how long the collector survives an OpenSearch stall
+
+The heading above says output did not change. It does now, because the numbers it
+inherited were never chosen — they came in with the v1 paper airplane and were
+never revisited.
+
+Two settings decide how much log data a worker can lose, and they fail in
+different ways.
+
+`storage.total_limit_size` caps the on-disk queue for one output. When the queue
+is full Fluent Bit **discards the oldest chunk** to make room; it does not push
+back on the input. This is the burst case: OpenSearch is still answering, but
+more slowly than the producers write.
+
+`retry_limit` caps how many times a failed chunk is re-sent before it is dropped.
+This is the outage case: OpenSearch is not answering at all. The scheduler waits a
+random interval between `scheduler.base` and `min(base × 2^N, scheduler.cap)`, and
+the defaults are 5 s and 2000 s. We do not set either, so the defaults apply.
+
+The old values were `1M` and `retry_limit: 2` on all three log outputs. A buffer
+chunk grows to about 2 MB, so a 1 MB cap held **less than one chunk**. Two retries
+at the default backoff is **10 seconds at best and 30 seconds at worst**. That was
+the real durability budget: about half a minute, on a tier whose whole job is not
+to lose logs during data taking.
+
+The new values are `fluent_bit_log_buffer_limit` and `fluent_bit_log_retry_limit`
+in `group_vars/all.yml`. Ten retries is **50 seconds at best and about 109 minutes
+at worst** — the spread is wide because the backoff is jittered, and that is
+inherent, not a tuning mistake.
+
+`fluent_bit_log_buffer_limit` carries the staging value `256M`, and the farm value
+is recorded beside it as `fluent_bit_log_farm_buffer_limit: "2G"`. That is the
+same shape as `opensearch_heap_size` / `opensearch_worker_heap_size`: the variable
+in force holds what these VMs can survive, and the farm number is written down
+rather than guessed at later. Only `workers` run the collector, so one value is
+enough — raise `fluent_bit_log_buffer_limit` on real hardware.
+
+Three log outputs at the farm value is 6 GB of worst-case disk on a machine that
+also runs a data node. `flb-storage` lives under `/var/log` on the root
+filesystem, and OpenSearch turns every index read-only at its 95 % flood-stage
+watermark, which this repo does not override. A collector that fills the disk to
+protect its logs would take down the node that stores them. **Confirm the worker
+root filesystem with `df -h /var/log` before raising the value.**
+
+**Do not put this override in `inventory.yml`.** Group vars written inside the
+inventory file rank *below* `group_vars/all.yml`, so any name that exists in both
+resolves to the `all.yml` value. This bites an existing line: the `workers` group
+in `inventory.yml` sets `opensearch_heap_size: "1g"` and that assignment has never
+had any effect, because `all.yml` line 4 sets the same variable. It is invisible
+only because both say `1g`. The host-level assignment on `alice-ingest-3` does
+work, because host vars outrank `group_vars/all.yml`. Use `group_vars/workers.yml`
+if a genuine per-tier split is ever needed.
+
+Retries stay finite on purpose. `false` means unlimited, and an output failing on
+something permanent — a mapping conflict returning 400 on every attempt — would
+then retry that chunk forever and never drain the queue behind it.
+
+**Not changed, deliberately.** The health output stays at `512K` / `retry_limit:
+5`: it is cockpit telemetry, and a longer queue would deliver a flood of stale
+metrics after recovery, into monitors that read gaps as a dead collector. The live
+lane stays at `1M` / `retry_limit: 1`, which Item 7 chose so a dead viewer can
+never push back on OpenSearch.
+
+**Memory is now bounded by the unit, not by hope.** The Fluent Bit documentation
+puts a chunk at about 2 MB on average, so `storage.max_chunks_up: 64` allows
+roughly 128 MB of chunks in memory. The "Fluent Bit uses 10 MB" claim was never
+true here, and nothing enforced it. Raising the *disk* buffer does not raise
+memory: chunks above `max_chunks_up` stay on disk only.
+
+`fluent_bit_memory_high` is 384 MB and `fluent_bit_memory_max` is 768 MB, and both
+come from the estimate the memory-management page gives rather than from taste.
+An output plugin needs about twice its input buffer to format a payload, and the
+page adds 20 % for allocator overhead: 128 MB × 2 × 1.2 is roughly 307 MB in the
+worst case. `MemoryHigh` sits above that, so the kernel only throttles beyond the
+documented worst case, and `MemoryMax` is the hard stop with room for the chunks
+reloaded from disk at startup. A first attempt used 256 MB and 512 MB, which would
+have throttled the collector during exactly the burst it is meant to survive.
+
+These are ceilings, not reservations. On the staging `m2.medium` they sit above a
+1 GB OpenSearch heap on a 3.75 GB machine, and on a 512 GB EPN machine they are
+noise.
+
+**Two facts worth recording, because they change how these numbers read.**
+
+`storage.total_limit_size` has **no default** — an output left alone queues
+without an explicit cap. The `1M` was therefore a restriction somebody added, not
+a default we inherited, and no note survives explaining it.
+
+The dead-letter question is settled for now. Current Fluent Bit documents
+`storage.keep.rejected`, which preserves chunks that exhaust their retries, but it
+does **not** appear in the documentation for the pinned 5.0 line. Item 9 below and
+`docs/THANASIS_PLAN.md` say a dead-letter design cannot be built, and that remains
+true for the version we run. Revisit it whenever `fluent_bit_version` moves to
+5.1 or later, because it would weaken Item 9's argument for a queue.
+
+**Still open:** `storage.backlog.mem_limit` bounds how much of the on-disk backlog
+is pulled into memory at startup, and its default is not stated in the 5.0
+buffering page. It mattered little at a 1 MB queue and matters more at 256 MB. The
+memory headroom above is sized to absorb it, but the setting should be pinned
+explicitly once the default is confirmed.
+
 ### Item 6 — anomaly detection stays on the workers and costs less
 
 The detectors and their output do not change. Removing the plugins from workers
@@ -2007,6 +2108,8 @@ licence, not an open-source one. Make it the primary path for the durable tier,
 not a failure path: Fluent Bit has no on-failure route, retries are internal to
 the output plugin, and when `retry_limit` is reached the chunk is dropped with
 no hook and no alternate destination, so a dead-letter design cannot be built.
+*(True for the pinned 5.0 line. Later Fluent Bit adds `storage.keep.rejected`, so
+re-read this paragraph whenever `fluent_bit_version` moves — see Item 5a.)*
 Record the queue coordinates on every document — topic, partition, offset and
 key. The offset is a replay position and partition-plus-offset is a
 deduplication key; neither is reproducible from any other field.

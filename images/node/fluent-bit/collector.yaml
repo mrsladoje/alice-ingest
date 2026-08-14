@@ -156,8 +156,8 @@ pipeline:
       index: infologger
       suppress_type_name: true
       trace_error: true
-      storage.total_limit_size: 1M
-      retry_limit: 2
+      storage.total_limit_size: 256M
+      retry_limit: 10
 
     - name: opensearch
       match: family.info
@@ -166,8 +166,8 @@ pipeline:
       index: generic-log-info
       suppress_type_name: true
       trace_error: true
-      storage.total_limit_size: 1M
-      retry_limit: 2
+      storage.total_limit_size: 256M
+      retry_limit: 10
 
     - name: opensearch
       match: family.other
@@ -176,5 +176,5 @@ pipeline:
       index: generic-log-other
       suppress_type_name: true
       trace_error: true
-      storage.total_limit_size: 1M
-      retry_limit: 2
+      storage.total_limit_size: 256M
+      retry_limit: 10

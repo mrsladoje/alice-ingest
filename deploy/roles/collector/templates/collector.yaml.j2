@@ -199,8 +199,8 @@ pipeline:
       index: infologger
       suppress_type_name: true
       trace_error: true
-      storage.total_limit_size: 1M
-      retry_limit: 2
+      storage.total_limit_size: {{ fluent_bit_log_buffer_limit }}
+      retry_limit: {{ fluent_bit_log_retry_limit }}
 
     - name: opensearch
       match: family.info
@@ -209,8 +209,8 @@ pipeline:
       index: generic-log-info-${ALICE_NODE_ID}
       suppress_type_name: true
       trace_error: true
-      storage.total_limit_size: 1M
-      retry_limit: 2
+      storage.total_limit_size: {{ fluent_bit_log_buffer_limit }}
+      retry_limit: {{ fluent_bit_log_retry_limit }}
 
     - name: opensearch
       match: family.other
@@ -219,8 +219,8 @@ pipeline:
       index: generic-log-other
       suppress_type_name: true
       trace_error: true
-      storage.total_limit_size: 1M
-      retry_limit: 2
+      storage.total_limit_size: {{ fluent_bit_log_buffer_limit }}
+      retry_limit: {{ fluent_bit_log_retry_limit }}
 
     - name: opensearch
       match: health
