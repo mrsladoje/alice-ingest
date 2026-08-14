@@ -1,13 +1,22 @@
 # Episodes and alerting
 
 Anomaly detection ends the moment a monitor fires. This is what happens
-after. One service, **`alice-signal-projector`**, reads every alert and every
-detector score, decides which of them are *the same trouble*, and writes that
-down. Alertmanager then decides who gets told.
+after. 
 
-The split is the whole point: **`alice-incidents` decides what is true.
-Alertmanager decides when someone is told.** Alertmanager stores nothing
-durable and never becomes the database.
+One service (long-running Python process under systemd), **`alice-signal-projector`**, reads every alert and every
+detector score, writes each known row as a **signal**, and groups the ones
+that are *the same trouble* into **episodes**. Alertmanager then decides who
+gets told.
+
+The split is the whole point. **The projector is the judge. The indexes are
+the record. Alertmanager is only the messenger.**
+
+- **`alice-signals`** — what happened. Each observation - not deduped, kept for history.
+- **`alice-incidents`** — what is wrong right now. Each document is one
+  episode, not the identity; `incident_id` is just a field on it. Patient
+  file plus this hospital stay.
+- **Alertmanager** — when someone is told. It stores nothing durable and
+  never becomes the database.
 
 ---
 
@@ -29,19 +38,20 @@ The projector answers all four. Everything below is that one job.
 
 ## Three words
 
-| Word | What it is | Where it lives |
-| --- | --- | --- |
-| **Signal** | One row of evidence. One alert document, or one detector result. | `alice-signals` |
-| **Incident** | The stable identity of one problem on one thing. | `incident_id` field |
-| **Episode** | One visit of that problem, from open to recovery. | `alice-incidents` |
+Incident is identity. Episode is identity plus this visit's time.
+
+| Word | What it is | Example | Where it lives |
+| --- | --- | --- | --- |
+| **Signal** | One observation: this monitor fired, or this detector scored high, at this time, on this thing. One row. | `collector-down` fired on `node-01` at 09:15. The next minute is another signal. Thirty of these can still be one episode. | `alice-signals` |
+| **Incident** | *Which* problem on *which* thing. A name that never changes. It exists even when nothing is wrong right now. Patient file. | `collector-down` on `node-01` — the same key this week and next month. | `incident_id` field |
+| **Episode** | That problem *happening once*: the incident plus this visit's start (and later its end). Hospital stay. | Same incident, opened 09:14, closed 09:41. Next week it can open again as a new episode. | `alice-incidents` (the index name is leftover; each document is one episode) |
 
 `incident_id` is a hash of five things: source kind, alert name, entity kind,
 entity id, and scope. Collector `node-01` failing `data-loss` always hashes to
 the same key, this week and next month.
 
 `episode_id` is `<incident_id>.<episode_start>`, where `episode_start` is the
-**event time** the episode opened. Think of `incident_id` as the patient file
-and the episode as one hospital stay.
+**event time** the episode opened.
 
 **Why event time and not a counter.** The projector re-reads the last fifteen
 minutes of alert history every cycle. A counter would have to be read back
