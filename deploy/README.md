@@ -1857,9 +1857,20 @@ therefore a **TSVB markdown panel** (`visState.type: metrics`,
 `markdown-<params.id>` in that stylesheet to the element id it generates per
 render, so the CSS selectors and `params.id` must agree — `gen_cockpit.py`
 generates both from one rule list and keeps the Less source in `markdown_less`
-so the panel is still editable in the TSVB UI. The panel carries **no series**,
-and `AbstractSearchStrategy.search` issues one request per series body, so an
-empty list issues none: the button still costs the cluster nothing.
+so the panel is still editable in the TSVB UI. Two flags there are counted, not
+boolean: `panel` types `markdown_openLinksInNewTab` and `markdown_scrollbars` as
+`numberIntegerOptional`, so they are written as `1` and `0`.
+
+**The panel must carry a series even though it draws no chart.** A series-less
+panel shipped once and rendered as *No data to display for the selected
+metrics*, never as the button. `visualization.js` decides that before any panel
+type gets to draw: it reads `visData[params.id].series`, and an empty array
+gives the NoData prompt with no exception for markdown. So the button carries
+one count series over `cockpit-metrics` and pins its own last-hour range,
+independent of the time picker. Cost is one `date_histogram` count per refresh.
+The aggregation sets `min_doc_count: 0` with `extended_bounds`, so the buckets —
+and the series — come back even in an hour the metrics poller wrote nothing,
+and the button cannot disappear on a quiet cluster.
 
 The consequence is recorded here so nobody re-litigates it: the **SIGNALS** and
 **DETAILS** buttons on the incident episode board are Vega marks, so they

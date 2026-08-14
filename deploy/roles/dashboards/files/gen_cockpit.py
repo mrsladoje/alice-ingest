@@ -1170,7 +1170,23 @@ def markdown_button(vid, title, panel_id, md, rules):
     params = {
         "id": panel_id,
         "type": "markdown",
-        "series": [],
+        "series": [{
+            "id": panel_id + "-series",
+            "axis_position": "right",
+            "chart_type": "line",
+            "color": "#68BC00",
+            "formatter": "number",
+            "split_mode": "everything",
+            "stacked": "none",
+            "fill": 0.5,
+            "line_width": 1,
+            "point_size": 1,
+            "separate_axis": 0,
+            "label": "",
+            "hidden": False,
+            "type": "timeseries",
+            "metrics": [{"id": panel_id + "-count", "type": "count"}],
+        }],
         "index_pattern": METRICS_TITLE,
         "time_field": TIME_FIELD,
         "interval": "auto",
@@ -1179,14 +1195,16 @@ def markdown_button(vid, title, panel_id, md, rules):
         "axis_scale": "normal",
         "show_grid": 0,
         "show_legend": 0,
+        "filter": {"language": "kuery", "query": ""},
+        "ignore_global_filter": 1,
         "default_index_pattern": METRICS_TITLE,
         "default_timefield": TIME_FIELD,
         "markdown": md,
         "markdown_less": less_src,
         "markdown_css": css,
-        "markdown_openLinksInNewTab": True,
+        "markdown_openLinksInNewTab": 1,
         "markdown_vertical_align": "middle",
-        "markdown_scrollbars": False,
+        "markdown_scrollbars": 0,
     }
     state = {"title": title, "type": "metrics", "aggs": [], "params": params}
     return viz(vid, title, state, index_ref_on=False)
@@ -1686,7 +1704,7 @@ def build():
     now = {"timeRange": FLEET_NOW_RANGE}
     panels = [
         ("visualization", "alice-viz-header",          {"x": 0,  "y": 0, "w": 39, "h": 6}),
-        ("visualization", "alice-viz-live-lane",       {"x": 39, "y": 0, "w": 9,  "h": 6}),
+        ("visualization", "alice-viz-live-lane",       {"x": 39, "y": 0, "w": 9,  "h": 6}, live),
         ("visualization", "alice-viz-status-strip",    {"x": 0,  "y": 6, "w": 48, "h": 5}),
         ("visualization", "alice-viz-incident-header", {"x": 0,  "y": 11, "w": 48, "h": 8}),
         ("visualization", "alice-viz-open-incidents",  {"x": 0,  "y": 19, "w": 48, "h": 6}),
