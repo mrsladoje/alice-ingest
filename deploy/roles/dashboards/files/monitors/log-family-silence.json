@@ -1,0 +1,133 @@
+{
+  "type": "monitor",
+  "name": "log-family-silence",
+  "description": "Page when a whole log family stops arriving. Bucketed on family, so the entity is infologger, info or other rather than a host. This is the monitor that owns fleet-wide log silence, and the per-host share monitors defer to it: when fleet_count is 0 a host's share of fleet volume is undefined, not zero, so trend-*-volume skips the slice instead of turning one dead stream into one warning per host. Fires when the family produced rollup buckets in the last 24h, averaging >=50 docs per entity bucket, but none in the last 40m. The 24h precondition keeps a fresh deploy from paging on its own bootstrap, and the offset matches the trend monitors so a normal settle delay is never read as silence.",
+  "monitor_type": "bucket_level_monitor",
+  "enabled": true,
+  "schedule": {
+    "period": {
+      "interval": 10,
+      "unit": "MINUTES"
+    }
+  },
+  "inputs": [
+    {
+      "search": {
+        "indices": [
+          "trend-rollup"
+        ],
+        "query": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "term": {
+                    "entity_kind": "host"
+                  }
+                },
+                {
+                  "range": {
+                    "ts": {
+                      "gte": "{{period_end}}||-24h",
+                      "lte": "{{period_end}}",
+                      "format": "epoch_millis"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "aggregations": {
+            "composite_agg": {
+              "composite": {
+                "size": 20,
+                "sources": [
+                  {
+                    "family": {
+                      "terms": {
+                        "field": "family"
+                      }
+                    }
+                  }
+                ]
+              },
+              "aggregations": {
+                "recent": {
+                  "filter": {
+                    "range": {
+                      "ts": {
+                        "gte": "{{period_end}}||-40m",
+                        "lte": "{{period_end}}",
+                        "format": "epoch_millis"
+                      }
+                    }
+                  }
+                },
+                "rows": {
+                  "value_count": {
+                    "field": "ts"
+                  }
+                },
+                "docs": {
+                  "sum": {
+                    "field": "doc_count"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "triggers": [
+    {
+      "bucket_level_trigger": {
+        "name": "log-family-silence",
+        "severity": "1",
+        "condition": {
+          "buckets_path": {
+            "recent": "recent._count",
+            "rows": "rows",
+            "docs": "docs"
+          },
+          "parent_bucket_path": "composite_agg",
+          "script": {
+            "source": "double minDocs = 50.0; double minRows = 6.0; if (params.recent > 0) { return false; } if (params.rows < minRows) { return false; } if (params.docs <= 0) { return false; } return (params.docs / params.rows) >= minDocs;",
+            "lang": "painless"
+          }
+        },
+        "actions": [
+          {
+            "name": "notify",
+            "destination_id": "alice-incluster-alert-sink",
+            "subject_template": {
+              "source": "{{ctx.monitor.name}}",
+              "lang": "mustache"
+            },
+            "message_template": {
+              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_start\":\"{{ctx.periodStart}}\",\"period_end\":\"{{ctx.periodEnd}}\",\"entity_kind\":\"fleet\",\"notification_scope\":\"fleet\",\"feed\":\"logs\",\"delivery_path\":\"alertmanager\",\"entity\":\"{{#ctx.newAlerts}}{{{bucket_keys}}} {{/ctx.newAlerts}}\"}",
+              "lang": "mustache"
+            },
+            "throttle_enabled": true,
+            "throttle": {
+              "value": 30,
+              "unit": "MINUTES"
+            },
+            "action_execution_policy": {
+              "action_execution_scope": {
+                "per_alert": {
+                  "actionable_alerts": [
+                    "DEDUPED",
+                    "NEW"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

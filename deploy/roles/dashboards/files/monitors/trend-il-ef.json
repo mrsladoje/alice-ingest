@@ -1,7 +1,7 @@
 {
   "type": "monitor",
   "name": "trend-il-ef",
-  "description": "Warn when the InfoLogger per-host error share of that host's own volume rises. Metric is the error SHARE of this entity's own volume (error docs / all its docs), not an absolute count, so a host that doubles traffic and doubles errors stays quiet and does not double-alert alongside the volume monitor. Needs >=50 docs and >=10 error docs in every slice; a historically error-free entity is compared against a 0.1% floor instead of dividing by zero. Reads the trend-rollup 10m rollup, not raw logs: the 7d baseline is a few thousand tiny docs per entity. Dwell: fire only if the breach holds on 3 consecutive 10m rollup buckets (~30m), offset 10m so the newest bucket is always complete. Baseline 7d excluding the last 40m; 24h fallback when 7d is empty. Schedule 10m. Throttle 30m per alert key via alice-incluster-alert-sink. Every action payload names its entity, so a fleet-wide breach is attributable even when the plugin rewrites per_alert to per_execution above the actionable-alert limit.",
+  "description": "Warn when the InfoLogger per-host error share of that host's own volume rises. Metric is the error SHARE of this entity's own volume (error docs / all its docs), not an absolute count, so a host that doubles traffic and doubles errors stays quiet and does not double-alert alongside the volume monitor. Needs >=50 docs and >=10 error docs in every slice; a historically error-free entity is compared against a 0.1% floor instead of dividing by zero. Needs >=6 baseline buckets (60 minutes of history) before it may fire at all. A freshly created or freshly reset rollup otherwise offers a single partial first bucket as the 7d baseline, and every entity in the cohort breaches against it at once. Reads the trend-rollup 10m rollup, not raw logs: the 7d baseline is a few thousand tiny docs per entity. Dwell: fire only if the breach holds on 3 consecutive 10m rollup buckets (~30m), offset 10m so the newest bucket is always complete. Baseline 7d excluding the last 40m; 24h fallback when 7d is empty. Schedule 10m. Throttle 30m per alert key via alice-incluster-alert-sink. Every action payload names its entity, so a fleet-wide breach is attributable even when the plugin rewrites per_alert to per_execution above the actionable-alert limit.",
   "monitor_type": "bucket_level_monitor",
   "enabled": true,
   "schedule": {
@@ -196,11 +196,13 @@
             "b7_docs": "baseline_7d>docs",
             "b7_ef": "baseline_7d>ef",
             "b24_docs": "baseline_24h>docs",
-            "b24_ef": "baseline_24h>ef"
+            "b24_ef": "baseline_24h>ef",
+            "b7_buckets": "baseline_7d._count",
+            "b24_buckets": "baseline_24h._count"
           },
           "parent_bucket_path": "composite_agg",
           "script": {
-            "source": "double minDocs = 50.0; double minEf = 10.0; double minShare = 0.001; if (params.s0_docs < minDocs || params.s1_docs < minDocs || params.s2_docs < minDocs) { return false; } if (params.s0_ef < minEf || params.s1_ef < minEf || params.s2_ef < minEf) { return false; } double bd = params.b7_docs; double be = params.b7_ef; if (bd <= 0) { bd = params.b24_docs; be = params.b24_ef; } if (bd <= 0) { return false; } double base = be / bd; if (base < minShare) { base = minShare; } double r0 = (params.s0_ef / params.s0_docs) / base; double r1 = (params.s1_ef / params.s1_docs) / base; double r2 = (params.s2_ef / params.s2_docs) / base; return r0 >= 2.0 && r1 >= 2.0 && r2 >= 2.0;",
+            "source": "double minDocs = 50.0; double minEf = 10.0; double minBaselineBuckets = 6.0; double minShare = 0.001; if (params.s0_docs < minDocs || params.s1_docs < minDocs || params.s2_docs < minDocs) { return false; } if (params.s0_ef < minEf || params.s1_ef < minEf || params.s2_ef < minEf) { return false; } double bd = params.b7_docs; double be = params.b7_ef; double bb = params.b7_buckets; if (bd <= 0) { bd = params.b24_docs; be = params.b24_ef; bb = params.b24_buckets; } if (bd <= 0) { return false; } if (bb < minBaselineBuckets) { return false; } double base = be / bd; if (base < minShare) { base = minShare; } double r0 = (params.s0_ef / params.s0_docs) / base; double r1 = (params.s1_ef / params.s1_docs) / base; double r2 = (params.s2_ef / params.s2_docs) / base; return r0 >= 2.0 && r1 >= 2.0 && r2 >= 2.0;",
             "lang": "painless"
           }
         },

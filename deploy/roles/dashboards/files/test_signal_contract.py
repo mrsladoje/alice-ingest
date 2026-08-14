@@ -457,6 +457,47 @@ def test_cockpit_headlines_episodes_not_raw_detector_exhaust():
           f"{undeclared}. Vega resolves those to undefined and prints them on "
           f"the card rather than failing, so the typo reaches the operator.")
 
+    children = group_aggs.get("children", {}).get("terms", {})
+    check(children.get("field") == "entity_id"
+          and children.get("size", 0) > len(group_aggs["entities"]["terms"]),
+          "a card must carry its affected entities, not only a sample of "
+          "three; without them the board can never show what a group folded "
+          "in without a second query per card")
+    kid_aggs = group_aggs.get("children", {}).get("aggs", {})
+    check({"kid_last", "kid_open", "kid_stale"} <= set(kid_aggs),
+          "each child entity needs its own state and last-seen, or the "
+          "unfolded list repeats the parent card instead of separating the "
+          "entity that recovered from the one still open")
+    check("top_hits" not in json.dumps(kid_aggs),
+          "child rows must summarise with metric aggregations: a top_hits "
+          "per entity multiplies into hundreds of stored hits on every board "
+          "refresh")
+    check("group_id" in links.get("kidUrl", "")
+          and "entity_id" in links.get("kidUrl", ""),
+          "a child row must open that one entity's history, scoped to the "
+          "group and the entity; scoping to the group alone repeats DETAILS")
+
+    spec_obj = json.loads(spec)
+    signals = {s["name"]: s for s in spec_obj.get("signals", [])}
+    check("expandedKey" in signals,
+          "the board declares no expansion signal, so cards cannot unfold")
+    clicked = {e.get("markname")
+               for handler in signals.get("expandedKey", {}).get("on", [])
+               for e in handler.get("events", [])}
+    named = {m.get("name") for m in spec_obj["marks"][0].get("marks", [])}
+    check({"cardChevron", "cardTitle", "cardMeta", "cardDiag"} <= clicked,
+          "every drawn part of a card must answer the expand click. Vega "
+          "sends a click to the topmost mark only, so a handler on the card "
+          "background alone makes clicking the title do nothing.")
+    check(clicked <= named,
+          f"expand handlers name marks the board never draws: "
+          f"{sorted(clicked - named)}")
+    check("expandedRow" in signals and "expandedBlock" in signals
+          and "expandedBlock" in signals["contentHeight"]["update"],
+          "the scroll height must grow by the open card's children, or the "
+          "unfolded rows fall outside the scrollable area and cannot be "
+          "reached")
+
     import verify_detection as verify
     prior_path = verify.COCKPIT_NDJSON
     try:

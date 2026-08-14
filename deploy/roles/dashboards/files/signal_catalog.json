@@ -105,6 +105,13 @@
       "notification_scope": "fleet",
       "feed": "self"
     },
+    "log-family-silence": {
+      "entity_kind": "fleet",
+      "entity_source": "bucket_key",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "logs"
+    },
     "ad-high-grade": {
       "entity_kind": "fleet",
       "entity_source": "constant",

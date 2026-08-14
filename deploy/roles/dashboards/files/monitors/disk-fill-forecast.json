@@ -1,7 +1,7 @@
 {
   "type": "monitor",
   "name": "disk-fill-forecast",
-  "description": "Warn while there is still time to act: a node in the OpenSearch cluster is predicted to cross the disk warning watermark inside the forecast horizon. Fleet-scoped on purpose, exactly like ad-high-grade — the forecast result index stores its entity as a nested field, so a monitor cannot key per node without a flattened result index, and per-entity attribution is the signal projector's job. Restricted to real-time results (must_not exists task_id) so a backtest can never warn. Assumes disk-fill is the only forecaster; verify_detection.py fails the deploy on any forecaster missing from the signal catalog.",
+  "description": "Warn while there is still time to act: a node in the OpenSearch cluster is predicted to cross the disk warning watermark inside the forecast horizon. Fleet-scoped on purpose, exactly like ad-high-grade \u2014 the forecast result index stores its entity as a nested field, so a monitor cannot key per node without a flattened result index, and per-entity attribution is the signal projector's job. Restricted to real-time results (must_not exists task_id) so a backtest can never warn. Assumes disk-fill is the only forecaster; verify_detection.py fails the deploy on any forecaster missing from the signal catalog.",
   "monitor_type": "query_level_monitor",
   "enabled": true,
   "schedule": {

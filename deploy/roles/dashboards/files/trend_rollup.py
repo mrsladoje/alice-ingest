@@ -15,6 +15,7 @@ MAX_ENTITIES = int(os.environ.get("MAX_ENTITIES", "2000"))
 INTERVAL = int(os.environ.get("INTERVAL", str(BUCKET_SECONDS)))
 RETENTION_DAYS = int(os.environ.get("RETENTION_DAYS", "30"))
 PRUNE_EVERY_SECONDS = int(os.environ.get("PRUNE_EVERY_SECONDS", "3600"))
+SILENCE_MEMORY_SECONDS = int(os.environ.get("SILENCE_MEMORY_SECONDS", "86400"))
 
 ERROR_SEVERITIES = ["error", "fatal"]
 
@@ -208,6 +209,81 @@ def cohort_name(combo):
     return f"{combo['family']}.{combo['entity_kind']}"
 
 
+def recent_entities(combo, start_ms):
+    """Entities in this cohort that really logged inside the memory window.
+
+    Only rows carrying doc_count above zero count, so an imputed zero can
+    never keep an entity in its own roster and impute itself forever.
+    """
+    if SILENCE_MEMORY_SECONDS <= 0:
+        return set()
+    payload = {
+        "size": 0,
+        "track_total_hits": False,
+        "query": {"bool": {"filter": [
+            {"term": {"family": combo["family"]}},
+            {"term": {"entity_kind": combo["entity_kind"]}},
+            {"range": {
+                "ts": {"gte": start_ms - SILENCE_MEMORY_SECONDS * 1000,
+                       "lt": start_ms,
+                       "format": "epoch_millis"}}},
+            {"range": {"doc_count": {"gt": 0}}},
+        ]}},
+        "aggregations": {
+            "ents": {"terms": {"field": "entity", "size": MAX_ENTITIES}}},
+    }
+    status, body = req(
+        "POST", f"/{ROLLUP_INDEX}/_search?ignore_unavailable=true", payload)
+    if status != 200:
+        log(f"WARN {cohort_name(combo)}: silence roster query failed with "
+            f"HTTP {status} — this bucket imputes no zero rows, so a host "
+            f"that just went quiet stays invisible to the share monitors "
+            f"until the next bucket")
+        return None
+    agg = (body.get("aggregations") or {}).get("ents") or {}
+    return {b["key"] for b in agg.get("buckets") or []}
+
+
+def impute_silent(combo, start_ms, entities):
+    """Write doc_count 0 rows for entities that logged recently but not now.
+
+    The share monitors aggregate per entity. A host with no row at all
+    contributes no fleet_count either, so its slice looks identical to the
+    whole family stopping and the monitor cannot separate the two. A zero row
+    carrying the live fleet_count makes one silent host a real share of 0.
+
+    Deliberately does nothing when the cohort collected nothing: that is the
+    whole family stopping, which log-family-silence reports as one alert
+    instead of one per host.
+    """
+    if not entities:
+        return entities, 0, False
+    roster = recent_entities(combo, start_ms)
+    absent = sorted(roster - {e["entity"] for e in entities}) if roster else []
+    if not absent:
+        return entities, 0, False
+    room = max(0, MAX_ENTITIES - len(entities))
+    over_cap = len(absent) > room
+    if over_cap:
+        log(f"WARN {cohort_name(combo)}: {len(absent)} silent entities but "
+            f"room for {room} under the {MAX_ENTITIES} entity cap — the "
+            f"remainder is unmonitored and this bucket cannot commit complete")
+        absent = absent[:room]
+    filled = list(entities)
+    for name in absent:
+        filled.append({
+            "entity": name,
+            "doc_count": 0,
+            "ef_count": 0,
+            "p95_entry_lag_ms": None,
+            "p95_shipping_lag_ms": None,
+            "avg_entry_lag_ms": None,
+            "avg_shipping_lag_ms": None,
+            "imputed": True,
+        })
+    return filled, len(absent), over_cap
+
+
 def bulk_failures(status, body):
     if status not in (200, 201):
         return [{"reason": f"bulk HTTP {status}"}]
@@ -241,6 +317,8 @@ def entity_docs(combo, start_ms, entities):
                       "avg_entry_lag_ms", "avg_shipping_lag_ms"):
             if e[field] is not None:
                 doc[field] = e[field]
+        if e.get("imputed"):
+            doc["imputed"] = True
         doc_id = (f"{combo['family']}.{combo['entity_kind']}."
                   f"{e['entity']}.{start_ms}")
         lines.append(json.dumps(
@@ -251,7 +329,7 @@ def entity_docs(combo, start_ms, entities):
 
 
 def meta_docs(combo, start_ms, entity_count, fleet_count, fleet_ef_count,
-              truncated):
+              truncated, imputed_count=0):
     meta = {
         "ts": start_ms,
         "family": "_meta",
@@ -262,6 +340,7 @@ def meta_docs(combo, start_ms, entity_count, fleet_count, fleet_ef_count,
         "fleet_count": fleet_count,
         "fleet_ef_count": fleet_ef_count,
         "entity_count": entity_count,
+        "imputed_count": imputed_count,
         "truncated": truncated,
         "bucket_seconds": BUCKET_SECONDS,
     }
@@ -312,12 +391,13 @@ def roll_bucket(start_ms, end_ms):
                 f"are published, and the existing three-bucket backfill will "
                 f"retry it deterministically")
             return False
-        collected.append((combo, entities, truncated))
+        entities, imputed, over_cap = impute_silent(combo, start_ms, entities)
+        collected.append((combo, entities, truncated or over_cap, imputed))
 
     entity_lines = []
     stats = []
     summary = []
-    for combo, entities, truncated in collected:
+    for combo, entities, truncated, imputed in collected:
         lines, n, total, ef_total = entity_docs(combo, start_ms, entities)
         entity_lines.extend(lines)
         stats.append({
@@ -326,7 +406,8 @@ def roll_bucket(start_ms, end_ms):
             "doc_count": total,
             "truncated": truncated,
         })
-        summary.append(f"{cohort_name(combo)}={n}e/{total}d")
+        silent = f"/{imputed}z" if imputed else ""
+        summary.append(f"{cohort_name(combo)}={n}e{silent}/{total}d")
 
     if entity_lines:
         failures = bulk_failures(*bulk(entity_lines))
@@ -338,11 +419,11 @@ def roll_bucket(start_ms, end_ms):
             return False
 
     meta_lines = []
-    for (combo, entities, truncated), stat in zip(collected, stats):
+    for (combo, entities, truncated, imputed), stat in zip(collected, stats):
         fleet_ef = sum(e["ef_count"] for e in entities)
         meta_lines.extend(meta_docs(
             combo, start_ms, stat["entity_count"], stat["doc_count"],
-            fleet_ef, truncated))
+            fleet_ef, truncated, imputed))
     failures = bulk_failures(*bulk(meta_lines))
     if failures:
         log(f"bucket {start_ms}: {len(failures)} metadata rows rejected, "

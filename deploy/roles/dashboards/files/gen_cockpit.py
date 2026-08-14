@@ -17,6 +17,7 @@ SIGNALS_TITLE = "alice-signals"
 INCIDENT_HISTORY_LOOKBACK = "7d"
 GROUP_CARDS = 20
 GROUP_ENTITY_SAMPLES = 3
+GROUP_CHILD_ROWS = 25
 TIME_FIELD = "@timestamp"
 PANEL_VERSION = "3.7.0"
 
@@ -484,13 +485,30 @@ def _group_entity_list():
     return " + ".join(parts)
 
 
-def _episode_card_text(as_field, expr, dy, fill, size, bold=False,
+def _kid_href(search_id):
+    """Details for one entity inside a card: the group plus that entity."""
+    return ("'/app/data-explorer/discover#/view/" + search_id +
+            "?_g=(time:(from:now-" + INCIDENT_HISTORY_LOOKBACK + ",to:now))"
+            "&_q=(query:(language:kuery,query:\\'group_id:\"' + "
+            "datum.key + '\" and entity_id:\"' + datum.kid.key + '\"\\'))'")
+
+
+# Every mark on a card hangs off this one expression. A card below the open
+# one is pushed down by that card's child block, so unfolding a card moves the
+# rest of the board instead of drawing over it. One card opens at a time, so
+# the offset is a single signal rather than a running total per row.
+CARD_TOP = ("datum.row * (cardHeight + gap) + "
+            "(datum.row > expandedRow ? expandedBlock : 0) - scroll")
+KID_TOP = (CARD_TOP + " + cardHeight + childPad + "
+           "(datum.kidRank - 1) * childHeight")
+
+
+def _episode_card_text(name, as_field, expr, dy, fill, size, bold=False,
                        limit="cardWidth - 32"):
-    mark = {"type": "text", "from": {"data": "episodes"},
+    mark = {"type": "text", "name": name, "from": {"data": "episodes"},
             "encode": {"update": {
-                "x": {"value": 16},
-                "y": {"signal":
-                      "datum.row * (cardHeight + gap) - scroll + %d" % dy},
+                "x": {"value": 30},
+                "y": {"signal": CARD_TOP + " + %d" % dy},
                 "text": ({"field": as_field} if as_field
                          else {"signal": expr}),
                 "fill": {"value": fill},
@@ -508,8 +526,7 @@ def _episode_button(x_signal, label, href_field):
     rect = {"type": "rect", "from": {"data": "episodes"},
             "encode": {"update": {
                 "x": {"signal": x_signal},
-                "y": {"signal":
-                      "datum.row * (cardHeight + gap) - scroll + 11"},
+                "y": {"signal": CARD_TOP + " + 11"},
                 "width": {"value": 64},
                 "height": {"value": 20},
                 "cornerRadius": {"value": 4},
@@ -522,8 +539,7 @@ def _episode_button(x_signal, label, href_field):
     text = {"type": "text", "from": {"data": "episodes"},
             "encode": {"update": {
                 "x": {"signal": x_signal + " + 32"},
-                "y": {"signal":
-                      "datum.row * (cardHeight + gap) - scroll + 21"},
+                "y": {"signal": CARD_TOP + " + 21"},
                 "text": {"value": label},
                 "align": {"value": "center"},
                 "baseline": {"value": "middle"},
@@ -538,6 +554,87 @@ def _episode_button(x_signal, label, href_field):
     return [rect, text]
 
 
+def _chevron_marks():
+    """The expand affordance, and the marks that answer a click on the card.
+
+    Vega dispatches a click to the topmost mark under the pointer, so the
+    title, meta and diagnosis text all need their own handler entry or a
+    click that lands on a word does nothing. They share one update
+    expression because they share one datum — the group.
+    """
+    return [
+        {"type": "text", "name": "cardChevron", "from": {"data": "episodes"},
+         "encode": {"update": {
+             "x": {"value": 14},
+             "y": {"signal": CARD_TOP + " + 22"},
+             "text": {"signal": "datum.isOpen ? '▾' : '▸'"},
+             "align": {"value": "center"},
+             "baseline": {"value": "middle"},
+             "fill": {"value": "#006BB4"},
+             "font": {"value": FONT_STACK},
+             "fontSize": {"value": 13},
+             "cursor": {"value": "pointer"},
+             "opacity": {"signal": "datum.expandable ? 1 : 0"},
+         }}},
+    ]
+
+
+def _kid_marks():
+    row_fill = {"signal": "datum.kidState == 'RECOVERING' ? '#017D73' : "
+                          "datum.kidState == 'STALE' ? '#98A2B3' : '#343741'"}
+    return [
+        {"type": "rect", "name": "kidRow", "from": {"data": "kids"},
+         "encode": {"update": {
+             "x": {"value": 30},
+             "y": {"signal": KID_TOP},
+             "width": {"signal": "cardWidth - 46"},
+             "height": {"signal": "childHeight - 2"},
+             "cornerRadius": {"value": 3},
+             "fill": {"value": "#F5F7FA"},
+             "href": {"field": "kidUrl"},
+             "cursor": {"value": "pointer"},
+         }}},
+        {"type": "rect", "from": {"data": "kids"},
+         "encode": {"update": {
+             "x": {"value": 30},
+             "y": {"signal": KID_TOP},
+             "width": {"value": 3},
+             "height": {"signal": "childHeight - 2"},
+             "fill": {"field": "kidAccent"},
+         }}},
+        {"type": "text", "from": {"data": "kids"},
+         "encode": {"update": {
+             "x": {"value": 42},
+             "y": {"signal": KID_TOP + " + childHeight / 2 - 1"},
+             "text": {"field": "kidText"},
+             "baseline": {"value": "middle"},
+             "fill": row_fill,
+             "font": {"value": FONT_STACK},
+             "fontSize": {"value": 10},
+             "limit": {"signal": "cardWidth - 70"},
+             "href": {"field": "kidUrl"},
+             "cursor": {"value": "pointer"},
+         }}},
+        {"type": "text", "from": {"data": "kidsMore"},
+         "encode": {"update": {
+             "x": {"value": 42},
+             "y": {"signal":
+                   CARD_TOP + " + cardHeight + childPad + "
+                   "length(datum.kids) * childHeight + childHeight / 2 - 1"},
+             "text": {"signal":
+                      "'+' + (datum.entity_total.value - "
+                      "length(datum.kids)) + ' more — open DETAILS for the "
+                      "complete list'"},
+             "baseline": {"value": "middle"},
+             "fill": {"value": "#69707D"},
+             "font": {"value": FONT_STACK},
+             "fontSize": {"value": 10},
+             "fontStyle": {"value": "italic"},
+             "limit": {"signal": "cardWidth - 70"},
+         }}},
+    ]
+
+
 def incident_episode_board(vid, title):
     spec = {
         "$schema": "https://vega.github.io/schema/vega/v5.json",
@@ -547,11 +644,32 @@ def incident_episode_board(vid, title):
         "signals": [
             {"name": "gap", "value": 10},
             {"name": "cardHeight", "value": 68},
+            {"name": "childHeight", "value": 18},
+            {"name": "childPad", "value": 6},
             {"name": "cardWidth", "update": "width"},
             {"name": "cardRows", "update": "length(data('episodes'))"},
+            # The open card is held as its group_id, never as the datum: the
+            # panel refetches on every dashboard refresh, and a frozen datum
+            # would keep laying the board out from counts that no longer
+            # exist. A key survives the refetch and matches the new rows.
+            {"name": "expandedKey", "value": "",
+             "on": [{"events": [{"markname": "cardChevron", "type": "click"},
+                                {"markname": "cardHit", "type": "click"},
+                                {"markname": "cardTitle", "type": "click"},
+                                {"markname": "cardMeta", "type": "click"},
+                                {"markname": "cardDiag", "type": "click"}],
+                     "update": "datum.expandable ? "
+                               "(expandedKey == datum.key ? '' : datum.key) "
+                               ": expandedKey"}]},
+            {"name": "expandedRow",
+             "update": "length(data('openCards')) ? "
+                       "data('openCards')[0].row : -1"},
+            {"name": "expandedBlock",
+             "update": "length(data('openCards')) ? "
+                       "data('openCards')[0].kidBlock : 0"},
             {"name": "contentHeight",
              "update": "cardRows * cardHeight + "
-                       "max(0, cardRows - 1) * gap"},
+                       "max(0, cardRows - 1) * gap + expandedBlock"},
             {"name": "maxScroll", "update": "max(0, contentHeight - height)"},
             {"name": "scroll", "value": 0,
              "on": [
@@ -590,6 +708,27 @@ def incident_episode_board(vid, title):
                                 "terms": {"field": "entity_id",
                                           "size": GROUP_ENTITY_SAMPLES,
                                           "order": {"_key": "asc"}}},
+                            # The card's children. Fetched with the parents in
+                            # this one request, so expanding a card is layout,
+                            # not a second round trip. Metric sub-aggregations
+                            # only — a top_hits per child would multiply into
+                            # hundreds of stored hits for one board refresh.
+                            "children": {
+                                "terms": {"field": "entity_id",
+                                          "size": GROUP_CHILD_ROWS,
+                                          "order": {"kid_last": "desc"}},
+                                "aggs": {
+                                    "kid_last": {
+                                        "max": {"field": "last_seen"}},
+                                    "kid_grade": {
+                                        "max": {"field": "worst_grade"}},
+                                    "kid_open": {"filter": {"term": {
+                                        "episode_state": "OPEN"}}},
+                                    "kid_stale": {"filter": {"term": {
+                                        "episode_state": "STALE"}}},
+                                    "kid_page": {"filter": {"term": {
+                                        "severity": "page"}}},
+                                }},
                             "pages": {
                                 "filter": {"term": {"severity": "page"}}},
                             "opens": {
@@ -692,6 +831,63 @@ def incident_episode_board(vid, title):
                  "expr": _signals_href("alice-search-signals")},
                 {"type": "formula", "as": "detailsUrl",
                  "expr": _details_href("alice-search-incident-history")},
+                {"type": "formula", "as": "kids",
+                 "expr": "datum.children.buckets"},
+                # A one-entity card has nothing to unfold: its single child
+                # row would just repeat the card above it.
+                {"type": "formula", "as": "expandable",
+                 "expr": "length(datum.kids) > 1"},
+                {"type": "formula", "as": "isOpen",
+                 "expr": "datum.expandable && datum.key == expandedKey"},
+                {"type": "formula", "as": "kidRows",
+                 "expr": "datum.isOpen ? length(datum.kids) + "
+                         "(datum.entity_total.value > length(datum.kids) "
+                         "? 1 : 0) : 0"},
+                {"type": "formula", "as": "kidBlock",
+                 "expr": "datum.kidRows > 0 ? "
+                         "childPad * 2 + datum.kidRows * childHeight : 0"},
+            ],
+        }, {
+            "name": "openCards",
+            "source": "episodes",
+            "transform": [{"type": "filter", "expr": "datum.isOpen"}],
+        }, {
+            "name": "kids",
+            "source": "episodes",
+            "transform": [
+                {"type": "filter", "expr": "datum.isOpen"},
+                {"type": "flatten", "fields": ["kids"], "as": ["kid"]},
+                {"type": "window", "ops": ["row_number"], "as": ["kidRank"],
+                 "groupby": ["key"]},
+                {"type": "formula", "as": "kidState",
+                 "expr": "datum.kid.kid_open.doc_count > 0 ? 'OPEN' : "
+                         "datum.kid.kid_stale.doc_count > 0 ? 'STALE' : "
+                         "'RECOVERING'"},
+                {"type": "formula", "as": "kidAccent",
+                 "expr": "datum.kid.kid_page.doc_count > 0 ? '#BD271E' : "
+                         "datum.kidState == 'STALE' ? '#98A2B3' : "
+                         "datum.kidState == 'RECOVERING' ? '#017D73' : "
+                         "'#F5A700'"},
+                {"type": "formula", "as": "kidText",
+                 "expr": "datum.kid.key + '  ·  ' + datum.kidState + "
+                         "(datum.kid.kid_page.doc_count > 0 ? "
+                         "'  ·  PAGE' : '') + "
+                         "(datum.kid.kid_grade.value == null ? '' : "
+                         "'  ·  grade ' + "
+                         "format(datum.kid.kid_grade.value, '.3f')) + "
+                         "'  ·  last seen ' + "
+                         "timeFormat(toDate(datum.kid.kid_last.value), "
+                         "'%b %d %H:%M')"},
+                {"type": "formula", "as": "kidUrl",
+                 "expr": _kid_href("alice-search-incident-history")},
+            ],
+        }, {
+            "name": "kidsMore",
+            "source": "episodes",
+            "transform": [
+                {"type": "filter",
+                 "expr": "datum.isOpen && "
+                         "datum.entity_total.value > length(datum.kids)"},
             ],
         }],
         "marks": [
@@ -703,33 +899,51 @@ def incident_episode_board(vid, title):
                  "height": {"signal": "height"},
                  "clip": {"value": True}}},
              "marks": [
-                 {"type": "rect", "from": {"data": "episodes"},
+                 {"type": "rect", "name": "cardHit",
+                  "from": {"data": "episodes"},
                   "encode": {"update": {
                       "x": {"value": 0},
-                      "y": {"signal":
-                            "datum.row * (cardHeight + gap) - scroll"},
+                      "y": {"signal": CARD_TOP},
                       "width": {"signal": "cardWidth"},
                       "height": {"signal": "cardHeight"},
                       "fill": {"value": "#FFFFFF"},
                       "stroke": {"value": "#D3DAE6"},
                       "cornerRadius": {"value": 4},
+                      "cursor": {"signal":
+                                 "datum.expandable ? 'pointer' : 'default'"},
                   }}},
                  {"type": "rect", "from": {"data": "episodes"},
                   "encode": {"update": {
                       "x": {"value": 0},
-                      "y": {"signal":
-                            "datum.row * (cardHeight + gap) - scroll"},
+                      "y": {"signal": CARD_TOP},
                       "width": {"value": 4},
                       "height": {"signal": "cardHeight"},
                       "fill": {"field": "accent"},
                       "cornerRadius": {"value": 4},
                   }}},
-             ] + _episode_card_text("titleText", None, 18, "#343741", 13,
-                                    bold=True,
-                                    limit="cardWidth - 190")
-               + _episode_card_text(None, "datum.meta + datum.score", 37,
+                 # The open card's children are drawn in a tinted well that
+                 # runs from the card's bottom edge to the last child row, so
+                 # a long list still reads as belonging to one card.
+                 {"type": "rect", "from": {"data": "openCards"},
+                  "encode": {"update": {
+                      "x": {"value": 12},
+                      "y": {"signal": CARD_TOP + " + cardHeight"},
+                      "width": {"signal": "cardWidth - 12"},
+                      "height": {"signal": "datum.kidBlock"},
+                      "fill": {"value": "#FAFBFD"},
+                      "stroke": {"value": "#D3DAE6"},
+                      "cornerRadius": {"value": 4},
+                  }}},
+             ] + _chevron_marks()
+               + _episode_card_text("cardTitle", "titleText", None, 18,
+                                    "#343741", 13, bold=True,
+                                    limit="cardWidth - 204")
+               + _episode_card_text("cardMeta", None,
+                                    "datum.meta + datum.score", 37,
                                     "#69707D", 10)
-               + _episode_card_text("diagText", None, 55, "#343741", 11)
+               + _episode_card_text("cardDiag", "diagText", None, 55,
+                                    "#343741", 11)
+               + _kid_marks()
                + _episode_button("cardWidth - 162", "SIGNALS", "signalsUrl")
                + _episode_button("cardWidth - 90", "DETAILS", "detailsUrl")},
             {"type": "rect",
@@ -1386,6 +1600,13 @@ def build():
                  "one card, not 40. Per-entity state is still its own episode "
                  "document — the count on the card says how many were folded "
                  "in.\n\n"
+                 "**Click a card to unfold it.** The ▸ chevron opens the "
+                 "affected entities in place, newest first, each with its own "
+                 "state, worst grade and last-seen time. One card is open at "
+                 "a time, and a child row opens that single entity's history. "
+                 f"The list stops at {GROUP_CHILD_ROWS} entities; past that "
+                 "the card says how many more there are and DETAILS has the "
+                 "complete list.\n\n"
                  "**SIGNALS** opens every raw row behind the whole group; "
                  "filter the `entity_id` field there to read one EPN. "
                  "**DETAILS** opens one row per affected entity, each with "
@@ -1411,37 +1632,37 @@ def build():
         ("visualization", "alice-viz-header",          {"x": 0,  "y": 0, "w": 39, "h": 6}),
         ("visualization", "alice-viz-live-lane",       {"x": 39, "y": 0, "w": 9,  "h": 6}),
         ("visualization", "alice-viz-status-strip",    {"x": 0,  "y": 6, "w": 48, "h": 5}),
-        ("visualization", "alice-viz-incident-header", {"x": 0,  "y": 11, "w": 48, "h": 6}),
-        ("visualization", "alice-viz-open-incidents",  {"x": 0,  "y": 17, "w": 48, "h": 6}),
-        ("visualization", "alice-viz-incidents",       {"x": 0,  "y": 23, "w": 48, "h": 22}),
-        ("visualization", "alice-viz-detect-header",   {"x": 0,  "y": 45, "w": 48, "h": 5}),
-        ("visualization", "alice-viz-health-header",   {"x": 0,  "y": 50, "w": 48, "h": 3}),
-        ("visualization", "alice-viz-cluster-status",  {"x": 0,  "y": 53, "w": 12, "h": 8}, live),
-        ("visualization", "alice-viz-unassigned",      {"x": 12, "y": 53, "w": 12, "h": 8}, live),
-        ("visualization", "alice-viz-osd-status",      {"x": 24, "y": 53, "w": 12, "h": 8}, live),
-        ("visualization", "alice-viz-health-links",    {"x": 36, "y": 53, "w": 12, "h": 8}),
-        ("visualization", "alice-viz-fleet-header",    {"x": 0,  "y": 61, "w": 48, "h": 4}),
-        ("visualization", "alice-viz-fleet-total",     {"x": 0,  "y": 65, "w": 12, "h": 7}, now),
-        ("visualization", "alice-viz-fleet-healthy",   {"x": 12, "y": 65, "w": 12, "h": 7}, now),
-        ("visualization", "alice-viz-fleet-degraded",  {"x": 24, "y": 65, "w": 12, "h": 7}, now),
-        ("visualization", "alice-viz-fleet-down",      {"x": 36, "y": 65, "w": 12, "h": 7}, now),
-        ("visualization", "alice-viz-fb-unhealthy",    {"x": 0,  "y": 72, "w": 24, "h": 12}, live),
-        ("visualization", "alice-viz-fb-worst",        {"x": 24, "y": 72, "w": 24, "h": 12}, live),
-        ("visualization", "alice-viz-fb-picker",       {"x": 0,  "y": 84, "w": 12, "h": 8}, live),
-        ("visualization", "alice-viz-fb-throughput",   {"x": 12, "y": 84, "w": 18, "h": 12}, live),
-        ("visualization", "alice-viz-fb-trouble",      {"x": 30, "y": 84, "w": 18, "h": 12}, live),
-        ("visualization", "alice-viz-ingest-rate",     {"x": 0,  "y": 96, "w": 24, "h": 12}, live),
-        ("visualization", "alice-viz-index-size",      {"x": 24, "y": 96, "w": 24, "h": 12}, live),
-        ("visualization", "alice-viz-index-health",    {"x": 0,  "y": 108, "w": 16, "h": 12}, live),
-        ("visualization", "alice-viz-node-heap",       {"x": 16, "y": 108, "w": 16, "h": 12}, live),
-        ("visualization", "alice-viz-osd-perf",        {"x": 32, "y": 108, "w": 16, "h": 12}, live),
-        ("visualization", "alice-viz-log-header",      {"x": 0,  "y": 120, "w": 48, "h": 4}),
-        ("visualization", "alice-viz-total",           {"x": 0,  "y": 124, "w": 16, "h": 8}),
-        ("visualization", "alice-viz-errwarn",         {"x": 16, "y": 124, "w": 16, "h": 8}),
-        ("visualization", "alice-viz-bysource",        {"x": 32, "y": 124, "w": 16, "h": 8}),
-        ("visualization", "alice-viz-sev-time",        {"x": 0,  "y": 132, "w": 48, "h": 12}),
-        ("visualization", "alice-viz-top-hosts",       {"x": 0,  "y": 144, "w": 24, "h": 12}),
-        ("visualization", "alice-viz-top-systems",     {"x": 24, "y": 144, "w": 24, "h": 12}),
+        ("visualization", "alice-viz-incident-header", {"x": 0,  "y": 11, "w": 48, "h": 8}),
+        ("visualization", "alice-viz-open-incidents",  {"x": 0,  "y": 19, "w": 48, "h": 6}),
+        ("visualization", "alice-viz-incidents",       {"x": 0,  "y": 25, "w": 48, "h": 22}),
+        ("visualization", "alice-viz-detect-header",   {"x": 0,  "y": 47, "w": 48, "h": 5}),
+        ("visualization", "alice-viz-health-header",   {"x": 0,  "y": 52, "w": 48, "h": 3}),
+        ("visualization", "alice-viz-cluster-status",  {"x": 0,  "y": 55, "w": 12, "h": 8}, live),
+        ("visualization", "alice-viz-unassigned",      {"x": 12, "y": 55, "w": 12, "h": 8}, live),
+        ("visualization", "alice-viz-osd-status",      {"x": 24, "y": 55, "w": 12, "h": 8}, live),
+        ("visualization", "alice-viz-health-links",    {"x": 36, "y": 55, "w": 12, "h": 8}),
+        ("visualization", "alice-viz-fleet-header",    {"x": 0,  "y": 63, "w": 48, "h": 4}),
+        ("visualization", "alice-viz-fleet-total",     {"x": 0,  "y": 67, "w": 12, "h": 7}, now),
+        ("visualization", "alice-viz-fleet-healthy",   {"x": 12, "y": 67, "w": 12, "h": 7}, now),
+        ("visualization", "alice-viz-fleet-degraded",  {"x": 24, "y": 67, "w": 12, "h": 7}, now),
+        ("visualization", "alice-viz-fleet-down",      {"x": 36, "y": 67, "w": 12, "h": 7}, now),
+        ("visualization", "alice-viz-fb-unhealthy",    {"x": 0,  "y": 74, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-fb-worst",        {"x": 24, "y": 74, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-fb-picker",       {"x": 0,  "y": 86, "w": 12, "h": 8}, live),
+        ("visualization", "alice-viz-fb-throughput",   {"x": 12, "y": 86, "w": 18, "h": 12}, live),
+        ("visualization", "alice-viz-fb-trouble",      {"x": 30, "y": 86, "w": 18, "h": 12}, live),
+        ("visualization", "alice-viz-ingest-rate",     {"x": 0,  "y": 98, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-index-size",      {"x": 24, "y": 98, "w": 24, "h": 12}, live),
+        ("visualization", "alice-viz-index-health",    {"x": 0,  "y": 110, "w": 16, "h": 12}, live),
+        ("visualization", "alice-viz-node-heap",       {"x": 16, "y": 110, "w": 16, "h": 12}, live),
+        ("visualization", "alice-viz-osd-perf",        {"x": 32, "y": 110, "w": 16, "h": 12}, live),
+        ("visualization", "alice-viz-log-header",      {"x": 0,  "y": 122, "w": 48, "h": 4}),
+        ("visualization", "alice-viz-total",           {"x": 0,  "y": 126, "w": 16, "h": 8}),
+        ("visualization", "alice-viz-errwarn",         {"x": 16, "y": 126, "w": 16, "h": 8}),
+        ("visualization", "alice-viz-bysource",        {"x": 32, "y": 126, "w": 16, "h": 8}),
+        ("visualization", "alice-viz-sev-time",        {"x": 0,  "y": 134, "w": 48, "h": 12}),
+        ("visualization", "alice-viz-top-hosts",       {"x": 0,  "y": 146, "w": 24, "h": 12}),
+        ("visualization", "alice-viz-top-systems",     {"x": 24, "y": 146, "w": 24, "h": 12}),
     ]
     objects.append(dashboard(panels))
     return objects

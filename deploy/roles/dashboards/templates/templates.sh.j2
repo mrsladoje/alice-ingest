@@ -440,6 +440,8 @@ TREND_ROLLUP_TPL=$(cat <<'JSON'
         "fleet_count":           { "type": "long" },
         "fleet_ef_count":        { "type": "long" },
         "entity_count":          { "type": "integer" },
+        "imputed":               { "type": "boolean" },
+        "imputed_count":         { "type": "integer" },
         "truncated":             { "type": "boolean" },
         "bucket_seconds":        { "type": "integer" },
         "complete":              { "type": "boolean" },

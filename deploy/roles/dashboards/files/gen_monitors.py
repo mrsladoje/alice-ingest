@@ -30,6 +30,7 @@ BUCKET_MINUTES = 10
 DWELL_SLICES = 3
 MIN_SLICE_DOCS = 50
 MIN_SLICE_ERRORS = 10
+MIN_BASELINE_BUCKETS = 6
 
 B = BUCKET_MINUTES
 OFFSET = f"-{B * (DWELL_SLICES + 1)}m"
@@ -240,6 +241,46 @@ monitors.append(bucket_monitor(
     {"min_heap": "min_heap"},
     "params.min_heap > 90", "2", 1, "os_node", FLEET_COMPOSITE_SIZE))
 
+monitors.append(bucket_monitor(
+    "admission-rejections",
+    "Fire when an OpenSearch node rejected a _search or _bulk request under "
+    "CPU admission control in the last five minutes. Bucketed on os_node. "
+    "Admission control is an emergency valve set at the 95 percent default, "
+    "so any rejection means the node shed real load: a rejected detector "
+    "query is a missing detection interval and a rejected bulk is dropped "
+    "records. " + ENTITY_NOTE,
+    METRICS, kind_window("node", 5),
+    {"rejections": {"sum": {"field": "admission_rejections_delta"}}},
+    {"rejections": "rejections"},
+    "params.rejections > 0", "2", 1, "os_node", FLEET_COMPOSITE_SIZE))
+
+monitors.append(query_monitor(
+    "disk-fill-forecast",
+    "Warn while there is still time to act: a node in the OpenSearch cluster "
+    "is predicted to cross the disk warning watermark inside the forecast "
+    "horizon. Fleet-scoped on purpose, exactly like ad-high-grade — the "
+    "forecast result index stores its entity as a nested field, so a monitor "
+    "cannot key per node without a flattened result index, and per-entity "
+    "attribution is the signal projector's job. Restricted to real-time "
+    "results (must_not exists task_id) so a backtest can never warn. Assumes "
+    "disk-fill is the only forecaster; verify_detection.py fails the deploy "
+    "on any forecaster missing from the signal catalog.",
+    "opensearch-forecast-results*",
+    {"size": 1,
+     "sort": [{"forecast_value": {"order": "desc"}}],
+     "query": {"bool": {
+         "filter": [{"range": {"execution_end_time": {
+             "gte": "{{period_end}}||-1h",
+             "lte": "{{period_end}}",
+             "format": "epoch_millis"}}}],
+         "must_not": [{"exists": {"field": "task_id"}}]}},
+     "aggregations": {"max_forecast": {"max": {"field": "forecast_value"}}}},
+    "double diskThreshold = 85.0;"
+    " if (ctx.results[0].hits.total.value == 0) { return false; }"
+    " def peak = ctx.results[0].aggregations.max_forecast.value;"
+    " return peak != null && peak > diskThreshold;",
+    "2", 10, "all"))
+
 monitors.append(query_monitor(
     "cluster-red",
     "Page when the cluster reports red. Entity is constant — the deployment "
@@ -341,6 +382,7 @@ BUCKETS_PATHS = {
         "s2_docs": "slice2>docs", "s2_fleet": "slice2>fleet",
         "b7_docs": "baseline_7d>docs", "b7_fleet": "baseline_7d>fleet",
         "b24_docs": "baseline_24h>docs", "b24_fleet": "baseline_24h>fleet",
+        "b7_buckets": "baseline_7d._count",
         "b24_buckets": "baseline_24h._count",
     },
     "ef": {
@@ -349,27 +391,36 @@ BUCKETS_PATHS = {
         "s2_docs": "slice2>docs", "s2_ef": "slice2>ef",
         "b7_docs": "baseline_7d>docs", "b7_ef": "baseline_7d>ef",
         "b24_docs": "baseline_24h>docs", "b24_ef": "baseline_24h>ef",
+        "b7_buckets": "baseline_7d._count",
+        "b24_buckets": "baseline_24h._count",
     },
     "lag": {
         "s0_lag": "slice0>lag", "s1_lag": "slice1>lag", "s2_lag": "slice2>lag",
         "s0_docs": "slice0>docs", "s1_docs": "slice1>docs",
         "s2_docs": "slice2>docs",
         "b7_lag": "baseline_7d>lag", "b24_lag": "baseline_24h>lag",
+        "b7_buckets": "baseline_7d._count",
+        "b24_buckets": "baseline_24h._count",
     },
 }
 
 VOLUME_SCRIPT = (
     "double minDocs = {min_docs};"
+    " double minBaselineBuckets = {min_baseline};"
     " double f0 = params.s0_fleet; double f1 = params.s1_fleet;"
     " double f2 = params.s2_fleet;"
+    " if (f0 <= 0 || f1 <= 0 || f2 <= 0) {{ return false; }}"
     " double bd = params.b7_docs; double bf = params.b7_fleet;"
-    " if (bf <= 0) {{ bd = params.b24_docs; bf = params.b24_fleet; }}"
+    " double bb = params.b7_buckets;"
+    " if (bf <= 0) {{ bd = params.b24_docs; bf = params.b24_fleet;"
+    " bb = params.b24_buckets; }}"
     " if (bf <= 0) {{ return false; }}"
+    " if (bb < minBaselineBuckets) {{ return false; }}"
     " double base = bd / bf;"
     " if (base <= 0) {{ return false; }}"
-    " double sh0 = f0 > 0 ? params.s0_docs / f0 : 0.0;"
-    " double sh1 = f1 > 0 ? params.s1_docs / f1 : 0.0;"
-    " double sh2 = f2 > 0 ? params.s2_docs / f2 : 0.0;"
+    " double sh0 = params.s0_docs / f0;"
+    " double sh1 = params.s1_docs / f1;"
+    " double sh2 = params.s2_docs / f2;"
     " double r0 = sh0 / base; double r1 = sh1 / base; double r2 = sh2 / base;"
     " boolean hi = params.s0_docs >= minDocs && params.s1_docs >= minDocs"
     " && params.s2_docs >= minDocs && r0 >= 2.0 && r1 >= 2.0 && r2 >= 2.0;"
@@ -382,14 +433,18 @@ VOLUME_SCRIPT = (
 
 EF_SCRIPT = (
     "double minDocs = {min_docs}; double minEf = {min_ef};"
+    " double minBaselineBuckets = {min_baseline};"
     " double minShare = 0.001;"
     " if (params.s0_docs < minDocs || params.s1_docs < minDocs"
     " || params.s2_docs < minDocs) {{ return false; }}"
     " if (params.s0_ef < minEf || params.s1_ef < minEf"
     " || params.s2_ef < minEf) {{ return false; }}"
     " double bd = params.b7_docs; double be = params.b7_ef;"
-    " if (bd <= 0) {{ bd = params.b24_docs; be = params.b24_ef; }}"
+    " double bb = params.b7_buckets;"
+    " if (bd <= 0) {{ bd = params.b24_docs; be = params.b24_ef;"
+    " bb = params.b24_buckets; }}"
     " if (bd <= 0) {{ return false; }}"
+    " if (bb < minBaselineBuckets) {{ return false; }}"
     " double base = be / bd;"
     " if (base < minShare) {{ base = minShare; }}"
     " double r0 = (params.s0_ef / params.s0_docs) / base;"
@@ -408,9 +463,13 @@ LAG_SCRIPT = (
     " if (params.s0_lag < lagFloor || params.s1_lag < lagFloor"
     " || params.s2_lag < lagFloor) { return false; }"
     "__CEILING__"
-    " double base = (params.b7_lag != null && params.b7_lag > 0)"
+    " double minBaselineBuckets = __MIN_BASELINE__;"
+    " boolean weekly = params.b7_lag != null && params.b7_lag > 0;"
+    " double base = weekly"
     " ? params.b7_lag : ((params.b24_lag != null) ? params.b24_lag : 0);"
+    " double bb = weekly ? params.b7_buckets : params.b24_buckets;"
     " if (base <= 0) { return false; }"
+    " if (bb < minBaselineBuckets) { return false; }"
     " return (params.s0_lag / base) >= 2.0"
     " && (params.s1_lag / base) >= 2.0 && (params.s2_lag / base) >= 2.0;"
 )
@@ -434,11 +493,22 @@ SHARE_NOTE = (
     "Metric is this entity's SHARE of fleet volume (its docs / all docs in "
     "the same 10m bucket), so a fleet-wide ramp such as run start cancels "
     "out and only a disproportionate host fires. Rising 2x share, collapse "
-    "<=0.5x share - all three slices the same direction. An entity absent "
-    "from a slice counts as share 0, so full silence is caught. Rising "
-    "needs >={min_docs} docs in every slice and collapse needs a 24h "
-    "baseline averaging >={min_docs} docs per present bucket, which is also "
-    "the retired-host guard."
+    "<=0.5x share - all three slices the same direction. A host that goes "
+    "quiet while its peers keep logging is caught, because the rollup keeps "
+    "writing it a doc_count 0 row carrying the live fleet_count, so its "
+    "share really is 0. A slice with fleet_count 0 is skipped instead: that "
+    "means the whole family stopped, the share is undefined rather than "
+    "zero, and turning one dead stream into one alert per host is what "
+    "log-family-silence exists for. Rising needs >={min_docs} docs in every "
+    "slice and collapse needs a 24h baseline averaging >={min_docs} docs per "
+    "present bucket, which is also the retired-host guard."
+)
+
+BASELINE_NOTE = (
+    "Needs >={min_baseline} baseline buckets ({baseline_minutes} minutes of "
+    "history) before it may fire at all. A freshly created or freshly reset "
+    "rollup otherwise offers a single partial first bucket as the 7d "
+    "baseline, and every entity in the cohort breaches against it at once."
 )
 
 EF_NOTE = (
@@ -542,9 +612,14 @@ for name, family, kind, label in [
         name,
         f"Warn when {label} log volume share spikes or collapses. "
         + SHARE_NOTE.format(min_docs=MIN_SLICE_DOCS) + " "
+        + BASELINE_NOTE.format(
+            min_baseline=MIN_BASELINE_BUCKETS,
+            baseline_minutes=MIN_BASELINE_BUCKETS * B) + " "
         + DWELL.format(rollup=ROLLUP) + " " + ENTITY_NOTE,
         family, kind, "volume",
-        VOLUME_SCRIPT.format(min_docs=f"{MIN_SLICE_DOCS}.0"), "volume"))
+        VOLUME_SCRIPT.format(min_docs=f"{MIN_SLICE_DOCS}.0",
+                             min_baseline=f"{MIN_BASELINE_BUCKETS}.0"),
+        "volume"))
 
 for name, family, kind, label in [
     ("trend-il-ef", "infologger", "host", "InfoLogger per-host error"),
@@ -555,10 +630,14 @@ for name, family, kind, label in [
         name,
         f"Warn when the {label} share of that host's own volume rises. "
         + EF_NOTE.format(min_docs=MIN_SLICE_DOCS, min_ef=MIN_SLICE_ERRORS)
+        + " " + BASELINE_NOTE.format(
+            min_baseline=MIN_BASELINE_BUCKETS,
+            baseline_minutes=MIN_BASELINE_BUCKETS * B)
         + " " + DWELL.format(rollup=ROLLUP) + " " + ENTITY_NOTE,
         family, kind, "ef",
         EF_SCRIPT.format(min_docs=f"{MIN_SLICE_DOCS}.0",
-                         min_ef=f"{MIN_SLICE_ERRORS}.0"), "ef"))
+                         min_ef=f"{MIN_SLICE_ERRORS}.0",
+                         min_baseline=f"{MIN_BASELINE_BUCKETS}.0"), "ef"))
 
 for name, family, kind, label, metric, field, extra in [
     ("trend-il-entry-lag", "infologger", "host", "InfoLogger per-host",
@@ -575,9 +654,49 @@ for name, family, kind, label, metric, field, extra in [
         name,
         f"Warn when {label} p95 {field} rises. "
         + LAG_NOTE.format(lag_field=field, floor=250)
+        + " " + BASELINE_NOTE.format(
+            min_baseline=MIN_BASELINE_BUCKETS,
+            baseline_minutes=MIN_BASELINE_BUCKETS * B)
         + " " + DWELL.format(rollup=ROLLUP) + " " + ENTITY_NOTE + extra,
         family, kind, metric,
-        LAG_SCRIPT.replace("__CEILING__", ceiling), "lag"))
+        LAG_SCRIPT.replace("__CEILING__", ceiling)
+                  .replace("__MIN_BASELINE__", f"{MIN_BASELINE_BUCKETS}.0"),
+        "lag"))
+
+monitors.append(bucket_monitor(
+    "log-family-silence",
+    "Page when a whole log family stops arriving. Bucketed on family, so the "
+    "entity is infologger, info or other rather than a host. This is the "
+    "monitor that owns fleet-wide log silence, and the per-host share "
+    "monitors defer to it: when fleet_count is 0 a host's share of fleet "
+    "volume is undefined, not zero, so trend-*-volume skips the slice "
+    "instead of turning one dead stream into one warning per host. Fires "
+    f"when the family produced rollup buckets in the last 24h, averaging "
+    f">={MIN_SLICE_DOCS} docs per entity bucket, but none in the last "
+    f"{B * (DWELL_SLICES + 1)}m. The 24h precondition keeps a fresh deploy "
+    "from paging on its own bootstrap, and the offset matches the trend "
+    "monitors so a normal settle delay is never read as silence.",
+    ROLLUP,
+    {"bool": {"filter": [
+        {"term": {"entity_kind": "host"}},
+        {"range": {"ts": {
+            "gte": "{{period_end}}||-24h",
+            "lte": "{{period_end}}",
+            "format": "epoch_millis"}}}]}},
+    {"recent": {"filter": {"range": {"ts": {
+        "gte": "{{period_end}}||" + OFFSET,
+        "lte": "{{period_end}}",
+        "format": "epoch_millis"}}}},
+     "rows": {"value_count": {"field": "ts"}},
+     "docs": {"sum": {"field": "doc_count"}}},
+    {"recent": "recent._count", "rows": "rows", "docs": "docs"},
+    f"double minDocs = {MIN_SLICE_DOCS}.0;"
+    f" double minRows = {MIN_BASELINE_BUCKETS}.0;"
+    " if (params.recent > 0) { return false; }"
+    " if (params.rows < minRows) { return false; }"
+    " if (params.docs <= 0) { return false; }"
+    " return (params.docs / params.rows) >= minDocs;",
+    "1", B, "family", 20))
 
 monitors.append(query_monitor(
     "trend-rollup-stale",

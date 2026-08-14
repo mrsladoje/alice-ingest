@@ -262,6 +262,7 @@ monitors:
 
 contract:
 	$(DEPLOY_PYTHON) deploy/roles/dashboards/files/test_poison_replay.py
+	$(DEPLOY_PYTHON) deploy/roles/dashboards/files/test_trend_rollup.py
 	$(DEPLOY_PYTHON) deploy/roles/dashboards/files/test_signal_contract.py
 
 status:

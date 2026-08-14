@@ -96,6 +96,14 @@ MONITOR_PRESENTATION = {
         "last two minutes.",
         "Look for a shared credential, network, destination, or deployment "
         "failure before treating collectors individually."),
+    "log-family-silence": (
+        "The {entity} log stream stopped",
+        "{entity} logs were arriving steadily for the last 24 hours, then "
+        "every host stopped at once, with no complete 10-minute bucket in "
+        "the last 40 minutes.",
+        "Treat this as one fault, not one per host. Check the producers, the "
+        "replay, and the collectors for {entity} before reading any per-host "
+        "volume alert."),
     "ad-high-grade": (
         "High-confidence fleet anomaly",
         "A real-time anomaly exceeded grade 0.7 and confidence 0.7 during the "

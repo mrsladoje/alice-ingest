@@ -607,6 +607,7 @@ is applied.
 | `heap-spiral` | heap > 90% for 5 min on an `os_node` | GC death spiral risk; check load / queries |
 | `telemetry-silence` | no `kind:cluster` **and** no `kind:osd` docs for 5 min | `alice-metrics` poller dead on control host |
 | `fleet-fb-silence` | ≥ 50% of the roster missing heartbeats at once | Whole-fleet cause: credentials, network, OpenSearch rejecting writes |
+| `log-family-silence` | a whole log family (`infologger`, `info`, `other`) produced rollup buckets for 24 h and then none for 40 min | The stream stopped: producers, replay, or the collectors for that family. **Read this before any per-host volume alert** |
 | `ad-high-grade` | real-time RCF anomaly grade/confidence high | Open Anomaly Detection UI; correlate with Layer 0 |
 | `signal-projector-stale` | `alice-signal-projector` stopped | **Break-glass** page. Nothing is re-sending to Alertmanager, so live incidents are resolving themselves |
 | `alertmanager-down` | the projector cannot reach Alertmanager | **Break-glass** page. Alertmanager does not persist alerts |
@@ -784,6 +785,32 @@ Generic families do not have this problem: DDS is **2,013 objects, one per EPN, 
 | `trend-info-shipping-lag` | `generic-log-info-*` | `node` | p95 `ingest_lag_ms` | yes |
 | `trend-rollup-stale` | — | — | rollup heartbeat absent 40 min | yes |
 | `trend-entity-cap` | — | — | entity ceiling approached | yes |
+| `log-family-silence` | all three | `family` | family produced no rollup bucket for 40 min | yes |
+
+**Share-of-fleet has a zero denominator, and it is not a share of zero.** The
+share monitors ask "what fraction of the family's records came from this
+host". When the family stops entirely there is no fraction to compute. Reading
+that as a share of 0 fires the collapse branch for every host at once, so one
+dead stream arrives as one warning per EPN — 167 of them on the 2026-08-14
+poison run, folded into one card that no longer named the cause. The monitors
+now skip a slice whose `fleet_count` is 0, and `log-family-silence` owns that
+case as a single page naming the family.
+
+Telling the two apart is the **rollup's** job, not the monitor's: a host with
+no rollup row contributes no `fleet_count` either, so inside a per-entity
+aggregation "this host went quiet" and "everything went quiet" are the same
+numbers. `trend_rollup.py` therefore writes a `doc_count: 0` row (flagged
+`imputed: true`) for any entity that logged within `SILENCE_MEMORY_SECONDS`
+(24 h) but wrote nothing this bucket — and writes nothing at all when the
+cohort collected nothing, which is the family-silent case. Only rows with
+`doc_count > 0` count toward that roster, so an imputed zero can never keep an
+entity alive and re-impute itself forever. Steady state writes no extra rows.
+
+**The share monitors also need a baseline wide enough to mean something.** The
+7-day baseline window is real history in production, but a freshly reset
+rollup offers a single partial first bucket, and every entity in the cohort
+breaches against it at once. All trend monitors now require
+`MIN_BASELINE_BUCKETS` (6 buckets, one hour) before they may fire.
 
 **Entry-lag monitors gate themselves — no cutover step.** Entry lag is
 `collector_time − @timestamp`: under preserved June replay that is *archive age*,
@@ -1134,6 +1161,28 @@ opens `alice-signals` filtered to the group over the group's own window;
 filtering the `entity_id` field there narrows to one EPN. **DETAILS** opens one
 row per affected entity. The projector heartbeat records `incident_groups` and
 `incident_group_max`, so the fold ratio is measurable rather than assumed.
+
+**A card unfolds in place.** Grouping answers "how many cards", but it left
+"which entities" behind a tab switch. Clicking a card expands it to a list of
+its affected entities, newest first, each with its own episode state, worst
+grade and last-seen time, and each linking to that one entity's history. The
+children ride along in the **same** aggregation as the parents — a second-level
+`terms` on `entity_id` under the `group_id` terms, with metric sub-aggregations
+only — so unfolding is layout, never a second round trip. A `top_hits` per
+child was rejected: at 20 cards it stores hundreds of hits on every 30-second
+board refresh. The list stops at `GROUP_CHILD_ROWS` (25) and says how many more
+exist; DETAILS remains the complete list.
+
+Two Vega details are load-bearing. One card is open at a time, so the vertical
+offset is a signal read off the open row rather than a running total per row —
+a `window` transform with `frame: [null, -1]` returned the whole partition sum
+for every row, including the open one, which drew children straight through the
+card below. And the expand handler names *every* text mark on the card, not
+just the background rect: Vega dispatches a click to the topmost mark only, so
+a handler on the background alone makes clicking the title do nothing. The
+open card is held as its `group_id`, never as the datum, because the panel
+refetches on every refresh and a frozen datum would lay the board out from
+counts that no longer exist.
 
 Three independent guards stand behind that board, because each of its failures
 is silent. `hydrate_patterns.py` fails the deploy if `group_id` is absent from

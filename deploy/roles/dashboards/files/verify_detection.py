@@ -5,7 +5,7 @@ import urllib.error
 import urllib.request
 
 OS_URL = os.environ.get("OS_URL", "http://localhost:9200")
-EXPECTED_MONITORS = int(os.environ.get("EXPECTED_MONITORS", "26"))
+EXPECTED_MONITORS = int(os.environ.get("EXPECTED_MONITORS", "28"))
 EXPECTED_DETECTORS = int(os.environ.get("EXPECTED_DETECTORS", "17"))
 EXPECTED_FORECASTERS = int(os.environ.get("EXPECTED_FORECASTERS", "1"))
 ROLLUP_INDEX = os.environ.get("ROLLUP_INDEX", "trend-rollup")
