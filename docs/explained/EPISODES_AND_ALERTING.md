@@ -51,7 +51,10 @@ entity id, and scope. Collector `node-01` failing `data-loss` always hashes to
 the same key, this week and next month.
 
 `episode_id` is `<incident_id>.<episode_start>`, where `episode_start` is the
-**event time** the episode opened.
+**event time** the episode opened. The end lives on the document as
+`resolved_at`, once the episode actually closes. It is not in the id: an
+open episode has no end yet, and putting one in would mint a new document
+every time recovery moved.
 
 **Why event time and not a counter.** The projector re-reads the last fifteen
 minutes of alert history every cycle. A counter would have to be read back
@@ -65,16 +68,28 @@ aged out. An event-time key is the same key however often you re-read it.
 
 Every 30 seconds the projector does this:
 
-1. Read **every** current alert, plus alerts that ended recently (15-minute
-   overlap).
-2. Read new detector results (3-minute overlap). Skip anything carrying
-   `task_id` — that is a `make backtest` run and must never page.
+1. Read **every** current alert (no cursor — the live set is small), plus
+   ended alerts from the stored watermark minus 15 minutes.
+2. Read detector results from that lane's watermark minus 3 minutes. Skip
+   anything carrying `task_id` — that is a `make backtest` run and must
+   never page.
 3. Normalise each row into one signal shape: entity, severity, scope, and the
    collector that owned that entity **at the time of the event**.
 4. Attach each row to an episode.
 5. Write `alice-signals` and `alice-incidents`.
 6. Push every open episode to Alertmanager.
-7. Write a heartbeat into `cockpit-metrics`.
+7. Advance the watermarks, then write a heartbeat into `cockpit-metrics`.
+
+**The watermark is a cursor, not a wipe.** Two documents in
+`alice-lane-state` (`projector-alert-history`, `projector-anomalies`) store
+the highest timestamp the last *successful* cycle actually processed. The
+next cycle starts there, then walks back 15 / 3 minutes because an alert can
+finish at 09:00 and only appear in the history index later. Without that
+overlap, a late row is lost forever. Duplicates are fine: same signal id,
+upsert. The cursor moves only after signals and episodes have been written;
+a crashed cycle leaves it put. Missing cursor (first start, or Clear
+findings) falls back to now minus 120 minutes. Older signals and closed
+episodes stay in the indexes — this is not a rebuild.
 
 **Where it reads is deliberate.** Each monitor's own action posts JSON to an
 in-cluster channel, which lands in `alice-alert-actions`. **Nothing reads that

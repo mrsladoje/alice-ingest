@@ -1833,19 +1833,33 @@ standalone page behind the nginx we already run. Scope is `infologger` and
 limiter his design lacks, because he pushes every non-system record to a browser
 and at farm scale that is a blur.
 
-**The cockpit entry point is a markdown panel, not a drawn button.** The top
-right of the Maintainer Cockpit carries a bordered *LIVE LOG LANE* box that
-opens `/live/` in a new tab. It was a Vega panel first, and that had to change:
-OSD's Vega hyperlinks are not links. Vega marks draw no `<a>` element, and a
-click is served by `Handler.handleHref`, which builds a detached anchor from the
-loader's `sanitize` result and dispatches the click on it. `sanitize` only emits
-a `target` when the loader carries one in its options, and
+**The cockpit entry point is a styled markdown panel, not a drawn button.** The
+top right of the Maintainer Cockpit carries a *LIVE LOG LANE* button — the same
+rounded blue rectangle the episode board draws — that opens `/live/` in a new
+tab. It was a Vega panel first, and that had to change: OSD's Vega hyperlinks
+are not links. Vega marks draw no `<a>` element, and a click is served by
+`Handler.handleHref`, which builds a detached anchor from the loader's
+`sanitize` result and dispatches the click on it. `sanitize` only emits a
+`target` when the loader carries one in its options, and
 `VegaBaseView.createViewConfig` builds that loader with no options, so no Vega
-mark on any dashboard can open a tab. A markdown panel with
-`openLinksInNewTab` renders a real `<a target="_blank" rel="noopener
-noreferrer">`, so every gesture works, including the context menu. The same
-switch is now on for all cockpit markdown, which is why the drill-down links
-also open their own tab.
+mark on any dashboard can open a tab. Markdown with `openLinksInNewTab` renders
+a real `<a target="_blank" rel="noopener noreferrer">`, so every gesture works,
+including the context menu. That switch is now on for all cockpit markdown,
+which is why the drill-down links also open their own tab.
+
+Plain markdown could not carry the button look. `vis_type_markdown` builds its
+`MarkdownIt` with `html: false`, so the panel can hold no styling of its own and
+the button had to be a bordered table, which read as a table. The panel is
+therefore a **TSVB markdown panel** (`visState.type: metrics`,
+`params.type: markdown`): the same `Markdown` component and the same
+`openLinksInNewTab`, plus a `markdown_css` stylesheet that TSVB renders in a
+`<style>` tag scoped to the panel. `MarkdownVisualization` rewrites every
+`markdown-<params.id>` in that stylesheet to the element id it generates per
+render, so the CSS selectors and `params.id` must agree — `gen_cockpit.py`
+generates both from one rule list and keeps the Less source in `markdown_less`
+so the panel is still editable in the TSVB UI. The panel carries **no series**,
+and `AbstractSearchStrategy.search` issues one request per series body, so an
+empty list issues none: the button still costs the cluster nothing.
 
 The consequence is recorded here so nobody re-litigates it: the **SIGNALS** and
 **DETAILS** buttons on the incident episode board are Vega marks, so they

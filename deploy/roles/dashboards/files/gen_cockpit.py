@@ -36,6 +36,23 @@ ERRWARN_Q = "severity_norm:(error or fatal or warning)"
 FONT_STACK = ("Inter UI, -apple-system, BlinkMacSystemFont, 'Segoe UI', "
               "Helvetica, Arial, sans-serif")
 
+LIVE_LANE_PANEL_ID = "alice-live-lane"
+LIVE_LANE_MD = ("[▶ LIVE LOG LANE](/live/)\n\n"
+                "*newest records, no query*\n"
+                "*opens in a new tab*")
+LIVE_LANE_STYLE = [
+    ("", "text-align: center; font-family: %s" % FONT_STACK),
+    ("p", "margin: 0"),
+    ("a", "display: block; padding: 11px 6px; border: 1px solid #006BB4; "
+          "border-radius: 4px; background: rgba(0,107,180,0.08); "
+          "color: #006BB4; font-size: 13px; font-weight: bold; "
+          "letter-spacing: 0.4px; text-decoration: none"),
+    ("a:hover, a:focus", "background: rgba(0,107,180,0.16); "
+                         "text-decoration: none"),
+    ("em", "display: block; margin-top: 7px; color: #69707D; "
+           "font-size: 11px; font-style: normal; line-height: 1.4"),
+]
+
 INDEX_REF_NAME = "kibanaSavedObjectMeta.searchSourceJSON.index"
 
 DEFAULT_COLUMNS = ["log_source", "severity_norm", "origin_host", "message"]
@@ -1133,6 +1150,48 @@ def markdown(vid, title, md):
     return viz(vid, title, state, index_ref_on=False)
 
 
+def _button_style(panel_id, rules):
+    root = "#markdown-%s" % panel_id
+    less_src, css = [], []
+    for sel, decls in rules:
+        if sel:
+            less_src.append("%s { %s; }" % (sel, decls))
+            css.append("%s{%s}" % (
+                ",".join(root + " " + s.strip() for s in sel.split(",")),
+                decls))
+        else:
+            less_src.append("%s;" % decls)
+            css.append("%s{%s}" % (root, decls))
+    return "\n".join(less_src), "".join(css)
+
+
+def markdown_button(vid, title, panel_id, md, rules):
+    less_src, css = _button_style(panel_id, rules)
+    params = {
+        "id": panel_id,
+        "type": "markdown",
+        "series": [],
+        "index_pattern": METRICS_TITLE,
+        "time_field": TIME_FIELD,
+        "interval": "auto",
+        "axis_position": "left",
+        "axis_formatter": "number",
+        "axis_scale": "normal",
+        "show_grid": 0,
+        "show_legend": 0,
+        "default_index_pattern": METRICS_TITLE,
+        "default_timefield": TIME_FIELD,
+        "markdown": md,
+        "markdown_less": less_src,
+        "markdown_css": css,
+        "markdown_openLinksInNewTab": True,
+        "markdown_vertical_align": "middle",
+        "markdown_scrollbars": False,
+    }
+    state = {"title": title, "type": "metrics", "aggs": [], "params": params}
+    return viz(vid, title, state, index_ref_on=False)
+
+
 def status_strip(vid, title):
     spec = {
         "$schema": "https://vega.github.io/schema/vega/v5.json",
@@ -1474,11 +1533,8 @@ def build():
     )
     objects += [
         markdown("alice-viz-header", "Cockpit header", header_md),
-        markdown("alice-viz-live-lane", "Live log lane",
-                 "| **[▶ LIVE LOG LANE](/live/)** |\n"
-                 "| :-: |\n"
-                 "| newest records, no query |\n"
-                 "| opens in a new tab |"),
+        markdown_button("alice-viz-live-lane", "Live log lane",
+                        LIVE_LANE_PANEL_ID, LIVE_LANE_MD, LIVE_LANE_STYLE),
         status_strip("alice-viz-status-strip", "Live status"),
         count_metric("alice-viz-total", "Total records"),
         count_metric("alice-viz-errwarn", "Errors & Warnings",
