@@ -913,7 +913,7 @@ def markdown(vid, title, md):
     state = {
         "title": title,
         "type": "markdown",
-        "params": {"fontSize": 12, "openLinksInNewTab": False, "markdown": md},
+        "params": {"fontSize": 12, "openLinksInNewTab": True, "markdown": md},
         "aggs": [],
     }
     return viz(vid, title, state, index_ref_on=False)
@@ -1260,6 +1260,11 @@ def build():
     )
     objects += [
         markdown("alice-viz-header", "Cockpit header", header_md),
+        markdown("alice-viz-live-lane", "Live log lane",
+                 "| **[▶ LIVE LOG LANE](/live/)** |\n"
+                 "| :-: |\n"
+                 "| newest records, no query |\n"
+                 "| opens in a new tab |"),
         status_strip("alice-viz-status-strip", "Live status"),
         count_metric("alice-viz-total", "Total records"),
         count_metric("alice-viz-errwarn", "Errors & Warnings",
@@ -1384,7 +1389,10 @@ def build():
                  "**SIGNALS** opens every raw row behind the whole group; "
                  "filter the `entity_id` field there to read one EPN. "
                  "**DETAILS** opens one row per affected entity, each with "
-                 "its own state and history. PAGE is urgent; WARNING needs "
+                 "its own state and history. Both replace this tab and the "
+                 "browser Back button returns here, because a drawn button "
+                 "cannot open a tab; every text link on this dashboard opens "
+                 "its own tab instead. PAGE is urgent; WARNING needs "
                  "attention; STALE means the model stopped evaluating and is "
                  "not evidence of recovery. The board scrolls and ignores the "
                  "global time picker, so an old-but-open episode cannot "
@@ -1400,7 +1408,8 @@ def build():
     live = {"timeRange": HEALTH_RANGE}
     now = {"timeRange": FLEET_NOW_RANGE}
     panels = [
-        ("visualization", "alice-viz-header",          {"x": 0,  "y": 0, "w": 48, "h": 6}),
+        ("visualization", "alice-viz-header",          {"x": 0,  "y": 0, "w": 39, "h": 6}),
+        ("visualization", "alice-viz-live-lane",       {"x": 39, "y": 0, "w": 9,  "h": 6}),
         ("visualization", "alice-viz-status-strip",    {"x": 0,  "y": 6, "w": 48, "h": 5}),
         ("visualization", "alice-viz-incident-header", {"x": 0,  "y": 11, "w": 48, "h": 6}),
         ("visualization", "alice-viz-open-incidents",  {"x": 0,  "y": 17, "w": 48, "h": 6}),

@@ -1770,6 +1770,27 @@ standalone page behind the nginx we already run. Scope is `infologger` and
 limiter his design lacks, because he pushes every non-system record to a browser
 and at farm scale that is a blur.
 
+**The cockpit entry point is a markdown panel, not a drawn button.** The top
+right of the Maintainer Cockpit carries a bordered *LIVE LOG LANE* box that
+opens `/live/` in a new tab. It was a Vega panel first, and that had to change:
+OSD's Vega hyperlinks are not links. Vega marks draw no `<a>` element, and a
+click is served by `Handler.handleHref`, which builds a detached anchor from the
+loader's `sanitize` result and dispatches the click on it. `sanitize` only emits
+a `target` when the loader carries one in its options, and
+`VegaBaseView.createViewConfig` builds that loader with no options, so no Vega
+mark on any dashboard can open a tab. A markdown panel with
+`openLinksInNewTab` renders a real `<a target="_blank" rel="noopener
+noreferrer">`, so every gesture works, including the context menu. The same
+switch is now on for all cockpit markdown, which is why the drill-down links
+also open their own tab.
+
+The consequence is recorded here so nobody re-litigates it: the **SIGNALS** and
+**DETAILS** buttons on the incident episode board are Vega marks, so they
+replace the cockpit tab and Back returns. Making them open a tab means giving up
+the drawn card board and rendering the episode list as a table, where the
+index-pattern URL field formatter can open a new tab. The board's per-episode
+filter is the only thing lost by using the header's text links instead.
+
 **Cost on the cluster is zero.** The lane never touches OpenSearch. That is the
 point: Discover stays for real queries, and the common act of watching becomes
 free.
