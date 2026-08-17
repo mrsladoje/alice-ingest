@@ -9,6 +9,97 @@ This is the only role that decides what a log line means. Everything downstream
 — index templates, detectors, monitors, the cockpit — depends on the fields it
 produces here.
 
+## How it is wired
+
+Four inputs, four tags, five outputs, one process. Every OpenSearch output goes
+to `localhost` — this VM's own node.
+
+```
+                     ONE WORKER VM — alice-ingest-N
+
+┌─ INPUTS: this VM only, never another worker ────────────────────────────────┐
+│  /var/log/node/dds/*.log       tail, multiline       --> [dds]              │
+│  /var/log/node/stdout/*.log    tail, multiline       --> [stdout]           │
+│  :5170  (the local producer)   tcp, json             --> [infologger]       │
+│  fb_health.py, every 30 s      exec, json            --> [health]           │
+└─────────────────────────────────────┬───────────────────────────────────────┘
+                                      v
+┌─ PARSE, then STAMP collector_time ──────────────────────────────────────────┐
+│  [dds]         parser dds_text          severity, source, tid, message      │
+│  [stdout]      parser stdout_root       severity optional, facility, message│
+│  [infologger]  parser il_event_time     event epoch becomes @timestamp      │
+│  [health]      lua health_deltas        cumulative counters become *_delta  │
+└─────────────────────────────────────┬───────────────────────────────────────┘
+                                      v
+┌─ ROUTE BY SEVERITY: two log families ───────────────────────────────────────┐
+│  [dds]     severity == inf     ─┐                                           │
+│  [stdout]  severity == Info    ─┴--> [family.info]                          │
+│  either one, anything else      --> [family.other]                          │
+└─────────────────────────────────────┬───────────────────────────────────────┘
+                                      v
+┌─ OUTPUTS ───────────────────────────────────────────────────────────────────┐
+│  [infologger]    --> localhost:9200   infologger                            │
+│  [family.info]   --> localhost:9200   generic-log-info-<node_id>            │
+│  [family.other]  --> localhost:9200   generic-log-other                     │
+│  [health]        --> localhost:9200   cockpit-metrics                       │
+│                                                                             │
+│  [infologger] + [family.other] --> live lane, HTTP, a different VM          │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**No worker ever writes to another worker.** A worker owns its own
+`generic-log-info-<node_id>` index and nothing else. That is why the info tier
+is disposable and why cross-worker log shipping is out of scope.
+
+**Two timestamps travel with every record.** `@timestamp` is the event's own
+time, from the source. `collector_time` is stamped here, as the record passes
+through. Their difference is the machine-to-collector latency, and four
+detectors train on it.
+
+### Why the settings are what they are
+
+**Restart and catch-up**
+
+| Setting | Value | Why |
+|---|---|---|
+| `storage.type` | `filesystem` | Buffered chunks and tail positions survive a restart, so a restart does not re-read the archive. |
+| `db` | one per tail input | Where that tail position is kept. |
+| `read_from_head` | `true` | The replay writes files before Fluent Bit ever sees them. Tailing from the end would skip the whole load. |
+| `refresh_interval` | `5` s | New per-EPN files keep appearing during a replay. |
+
+**Memory under burst** — the numbers Lubos asked about
+
+| Setting | Value | Why |
+|---|---|---|
+| `storage.max_chunks_up` | `64` | The ceiling on chunks held in memory, roughly 128 MB. Chunks above it stay on disk only. |
+| `MemoryHigh` | `384M` | An output needs about twice its input buffer to format a payload, plus 20 % allocator overhead: 128 × 2 × 1.2 ≈ 307 MB worst case. |
+| `MemoryMax` | `768M` | Hard stop. The kernel kills the process above this. |
+
+The "Fluent Bit uses 10 MB" claim was never true for this configuration, and
+nothing enforced it before these two limits existed.
+
+**Durability, measured in time and not in megabytes**
+
+| Lane | Buffer | Retries | Worst case | Why |
+|---|---|---|---|---|
+| Three log families | `256M` | `10` | ~50 s best, ~109 min worst | This tier's job is not to lose logs during data taking. The spread is wide because the backoff is jittered. |
+| Health | `512K` | `5` | seconds | A heartbeat is worth only its freshness. A late heartbeat is not worth the disk. |
+| Live lane | `1M` | `1` | seconds | Best-effort by construction. A dead viewer must never push back on OpenSearch. |
+
+**Latency and reachability**
+
+| Setting | Value | Why |
+|---|---|---|
+| `flush` | `5` s | Service-level, so it is also the live lane's latency floor. |
+| `http_listen` | `127.0.0.1` | Push model. The collector sends its own health documents, so nothing scrapes port 2020 from outside. |
+| `hc_errors_count` / `hc_retry_failure_count` / `hc_period` | `1` / `1` / `60` | Deliberately twitchy. `fb_healthy` is a reported signal, not a restart trigger — nothing in this role restarts on it. |
+
+**One routing rule that looks inconsistent and is not.** DDS routes its
+catch-all on `$severity`, stdout routes its catch-all on `$message`. The stdout
+parser makes the severity group optional, so a plain line carries no `severity`
+key at all and a `$severity` rule would never match it. The DDS parser requires
+severity, so there the same rule is safe.
+
 ## Why this is a role and not an upstream one
 
 There is no vendor Ansible role for Fluent Bit. Fluent publishes packages, a
