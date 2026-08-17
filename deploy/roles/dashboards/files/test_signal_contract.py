@@ -2078,11 +2078,14 @@ def test_projector_runtime_is_off_the_control_host():
         "alice-signal-projector.service.j2")
     alertmanager_unit_path = _checkout_file(
         "roles", "alertmanager", "templates", "alertmanager.service.j2")
-    common_path = _checkout_file("roles", "common", "tasks", "main.yml")
+    # The rule moved out of `common` when each role took the ports it owns.
+    alertmanager_tasks_path = _checkout_file(
+        "roles", "alertmanager", "tasks", "main.yml")
+    group_vars_path = _checkout_file("group_vars", "all.yml")
     inject_path = _checkout_file("playbooks", "inject.yml")
     if not all((inventory_path, site_path, projector_path,
-                projector_unit_path, alertmanager_unit_path, common_path,
-                inject_path)):
+                projector_unit_path, alertmanager_unit_path,
+                alertmanager_tasks_path, group_vars_path, inject_path)):
         print("[signal-contract] "
               "test_projector_runtime_is_off_the_control_host: skipped, "
               "deployment sources not beside this checkout")
@@ -2102,7 +2105,8 @@ def test_projector_runtime_is_off_the_control_host():
     projector = open(projector_path).read()
     projector_unit = open(projector_unit_path).read()
     alertmanager_unit = open(alertmanager_unit_path).read()
-    common = open(common_path).read()
+    alertmanager_tasks = open(alertmanager_tasks_path).read()
+    group_vars = open(group_vars_path).read()
     inject = open(inject_path).read()
     check("moved_services:" in site and "alice-signal-projector" in site,
           "deploy does not retire the old control-host projector unit")
@@ -2119,9 +2123,11 @@ def test_projector_runtime_is_off_the_control_host():
     check("--web.listen-address=0.0.0.0:{{ alertmanager_port }}" in
           alertmanager_unit,
           "Alertmanager is still loopback-only after projector offload")
-    check("source address=\"{{ "
-          "hostvars[signal_projector_host].ansible_host }}\"" in common
-          and "port=\"{{ alertmanager_port }}\"" in common,
+    check("port port=\"{{ alertmanager_port }}\" protocol=\"tcp\""
+          in alertmanager_tasks
+          and "loop: \"{{ alertmanager_allowed_client_addresses }}\""
+          in alertmanager_tasks
+          and "hostvars[signal_projector_host].ansible_host" in group_vars,
           "the Alertmanager firewall path is not restricted to the projector "
           "host")
     check("dashboards_inject_service_name" in inject
@@ -2330,7 +2336,7 @@ def test_the_registration_script_has_exactly_one_definition():
     roles_root, scripts = _role_files("register_node.sh")
     collector_path = _checkout_file("roles", "collector", "tasks", "main.yml")
     bootstrap_path = _checkout_file(
-        "roles", "dashboards", "tasks", "bootstrap.yml")
+        "roles", "opensearch_bootstrap", "tasks", "main.yml")
     if roles_root is None or not all((collector_path, bootstrap_path)):
         print("[signal-contract] "
               "test_the_registration_script_has_exactly_one_definition: "
@@ -2348,7 +2354,7 @@ def test_the_registration_script_has_exactly_one_definition():
 
     for path, label, expected_notify in (
             (collector_path, "collector", ["restart fluent-bit"]),
-            (bootstrap_path, "dashboards", None)):
+            (bootstrap_path, "opensearch_bootstrap", None)):
         includes = [
             task for task in _ansible_tasks(path)
             if (task.get("ansible.builtin.include_role") or {}).get("name")
