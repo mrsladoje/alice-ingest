@@ -11,152 +11,138 @@ open, is meant to be supplied by the playbook.
 
 It runs on all five nodes, as the first play in `site.yml` that touches them.
 
-## Why this is a role and not tasks in `site.yml`
+## What it does
 
-Every other role depends on the state this one leaves behind, and three of those
-dependencies are silent — a service starts, then fails minutes later for a
-reason that points somewhere else:
+```
+                  EVERY NODE IN alice_nodes — before any service role
 
-- **firewalld must already be running.** `opensearch`, `collector`, `producer`,
-  `faults`, `alertmanager` and `dashboards/livelane.yml` each add their own
-  rules. `ansible.posix.firewalld` needs the daemon up to apply an immediate
-  rule, so every one of them assumes this role ran first.
-- **`vm.max_map_count` must already be 262144.** OpenSearch refuses to start
-  below it. A node that skipped this role produces a bootstrap-check failure in
-  the `opensearch` role, not here.
-- **The swap file must already exist.** The pre-flight in `site.yml` says so
-  outright: the memory-heavy services stay stopped "until the roles below
-  restart them, which happens only after the swap file and the memory slice are
-  in place."
+┌─ 1. SWAP FILE — an out-of-memory guard, not a storage tier ────────────────┐
+│  stat /swapfile             guards the dd and mkswap tasks                 │
+│  dd if=/dev/zero            2048 MB — not fallocate, see below             │
+│  chmod 0600, mkswap         root-only, formatted                           │
+│  /etc/fstab                 fstype swap, opts sw — survives a reboot       │
+│  swapon                     skipped when already in `swapon --show`        │
+│  vm.swappiness = 60         --> /etc/sysctl.d/99-opensearch.conf           │
+└────────────────────────────────────┬───────────────────────────────────────┘
+                                     v
+┌─ 2. BASELINE PACKAGES ─────────────────────────────────────────────────────┐
+│  dnf install                python3, python3-pip, tar, chrony,             │
+│                             firewalld, ca-certificates                     │
+│  update_cache: false        a forced refresh costs ~700 MB resident        │
+│  async 600 s, poll 5 s      bounds a stuck transaction                     │
+│  lock_timeout 60 s          survives a stale rpm lock                      │
+│  rescue                     names memory starvation or a stale lock        │
+└────────────────────────────────────┬───────────────────────────────────────┘
+                                     v
+┌─ 3. CLOCK — every timestamp in this stack is UTC ──────────────────────────┐
+│  timezone                   UTC                                            │
+│  chronyd                    enabled and started                            │
+└────────────────────────────────────┬───────────────────────────────────────┘
+                                     v
+┌─ 4. KERNEL LIMIT FOR OPENSEARCH ───────────────────────────────────────────┐
+│  vm.max_map_count = 262144  --> the same 99-opensearch.conf                │
+└────────────────────────────────────┬───────────────────────────────────────┘
+                                     v
+┌─ 5. FIREWALL ──────────────────────────────────────────────────────────────┐
+│  firewalld                  enabled and started                            │
+│  common_open_tcp_ports      [] by default; the playbook supplies it        │
+└────────────────────────────────────┬───────────────────────────────────────┘
+                                     v
+┌─ WHAT EVERY LATER ROLE THEN ASSUMES ───────────────────────────────────────┐
+│  firewalld running          --> opensearch, collector, producer, faults,   │
+│                                 alertmanager and dashboards/livelane       │
+│                                 each add their own rules                   │
+│  vm.max_map_count           --> opensearch passes its bootstrap check      │
+│  swap in place              --> the site.yml pre-flight releases the       │
+│                                 memory-heavy services                      │
+└────────────────────────────────────────────────────────────────────────────┘
+```
 
-Holding this in a role keeps the ordering visible as one line in `site.yml`
-(`roles: [common]`) instead of thirty tasks a reader has to scroll past.
+## Why it runs first
 
-## Role variables
+Each guarantee in the last band fails somewhere else. Without firewalld running,
+a later role's rule task fails, because `ansible.posix.firewalld` needs the
+daemon up to apply an immediate rule. Below `vm.max_map_count` 262144, the error
+is OpenSearch's own bootstrap check, raised in the `opensearch` role and not
+here. Without swap, the `site.yml` pre-flight holds the memory-heavy services
+back and never releases them.
+
+It is a role rather than tasks in `site.yml` so that the ordering is one line at
+the call site instead of thirty tasks.
+
+## Variables
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `common_packages` | `python3`, `python3-pip`, `tar`, `chrony`, `firewalld`, `ca-certificates` | The baseline every node needs. `python3` and `python3-pip` are here for the Python services, `tar` for the DDS tarball replay, `chrony` and `firewalld` because two later tasks start them, `ca-certificates` for the S3 and OpenSearch download paths. |
-| `common_dnf_timeout` | `600` | Seconds allowed for the `dnf` transaction, as the `async` bound. See "The dnf block" below. |
-| `common_timezone` | `UTC` | System timezone. Do not change it. Every timestamp in this stack is UTC, and the replay's two-clock model compares stamps taken on different hosts. |
-| `common_vm_max_map_count` | `262144` | OpenSearch's required minimum. Not a tuning knob — it is the value the bootstrap check tests for. |
-| `common_sysctl_conf_file` | `/etc/sysctl.d/99-opensearch.conf` | Where both sysctl values are persisted. Read the coupling note below before changing it. |
-| `common_swapfile_path` | `/swapfile` | Swap file location. Also the string matched against `swapon --show`, so it must be the path as the kernel reports it. |
-| `common_swapfile_size_mb` | `2048` | Swap file size in mebibytes. 2 GB on a 3.66 GB node. |
-| `common_swappiness` | `60` | `vm.swappiness`. This looks wrong for a server. It is deliberate — see "Why swappiness is 60" below. |
-| `common_open_tcp_ports` | `[]` | TCP ports to open to any source on this host. Empty by default; the playbook supplies the list. |
+| `common_packages` | `python3`, `python3-pip`, `tar`, `chrony`, `firewalld`, `ca-certificates` | Python for the services, `tar` for the DDS tarball replay, `chrony` and `firewalld` because later tasks start them, `ca-certificates` for S3 and the OpenSearch downloads. |
+| `common_dnf_timeout` | `600` | Seconds allowed for the `dnf` transaction, as the `async` bound. |
+| `common_timezone` | `UTC` | Do not change. Every timestamp here is UTC, and the replay's two-clock model compares stamps from different hosts. |
+| `common_vm_max_map_count` | `262144` | OpenSearch's bootstrap-check minimum, not a tuning knob. |
+| `common_sysctl_conf_file` | `/etc/sysctl.d/99-opensearch.conf` | Holds both sysctl values. See couplings. |
+| `common_swapfile_path` | `/swapfile` | Swap file location. Also matched against `swapon --show`. See couplings. |
+| `common_swapfile_size_mb` | `2048` | 2 GB, on an m2.medium (3.75 GB nominal, 3.66 GB usable). |
+| `common_swappiness` | `60` | `vm.swappiness`. Deliberate, not an unreviewed default — see below. |
+| `common_open_tcp_ports` | `[]` | Ports to open to any source. `group_vars/all.yml` supplies `[dashboards_external_port]` on the control host and `[]` elsewhere. |
 
-## Why swappiness is 60
+## Non-obvious settings
 
-A reviewer will read `vm.swappiness: 60` on a log-ingest node, decide it is a
-copy-paste default, and lower it. It was 1, and 1 broke the deploy.
-
-At `vm.swappiness=1` the kernel reclaims page cache before it swaps anonymous
-memory, so under pressure it evicted executable pages — sshd's among them —
-rather than use the 2 GB swap file. The node then could not complete a login,
-which surfaced as `connection timed out during banner exchange` and killed the
-run. `60` lets idle anonymous memory move to swap and keeps resident text pages
-resident. OpenSearch's own heap is `mlockall`'d, so it is never a swap candidate
-at any swappiness.
-
-The swap file itself exists because the kernel killed OpenSearch on
-`alice-ingest-3` (1.75 GB anonymous resident set) and the node stayed down for
-three days. Swap here is an out-of-memory guard, not a storage tier.
-
-Note the honest limit: swap converts an out-of-memory kill into thrashing, which
-is slower to diagnose. That is why `alice-ingest-3` also carries a reduced
-OpenSearch heap as a host variable in `inventory.yml`, and why the analytics
-services were moved off the control host. Swap is the last line, not the fix.
-
-## Why `dd` and not `fallocate`
-
-`swapon` rejects the unwritten extents `fallocate` leaves on XFS, and the VM
-images are XFS. `fallocate` is faster and would appear to work — `mkswap`
-accepts the file — and then `swapon` fails.
-
-## The dnf block
-
-Three settings on one task, each for a stated reason:
-
-- `update_cache: false` — `dnf` fetches metadata by itself whenever it must
-  resolve a missing package. Forcing a refresh on every run buys a network round
-  trip and a resident `dnf` process near 700 MB on a node that has none to
-  spare. A `dnf` run at that size was resident when the kernel chose its victim
-  in the incident above.
-- `lock_timeout: 60` — an interrupted previous run can leave an rpm transaction
-  lock behind.
-- `async: common_dnf_timeout` with `poll: 5` — bounds a stuck transaction
-  instead of waiting forever.
-
-The `rescue` block exists because the failure is misleading. Every baseline
-package is normally installed already, so this task should return in seconds. A
-stall means the node is starved for memory or holds a stale rpm lock, and the
-rescue says exactly that instead of printing a `dnf` timeout.
+- **Swap exists as an out-of-memory guard, not a storage tier.** A node carrying
+  the control plane beside an OpenSearch cluster-manager and data role
+  (Dashboards, nginx, Alertmanager and several Python services on one m2.medium —
+  3.75 GB nominal, 3.66 GB usable, no swap by default) exceeds available memory,
+  and the kernel selects the OpenSearch JVM (~1.75 GB anonymous resident set).
+  Swap converts that kill into thrashing, which is harder to diagnose, so it is
+  the last line and not the fix: the control node also carries a reduced
+  `opensearch_heap_size` as a host variable in `inventory.yml`, and the analytics
+  services are placed on other nodes.
+- **`common_swappiness: 60`, not a lower value.** At 1 the kernel reclaims page
+  cache before it swaps anonymous memory, so under pressure it evicts executable
+  pages, sshd's included. `sshd` then cannot complete a login, Ansible reports
+  `connection timed out during banner exchange`, and the host reads as
+  unreachable. 60 lets idle anonymous memory swap and keeps text pages resident.
+  OpenSearch's heap is `mlockall`'d, so it never swaps at any value.
+- **`dd`, not `fallocate`.** `swapon` rejects the unwritten extents `fallocate`
+  leaves on XFS, and these images are XFS. `fallocate` is faster and `mkswap`
+  accepts its output, so the failure appears only at `swapon`.
+- **`update_cache: false`.** `dnf` refreshes metadata by itself whenever it must
+  resolve a missing package. Forcing a refresh costs a network round trip and a
+  resident `dnf` near 700 MB, which on a sub-4 GB node is itself a contributor to
+  the kill described above.
+- **The `rescue` block.** Every baseline package is normally installed already,
+  so the task returns in seconds. A stall therefore means memory starvation or an
+  rpm transaction lock left by an interrupted run, and the rescue reports that
+  rather than a bare `dnf` timeout. `lock_timeout: 60` covers the lock; `async`
+  with `poll: 5` bounds the stall.
 
 ## Couplings
 
-**`common_sysctl_conf_file` does not migrate.** One file carries both
-`vm.swappiness` and `vm.max_map_count`. Change the variable and Ansible writes
-the new file, but the old `/etc/sysctl.d/99-opensearch.conf` stays on disk and
-keeps applying at every boot. `sysctl.d` files load in lexical order, so which
-value wins depends on the two filenames. Changing this variable means deleting
-the old file by hand, on every node.
+- **`common_sysctl_conf_file` does not migrate.** Change it and Ansible writes
+  the new file, but the old one stays on disk and keeps applying at boot.
+  `sysctl.d` loads in lexical order, so which value wins depends on the two
+  names. Changing this means deleting the old file by hand, on every node.
+- **`common_vm_max_map_count` belongs to OpenSearch.** Set here only because it
+  must precede the `opensearch` role. Lowering it breaks that role, not this one.
+- **`common_swapfile_path` is used twice.** As a path to create, and as a string
+  matched against `swapon --show=NAME` to decide whether swap is already active.
+  A path the kernel normalises differently makes that task run every pass.
+- **`common_open_tcp_ports` only ever adds.** firewalld keeps a permanent rule
+  once it has been given one, so removing a port from the list does not close it
+  on a node that already ran. Closing a port means `state: disabled` or a fresh
+  provision.
 
-**`common_vm_max_map_count` belongs to OpenSearch.** It is set here because it
-must be in place before the `opensearch` role runs, but the value is OpenSearch's
-bootstrap-check minimum. Lowering it breaks the `opensearch` role, not this one.
+## Upstream roles rejected
 
-**`common_swapfile_path` is used twice, differently.** Once as a path to create,
-once as a string matched against `swapon --show=NAME` output to decide whether
-the swap area is already active. A path the kernel normalises differently would
-make the activation task run on every pass.
-
-## What this role no longer does
-
-Three firewalld rules and the log directory tree used to live here. They moved to
-the roles that own them, matching what `collector`, `producer`, `faults` and
-`dashboards/livelane.yml` already did for their own ports:
-
-| Moved out | Now in | Variable it reads |
-|---|---|---|
-| OpenSearch HTTP, cluster nodes only | `opensearch` | `opensearch_cluster_hosts` |
-| OpenSearch transport, cluster nodes only | `opensearch` | `opensearch_cluster_hosts` |
-| Alertmanager API, projector host only | `alertmanager` | `alertmanager_allowed_client_addresses` |
-| `log_root` and its `dds/` and `stdout/` subdirectories | `collector` | `log_root` |
-
-The log tree moved because only the two worker VMs tail it. Creating it here put
-an unused directory tree on the three storage nodes. The `producer` role also
-creates the two subdirectories, so a worker running `producer` without
-`collector` still works.
-
-This role now names no inventory group and reads no `hostvars` entry. The
-Dashboards external port is still opened here, but through
-`common_open_tcp_ports`, which `group_vars/all.yml` resolves per host:
-
-```yaml
-common_open_tcp_ports: "{{ [dashboards_external_port] if inventory_hostname in groups['control'] else [] }}"
-```
-
-Removing a rule from this role does **not** remove it from a node that already
-ran an older version. firewalld keeps the permanent rule it was given. On the
-existing five nodes the rules are simply rewritten in their new location; a
-fresh provision is the only run that proves the new owners write them.
-
-## Upstream roles considered and rejected
-
-Recorded so the question is not reopened at review time.
+Recorded so the question is not reopened at review time. Upstream would replace
+roughly half these tasks, all boilerplate; what it cannot hold is the reasoning
+above and the ordering guarantee that makes this a first play.
 
 | Candidate | Type | Would replace | Why rejected |
 |---|---|---|---|
-| [`geerlingguy.swap`](https://github.com/geerlingguy/ansible-role-swap) | Third-party | The swap file, fstab entry and swappiness | Variables map almost one-to-one, and it uses `dd` by default for the same XFS reason. But it persists swappiness to its own sysctl file, which splits the single file this role deliberately shares with `vm.max_map_count`. Eight stable tasks are not worth an external dependency plus that split. |
-| [`linux-system-roles.timesync`](https://github.com/linux-system-roles) | Vendor (Red Hat) | Installing and starting chrony | The strongest long-term candidate, and it ships as an RPM on Alma 9. Deferred: it replaces two tasks today. Revisit when the farm needs real NTP servers configured, which the two tasks here cannot express. |
-| [`linux-system-roles.firewall`](https://github.com/linux-system-roles/firewall) | Vendor (Red Hat) | Starting firewalld and applying rules | Supports rich rules, so it could hold what this tree writes by hand. Deferred because the rules now live in six different roles; adopting it is a tree-wide change, not a `common` change. |
-| [`linux-system-roles.kernel_settings`](https://github.com/linux-system-roles) | Vendor (Red Hat) | Both sysctl values | Applies settings through a tuned profile rather than a `sysctl.d` file. `vm.max_map_count` must be both live and persistent before OpenSearch starts, and that mechanism was not verified. Verify before any adoption. |
-
-The general reasoning: upstream roles would replace roughly half the tasks here,
-all of them boilerplate. What they cannot hold is the part that matters — the
-reasons above, and the ordering guarantee that makes this a first play.
+| [`geerlingguy.swap`](https://github.com/geerlingguy/ansible-role-swap) | Third-party | Swap file, fstab entry, swappiness | Near one-to-one variable match, and it also uses `dd` for the XFS reason. But it persists swappiness to its own sysctl file, splitting the single file shared with `vm.max_map_count`. The eight tasks it would replace are stable and low-churn. |
+| [`linux-system-roles.timesync`](https://github.com/linux-system-roles) | Vendor (Red Hat) | Installing and starting chrony | Strongest long-term candidate; ships as an RPM on Alma 9. Replaces two tasks today. Revisit when the farm needs real NTP servers, which those two tasks cannot express. |
+| [`linux-system-roles.firewall`](https://github.com/linux-system-roles/firewall) | Vendor (Red Hat) | Starting firewalld, applying rules | Supports rich rules, so it could hold what this tree writes by hand. But the rules now live in six roles: adopting it is a tree-wide change, not a `common` one. |
+| [`linux-system-roles.kernel_settings`](https://github.com/linux-system-roles) | Vendor (Red Hat) | Both sysctl values | Applies settings through a tuned profile rather than a `sysctl.d` file. `vm.max_map_count` must be live and persistent before OpenSearch starts; that mechanism is unverified. Verify before adopting. |
 
 ## Used by
 
-- `site.yml`, play "Common host prep", on `alice_nodes` — the only caller.
+`site.yml`, play "Common host prep", on `alice_nodes` — the only caller.
