@@ -1,4 +1,4 @@
-# The shared bootstrap script directory. The dashboards role writes its own
+# The shared bootstrap script directory. The alice_runtime role writes its own
 # scripts into the same directory and creates it with the same owner, group and
 # mode, so neither role owns it and the two cannot drift.
 opensearch_bootstrap_root: /opt/alice-ingest/init

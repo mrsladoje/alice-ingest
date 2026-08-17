@@ -13,20 +13,5 @@
 - name: Install and configure the nginx reverse proxy (TLS + basic-auth)
   ansible.builtin.import_tasks: nginx.yml
 
-- name: Ops trigger service (replay button) behind nginx
-  ansible.builtin.import_tasks: ops.yml
-
-- name: Dashboards bootstrap (index patterns, cockpit import, hydration, monitors) — after the opensearch_bootstrap role has created the indices
-  ansible.builtin.import_tasks: bootstrap.yml
-
-- name: Publish the immutable fleet roster — before the poller, which reads it to derive collector absence
-  ansible.builtin.import_tasks: roster.yml
-
-- name: Metrics poller service (cockpit health panels) — after bootstrap so cockpit-metrics exists first
-  ansible.builtin.import_tasks: metrics.yml
-
-- name: Detection layer (anomaly detectors + verify) — after the metrics poller, which fills their source index
-  ansible.builtin.import_tasks: detection.yml
-
-- name: Signal projector and notification ingest — after the monitors and detectors whose signals they normalize
-  ansible.builtin.import_tasks: projector.yml
+- name: Cockpit bootstrap (index patterns, cockpit import, hydration) — after the opensearch_bootstrap role has created the indices
+  ansible.builtin.import_tasks: cockpit.yml

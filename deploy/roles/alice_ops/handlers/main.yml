@@ -1,0 +1,6 @@
+- name: Restart alice-ops
+  ansible.builtin.systemd:
+    name: "{{ dashboards_ops_service_name }}"
+    state: restarted
+    daemon_reload: true
+  listen: restart alice-ops

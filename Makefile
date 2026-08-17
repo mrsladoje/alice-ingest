@@ -258,12 +258,12 @@ roster-discover:
 	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/roster_discover.yml $(ANSIBLE_EXTRA)
 
 monitors:
-	python3 deploy/roles/dashboards/files/gen_monitors.py
+	python3 deploy/roles/alerting_monitors/files/gen_monitors.py
 
 contract:
-	$(DEPLOY_PYTHON) deploy/roles/dashboards/files/test_poison_replay.py
-	$(DEPLOY_PYTHON) deploy/roles/dashboards/files/test_trend_rollup.py
-	$(DEPLOY_PYTHON) deploy/roles/dashboards/files/test_signal_contract.py
+	$(DEPLOY_PYTHON) deploy/roles/alice_ops/files/test_poison_replay.py
+	$(DEPLOY_PYTHON) deploy/roles/trend_rollup/files/test_trend_rollup.py
+	$(DEPLOY_PYTHON) deploy/roles/signal_projector/files/test_signal_contract.py
 
 status:
 	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/status.yml

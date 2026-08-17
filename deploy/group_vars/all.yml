@@ -46,9 +46,8 @@ alice_service_memory_max: "512M"
 # The projector runs on node-04 rather than the crowded control VM.  Its
 # resident set is bounded, but a little larger than the thin pollers because it
 # must hold the active incident episode set while it traverses AD results.
+# Its memory bounds are role defaults, in roles/signal_projector.
 signal_projector_host: "{{ groups['projector'][0] }}"
-signal_projector_memory_high: "384M"
-signal_projector_memory_max: "768M"
 
 opensearch_http_port: 9200
 
@@ -63,6 +62,29 @@ opensearch_initial_cluster_manager_nodes: "{{ groups['storage'] | map('extract',
 # retention policy for. Resolved here so opensearch_bootstrap names no inventory
 # group of its own.
 opensearch_bootstrap_worker_node_ids: "{{ groups['workers'] | map('extract', hostvars, 'node_id') | list }}"
+
+# The same worker node identities, under the name the cockpit_metrics,
+# anomaly_detection and alice_ops roles read. Resolved here for the same reason:
+# a role default must never name an inventory group.
+fleet_collector_node_ids: "{{ groups['workers'] | map('extract', hostvars, 'node_id') | list }}"
+
+# The remaining inventory-derived values the split roles read. Each one replaces
+# an expression that used to sit inside a task file or a systemd unit template.
+worker_inventory_names: "{{ groups['workers'] | list }}"
+worker_replay_trigger_urls: "{{ groups['workers'] | map('extract', hostvars, 'ansible_host') |
+  map('regex_replace', '^(.*)$', 'http://\\1:' ~ (replay_http_port | string)) | list }}"
+worker_replay_endpoints: "{{ groups['workers'] |
+  zip(groups['workers'] | map('extract', hostvars, 'ansible_host') | list) |
+  map('join', '=http://') |
+  map('regex_replace', '^(.*)$', '\\1:' ~ (replay_http_port | string)) | list }}"
+worker_fault_agent_endpoints: "{{ groups['workers'] |
+  zip(groups['workers'] | map('extract', hostvars, 'ansible_host') | list) |
+  map('join', '=http://') |
+  map('regex_replace', '^(.*)$', '\\1:' ~ (fault_agent_port | string)) | list }}"
+signal_projector_address: "{{ hostvars[signal_projector_host].ansible_host }}"
+alertmanager_host_address: "{{ hostvars[groups['control'][0]].ansible_host }}"
+live_lane_allowed_client_addresses: "{{ (groups['workers'] + groups['control']) |
+  map('extract', hostvars, 'ansible_host') | unique | list }}"
 
 dashboards_opensearch_hosts: "{{ groups['storage'] | map('extract', hostvars, 'ansible_host') |
   map('regex_replace', '^(.*)$', 'http://\\1:' ~ (opensearch_http_port | string)) | list }}"
@@ -79,20 +101,7 @@ log_root: /var/log/node
 live_lane_enabled: true
 live_lane_host: "{{ hostvars[groups['livelane'][0]].ansible_host }}"
 live_lane_port: 8092
-live_lane_bind: 0.0.0.0
 live_lane_ingest_path: /ingest
-live_lane_token: ""
-
-live_lane_buffer_rows: 10000
-
-# Held for a viewer who connects mid-stream, so a fresh page is not blank.
-live_lane_replay_rows: 500
-
-# Per viewer. A full queue drops for that viewer; it is never allowed to grow.
-live_lane_client_queue_max: 2000
-
-live_lane_memory_high: "192M"
-live_lane_memory_max: "384M"
 
 s3_endpoint: "https://s3.cern.ch"
 s3_bucket: epn-backup-logs
@@ -137,18 +146,6 @@ cockpit_metrics_interval_seconds: 30
 replay_clock: preserved
 
 trend_rollup_index: trend-rollup
-trend_rollup_bucket_seconds: 600
-trend_rollup_settle_seconds: 120
-trend_rollup_backfill_buckets: 3
-trend_rollup_page_size: 500
-trend_rollup_max_entities: 2000
-trend_rollup_retention_days: 30
-trend_entity_cap_warn: 1800
-trend_lag_floor_ms: 250
-trend_entry_lag_ceiling_ms: 3600000
-trend_min_slice_docs: 50
-trend_min_slice_errors: 10
-trend_min_lag_docs: 100
 
 anomaly_grade_floor: 0.5
 
@@ -159,16 +156,14 @@ signals_index: alice-signals
 incidents_index: alice-incidents
 notifications_index: alice-notifications
 
-roster_assignments: []
-
-heartbeat_grace_seconds: 90
-fleet_silence_fraction: 0.5
-
 # The one host allowed to scrape a worker's Fluent Bit metrics port. Resolved
 # here, beside the other seven inventory-derived values, so the collector role
 # never has to name an inventory group of its own.
 collector_metrics_scrape_source: "{{ hostvars[groups['control'][0]].ansible_host }}"
 
+# A collector-role switch, read by the post-collector verification in the
+# cockpit_metrics role. It stays here rather than inside either role, because
+# neither role is the place a reader would look for it.
 collector_health_push_enabled: true
 
 health_metrics_emit_legacy_node: false
@@ -182,11 +177,6 @@ notification_ingest_port: 8091
 notification_ingest_token: ""
 
 alertmanager_resolve_timeout: 5m
-signal_projector_interval_seconds: 30
-signal_projector_resolve_timeout_seconds: 300
-signal_projector_overlap_minutes: 15
-signal_projector_initial_lookback_minutes: 120
-signal_projector_os_unreachable_cycles: 2
 
 alertmanager_group_wait: 5m
 alertmanager_group_interval: 10m
@@ -197,44 +187,8 @@ alertmanager_page_group_interval: 2m
 
 # One declaration per causal edge; its proven flag decides whether it explains
 # or suppresses. Replaced alertmanager_proven_inhibit_rules. README section 9.
-causal_edges_file: "{{ playbook_dir }}/../roles/dashboards/files/causal_edges.json"
+causal_edges_file: "{{ playbook_dir }}/../roles/alice_runtime/files/causal_edges.json"
 alertmanager_page_wait_covers_inhibition: false
-
-signal_projector_retention_days: 30
-signal_projector_page: 500
-signal_projector_bulk_documents: 500
-signal_projector_pit_keep_alive: "10m"
-signal_projector_mass_silence_fraction: 0.5
-
-ad_metrics_window_delay_minutes: 1
-ad_log_window_delay_minutes: 2
-ad_anomaly_grade_threshold: 0.7
-ad_anomaly_confidence_threshold: 0.7
-
-# Forecasting. One forecaster, on the one metric in this stack that has a real
-# absolute threshold and a slow, smooth trend: filesystem fill per OpenSearch
-# node. Everything else is either spiky (rates, lags), thresholdless, or
-# arrives in replay bursts that never train a trend model.
-#
-# The interval is an hour because disks fill over hours to days, and because
-# history is capped by cockpit_metrics_retention_days: 168 hourly points is
-# exactly the 7 days the metrics index holds. A horizon of 24 predicts a day
-# ahead; shingle_size stays at the default 8, which is also what the plugin's
-# max(8, seasonality/2, horizon/3) heuristic yields here.
-#
-# An RCF model needs roughly 40 points at the chosen interval before it
-# forecasts, so this lane is silent for its first ~2 days on a fresh cluster.
-#
-# max_primary_shards MUST stay pinned. The result index otherwise takes one
-# primary per data node with auto_expand_replicas 0-2, which is 15 shards for
-# a few thousand tiny documents, against a storage-tier budget near 60.
-forecast_interval_minutes: 60
-forecast_window_delay_minutes: 1
-forecast_horizon: 24
-forecast_history: 168
-forecast_disk_threshold_percent: 85
-forecast_max_primary_shards: 1
-forecast_result_retention: "14d"
 
 # Primaries for the two storage-tier log families. The farm value is one per
 # storage node, which spreads the bulk fan-out instead of funnelling it through
@@ -275,7 +229,57 @@ ism_retention_alert_actions: "30d"
 alert_actions_rollover_period: "7d"
 alert_actions_rollover_max_size: "1gb"
 
-cockpit_metrics_retention_days: 7
+# The alice-service paths and unit names that more than one role, or a playbook
+# under playbooks/, has to agree on. A name is here only when a second reader
+# exists; everything read by exactly one role is that role's own default.
+#
+# Shared with the opensearch_bootstrap role, which writes templates.sh, ism.sh
+# and register_node.sh into the same directory and creates it with the same
+# owner, group and mode.
+dashboards_bootstrap_root: /opt/alice-ingest/init
+dashboards_app_root: /opt/alice-ingest
+
+dashboards_bootstrap_signal_catalog: "{{ dashboards_bootstrap_root }}/signal_catalog.json"
+dashboards_bootstrap_causal_edges: "{{ dashboards_bootstrap_root }}/causal_edges.json"
+dashboards_bootstrap_verify_script: "{{ dashboards_bootstrap_root }}/verify_detection.py"
+
+dashboards_os_cursor_script: /opt/alice-ingest/os_cursor.py
+dashboards_signal_identity_script: /opt/alice-ingest/signal_identity.py
+dashboards_discover_roster_script: /opt/alice-ingest/discover_roster.py
+dashboards_backtest_script: /opt/alice-ingest/backtest.py
+dashboards_reset_derived_script: /opt/alice-ingest/reset_derived.py
+dashboards_poison_replay_script: /opt/alice-ingest/poison_replay.py
+
+dashboards_metrics_service_name: alice-metrics
+dashboards_trend_rollup_service_name: alice-trend-rollup
+dashboards_signal_projector_service_name: alice-signal-projector
+dashboards_notification_ingest_service_name: alice-notification-ingest
+dashboards_ops_service_name: alice-ops
+dashboards_inject_service_name: alice-inject
+dashboards_poison_replay_service_name: alice-poison-replay
+
+ops_internal_port: 8090
+
+# Literal paths, not references to the alice_ops role's state directories. The
+# playbooks that read them load no role, so a reference would be undefined.
+# They must stay equal to {{ dashboards_inject_state_dir }}/status.json,
+# /request.json and {{ dashboards_poison_replay_state_dir }}/status.json, /runs.
+dashboards_inject_status: /var/lib/alice-inject/status.json
+dashboards_inject_request: /var/lib/alice-inject/request.json
+dashboards_poison_replay_status: /var/lib/alice-poison-replay/status.json
+dashboards_poison_replay_report_dir: /var/lib/alice-poison-replay/runs
+
+# The counts verify_detection.py asserts. They are read by the anomaly_detection
+# and signal_projector roles, but they count JSON files owned by the
+# alerting_monitors and anomaly_detection roles: add a monitor or a detector
+# there and the matching number here has to change with it.
+expected_monitors: 28
+expected_detectors: 17
+expected_forecasters: 1
+
+# Set by the signal_projector role's rescue path and read by the final play of
+# site.yml, which turns it into the deploy's exit code.
+projector_gate_failed: false
 
 # Replay pacing. The defaults are baked into the alice-replay unit, so they are
 # what the ops page's replay button gets — that button POSTs straight at the
@@ -321,15 +325,9 @@ replay_loop_pause_seconds: 30
 # Controlled detector calibration. poison-replay waits for the real paced S3
 # replay to train every one-minute detector, then injects labelled outliers into
 # already-modelled entities. It never targets the 30-minute detector lane.
+# The rest of its pacing is in roles/alice_ops/defaults/main.yml; this one is
+# here because playbooks/poison_replay.yml prints it.
 poison_warmup_timeout_seconds: 4200
-poison_warmup_poll_seconds: 120
-poison_observe_seconds: 330
-poison_observe_poll_seconds: 30
-poison_max_bursts: 3
-poison_volume_multiplier: 12
-poison_min_log_docs: 300
-poison_max_log_docs: 3000
-poison_metric_docs: 30
 
 producers_venv_path: /opt/alice-ingest/venv
 producers_app_root: /opt/alice-ingest/app
@@ -341,5 +339,3 @@ producer_replay_source: "{{ playbook_dir }}/../../images/replay/replay.py"
 
 s3_access_key_id: "{{ vault_s3_access_key_id }}"
 s3_secret_access_key: "{{ vault_s3_secret_access_key }}"
-dashboards_basic_auth_user: alice
-dashboards_basic_auth_password: "{{ vault_dashboards_basic_auth_password }}"

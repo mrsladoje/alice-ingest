@@ -1,0 +1,8 @@
+dashboards_trend_rollup_script: /opt/alice-ingest/trend_rollup.py
+
+trend_rollup_bucket_seconds: 600
+trend_rollup_settle_seconds: 120
+trend_rollup_backfill_buckets: 3
+trend_rollup_page_size: 500
+trend_rollup_max_entities: 2000
+trend_rollup_retention_days: 30

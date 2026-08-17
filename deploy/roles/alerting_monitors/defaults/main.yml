@@ -1,0 +1,15 @@
+dashboards_bootstrap_alerting_script: /opt/alice-ingest/init/alerting.sh
+dashboards_bootstrap_monitors_dir: /opt/alice-ingest/init/monitors
+
+ad_anomaly_grade_threshold: 0.7
+ad_anomaly_confidence_threshold: 0.7
+
+trend_lag_floor_ms: 250
+trend_entry_lag_ceiling_ms: 3600000
+trend_entity_cap_warn: 1800
+trend_min_slice_docs: 50
+trend_min_slice_errors: 10
+trend_min_lag_docs: 100
+
+fleet_silence_fraction: 0.5
+forecast_disk_threshold_percent: 85

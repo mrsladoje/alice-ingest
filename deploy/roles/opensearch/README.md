@@ -92,7 +92,7 @@ in the inventory.
   packaged configuration and then restarts onto ours.
 - **A 404 from the anomaly-detection API is accepted, but only one kind.** The
   plugin creates `.opendistro-anomaly-detectors` when the first detector is
-  created, which happens later, during the `dashboards` play. Until then the
+  created, which happens later, in the `anomaly_detection` role. Until then the
   search returns `index_not_found_exception`. The task asserts that exact error
   type, so any other 404 still fails the run.
 - **`plugins.security.disabled: true`.** Every port this role opens is

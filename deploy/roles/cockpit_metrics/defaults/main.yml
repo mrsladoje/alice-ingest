@@ -1,0 +1,10 @@
+dashboards_metrics_script: /opt/alice-ingest/metrics_poller.py
+dashboards_roster_publish_script: /opt/alice-ingest/roster_publish.py
+
+fleet_collector_node_ids: []
+roster_assignments: []
+
+cockpit_metrics_retention_days: 7
+heartbeat_grace_seconds: 90
+
+collector_health_push_enabled: true

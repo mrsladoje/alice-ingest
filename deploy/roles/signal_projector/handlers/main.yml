@@ -1,0 +1,7 @@
+- name: Restart alice-notification-ingest
+  ansible.builtin.systemd:
+    name: "{{ dashboards_notification_ingest_service_name }}"
+    state: restarted
+    daemon_reload: true
+  failed_when: false
+  listen: restart alice-notification-ingest

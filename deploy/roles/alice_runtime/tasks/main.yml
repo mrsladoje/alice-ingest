@@ -1,0 +1,85 @@
+- name: Ensure the bootstrap scripts directory exists
+  ansible.builtin.file:
+    path: "{{ dashboards_bootstrap_root }}"
+    state: directory
+    owner: root
+    group: root
+    # DynamicUser services need to traverse this directory to read the one
+    # public, non-secret signal catalog below.  Scripts and definitions keep
+    # their own root-only modes.
+    #
+    # The opensearch_bootstrap role creates the same directory with the same
+    # owner, group and mode. Neither role owns it; each writes its own scripts
+    # into it, and opensearch_bootstrap runs first.
+    mode: "0755"
+
+- name: Stage the signal identity catalog (one explicit per-monitor and per-detector classifier, never inferred from an index name)
+  ansible.builtin.copy:
+    src: signal_catalog.json
+    dest: "{{ dashboards_bootstrap_signal_catalog }}"
+    owner: root
+    group: root
+    # alice-signal-projector uses DynamicUser=true, so it cannot join a
+    # stable Unix group.  The catalog contains only public classifiers,
+    # never credentials; make that file readable while leaving the
+    # neighboring detector/monitor definitions root-only.
+    mode: "0644"
+  register: _projector_remote_catalog
+
+- name: Prove a sandbox-style unprivileged service can read and parse the signal identity catalog
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/runuser
+      - -u
+      - nobody
+      - --
+      - /usr/bin/python3
+      - -c
+      - "import json; json.load(open('{{ dashboards_bootstrap_signal_catalog }}'))"
+  changed_when: false
+
+- name: Stage the causal edges (one declaration per edge; proven decides whether it explains or suppresses)
+  ansible.builtin.copy:
+    src: causal_edges.json
+    dest: "{{ dashboards_bootstrap_causal_edges }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: _projector_remote_edges
+
+- name: Verify the staged causal edges parse and every edge is complete
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - >-
+        import json,sys;
+        d=json.load(open('{{ dashboards_bootstrap_causal_edges }}'));
+        e=d['edges'];
+        bad=[x for x in e if not x.get('cause') or not x.get('symptom')
+             or not x.get('equal') or 'proven' not in x];
+        sys.exit('incomplete causal edges: %s' % bad[:3] if bad else 0)
+  changed_when: false
+
+- name: Ensure the control-node app root exists
+  ansible.builtin.file:
+    path: "{{ dashboards_app_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Stage the shared PIT/search_after cursor and identity modules beside the services that import them
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - {src: os_cursor.py, dest: "{{ dashboards_os_cursor_script }}"}
+    - {src: signal_identity.py, dest: "{{ dashboards_signal_identity_script }}"}
+  loop_control:
+    label: "{{ item.dest }}"
+  register: _projector_remote_modules
+  notify: "{{ alice_runtime_stage_notify }}"

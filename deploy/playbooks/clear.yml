@@ -2,8 +2,6 @@
   hosts: control
   become: true
   gather_facts: false
-  vars_files:
-    - ../roles/dashboards/defaults/main.yml
 
   # Same action as the /ops page's Delete logs button, on purpose. The ops
   # server already stops a running replay, waits for the workers to go quiet,

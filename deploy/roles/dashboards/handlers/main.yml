@@ -10,32 +10,3 @@
     name: nginx
     state: restarted
   listen: restart nginx
-
-- name: Restart alice-ops
-  ansible.builtin.systemd:
-    name: "{{ dashboards_ops_service_name }}"
-    state: restarted
-    daemon_reload: true
-  listen: restart alice-ops
-
-- name: Restart alice-metrics
-  ansible.builtin.systemd:
-    name: "{{ dashboards_metrics_service_name }}"
-    state: restarted
-    daemon_reload: true
-  listen: restart alice-metrics
-
-- name: Restart alice-trend-rollup
-  ansible.builtin.systemd:
-    name: "{{ dashboards_trend_rollup_service_name }}"
-    state: restarted
-    daemon_reload: true
-  listen: restart alice-trend-rollup
-
-- name: Restart alice-notification-ingest
-  ansible.builtin.systemd:
-    name: "{{ dashboards_notification_ingest_service_name }}"
-    state: restarted
-    daemon_reload: true
-  failed_when: false
-  listen: restart alice-notification-ingest

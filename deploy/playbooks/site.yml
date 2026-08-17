@@ -194,37 +194,81 @@
   roles:
     - alertmanager
 
-- name: OpenSearch Dashboards + nginx proxy + cluster bootstrap (control host only)
+- name: Control plane — Dashboards, nginx, ops page, monitors, roster, metrics and detectors (control host only)
   hosts: control
   become: true
   vars_files:
     - "{{ playbook_dir }}/../group_vars/vault.yml"
+  vars:
+    alice_runtime_stage_notify:
+      - restart alice-metrics
+
+  # The order of this list is the order the single dashboards role used to run
+  # its task files in, and every step of it is load-bearing:
+  #   alice_runtime      creates /opt/alice-ingest and /opt/alice-ingest/init and
+  #                      stages the catalogs and the shared modules that every
+  #                      role below imports.
+  #   dashboards         installs Dashboards and nginx, then creates the index
+  #                      patterns before it imports the cockpit saved objects
+  #                      that reference them.
+  #   alice_ops          serves the ops page behind the nginx seam above.
+  #   alerting_monitors  upserts the monitors, which was the last task of the old
+  #                      bootstrap, still after the cockpit import and before the
+  #                      roster.
+  #   cockpit_metrics    publishes the immutable roster, then starts the poller
+  #                      that reads it.
+  #   anomaly_detection  waits for the poller's first documents, then upserts the
+  #                      detectors and the forecaster, and asserts the monitor
+  #                      count alerting_monitors just produced.
   roles:
+    - alice_runtime
     - dashboards
+    - alice_ops
+    - alerting_monitors
+    - cockpit_metrics
+    - anomaly_detection
+
+- name: Notification receiver on the control host the Alertmanager webhook points at — before the projector, so it is up while the projector starts
+  hosts: control
+  become: true
+  tasks:
+    - name: Install and start the notification receiver
+      ansible.builtin.include_role:
+        name: signal_projector
+        tasks_from: receiver.yml
+
+- name: Signal projector on its own node — after the monitors and detectors whose signals it normalizes, and after Alertmanager, which it must reach before it starts
+  hosts: projector
+  become: true
+  roles:
+    - alice_runtime
+    - signal_projector
+
+- name: Signal contract and the signal-layer re-verify, on the control host the Alertmanager webhook points at
+  hosts: control
+  become: true
+  vars:
+    projector_gate_started_utc: "{{ hostvars[groups['projector'][0]]._projector_gate_started.stdout | default('now-1h', true) }}"
+  tasks:
+    - name: Assert the receiver stayed up and re-verify the signal layer now the projector exists
+      ansible.builtin.include_role:
+        name: signal_projector
+        tasks_from: control.yml
 
 - name: Background analytics services (off the control host, distributed across storage nodes)
   hosts: background
   become: true
-  tasks:
-    - name: Stage what these services import
-      ansible.builtin.include_role:
-        name: dashboards
-        tasks_from: offload_prep.yml
+  roles:
+    - role: alice_runtime
 
-    - name: Trend rollup service
-      ansible.builtin.include_role:
-        name: dashboards
-        tasks_from: rollup.yml
+    - role: trend_rollup
       when: "'rollup' in background_services"
 
 - name: Live lane — the standalone log viewer, off the control host
   hosts: livelane
   become: true
-  tasks:
-    - name: Serve the live lane and its page
-      ansible.builtin.include_role:
-        name: dashboards
-        tasks_from: livelane.yml
+  roles:
+    - role: live_lane
       when: live_lane_enabled | bool
 
 - name: Fluent Bit collector (worker VMs only)
@@ -239,7 +283,7 @@
   tasks:
     - name: Verify pushed heartbeats and roster-derived absence after collector cutover
       ansible.builtin.include_role:
-        name: dashboards
+        name: cockpit_metrics
         tasks_from: post_collector.yml
 
 - name: S3-replay producers (worker VMs only)
@@ -261,11 +305,16 @@
   become: false
   gather_facts: false
   tasks:
+    # The gate runs on the projector host now, so its fact is read out of that
+    # host's variables rather than this play's own.
     - name: Fail the deploy when the signal projector never proved a cycle
       ansible.builtin.fail:
         msg: >-
           Everything else converged, but the signal projector gate is still
-          unproven. Its full diagnosis was printed during the Dashboards play,
-          under 'Report why the projector produced no heartbeat'. Scroll back to
-          that block — it is the only part of this run that needs reading.
-      when: projector_gate_failed | default(false) | bool
+          unproven. Its full diagnosis was printed during the signal projector
+          play, under 'Report why the projector produced no heartbeat'. Scroll
+          back to that block — it is the only part of this run that needs
+          reading.
+      when: >-
+        hostvars[groups['projector'][0]].projector_gate_failed
+        | default(false) | bool

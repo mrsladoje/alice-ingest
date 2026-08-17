@@ -29,7 +29,7 @@
     state: directory
     owner: root
     group: root
-    # The dashboards role stages a world-readable signal catalog in the same
+    # The alice_runtime role stages a world-readable signal catalog in the same
     # directory for its DynamicUser services to traverse. Scripts and
     # definitions keep their own root-only modes.
     mode: "0755"

@@ -1,0 +1,46 @@
+- name: Assert the notification receiver stayed up (a dead receiver silently drops every notification)
+  ansible.builtin.systemd:
+    name: "{{ dashboards_notification_ingest_service_name }}"
+  register: _notify_state
+  retries: 6
+  delay: 5
+  until: _notify_state.status.ActiveState == "active"
+
+- name: Assert the notification receiver durably accepts a probe
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ notification_ingest_port }}/healthz"
+    status_code: [200]
+  register: _ingest_health
+  retries: 6
+  delay: 5
+  until: _ingest_health.status == 200
+
+- name: Prove the emitted-signal contract without waiting for a live signal
+  ansible.builtin.command:
+    cmd: "python3 {{ dashboards_signal_contract_test }}"
+  environment:
+    SIGNAL_CATALOG: "{{ dashboards_bootstrap_signal_catalog }}"
+    CLUSTER_ID: "{{ cluster_id }}"
+  changed_when: false
+
+- name: Re-verify the signal layer now that the projector exists
+  ansible.builtin.command:
+    cmd: "python3 {{ dashboards_bootstrap_verify_script }}"
+  environment:
+    OS_URL: "http://localhost:{{ opensearch_http_port }}"
+    EXPECTED_MONITORS: "{{ expected_monitors }}"
+    EXPECTED_DETECTORS: "{{ expected_detectors }}"
+    EXPECTED_FORECASTERS: "{{ expected_forecasters }}"
+    ROLLUP_INDEX: "{{ trend_rollup_index }}"
+    METRICS_INDEX: "{{ cockpit_metrics_index }}"
+    ROSTER_INDEX: "{{ fleet_roster_index }}"
+    SIGNALS_INDEX: "{{ signals_index }}"
+    INCIDENTS_INDEX: "{{ incidents_index }}"
+    NOTIFICATIONS_INDEX: "{{ notifications_index }}"
+    LANE_STATE_INDEX: "{{ lane_state_index }}"
+    SIGNAL_CATALOG: "{{ dashboards_bootstrap_signal_catalog }}"
+    ALERTING_MAX_ACTIONABLE_ALERT_COUNT: "{{ alerting_max_actionable_alert_count }}"
+    EXPECT_PUSH_HEARTBEATS: "false"
+    CHECK_EPISODE_GROUPING: "true"
+    GROUPING_SINCE: "{{ projector_gate_started_utc }}"
+  changed_when: false

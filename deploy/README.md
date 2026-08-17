@@ -365,6 +365,56 @@ Bit and the replay producers are stateless per node (a restart only re-tails
 from saved offsets or resumes from the `AUTOSTART_MARKER` guard), so those two
 roles are safe to bounce.
 
+### 4.3 The roles, and the order `site.yml` runs them in
+
+Every role targets one host group. The order below is the order `site.yml`
+declares, and each step depends on the one above it.
+
+| # | Play (host group) | Roles, in order |
+|---|---|---|
+| 1 | `alice_nodes` | `common` |
+| 2 | `alice_nodes` | `opensearch` (initial bring-up, then the `serial: 1` health gate) |
+| 3 | `control` | `opensearch_bootstrap` |
+| 4 | `control` | `alertmanager` |
+| 5 | `control` | `alice_runtime`, `dashboards`, `alice_ops`, `alerting_monitors`, `cockpit_metrics`, `anomaly_detection` |
+| 6 | `projector` | `alice_runtime`, `signal_projector` |
+| 7 | `control` | `signal_projector` (`tasks_from: control.yml`) |
+| 8 | `background` | `alice_runtime`, `trend_rollup` |
+| 9 | `livelane` | `live_lane` |
+| 10 | `workers` | `collector` |
+| 11 | `control` | `cockpit_metrics` (`tasks_from: post_collector.yml`) |
+| 12 | `workers` | `producer` |
+| 13 | `workers` + `projector` | `faults` |
+| 14 | `control` | the final verdict on the projector gate |
+
+What each dependency is:
+
+- `opensearch_bootstrap` creates the indices and the write aliases. Every
+  cockpit pattern, monitor and detector below reads them.
+- `alice_runtime` creates `/opt/alice-ingest` and `/opt/alice-ingest/init`, and
+  stages the signal catalog, the causal edges and the two shared Python modules
+  (`os_cursor.py`, `signal_identity.py`). Every service that imports them runs
+  after it, on the same host.
+- `dashboards` creates the per-source index patterns before it imports the
+  cockpit saved objects that reference them.
+- `alerting_monitors` upserts the 28 monitors. `anomaly_detection` asserts that
+  count, so the monitors come first.
+- `cockpit_metrics` publishes the immutable fleet roster, then starts the poller
+  that reads it to derive collector absence.
+- `anomaly_detection` waits for the poller's first `kind=node` and `kind=osd`
+  documents before it creates the detectors that read them.
+- `signal_projector` normalizes the signals the monitors and detectors emit, so
+  both must exist first. It also proves it can reach Alertmanager before it
+  starts, which is why play 4 is above it.
+- `cockpit_metrics`'s post-collector gate runs after `collector`, because it
+  waits for each collector's pushed Fluent Bit heartbeat.
+
+Two roles run in more than one play. `alice_runtime` runs wherever an
+alice service imports its modules: control, projector and background.
+`signal_projector` runs on the projector host for the projector itself, and on
+the control host for the notification receiver — the receiver binds
+`127.0.0.1` and Alertmanager, which runs on control, posts its webhooks there.
+
 ---
 
 ## 5. Verification
@@ -446,7 +496,7 @@ below ran clean:
 |---|---|
 | `ansible-inventory --graph` on `inventory.yml` | pass — `alice_nodes` resolves to `workers` (2) + `storage` (3); `control` = `alice-ingest-3` (a storage node) |
 | `ansible-playbook --syntax-check` on `playbooks/site.yml`, `playbooks/provision.yml`, `playbooks/teardown.yml` | pass — zero syntax errors |
-| `ansible-playbook playbooks/site.yml --list-hosts` | pass — common/opensearch/gate target all 5, dashboards → control, collector + producer → the 2 workers only |
+| `ansible-playbook playbooks/site.yml --list-hosts` | pass — common/opensearch/gate target all 5; the control-plane roles (`alice_runtime`, `dashboards`, `alice_ops`, `alerting_monitors`, `cockpit_metrics`, `anomaly_detection`) → control; `signal_projector` → projector; `trend_rollup` → background; `live_lane` → livelane; collector + producer → the 2 workers only |
 | `group_vars/all.yml` derivations (`ansible -m debug`) | pass — `node_count=2` (from `workers`); seeds/initial-managers/Dashboards-hosts = the 3 storage nodes; `opensearch_cluster_hosts` = all 5 (firewall mesh) |
 | `opensearch.yml.j2` render (both tiers) | pass — workers get `node.roles: [data, ingest]` + `node.attr.role: worker` + `node.attr.box: <node_id>`; storage gets `[cluster_manager, data, ingest]` + `node.attr.role: storage` |
 | `opensearch.yml.j2` ingest role | pass — every index sets `default_pipeline: alice-add-ingest-time`, and explicit `node.roles` drops the implicit `ingest` role, so both tiers list `ingest` (`[data, ingest]` / `[cluster_manager, data, ingest]`); workers stay ingest-capable so the local info path needs no cross-node hop for the pipeline |
@@ -516,9 +566,10 @@ CERN network access and real quota.
 ## 8. Detection layer runbook (wooden-plane)
 
 Provisioned every `make deploy`: index templates and ISM by the
-`opensearch_bootstrap` role, then monitors, detectors and strict verify by the
-`dashboards` role. Definitions live under
-`roles/dashboards/files/{monitors,detectors}/`.
+`opensearch_bootstrap` role, then monitors by the `alerting_monitors` role, and
+detectors, the forecaster and strict verify by the `anomaly_detection` role.
+Definitions live under `roles/alerting_monitors/files/monitors/` and
+`roles/anomaly_detection/files/{detectors,forecasters}/`.
 
 ### Platform health is pushed, not scraped
 
@@ -1409,7 +1460,7 @@ listed under it. **Stop injection** ends the observation window early; it still
 restores the component and still scores the shortened window.
 
 Both front doors drive one engine, `alice-inject` on the control VM
-(`roles/dashboards/files/inject_run.py`). `make inject` writes
+(`roles/alice_ops/files/inject_run.py`). `make inject` writes
 `/var/lib/alice-inject/request.json`, starts that unit, and then only follows
 it, so a scorecard never depends on which door produced it and a dropped SSH
 session never aborts a 45-minute run. Each finished run is also kept as JSON
@@ -2046,7 +2097,7 @@ maintains this after us — and that reason stands. But this tree has no Node, n
 npm and no bundler, and adding a JavaScript toolchain to an Ansible deploy is
 the same kind of permanent tax the plan rejected for Dashboards plugins. So
 `react.production.min.js` and `react-dom.production.min.js` are committed under
-`roles/dashboards/files/live/`, and the page calls `React.createElement`
+`roles/live_lane/files/live/`, and the page calls `React.createElement`
 directly, which is what JSX compiles into. Nothing builds and nothing fetches at
 deploy time. See `live/VENDORED.md` for versions, hashes and provenance. React
 19 removed UMD builds, which is why the vendored line is 18.
@@ -2235,7 +2286,7 @@ Alertmanager `inhibit_rules` are a causal graph. We never called it one.
 | emits a ranked cause list | now both: it advises, and when proven it acts |
 
 The difference was direction and confidence, not structure. Every edge is now
-declared once in `roles/dashboards/files/causal_edges.json` — cause, symptom,
+declared once in `roles/alice_runtime/files/causal_edges.json` — cause, symptom,
 scope keys, probability and a `proven` flag — and the flag decides what the edge
 does:
 

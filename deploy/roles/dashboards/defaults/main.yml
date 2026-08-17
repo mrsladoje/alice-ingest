@@ -6,9 +6,6 @@ dashboards_systemd_dropin_dir: /etc/systemd/system/opensearch-dashboards.service
 dashboards_memory_dropin: /etc/systemd/system/opensearch-dashboards.service.d/memory.conf
 dashboards_node_options_file: "{{ dashboards_config_dir }}/node.options"
 
-projector_gate_retries: 36
-projector_gate_delay: 5
-projector_gate_failed: false
 dashboards_system_user: opensearch-dashboards
 dashboards_system_group: opensearch-dashboards
 dashboards_home_dir: /usr/share/opensearch-dashboards
@@ -22,73 +19,13 @@ dashboards_nginx_tls_cert_days: 3650
 dashboards_nginx_htpasswd_file: /etc/nginx/dashboards.htpasswd
 dashboards_nginx_vhost_file: /etc/nginx/conf.d/dashboards.conf
 
+dashboards_basic_auth_user: alice
+dashboards_basic_auth_password: "{{ vault_dashboards_basic_auth_password }}"
+
 # Shared with the opensearch_bootstrap role, which writes templates.sh, ism.sh
 # and register_node.sh into the same directory and creates it with the same
 # owner, group and mode.
 dashboards_bootstrap_root: /opt/alice-ingest/init
 dashboards_bootstrap_patterns_script: "{{ dashboards_bootstrap_root }}/patterns.sh"
-dashboards_bootstrap_alerting_script: "{{ dashboards_bootstrap_root }}/alerting.sh"
-dashboards_bootstrap_detectors_script: "{{ dashboards_bootstrap_root }}/detectors.sh"
-dashboards_bootstrap_forecasters_script: "{{ dashboards_bootstrap_root }}/forecasters.sh"
-dashboards_bootstrap_verify_script: "{{ dashboards_bootstrap_root }}/verify_detection.py"
-dashboards_bootstrap_monitors_dir: "{{ dashboards_bootstrap_root }}/monitors"
-dashboards_bootstrap_detectors_dir: "{{ dashboards_bootstrap_root }}/detectors"
-dashboards_bootstrap_forecasters_dir: "{{ dashboards_bootstrap_root }}/forecasters"
 dashboards_bootstrap_cockpit_ndjson: "{{ dashboards_bootstrap_root }}/cockpit.ndjson"
 dashboards_bootstrap_hydrate_script: "{{ dashboards_bootstrap_root }}/hydrate_patterns.py"
-
-dashboards_ops_service_name: alice-ops
-dashboards_ops_script: /opt/alice-ingest/ops_server.py
-
-# The ops page re-applies the index templates. A literal, not a reference to the
-# opensearch_bootstrap role's variable: a default that reads another role's
-# variable resolves lazily and makes this role unrunnable alone. It must match
-# opensearch_bootstrap_templates_script.
-dashboards_ops_templates_script: /opt/alice-ingest/init/templates.sh
-
-live_lane_service_name: alice-live-lane
-live_lane_script: /opt/alice-ingest/live_lane.py
-live_lane_static_dir: /opt/alice-ingest/live
-live_lane_cockpit_url: "/app/dashboards"
-ops_internal_port: 8090
-
-dashboards_poison_replay_service_name: alice-poison-replay
-dashboards_poison_replay_script: /opt/alice-ingest/poison_replay.py
-dashboards_poison_replay_state_dir: /var/lib/alice-poison-replay
-dashboards_poison_replay_status: "{{ dashboards_poison_replay_state_dir }}/status.json"
-dashboards_poison_replay_report_dir: "{{ dashboards_poison_replay_state_dir }}/runs"
-
-dashboards_inject_service_name: alice-inject
-dashboards_inject_script: /opt/alice-ingest/inject_run.py
-dashboards_inject_state_dir: /var/lib/alice-inject
-dashboards_inject_status: "{{ dashboards_inject_state_dir }}/status.json"
-dashboards_inject_request: "{{ dashboards_inject_state_dir }}/request.json"
-dashboards_inject_report_dir: "{{ dashboards_inject_state_dir }}/runs"
-dashboards_inject_default_observe_minutes: 45
-
-dashboards_metrics_service_name: alice-metrics
-dashboards_metrics_script: /opt/alice-ingest/metrics_poller.py
-
-dashboards_trend_rollup_service_name: alice-trend-rollup
-dashboards_trend_rollup_script: /opt/alice-ingest/trend_rollup.py
-
-expected_monitors: 28
-expected_detectors: 17
-expected_forecasters: 1
-dashboards_backtest_script: /opt/alice-ingest/backtest.py
-dashboards_reset_derived_script: /opt/alice-ingest/reset_derived.py
-
-dashboards_app_root: /opt/alice-ingest
-dashboards_os_cursor_script: /opt/alice-ingest/os_cursor.py
-dashboards_signal_identity_script: /opt/alice-ingest/signal_identity.py
-dashboards_roster_publish_script: /opt/alice-ingest/roster_publish.py
-dashboards_discover_roster_script: /opt/alice-ingest/discover_roster.py
-dashboards_bootstrap_signal_catalog: "{{ dashboards_bootstrap_root }}/signal_catalog.json"
-dashboards_bootstrap_causal_edges: "{{ dashboards_bootstrap_root }}/causal_edges.json"
-
-dashboards_signal_projector_service_name: alice-signal-projector
-dashboards_signal_projector_script: /opt/alice-ingest/signal_projector.py
-dashboards_notification_ingest_service_name: alice-notification-ingest
-dashboards_notification_ingest_script: /opt/alice-ingest/notification_ingest.py
-dashboards_score_injection_script: /opt/alice-ingest/score_injection.py
-dashboards_signal_contract_test: /opt/alice-ingest/test_signal_contract.py

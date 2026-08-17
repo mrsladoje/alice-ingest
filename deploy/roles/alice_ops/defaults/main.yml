@@ -1,0 +1,32 @@
+dashboards_ops_script: /opt/alice-ingest/ops_server.py
+
+# The ops page re-applies the index templates. A literal, not a reference to the
+# opensearch_bootstrap role's variable: a default that reads another role's
+# variable resolves lazily and makes this role unrunnable alone. It must match
+# opensearch_bootstrap_templates_script.
+dashboards_ops_templates_script: /opt/alice-ingest/init/templates.sh
+
+dashboards_score_injection_script: /opt/alice-ingest/score_injection.py
+
+dashboards_poison_replay_state_dir: /var/lib/alice-poison-replay
+
+dashboards_inject_script: /opt/alice-ingest/inject_run.py
+dashboards_inject_state_dir: /var/lib/alice-inject
+dashboards_inject_report_dir: "{{ dashboards_inject_state_dir }}/runs"
+dashboards_inject_default_observe_minutes: 45
+
+poison_warmup_poll_seconds: 120
+poison_observe_seconds: 330
+poison_observe_poll_seconds: 30
+poison_max_bursts: 3
+poison_volume_multiplier: 12
+poison_min_log_docs: 300
+poison_max_log_docs: 3000
+poison_metric_docs: 30
+
+worker_replay_trigger_urls: []
+worker_replay_endpoints: []
+worker_fault_agent_endpoints: []
+worker_inventory_names: []
+fleet_collector_node_ids: []
+signal_projector_address: ""

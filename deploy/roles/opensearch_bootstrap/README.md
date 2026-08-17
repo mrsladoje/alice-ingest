@@ -25,9 +25,10 @@ it is not:
   the cockpit import and the alerting monitors all need the indices to exist
   first. As a separate play the ordering is one line at the call site.
 
-What stayed in `dashboards`: the index patterns, the cockpit saved objects, the
-field-catalog hydration, the alerting monitors, the anomaly detectors, the
-forecaster and the verification.
+Where the rest of it went: the index patterns, the cockpit saved objects and
+the field-catalog hydration stayed in `dashboards`; the alerting monitors are
+now the `alerting_monitors` role; the anomaly detectors, the forecaster and the
+verification are now the `anomaly_detection` role.
 
 ## What it does
 
@@ -130,24 +131,26 @@ All from `group_vars/all.yml`, and all read by the two templates.
   nodes applies the same state five times for no benefit.
 - **The OpenSearch cluster must already answer.** `templates.sh` waits for
   `_cluster/health` at yellow for up to 3 minutes and then fails.
-- **It must run before the `dashboards` role.** Index patterns, the cockpit
-  import and the alerting monitors all read indices this role creates.
+- **It must run before the `dashboards`, `alerting_monitors` and
+  `anomaly_detection` roles.** Index patterns, the cockpit import and the
+  alerting monitors all read indices this role creates.
 - **The role reports `changed` on every run.** Both scripts are idempotent but
   give no machine-readable changed signal, so the tasks declare
   `changed_when: true` rather than claim a state they cannot detect.
 
 ## Couplings
 
-- **`opensearch_bootstrap_root` is shared with the `dashboards` role.** Both roles
-  create the directory, with the same owner, group and mode, and each writes its
-  own scripts into it. `dashboards` also stages a world-readable signal catalog
-  there for its `DynamicUser` services, which is why the directory is `0755` and
-  the scripts inside it are `0750`.
+- **`opensearch_bootstrap_root` is shared with the `alice_runtime` role.** Both
+  roles create the directory, with the same owner, group and mode, and each
+  writes its own scripts into it; `dashboards`, `alerting_monitors` and
+  `anomaly_detection` only write into it. `alice_runtime` also stages a
+  world-readable signal catalog there for the `DynamicUser` services, which is
+  why the directory is `0755` and the scripts inside it are `0750`.
 - **`dashboards_ops_templates_script` must match
   `opensearch_bootstrap_templates_script`.** The ops page re-applies the index
-  templates through `alice-ops.service`. That unit is written by the `dashboards`
+  templates through `alice-ops.service`. That unit is written by the `alice_ops`
   role, which holds the path as a literal: a default reading another role's
-  variable resolves lazily and would make `dashboards` unrunnable alone.
+  variable resolves lazily and would make `alice_ops` unrunnable alone.
 - **`playbooks/replay.yml` also runs `templates.sh`.** It carries the path as the
   play variable `bootstrap_root`, with `SEED_EMPTY_INDICES=false`, to rebuild the
   write aliases after a fresh replay. Moving the staging directory means changing

@@ -1,0 +1,46 @@
+# {{ ansible_managed }}
+[Unit]
+Description=ALICE controlled poison replay and detector calibration
+After=network-online.target opensearch.service {{ dashboards_metrics_service_name }}.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+MemoryAccounting=yes
+MemoryHigh={{ alice_service_memory_high }}
+MemoryMax={{ alice_service_memory_max }}
+User=root
+Group=root
+Environment=OS_URL=http://localhost:{{ opensearch_http_port }}
+Environment=METRICS_INDEX={{ cockpit_metrics_index }}
+Environment=ROSTER_INDEX={{ fleet_roster_index }}
+Environment=SIGNALS_INDEX={{ signals_index }}
+Environment=INCIDENTS_INDEX={{ incidents_index }}
+Environment=POISON_STATUS_PATH={{ dashboards_poison_replay_status }}
+Environment=POISON_REPORT_DIR={{ dashboards_poison_replay_report_dir }}
+Environment=POISON_WORKER_TRIGGERS={{ worker_replay_trigger_urls | join(',') }}
+Environment=POISON_REPLAY_FAMILIES=infologger,dds,stdout
+Environment=POISON_GRADE_FLOOR={{ anomaly_grade_floor }}
+Environment=POISON_WARMUP_TIMEOUT_SECONDS={{ poison_warmup_timeout_seconds }}
+Environment=POISON_WARMUP_POLL_SECONDS={{ poison_warmup_poll_seconds }}
+Environment=POISON_OBSERVE_SECONDS={{ poison_observe_seconds }}
+Environment=POISON_OBSERVE_POLL_SECONDS={{ poison_observe_poll_seconds }}
+Environment=POISON_MAX_BURSTS={{ poison_max_bursts }}
+Environment=POISON_VOLUME_MULTIPLIER={{ poison_volume_multiplier }}
+Environment=POISON_MIN_LOG_DOCS={{ poison_min_log_docs }}
+Environment=POISON_MAX_LOG_DOCS={{ poison_max_log_docs }}
+Environment=POISON_METRIC_DOCS={{ poison_metric_docs }}
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 {{ dashboards_poison_replay_script }}
+Restart=no
+KillSignal=SIGTERM
+TimeoutStopSec=30s
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths={{ dashboards_poison_replay_state_dir }}
+
+[Install]
+WantedBy=multi-user.target

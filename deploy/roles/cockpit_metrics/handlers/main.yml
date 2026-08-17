@@ -1,0 +1,6 @@
+- name: Restart alice-metrics
+  ansible.builtin.systemd:
+    name: "{{ dashboards_metrics_service_name }}"
+    state: restarted
+    daemon_reload: true
+  listen: restart alice-metrics

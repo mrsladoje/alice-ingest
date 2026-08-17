@@ -2,8 +2,6 @@
   hosts: control
   become: true
   gather_facts: false
-  vars_files:
-    - ../roles/dashboards/defaults/main.yml
 
   tasks:
     - name: Check whether poison replay is already active

@@ -2,8 +2,6 @@
   hosts: background
   become: true
   gather_facts: false
-  vars_files:
-    - ../roles/dashboards/defaults/main.yml
   vars:
     background_status_services: >-
       {{ ([dashboards_trend_rollup_service_name] if 'rollup' in background_services else [])
@@ -52,8 +50,6 @@
   hosts: control
   become: true
   gather_facts: false
-  vars_files:
-    - ../roles/dashboards/defaults/main.yml
   vars:
     cockpit_status_services:
       - "{{ dashboards_metrics_service_name }}"
@@ -140,7 +136,7 @@
 
     - name: Run the detection status probe
       ansible.builtin.script:
-        cmd: "{{ playbook_dir }}/../roles/dashboards/files/detection_status.py"
+        cmd: "{{ playbook_dir }}/../roles/anomaly_detection/files/detection_status.py"
         executable: /usr/bin/python3
       environment:
         OS_URL: "http://localhost:{{ opensearch_http_port }}"

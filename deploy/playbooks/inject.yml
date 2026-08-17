@@ -2,8 +2,6 @@
   hosts: control
   become: true
   gather_facts: false
-  vars_files:
-    - ../roles/dashboards/defaults/main.yml
   vars:
     scenario: kill-fluent-bit
     target_worker: "{{ groups['workers'][0] }}"

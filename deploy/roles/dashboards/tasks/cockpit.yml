@@ -1,0 +1,119 @@
+- name: Render the Dashboards index-pattern bootstrap script
+  ansible.builtin.template:
+    src: patterns.sh.j2
+    dest: "{{ dashboards_bootstrap_patterns_script }}"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Stage the Maintainer Cockpit saved-objects NDJSON
+  ansible.builtin.copy:
+    src: cockpit.ndjson
+    dest: "{{ dashboards_bootstrap_cockpit_ndjson }}"
+    owner: root
+    group: root
+    mode: "0640"
+
+- name: Stage the index-pattern field-catalog hydration script
+  ansible.builtin.copy:
+    src: hydrate_patterns.py
+    dest: "{{ dashboards_bootstrap_hydrate_script }}"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Create the per-source Dashboards index patterns (idempotent, every run)
+  ansible.builtin.command:
+    cmd: "{{ dashboards_bootstrap_patterns_script }}"
+  environment:
+    OSD_URL: "http://127.0.0.1:{{ dashboards_internal_port }}"
+    OS_URL: "http://localhost:{{ opensearch_http_port }}"
+  changed_when: true
+
+- name: Import the Maintainer Cockpit saved objects (idempotent overwrite, every run)
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -s
+      - -o
+      - /tmp/cockpit-import.json
+      - -w
+      - "%{http_code}"
+      - -XPOST
+      - "http://127.0.0.1:{{ dashboards_internal_port }}/api/saved_objects/_import?overwrite=true"
+      - -H
+      - "osd-xsrf: true"
+      - --form
+      - "file=@{{ dashboards_bootstrap_cockpit_ndjson }}"
+  register: _cockpit_import
+  changed_when: true
+  retries: 10
+  delay: 6
+  until: _cockpit_import.stdout is search('200')
+
+- name: Verify the import succeeded for every saved object
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - |
+        import json, sys
+        expected = sum(1 for line in open("{{ dashboards_bootstrap_cockpit_ndjson }}") if line.strip())
+        r = json.load(open("/tmp/cockpit-import.json"))
+        ok = r.get("success") is True and r.get("successCount") == expected and not r.get("errors")
+        print(f"import success={r.get('success')} count={r.get('successCount')}/{expected} errors={r.get('errors', [])}")
+        sys.exit(0 if ok else 1)
+  changed_when: false
+
+- name: Remove retired cockpit saved objects that import cannot delete
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ dashboards_internal_port }}/api/saved_objects/{{ item }}"
+    method: DELETE
+    headers:
+      osd-xsrf: "true"
+    status_code: [200, 404]
+  loop:
+    - index-pattern/alice-anomalies
+    - search/alice-search-anomalies
+    - visualization/alice-viz-anomalies
+    - visualization/alice-viz-anomaly-count
+  failed_when: false
+
+- name: Hydrate every index pattern with its serialized field catalog
+  ansible.builtin.command:
+    cmd: "python3 {{ dashboards_bootstrap_hydrate_script }}"
+  environment:
+    OSD_URL: "http://127.0.0.1:{{ dashboards_internal_port }}"
+    EXTRA_PATTERNS: "infologger,generic-log-info-*,generic-log-other"
+  register: _hydrate
+  changed_when: true
+
+- name: Set the unified pattern as the default Discover index
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ dashboards_internal_port }}/api/opensearch-dashboards/settings/defaultIndex"
+    method: POST
+    headers:
+      osd-xsrf: "true"
+    body_format: json
+    body:
+      value: alice-unified
+    status_code: [200]
+  register: _set_default_index
+  retries: 5
+  delay: 3
+  until: _set_default_index.status == 200
+
+- name: Land users on the Maintainer Cockpit dashboard by default
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ dashboards_internal_port }}/api/opensearch-dashboards/settings/defaultRoute"
+    method: POST
+    headers:
+      osd-xsrf: "true"
+    body_format: json
+    body:
+      value: "/app/dashboards#/view/alice-cockpit"
+    status_code: [200]
+  register: _set_default_route
+  retries: 5
+  delay: 3
+  until: _set_default_route.status == 200

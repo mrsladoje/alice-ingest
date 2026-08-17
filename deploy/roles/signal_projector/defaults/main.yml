@@ -1,0 +1,23 @@
+projector_gate_retries: 36
+projector_gate_delay: 5
+
+signal_projector_memory_high: "384M"
+signal_projector_memory_max: "768M"
+
+signal_projector_interval_seconds: 30
+signal_projector_resolve_timeout_seconds: 300
+signal_projector_overlap_minutes: 15
+signal_projector_initial_lookback_minutes: 120
+signal_projector_os_unreachable_cycles: 2
+signal_projector_retention_days: 30
+signal_projector_page: 500
+signal_projector_bulk_documents: 500
+signal_projector_pit_keep_alive: "10m"
+signal_projector_mass_silence_fraction: 0.5
+
+dashboards_signal_projector_script: /opt/alice-ingest/signal_projector.py
+dashboards_notification_ingest_script: /opt/alice-ingest/notification_ingest.py
+dashboards_signal_contract_test: /opt/alice-ingest/test_signal_contract.py
+
+alertmanager_host_address: ""
+projector_gate_started_utc: ""

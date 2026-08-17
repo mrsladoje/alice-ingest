@@ -1,7 +1,0 @@
-- name: Ensure the app root exists on the background node
-  ansible.builtin.file:
-    path: "{{ dashboards_app_root }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"

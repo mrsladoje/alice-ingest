@@ -1,0 +1,20 @@
+live_lane_service_name: alice-live-lane
+live_lane_script: /opt/alice-ingest/live_lane.py
+live_lane_static_dir: /opt/alice-ingest/live
+live_lane_cockpit_url: "/app/dashboards"
+
+live_lane_bind: 0.0.0.0
+live_lane_token: ""
+
+live_lane_buffer_rows: 10000
+
+# Held for a viewer who connects mid-stream, so a fresh page is not blank.
+live_lane_replay_rows: 500
+
+# Per viewer. A full queue drops for that viewer; it is never allowed to grow.
+live_lane_client_queue_max: 2000
+
+live_lane_memory_high: "192M"
+live_lane_memory_max: "384M"
+
+live_lane_allowed_client_addresses: []

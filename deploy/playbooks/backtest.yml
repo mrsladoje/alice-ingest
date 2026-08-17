@@ -2,8 +2,6 @@
   hosts: control
   become: true
   gather_facts: false
-  vars_files:
-    - ../roles/dashboards/defaults/main.yml
   vars:
     # Empty means every detector whose index is not cockpit-metrics — the
     # metrics detectors already run in real time and need no backtest.

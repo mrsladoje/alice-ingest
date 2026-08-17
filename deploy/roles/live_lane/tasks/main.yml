@@ -1,0 +1,97 @@
+- name: Ensure the live lane app root and static directory exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ dashboards_app_root }}"
+    - "{{ live_lane_static_dir }}"
+
+- name: Install the live lane server
+  ansible.builtin.copy:
+    src: live_lane.py
+    dest: "{{ live_lane_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+  register: _live_lane_script
+
+- name: >-
+    Install the page and its vendored browser libraries (no build step and no
+    network at deploy time — see live/VENDORED.md for what these are)
+  ansible.builtin.copy:
+    src: "live/{{ item }}"
+    dest: "{{ live_lane_static_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - live_lane.js
+    - live_lane.css
+    - react.production.min.js
+    - react-dom.production.min.js
+  register: _live_lane_assets
+
+- name: Render the page shell, which carries the buffer size and the link back to the cockpit
+  ansible.builtin.template:
+    src: live-index.html.j2
+    dest: "{{ live_lane_static_dir }}/index.html"
+    owner: root
+    group: root
+    mode: "0644"
+  register: _live_lane_index
+
+- name: Open the live lane ingest and stream port to the collectors and the control host
+  ansible.posix.firewalld:
+    rich_rule: >-
+      rule family="ipv4"
+      source address="{{ item }}"
+      port port="{{ live_lane_port }}" protocol="tcp"
+      accept
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ live_lane_allowed_client_addresses }}"
+
+- name: Install the live lane unit
+  ansible.builtin.template:
+    src: alice-live-lane.service.j2
+    dest: /etc/systemd/system/{{ live_lane_service_name }}.service
+    owner: root
+    group: root
+    mode: "0644"
+  register: _live_lane_unit
+
+- name: Enable and start the live lane, restarting only when its inputs changed
+  ansible.builtin.systemd:
+    name: "{{ live_lane_service_name }}"
+    enabled: true
+    state: >-
+      {{ 'restarted'
+         if ((_live_lane_script.changed | default(false))
+             or (_live_lane_assets.changed | default(false))
+             or (_live_lane_index.changed | default(false))
+             or (_live_lane_unit.changed | default(false)))
+         else 'started' }}
+    daemon_reload: true
+
+- name: Prove the live lane answers on its own host before the collectors point at it
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ live_lane_port }}/healthz"
+    status_code: 200
+  register: _live_lane_health
+  until: _live_lane_health.status == 200
+  retries: 12
+  delay: 5
+
+- name: Prove the page itself is served, not only the health endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ live_lane_port }}/"
+    return_content: true
+    status_code: 200
+  register: _live_lane_page
+  failed_when: >-
+    _live_lane_page.status != 200
+    or 'live_lane.js' not in (_live_lane_page.content | default(''))
