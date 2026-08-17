@@ -4,6 +4,11 @@
 # Bit expands an unset variable to an empty string without saying anything.
 EnvironmentFile={{ collector_env_file }}
 
+# The info-tier index settings register_node.sh writes into its template. The
+# opensearch role owns this file; no dash here either, for the same reason —
+# without it register_node.sh silently falls back to its own built-in values.
+EnvironmentFile={{ collector_opensearch_env_file }}
+
 # The node registers and repairs its own index before the collector starts.
 # ExecStartPre counts against TimeoutStartSec, so change the two together.
 ExecStartPre={{ collector_register_script }}

@@ -50,8 +50,17 @@ caller supplies them. It defaults every one of them, so it also runs by hand.
 | `ALICE_INFO_MERGE_THREADS` | `1` | Index setting written into the template. |
 | `ALICE_INFO_RETENTION_POLICY` | `alice-generic-info-retention` | Retention policy to attach. |
 
-On a worker, `collector` writes these into `/etc/alice-ingest/node.env`, which
-`fluent-bit.service` loads as its `EnvironmentFile`.
+On a worker these arrive from two files, both loaded by `fluent-bit.service` as
+`EnvironmentFile`:
+
+- `/etc/alice-ingest/node.env` — written by `collector`. Node identity, log root,
+  Fluent Bit paths and ports, `ALICE_OS_HTTP_PORT`.
+- `/etc/alice-ingest/opensearch-node.env` — written by `opensearch`. The four
+  `ALICE_INFO_*` index settings, because those are index settings and the
+  `opensearch` role owns them.
+
+On the control host neither file is used. `templates.sh` passes the same
+variables on the command line, once per worker.
 
 ## Timeout coupling
 

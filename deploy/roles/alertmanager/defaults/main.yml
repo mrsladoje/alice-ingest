@@ -8,3 +8,5 @@ alertmanager_config_file: "{{ alertmanager_config_dir }}/alertmanager.yml"
 alertmanager_data_dir: /var/lib/alertmanager
 alertmanager_service_name: alertmanager
 alertmanager_system_user: alertmanager
+
+alertmanager_allowed_client_addresses: []

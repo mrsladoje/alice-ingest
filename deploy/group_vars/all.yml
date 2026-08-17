@@ -64,20 +64,10 @@ dashboards_opensearch_hosts: "{{ groups['storage'] | map('extract', hostvars, 'a
 dashboards_internal_port: 5602
 dashboards_external_port: 5601
 
+common_open_tcp_ports: "{{ [dashboards_external_port] if inventory_hostname in groups['control'] else [] }}"
+
 infologger_tcp_port: 5170
 log_root: /var/log/node
-fluent_bit_storage_path: /var/log/flb-storage
-fluent_bit_http_port: 2020
-fluent_bit_version: "5.0.8"
-
-# Service-level, so this also delays the live lane by the same 5 seconds.
-fluent_bit_flush_seconds: 5
-
-fluent_bit_log_buffer_limit: "256M"
-fluent_bit_log_farm_buffer_limit: "2G"
-fluent_bit_log_retry_limit: 10
-fluent_bit_memory_high: "384M"
-fluent_bit_memory_max: "768M"
 
 # The live lane. README section 9, Item 7.
 live_lane_enabled: true
@@ -167,8 +157,12 @@ roster_assignments: []
 
 heartbeat_grace_seconds: 90
 fleet_silence_fraction: 0.5
-fluent_bit_http_listen: 127.0.0.1
-collector_metrics_scrape_open: false
+
+# The one host allowed to scrape a worker's Fluent Bit metrics port. Resolved
+# here, beside the other seven inventory-derived values, so the collector role
+# never has to name an inventory group of its own.
+collector_metrics_scrape_source: "{{ hostvars[groups['control'][0]].ansible_host }}"
+
 collector_health_push_enabled: true
 
 health_metrics_emit_legacy_node: false
@@ -176,6 +170,8 @@ health_metrics_emit_legacy_node: false
 alerting_max_actionable_alert_count: 50
 
 alertmanager_port: 9093
+alertmanager_allowed_client_addresses:
+  - "{{ hostvars[signal_projector_host].ansible_host }}"
 notification_ingest_port: 8091
 notification_ingest_token: ""
 

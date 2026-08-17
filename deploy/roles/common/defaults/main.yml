@@ -18,7 +18,11 @@ common_swapfile_size_mb: 2048
 common_swappiness: 60
 
 
+log_root: /var/log/node
+
 common_log_dirs:
   - "{{ log_root }}"
   - "{{ log_root }}/dds"
   - "{{ log_root }}/stdout"
+
+common_open_tcp_ports: []

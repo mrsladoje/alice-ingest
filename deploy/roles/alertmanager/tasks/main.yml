@@ -29,6 +29,18 @@
       {{ alertmanager_proven_edges | length }} proven edges; the page tier may
       stay at {{ alertmanager_page_group_wait }}
 
+- name: Allow only the listed clients to reach Alertmanager's internal API ({{ alertmanager_port }}/tcp)
+  ansible.posix.firewalld:
+    rich_rule: >-
+      rule family="ipv4"
+      source address="{{ item }}"
+      port port="{{ alertmanager_port }}" protocol="tcp"
+      accept
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ alertmanager_allowed_client_addresses }}"
+
 - name: Create the alertmanager system user
   ansible.builtin.user:
     name: "{{ alertmanager_system_user }}"

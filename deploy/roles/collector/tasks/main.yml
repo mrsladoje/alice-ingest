@@ -20,7 +20,7 @@
   ansible.posix.firewalld:
     rich_rule: >-
       rule family="ipv4"
-      source address="{{ hostvars[groups['control'][0]].ansible_host }}"
+      source address="{{ collector_metrics_scrape_source }}"
       port port="{{ fluent_bit_http_port }}" protocol="tcp"
       accept
     permanent: true
@@ -73,18 +73,6 @@
     node_registration_mode: "0755"
     node_registration_notify:
       - restart fluent-bit
-
-- name: Create log_root and its dds/stdout subdirectories (local producers write here, this collector tails them)
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-  loop:
-    - "{{ log_root }}"
-    - "{{ log_root }}/dds"
-    - "{{ log_root }}/stdout"
 
 - name: Create Fluent Bit storage/buffer path (native equivalent of the container's /var/log/flb-storage)
   ansible.builtin.file:

@@ -5,6 +5,8 @@ opensearch_package: "opensearch-{{ opensearch_version }}"
 
 opensearch_service_name: opensearch
 
+opensearch_cluster_hosts: []
+
 opensearch_limit_nofile: 65536
 
 opensearch_user: opensearch
@@ -15,6 +17,16 @@ opensearch_plugin_bin: "{{ opensearch_home }}/bin/opensearch-plugin"
 opensearch_config_dir: /etc/opensearch
 opensearch_jvm_options_d: /etc/opensearch/jvm.options.d
 opensearch_systemd_dropin_dir: "/etc/systemd/system/{{ opensearch_service_name }}.service.d"
+
+# The info-tier index settings this cluster publishes to its nodes, so a worker
+# registering itself at boot writes the same template the control host writes.
+#
+# The retention policy name is deliberately NOT a variable here. The policy is
+# created by name in the dashboards role (ism.sh.j2) and asserted by name in
+# verify_detection.py, and register_node.sh falls back to the same literal. A
+# variable would only let this end of the pair move.
+opensearch_node_env_dir: /etc/alice-ingest
+opensearch_node_env_file: "{{ opensearch_node_env_dir }}/opensearch-node.env"
 
 opensearch_required_plugins:
   - opensearch-anomaly-detection

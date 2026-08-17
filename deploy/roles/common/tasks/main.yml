@@ -115,46 +115,10 @@
     enabled: true
     state: started
 
-- name: Open OpenSearch HTTP (9200/tcp) between all 5 cluster nodes
+- name: Open the world-reachable TCP ports this host is asked to expose
   ansible.posix.firewalld:
-    rich_rule: >-
-      rule family="ipv4"
-      source address="{{ item }}"
-      port port="{{ opensearch_http_port }}" protocol="tcp"
-      accept
+    port: "{{ item }}/tcp"
     permanent: true
     immediate: true
     state: enabled
-  loop: "{{ opensearch_cluster_hosts }}"
-
-- name: Open OpenSearch transport (9300/tcp) between all 5 cluster nodes
-  ansible.posix.firewalld:
-    rich_rule: >-
-      rule family="ipv4"
-      source address="{{ item }}"
-      port port="{{ opensearch_transport_port }}" protocol="tcp"
-      accept
-    permanent: true
-    immediate: true
-    state: enabled
-  loop: "{{ opensearch_cluster_hosts }}"
-
-- name: Open the Dashboards external port (5601/tcp, nginx TLS+basic-auth) on the control host
-  ansible.posix.firewalld:
-    port: "{{ dashboards_external_port }}/tcp"
-    permanent: true
-    immediate: true
-    state: enabled
-  when: inventory_hostname in groups['control']
-
-- name: Allow only the projector host to reach Alertmanager's internal API
-  ansible.posix.firewalld:
-    rich_rule: >-
-      rule family="ipv4"
-      source address="{{ hostvars[signal_projector_host].ansible_host }}"
-      port port="{{ alertmanager_port }}" protocol="tcp"
-      accept
-    permanent: true
-    immediate: true
-    state: enabled
-  when: inventory_hostname in groups['control']
+  loop: "{{ common_open_tcp_ports }}"

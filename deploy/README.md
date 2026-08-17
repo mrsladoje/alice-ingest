@@ -1798,7 +1798,7 @@ the real durability budget: about half a minute, on a tier whose whole job is no
 to lose logs during data taking.
 
 The new values are `fluent_bit_log_buffer_limit` and `fluent_bit_log_retry_limit`
-in `group_vars/all.yml`. Ten retries is **50 seconds at best and about 109 minutes
+in `roles/collector/defaults/main.yml`. Ten retries is **50 seconds at best and about 109 minutes
 at worst** — the spread is wide because the backoff is jittered, and that is
 inherent, not a tuning mistake.
 

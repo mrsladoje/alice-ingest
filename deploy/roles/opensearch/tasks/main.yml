@@ -1,3 +1,27 @@
+- name: Open OpenSearch HTTP ({{ opensearch_http_port }}/tcp) to every other cluster node
+  ansible.posix.firewalld:
+    rich_rule: >-
+      rule family="ipv4"
+      source address="{{ item }}"
+      port port="{{ opensearch_http_port }}" protocol="tcp"
+      accept
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ opensearch_cluster_hosts }}"
+
+- name: Open OpenSearch transport ({{ opensearch_transport_port }}/tcp) to every other cluster node
+  ansible.posix.firewalld:
+    rich_rule: >-
+      rule family="ipv4"
+      source address="{{ item }}"
+      port port="{{ opensearch_transport_port }}" protocol="tcp"
+      accept
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ opensearch_cluster_hosts }}"
+
 - name: Add the official OpenSearch yum repository
   ansible.builtin.yum_repository:
     name: "opensearch-{{ opensearch_version.split('.')[0] }}.x"
@@ -35,6 +59,25 @@
     owner: "{{ opensearch_user }}"
     group: "{{ opensearch_group }}"
     mode: "0750"
+
+- name: Ensure the shared per-node environment directory exists
+  ansible.builtin.file:
+    path: "{{ opensearch_node_env_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: >-
+    Publish the info-tier index settings register_node.sh needs — these are
+    index settings, so they are owned here rather than by the collector whose
+    unit happens to load them
+  ansible.builtin.template:
+    src: opensearch-node.env.j2
+    dest: "{{ opensearch_node_env_file }}"
+    owner: root
+    group: root
+    mode: "0644"
 
 - name: Template opensearch.yml (cluster identity, inventory-derived discovery, security disabled)
   ansible.builtin.template:
