@@ -182,6 +182,12 @@
       retries: 60
       delay: 5
 
+- name: OpenSearch cluster bootstrap — index templates, ingest pipeline, cluster settings, retention (control host only)
+  hosts: control
+  become: true
+  roles:
+    - opensearch_bootstrap
+
 - name: Alertmanager (control host only, behind the existing nginx seam)
   hosts: control
   become: true

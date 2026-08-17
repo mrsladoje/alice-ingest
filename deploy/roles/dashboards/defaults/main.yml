@@ -22,14 +22,14 @@ dashboards_nginx_tls_cert_days: 3650
 dashboards_nginx_htpasswd_file: /etc/nginx/dashboards.htpasswd
 dashboards_nginx_vhost_file: /etc/nginx/conf.d/dashboards.conf
 
+# Shared with the opensearch_bootstrap role, which writes templates.sh, ism.sh
+# and register_node.sh into the same directory and creates it with the same
+# owner, group and mode.
 dashboards_bootstrap_root: /opt/alice-ingest/init
-dashboards_bootstrap_templates_script: "{{ dashboards_bootstrap_root }}/templates.sh"
 dashboards_bootstrap_patterns_script: "{{ dashboards_bootstrap_root }}/patterns.sh"
 dashboards_bootstrap_alerting_script: "{{ dashboards_bootstrap_root }}/alerting.sh"
 dashboards_bootstrap_detectors_script: "{{ dashboards_bootstrap_root }}/detectors.sh"
 dashboards_bootstrap_forecasters_script: "{{ dashboards_bootstrap_root }}/forecasters.sh"
-dashboards_bootstrap_ism_script: "{{ dashboards_bootstrap_root }}/ism.sh"
-dashboards_bootstrap_register_node_script: "{{ dashboards_bootstrap_root }}/register_node.sh"
 dashboards_bootstrap_verify_script: "{{ dashboards_bootstrap_root }}/verify_detection.py"
 dashboards_bootstrap_monitors_dir: "{{ dashboards_bootstrap_root }}/monitors"
 dashboards_bootstrap_detectors_dir: "{{ dashboards_bootstrap_root }}/detectors"
@@ -39,6 +39,12 @@ dashboards_bootstrap_hydrate_script: "{{ dashboards_bootstrap_root }}/hydrate_pa
 
 dashboards_ops_service_name: alice-ops
 dashboards_ops_script: /opt/alice-ingest/ops_server.py
+
+# The ops page re-applies the index templates. A literal, not a reference to the
+# opensearch_bootstrap role's variable: a default that reads another role's
+# variable resolves lazily and makes this role unrunnable alone. It must match
+# opensearch_bootstrap_templates_script.
+dashboards_ops_templates_script: /opt/alice-ingest/init/templates.sh
 
 live_lane_service_name: alice-live-lane
 live_lane_script: /opt/alice-ingest/live_lane.py

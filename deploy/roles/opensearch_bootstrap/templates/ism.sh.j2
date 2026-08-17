@@ -14,7 +14,7 @@ ROLL_SIZE_ACTIONS="{{ alert_actions_rollover_max_size }}"
 ROLL_AGE="{{ log_rollover_period }}"
 ROLL_AGE_INFO="{{ log_rollover_period_info }}"
 ROLL_SIZE="{{ log_rollover_max_size }}"
-WORKER_NODES="{{ groups['workers'] | map('extract', hostvars, 'node_id') | join(' ') }}"
+WORKER_NODES="{{ opensearch_bootstrap_worker_node_ids | join(' ') }}"
 
 put_policy() {
   id="$1"

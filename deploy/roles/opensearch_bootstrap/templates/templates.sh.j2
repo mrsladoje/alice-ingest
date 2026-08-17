@@ -3,7 +3,7 @@ set -eu
 
 OS="${OS_URL:-http://opensearch:9200}"
 
-WORKER_NODES="{{ groups['workers'] | map('extract', hostvars, 'node_id') | join(' ') }}"
+WORKER_NODES="{{ opensearch_bootstrap_worker_node_ids | join(' ') }}"
 MIGRATE_EXISTING="{{ log_rollover_migrate_existing | bool | ternary('true', 'false') }}"
 SEED_EMPTY_INDICES="${SEED_EMPTY_INDICES:-true}"
 

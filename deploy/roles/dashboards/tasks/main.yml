@@ -16,7 +16,7 @@
 - name: Ops trigger service (replay button) behind nginx
   ansible.builtin.import_tasks: ops.yml
 
-- name: Cluster bootstrap (templates, indices, patterns, cockpit import, hydration)
+- name: Dashboards bootstrap (index patterns, cockpit import, hydration, monitors) — after the opensearch_bootstrap role has created the indices
   ansible.builtin.import_tasks: bootstrap.yml
 
 - name: Publish the immutable fleet roster — before the poller, which reads it to derive collector absence

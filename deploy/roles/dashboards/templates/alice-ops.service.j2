@@ -16,7 +16,7 @@ Environment=OS_URL=http://localhost:{{ opensearch_http_port }}
 Environment=OPS_WORKER_TRIGGERS={% for h in groups['workers'] %}http://{{ hostvars[h].ansible_host }}:{{ replay_http_port }}{% if not loop.last %},{% endif %}{% endfor +%}
 Environment=OPS_WORKER_INFO_NODES={{ groups['workers'] | map('extract', hostvars, 'node_id') | join(',') }}
 Environment=OPS_REPLAY_FAMILIES=infologger,dds,stdout
-Environment=OPS_TEMPLATES_SCRIPT={{ dashboards_bootstrap_templates_script }}
+Environment=OPS_TEMPLATES_SCRIPT={{ dashboards_ops_templates_script }}
 Environment=OPS_RESET_SCRIPT={{ dashboards_reset_derived_script }}
 Environment=OPS_POISON_SERVICE={{ dashboards_poison_replay_service_name }}
 Environment=OPS_POISON_STATUS={{ dashboards_poison_replay_status }}

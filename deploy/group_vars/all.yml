@@ -1,19 +1,20 @@
+# Read by the opensearch role and by the dashboards role, which pins the
+# matching OpenSearch Dashboards RPM to the same version.
 opensearch_version: "3.7.0"
+
+# Read by the opensearch role and by cluster_id below.
 opensearch_cluster_name: alice-logs
 
-opensearch_heap_size: "1g"
+# The OpenSearch node footprint now lives in roles/opensearch/defaults/main.yml:
+# opensearch_heap_size, opensearch_worker_heap_size, opensearch_worker_processors
+# and opensearch_worker_index_buffer_size. Heap moved there so the workers group
+# assignment in inventory.yml takes effect; group vars outrank role defaults but
+# not each other's file, and a copy here silently won.
 
-# Worker-tier OpenSearch footprint. Reasoning in README section 9, Item 4.
+# The info-tier index settings. Two roles write them: opensearch publishes them
+# to each node in opensearch-node.env, and opensearch_bootstrap passes them to
+# templates.sh. They stay here because neither role may hold the only copy.
 #
-# The farm value is 2g; inventory.yml overrides it down for the m2.medium
-# staging workers, which cannot hold it beside Fluent Bit and the producer.
-opensearch_worker_heap_size: "2g"
-
-# A cap, never a floor — opensearch.yml.j2 takes the smaller of this and the
-# processors the machine really has.
-opensearch_worker_processors: 4
-opensearch_worker_index_buffer_size: "5%"
-
 # Must stay well under the one-minute detector interval or it is inert. Measure
 # the refresh rate before and after; if it does not drop, this value is wrong.
 opensearch_info_search_idle_after: "10s"
@@ -50,14 +51,19 @@ signal_projector_memory_high: "384M"
 signal_projector_memory_max: "768M"
 
 opensearch_http_port: 9200
-opensearch_transport_port: 9300
 
-opensearch_data_path: /var/lib/opensearch
-opensearch_log_path: /var/log/opensearch
+# opensearch_transport_port, opensearch_data_path and opensearch_log_path moved
+# into roles/opensearch/defaults/main.yml. Nothing outside that role reads them.
 
 opensearch_cluster_hosts: "{{ groups['alice_nodes'] | map('extract', hostvars, 'ansible_host') | list }}"
 opensearch_seed_hosts: "{{ groups['storage'] | map('extract', hostvars, 'ansible_host') | list }}"
 opensearch_initial_cluster_manager_nodes: "{{ groups['storage'] | map('extract', hostvars, 'node_id') | list }}"
+
+# The worker node identities the bootstrap writes a per-node index template and
+# retention policy for. Resolved here so opensearch_bootstrap names no inventory
+# group of its own.
+opensearch_bootstrap_worker_node_ids: "{{ groups['workers'] | map('extract', hostvars, 'node_id') | list }}"
+
 dashboards_opensearch_hosts: "{{ groups['storage'] | map('extract', hostvars, 'ansible_host') |
   map('regex_replace', '^(.*)$', 'http://\\1:' ~ (opensearch_http_port | string)) | list }}"
 

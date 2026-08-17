@@ -20,7 +20,9 @@ path.data: {{ opensearch_data_path }}
 path.logs: {{ opensearch_log_path }}
 
 network.host:
-  - _local_
+{% for h in opensearch_network_host %}
+  - {{ h }}
+{% endfor %}
   - {{ ansible_host }}
 network.publish_host: {{ ansible_host }}
 
@@ -40,4 +42,4 @@ cluster.initial_cluster_manager_nodes:
 # Keep. Locked memory never swaps, so this node cannot push physics pages out.
 bootstrap.memory_lock: true
 
-plugins.security.disabled: true
+plugins.security.disabled: {{ opensearch_security_disabled | bool | ternary('true', 'false') }}

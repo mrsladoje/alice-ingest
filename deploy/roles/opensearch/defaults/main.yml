@@ -1,3 +1,10 @@
+# The version is declared here as well as in group_vars/all.yml, because the two
+# defaults below interpolate it. A role whose own defaults reference a variable
+# it does not declare cannot run outside this repository. group_vars/all.yml
+# carries the site value and outranks this line; the dashboards role reads the
+# same name to pin its own RPM, so the two products stay on one version.
+opensearch_version: "3.7.0"
+
 opensearch_yum_repo_baseurl: "https://artifacts.opensearch.org/releases/bundle/opensearch/{{ opensearch_version.split('.')[0] }}.x/yum"
 opensearch_yum_repo_gpgkey: "https://artifacts.opensearch.org/publickeys/opensearch-release.pgp"
 
@@ -5,9 +12,54 @@ opensearch_package: "opensearch-{{ opensearch_version }}"
 
 opensearch_service_name: opensearch
 
+# Supplied by the playbook. The role names no inventory group of its own, so
+# these three arrive as plain lists resolved in group_vars/all.yml.
 opensearch_cluster_hosts: []
+opensearch_seed_hosts: []
+opensearch_initial_cluster_manager_nodes: []
+
+opensearch_transport_port: 9300
+
+opensearch_data_path: /var/lib/opensearch
+opensearch_log_path: /var/log/opensearch
+
+# Declared here rather than in group_vars/all.yml so that a group or host
+# assignment in inventory.yml actually wins. Role defaults rank below every
+# group var; a name that also exists in group_vars/all.yml cannot be overridden
+# from inside the inventory file.
+opensearch_heap_size: "1g"
+
+# Reference only, read by nobody. The EPN-farm worker value, written down beside
+# the staging value rather than guessed at later.
+opensearch_worker_heap_size: "2g"
+
+# A cap, never a floor — opensearch.yml.j2 takes the smaller of this and the
+# processors the machine really has.
+opensearch_worker_processors: 4
+opensearch_worker_index_buffer_size: "5%"
 
 opensearch_limit_nofile: 65536
+
+# The cluster runs without the security plugin, so every port it opens is
+# unauthenticated and firewalld is the only boundary. Turning this off means
+# providing TLS material, an internal user database and a role mapping, none of
+# which this role holds.
+opensearch_security_disabled: true
+
+# Addresses the node binds. _local_ keeps the loopback listener the collector
+# and the bootstrap scripts use; ansible_host is added by the template.
+opensearch_network_host:
+  - _local_
+
+# First boot on a fresh install has to unpack, start a JVM and form a cluster.
+# 60 attempts at 5 seconds allows 5 minutes.
+opensearch_boot_wait_retries: 60
+opensearch_boot_wait_delay: 5
+
+# The anomaly-detection plugin answers as soon as its REST handler registers,
+# which is later than the HTTP port opening.
+opensearch_ad_api_retries: 10
+opensearch_ad_api_delay: 3
 
 opensearch_user: opensearch
 opensearch_group: opensearch
@@ -22,9 +74,9 @@ opensearch_systemd_dropin_dir: "/etc/systemd/system/{{ opensearch_service_name }
 # registering itself at boot writes the same template the control host writes.
 #
 # The retention policy name is deliberately NOT a variable here. The policy is
-# created by name in the dashboards role (ism.sh.j2) and asserted by name in
-# verify_detection.py, and register_node.sh falls back to the same literal. A
-# variable would only let this end of the pair move.
+# created by name in the opensearch_bootstrap role (ism.sh.j2) and asserted by
+# name in verify_detection.py, and register_node.sh falls back to the same
+# literal. A variable would only let this end of the pair move.
 opensearch_node_env_dir: /etc/alice-ingest
 opensearch_node_env_file: "{{ opensearch_node_env_dir }}/opensearch-node.env"
 

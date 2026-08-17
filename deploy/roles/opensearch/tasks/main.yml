@@ -88,7 +88,7 @@
     mode: "0640"
   notify: restart opensearch
 
-- name: Template JVM heap options (trimmed for m2.medium — see group_vars/all.yml opensearch_heap_size)
+- name: Template JVM heap options (trimmed for m2.medium — see opensearch_heap_size in this role's defaults)
   ansible.builtin.template:
     src: heap.options.j2
     dest: "{{ opensearch_jvm_options_d }}/heap.options"
@@ -131,8 +131,8 @@
     status_code: 200
   register: _opensearch_boot_check
   until: _opensearch_boot_check.status == 200
-  retries: 60
-  delay: 5
+  retries: "{{ opensearch_boot_wait_retries }}"
+  delay: "{{ opensearch_boot_wait_delay }}"
 
 - name: List installed OpenSearch plugins
   ansible.builtin.command:
@@ -161,8 +161,8 @@
         match_all: {}
     status_code: [200, 404]
   register: _ad_api_check
-  retries: 10
-  delay: 3
+  retries: "{{ opensearch_ad_api_retries }}"
+  delay: "{{ opensearch_ad_api_delay }}"
   until: _ad_api_check.status in [200, 404]
 
 - name: Assert the anomaly-detection 404 is only the not-yet-created config index

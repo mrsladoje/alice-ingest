@@ -1,0 +1,14 @@
+# The shared bootstrap script directory. The dashboards role writes its own
+# scripts into the same directory and creates it with the same owner, group and
+# mode, so neither role owns it and the two cannot drift.
+opensearch_bootstrap_root: /opt/alice-ingest/init
+
+opensearch_bootstrap_templates_script: "{{ opensearch_bootstrap_root }}/templates.sh"
+opensearch_bootstrap_ism_script: "{{ opensearch_bootstrap_root }}/ism.sh"
+
+# templates.sh resolves this as "$(dirname "$0")/register_node.sh", so the two
+# files must land in the same directory.
+opensearch_bootstrap_register_node_script: "{{ opensearch_bootstrap_root }}/register_node.sh"
+
+# Supplied by the playbook. The role names no inventory group of its own.
+opensearch_bootstrap_worker_node_ids: []

@@ -122,8 +122,8 @@ not co-located with that UI stack: `alice-signal-projector` runs on
   on) is untouched.
 - **Heap `-Xms1g -Xmx1g`.** VMs are `m2.medium` (2 vCPU / 3.75 GB RAM).
   1 GB heap leaves ~2.5 GB for OS/page cache/Fluent Bit and raises the AD
-  model memory budget (10% of heap). See `deploy/group_vars/all.yml`
-  `opensearch_heap_size`.
+  model memory budget (10% of heap). See `opensearch_heap_size` in
+  `deploy/roles/opensearch/defaults/main.yml`.
 - **Alertmanager is built, in the seam that was reserved for it.** The nginx
   vhost's "another control-host-only service behind this nginx" slot is now
   wired: `alertmanager_port` is a real variable, the service is control-host
@@ -515,8 +515,9 @@ CERN network access and real quota.
 
 ## 8. Detection layer runbook (wooden-plane)
 
-Provisioned every `make deploy` by `bootstrap.yml`: monitors, detectors, ISM,
-strict verify. Definitions live under
+Provisioned every `make deploy`: index templates and ISM by the
+`opensearch_bootstrap` role, then monitors, detectors and strict verify by the
+`dashboards` role. Definitions live under
 `roles/dashboards/files/{monitors,detectors}/`.
 
 ### Platform health is pushed, not scraped
@@ -1711,8 +1712,9 @@ Lubos requires that the bulk tier never crosses the wire. Only the cost changes.
 
    **The staging workers override it down to 1g in `inventory.yml`.** They are
    `m2.medium` with 3.75 GB in total, which 2 GB of heap would take from Fluent
-   Bit and the replay producer. Raise the inventory value, not the group_vars
-   one, when the workers get real memory.
+   Bit and the replay producer. Raise the inventory value when the workers get
+   real memory. `opensearch_heap_size` is declared in the `opensearch` role's
+   defaults, which rank below every group variable, so that override wins.
 6. **The smaller levers.** `indices.memory.index_buffer_size` drops from the
    10%-of-heap default to 5%. `bootstrap.memory_lock` stays on, so locked memory
    never swaps and this node can never push physics pages to disk. The `zstd`
@@ -1818,12 +1820,18 @@ root filesystem with `df -h /var/log` before raising the value.**
 
 **Do not put this override in `inventory.yml`.** Group vars written inside the
 inventory file rank *below* `group_vars/all.yml`, so any name that exists in both
-resolves to the `all.yml` value. This bites an existing line: the `workers` group
-in `inventory.yml` sets `opensearch_heap_size: "1g"` and that assignment has never
-had any effect, because `all.yml` line 4 sets the same variable. It is invisible
-only because both say `1g`. The host-level assignment on `alice-ingest-3` does
-work, because host vars outrank `group_vars/all.yml`. Use `group_vars/workers.yml`
-if a genuine per-tier split is ever needed.
+resolves to the `all.yml` value. Host vars are the exception: a host-level
+assignment outranks `group_vars/all.yml`. Use `group_vars/workers.yml` if a
+genuine per-tier split is ever needed.
+
+This trap bit `opensearch_heap_size` until August 2026. The `workers` group in
+`inventory.yml` set it to `1g` and that assignment had no effect, because
+`group_vars/all.yml` set the same name. It was invisible only because both said
+`1g`. The fix was to declare the name in `roles/opensearch/defaults/main.yml`
+instead: role defaults rank below every group variable, including one written
+inside the inventory file, so the group assignment now wins. **Do not add
+`opensearch_heap_size` back to `group_vars/all.yml`** — that reintroduces the
+trap.
 
 Retries stay finite on purpose. `false` means unlimited, and an output failing on
 something permanent — a mapping conflict returning 400 on every attempt — would
@@ -1914,7 +1922,8 @@ its own failure mode.
    other name, so OpenSearch answers 400 to the *whole* persistent settings
    body — including the anomaly-detection batch pacing that shares the call —
    and `templates.sh` exits non-zero under `set -eu`. The mode is therefore
-   asserted in `roles/dashboards/tasks/bootstrap.yml` before anything renders.
+   asserted in `roles/opensearch_bootstrap/tasks/main.yml` before anything
+   renders.
    An earlier revision shipped `shadow`, which is the word the OpenSearch source
    comments use for this mode but not the name the enum accepts; it failed the
    deploy at that PUT.

@@ -85,4 +85,4 @@ timeout, or systemd kills a collector that was only waiting.
 ## Used by
 
 - `collector` — on every worker
-- `dashboards` (`tasks/bootstrap.yml`) — on the control host
+- `opensearch_bootstrap` (`tasks/main.yml`) — on the control host
