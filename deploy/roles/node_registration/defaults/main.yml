@@ -1,7 +1,0 @@
----
-node_registration_dest: /opt/alice-ingest/register_node.sh
-node_registration_owner: root
-node_registration_group: root
-node_registration_mode: "0755"
-node_registration_dir_mode: "0755"
-node_registration_notify: []

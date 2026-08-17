@@ -1631,7 +1631,7 @@ never be aggregated or charted.
 
 ### Item 3 — a node registers itself
 
-`deploy/roles/node_registration/files/register_node.sh` is the single
+`deploy/roles/opensearch_local_index_registration/files/register_node.sh` is the single
 definition of the three
 per-worker objects: the `generic-log-info-<box>-*` index template, the
 retention-policy attachment, and a writable rollover index behind the alias.

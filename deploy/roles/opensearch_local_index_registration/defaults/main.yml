@@ -1,0 +1,7 @@
+---
+opensearch_local_index_registration_dest: /opt/alice-ingest/register_node.sh
+opensearch_local_index_registration_owner: root
+opensearch_local_index_registration_group: root
+opensearch_local_index_registration_mode: "0755"
+opensearch_local_index_registration_dir_mode: "0755"
+opensearch_local_index_registration_notify: []

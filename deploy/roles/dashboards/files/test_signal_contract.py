@@ -2347,9 +2347,9 @@ def test_the_registration_script_has_exactly_one_definition():
     # file once per worker. Two copies means two competing definitions of a
     # worker's index template.
     check([rel for rel, _ in scripts] ==
-          [os.path.join("node_registration", "files", "register_node.sh")],
+          [os.path.join("opensearch_local_index_registration", "files", "register_node.sh")],
           "register_node.sh must exist exactly once, inside the "
-          "node_registration role, but roles/ holds: " +
+          "opensearch_local_index_registration role, but roles/ holds: " +
           ", ".join(rel for rel, _ in scripts))
 
     for path, label, expected_notify in (
@@ -2358,18 +2358,18 @@ def test_the_registration_script_has_exactly_one_definition():
         includes = [
             task for task in _ansible_tasks(path)
             if (task.get("ansible.builtin.include_role") or {}).get("name")
-            == "node_registration"]
+            == "opensearch_local_index_registration"]
         check(len(includes) == 1,
               f"{label} no longer installs register_node.sh through the "
-              f"node_registration role ({len(includes)} include_role tasks)")
+              f"opensearch_local_index_registration role ({len(includes)} include_role tasks)")
         if not includes:
             continue
         task_vars = includes[0].get("vars") or {}
-        check(task_vars.get("node_registration_dest"),
-              f"{label} does not tell node_registration where to install "
+        check(task_vars.get("opensearch_local_index_registration_dest"),
+              f"{label} does not tell opensearch_local_index_registration where to install "
               "the script")
         if expected_notify is not None:
-            check(task_vars.get("node_registration_notify")
+            check(task_vars.get("opensearch_local_index_registration_notify")
                   == expected_notify,
                   f"{label} no longer restarts its service when the "
                   "registration script changes; it runs as ExecStartPre, so "

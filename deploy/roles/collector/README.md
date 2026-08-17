@@ -187,7 +187,7 @@ site-wide.
 | `collector_env_dir` | `/etc/alice-ingest` | Directory for the node identity file. |
 | `collector_env_file` | `/etc/alice-ingest/node.env` | This machine's identity. See below. |
 | `collector_opensearch_env_file` | `/etc/alice-ingest/opensearch-node.env` | Written by the `opensearch` role. See below. |
-| `collector_register_script` | `/opt/alice-ingest/register_node.sh` | Installed through the `node_registration` role. |
+| `collector_register_script` | `/opt/alice-ingest/register_node.sh` | Installed through the `opensearch_local_index_registration` role. |
 | `collector_start_timeout_seconds` | `600` | `TimeoutStartSec`. Coupled — see below. |
 | `collector_metrics_scrape_open` | `false` | `true` opens the metrics port to the scrape source. |
 | `fluent_bit_storage_path` | `/var/log/flb-storage` | Filesystem buffer and tail position databases. |
@@ -243,7 +243,7 @@ defaults, because a second copy is a second place to change one value.
 ## Couplings
 
 - **`collector_start_timeout_seconds` (600) must exceed `REGISTER_WAIT_ATTEMPTS ×
-  (REGISTER_WAIT_MAX_TIME + REGISTER_WAIT_SLEEP)`** from `node_registration`.
+  (REGISTER_WAIT_MAX_TIME + REGISTER_WAIT_SLEEP)`** from `opensearch_local_index_registration`.
   `ExecStartPre` counts against `TimeoutStartSec`, so raising those waits without
   raising this makes systemd kill a collector that was only waiting.
 - **`collector_health_interval_seconds` follows
@@ -278,7 +278,7 @@ is a collector that does nothing.
   belongs to another role in another play. The control host re-runs
   `register_node.sh` for every worker on each deploy, so the cluster converges;
   the worker's own copy applies at its next boot.
-- **It does not contain the registration script.** `node_registration` holds it,
+- **It does not contain the registration script.** `opensearch_local_index_registration` holds it,
   because the control host runs the same bytes.
 - **It does not normalise fields.** The `alice-add-ingest-time` ingest pipeline
   does, so anything bypassing OpenSearch — the live lane — must enrich itself.
@@ -299,5 +299,5 @@ is a collector that does nothing.
 
 ## Includes
 
-- `node_registration` — installs `register_node.sh` and notifies
+- `opensearch_local_index_registration` — installs `register_node.sh` and notifies
   `restart fluent-bit` when it changes.

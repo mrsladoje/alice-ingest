@@ -42,7 +42,7 @@ forecaster and the verification.
 ┌─ 2. STAGE — /opt/alice-ingest/init ────────────────────────────────────────┐
 │  templates.sh        rendered from templates.sh.j2                         │
 │  ism.sh              rendered from ism.sh.j2                               │
-│  register_node.sh    installed through the node_registration role          │
+│  register_node.sh    installed through the opensearch_local_index_registration role          │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 3. templates.sh — waits for cluster health, then applies ─────────────────┐
@@ -100,7 +100,7 @@ forecaster and the verification.
 | `opensearch_bootstrap_root` | `/opt/alice-ingest/init` | Where the scripts are staged. Shared — see couplings. |
 | `opensearch_bootstrap_templates_script` | `{{ opensearch_bootstrap_root }}/templates.sh` | The rendered index-template script. |
 | `opensearch_bootstrap_ism_script` | `{{ opensearch_bootstrap_root }}/ism.sh` | The rendered retention script. |
-| `opensearch_bootstrap_register_node_script` | `{{ opensearch_bootstrap_root }}/register_node.sh` | Installed through `node_registration`. Must sit beside `templates.sh`. |
+| `opensearch_bootstrap_register_node_script` | `{{ opensearch_bootstrap_root }}/register_node.sh` | Installed through `opensearch_local_index_registration`. Must sit beside `templates.sh`. |
 | `opensearch_bootstrap_worker_node_ids` | `[]` | The worker identities that get a per-node index template, write alias and retention attach. The playbook supplies it. |
 
 ### Variables the role requires but does not own
@@ -185,4 +185,4 @@ The install-and-configure question is answered in
 
 ## Includes
 
-- `node_registration` — installs `register_node.sh` beside `templates.sh`.
+- `opensearch_local_index_registration` — installs `register_node.sh` beside `templates.sh`.

@@ -67,11 +67,11 @@
     Install the node self-registration script (Item 3 — the same file the
     control host runs once per worker during the deploy)
   ansible.builtin.include_role:
-    name: node_registration
+    name: opensearch_local_index_registration
   vars:
-    node_registration_dest: "{{ collector_register_script }}"
-    node_registration_mode: "0755"
-    node_registration_notify:
+    opensearch_local_index_registration_dest: "{{ collector_register_script }}"
+    opensearch_local_index_registration_mode: "0755"
+    opensearch_local_index_registration_notify:
       - restart fluent-bit
 
 - name: Create the log directory tree the tail inputs watch ({{ log_root }})

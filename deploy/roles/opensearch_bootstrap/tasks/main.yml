@@ -47,10 +47,10 @@
     this once per worker, and each worker runs the same file as ExecStartPre, so
     the per-worker index template has exactly one definition
   ansible.builtin.include_role:
-    name: node_registration
+    name: opensearch_local_index_registration
   vars:
-    node_registration_dest: "{{ opensearch_bootstrap_register_node_script }}"
-    node_registration_mode: "0750"
+    opensearch_local_index_registration_dest: "{{ opensearch_bootstrap_register_node_script }}"
+    opensearch_local_index_registration_mode: "0750"
 
 - name: Render the ISM retention bootstrap script
   ansible.builtin.template:
