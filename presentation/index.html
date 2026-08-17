@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scalable logging for ALICE O2</title>
+<link rel="stylesheet" href="css/deck.css">
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+  <section class="slide slide--title" data-active>
+
+    <header class="masthead">
+      <img src="assets/alice-logo.webp" alt="ALICE — A Large Ion Collider Experiment">
+      <p class="stamp">Wednesday 19 August 2026</p>
+    </header>
+
+    <div class="stage">
+      <div class="tick"></div>
+      <h1>Scalable logging<em>for ALICE O<sup>2</sup></em></h1>
+    </div>
+
+    <footer class="colophon">
+      <dl class="credit">
+        <dt>Presented by</dt>
+        <dd>Marko Sladojevic</dd>
+      </dl>
+      <dl class="credit">
+        <dt>Supervisors</dt>
+        <dd>Lubos Krcal<br>Federico Ronchetti</dd>
+      </dl>
+      <p class="folio"></p>
+    </footer>
+
+  </section>
+
+  <section class="slide slide--content">
+
+    <header class="masthead">
+      <img src="assets/alice-logo.webp" alt="ALICE">
+      <p class="stamp">Scalable logging for ALICE O<sup>2</sup></p>
+    </header>
+
+    <div class="stage">
+      <div>
+        <div class="tick"></div>
+        <h2>Outline</h2>
+        <p class="lede">Where the platform stands today, what it costs to run, and what
+          moving to staging asks of us.</p>
+      </div>
+
+      <ol class="agenda">
+        <li data-now>
+          <span class="num">01</span>
+          <span class="what">The platform today</span>
+          <span class="note">Five VMs, native systemd, replaying real EPN logs</span>
+        </li>
+        <li>
+          <span class="num">02</span>
+          <span class="what">Ingest at the edge</span>
+          <span class="note">Fluent Bit per worker, and what it does under burst</span>
+        </li>
+        <li>
+          <span class="num">03</span>
+          <span class="what">Two-tier storage</span>
+          <span class="note">Local logs stay local, valuable logs get replicated</span>
+        </li>
+        <li>
+          <span class="num">04</span>
+          <span class="what">Operations</span>
+          <span class="note">Ansible roles, configurable per environment, no snowflakes</span>
+        </li>
+        <li>
+          <span class="num">05</span>
+          <span class="what">Open questions</span>
+          <span class="note">Cross-worker shipping, retention, hyperparameter ownership</span>
+        </li>
+        <li>
+          <span class="num">06</span>
+          <span class="what">Road to staging</span>
+          <span class="note">What lands on the EPN, and in what order</span>
+        </li>
+      </ol>
+    </div>
+
+    <footer class="runner">
+      <span>ALICE Collaboration Board</span>
+      <span class="folio"></span>
+    </footer>
+
+  </section>
+
+  <section class="slide slide--content">
+
+    <header class="masthead">
+      <img src="assets/alice-logo.webp" alt="ALICE">
+      <p class="stamp">Scalable logging for ALICE O<sup>2</sup></p>
+    </header>
+
+    <div class="stage">
+      <div>
+        <div class="tick"></div>
+        <h2>InfoLogger<br>today</h2>
+        <p class="lede">Every process on every FLP and EPN writes here. One daemon per
+          node, one server for the farm, one SQL table behind it.</p>
+      </div>
+
+      <figure class="figure">
+        <svg viewBox="0 0 820 300" role="img"
+             aria-label="InfoLogger topology in four stages. Inject: user processes write through libInfoLogger or piped stdout. Collect: infoLoggerD on each node forwards over TCP to a single central infoLoggerServer. Store: infoLoggerServer writes to one MySQL messages table. Display: infoBrowser clients take a live push from the server and query the archive from MySQL.">
+          <defs>
+            <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,1 L10,5 L0,9 z" class="d-head"></path>
+            </marker>
+            <marker id="ahs" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,1 L10,5 L0,9 z" class="d-head is-soft"></path>
+            </marker>
+          </defs>
+
+          <rect class="d-panel" x="0" y="33" width="145" height="210"></rect>
+          <rect class="d-panel" x="165" y="33" width="325" height="210"></rect>
+          <rect class="d-panel" x="510" y="33" width="150" height="210"></rect>
+          <rect class="d-panel" x="680" y="33" width="140" height="210"></rect>
+
+          <text class="d-num" x="0" y="25">01</text>
+          <text class="d-stage" x="24" y="25">Inject</text>
+          <text class="d-num" x="165" y="25">02</text>
+          <text class="d-stage" x="189" y="25">Collect</text>
+          <text class="d-num" x="510" y="25">03</text>
+          <text class="d-stage" x="534" y="25">Store</text>
+          <text class="d-num" x="680" y="25">04</text>
+          <text class="d-stage" x="704" y="25">Display</text>
+
+          <rect class="d-ghost" x="22" y="84" width="100" height="56"></rect>
+          <rect class="d-ghost" x="22" y="78" width="100" height="56"></rect>
+          <rect class="d-card" x="22" y="72" width="100" height="56"></rect>
+
+          <rect class="d-ghost" x="22" y="160" width="100" height="56"></rect>
+          <rect class="d-ghost" x="22" y="154" width="100" height="56"></rect>
+          <rect class="d-card" x="22" y="148" width="100" height="56"></rect>
+
+          <rect class="d-ghost" x="183" y="115" width="88" height="70"></rect>
+          <rect class="d-ghost" x="183" y="109" width="88" height="70"></rect>
+          <rect class="d-card" x="183" y="103" width="88" height="70"></rect>
+
+          <rect class="d-card is-hot" x="337" y="103" width="133" height="70"></rect>
+          <rect class="d-card is-hot is-logo" x="535" y="103" width="100" height="70"></rect>
+
+          <rect class="d-ghost" x="699" y="115" width="102" height="70"></rect>
+          <rect class="d-ghost" x="699" y="109" width="102" height="70"></rect>
+          <rect class="d-card" x="699" y="103" width="102" height="70"></rect>
+
+          <path class="d-line" d="M122,100 H134 V138 H179" marker-end="url(#ah)"></path>
+          <path class="d-line" d="M122,176 H134 V140"></path>
+          <path class="d-line" d="M271,138 H333" marker-end="url(#ah)"></path>
+          <path class="d-line" d="M470,138 H531" marker-end="url(#ah)"></path>
+          <path class="d-line is-dash" d="M635,138 H695" marker-end="url(#ahs)"></path>
+          <path class="d-line" d="M403,103 V71 Q403,64 410,64 H743 Q750,64 750,71 V99"
+                marker-end="url(#ah)"></path>
+
+          <text class="d-t" x="72" y="96">User process</text>
+          <text class="d-s" x="72" y="114">libInfoLogger</text>
+          <text class="d-t" x="72" y="172">User process</text>
+          <text class="d-s" x="72" y="190">stdout, piped</text>
+
+          <text class="d-t" x="227" y="133">infoLoggerD</text>
+          <text class="d-s" x="227" y="155">one per node</text>
+
+          <text class="d-t is-hot" x="403" y="133">infoLoggerServer</text>
+          <text class="d-s is-hot" x="403" y="155">one, central</text>
+
+          <image href="assets/mysql-logo.webp" x="547" y="115" width="76" height="23"></image>
+          <text class="d-s is-hot" x="585" y="157">one table</text>
+
+          <text class="d-t" x="750" y="133">infoBrowser</text>
+          <text class="d-s" x="750" y="155">desktop GUI</text>
+
+          <text class="d-l" x="159" y="130">socket</text>
+          <text class="d-l" x="304" y="130">tcp 6006</text>
+          <text class="d-l" x="502" y="130">tcp 3306</text>
+          <text class="d-l" x="667" y="130">query</text>
+          <text class="d-l" x="576" y="58">live push, tcp 6102</text>
+
+          <path class="d-brace" d="M337,262 V270 H635 V262"></path>
+          <text class="d-bracelabel" x="486" y="290">One process and one table for the whole farm</text>
+        </svg>
+        <figcaption>Stacked cards are many — thousands of processes, one daemon per node,
+          a client per operator. The two red cards are one each.</figcaption>
+      </figure>
+    </div>
+
+    <footer class="runner">
+      <span>ALICE Collaboration Board</span>
+      <span class="folio"></span>
+    </footer>
+
+  </section>
+
+  <section class="slide slide--content">
+
+    <header class="masthead">
+      <img src="assets/alice-logo.webp" alt="ALICE">
+      <p class="stamp">Scalable logging for ALICE O<sup>2</sup></p>
+    </header>
+
+    <div class="stage">
+      <div>
+        <div class="tick"></div>
+        <h2>Why it<br>must change</h2>
+        <p class="lede">The design fits the farm it was written for. Run 4 is not that farm,
+          and the machine is only off once.</p>
+        <p class="deadline">LHC switched off 29 June 2026<br>Run 4 first beam June 2030</p>
+      </div>
+
+      <ul class="findings">
+        <li>
+          <span class="claim"><em>Not</em> scalable</span>
+          <span class="why">One server and one SQL table for the whole farm. You can add
+            nodes; there is nothing to add at the other end.</span>
+        </li>
+        <li>
+          <span class="claim"><em>Not</em> durable</span>
+          <span class="why">Past 500 messages a second a process writes to a file in
+            <code>/tmp</code>, then drops. It recovers only below 10 a minute, so the record
+            thins exactly during an incident.</span>
+        </li>
+        <li>
+          <span class="claim"><em>Not</em> searchable</span>
+          <span class="why">Message bodies sit in an unindexed text column, and archiving
+            renames the table. Free-text search is a scan, across tables chosen by hand.</span>
+        </li>
+        <li>
+          <span class="claim"><em>Not</em> complete</span>
+          <span class="why">Only what is injected through the API arrives. DDS task logs and
+            process stdout stay on node disks.</span>
+        </li>
+        <li>
+          <span class="claim"><em>Not</em> extensible</span>
+          <span class="why">One script bridging to a syslog socket is the way out. No bus, and
+            nowhere to attach detection or alerting.</span>
+        </li>
+      </ul>
+    </div>
+
+    <footer class="runner">
+      <span>ALICE Collaboration Board</span>
+      <span class="folio"></span>
+    </footer>
+
+  </section>
+
+</div>
+
+<script>
+const slides = [...document.querySelectorAll(".slide")];
+let index = 0;
+
+function show(next) {
+  index = Math.max(0, Math.min(slides.length - 1, next));
+  slides.forEach((slide, i) => {
+    slide.toggleAttribute("data-active", i === index);
+    const folio = slide.querySelector(".folio");
+    if (folio) {
+      folio.textContent = String(i + 1).padStart(2, "0") + " / " + String(slides.length).padStart(2, "0");
+    }
+  });
+  location.hash = index + 1;
+}
+
+document.addEventListener("keydown", (event) => {
+  if (["ArrowRight", "PageDown", " "].includes(event.key)) show(index + 1);
+  if (["ArrowLeft", "PageUp"].includes(event.key)) show(index - 1);
+  if (event.key === "Home") show(0);
+  if (event.key === "End") show(slides.length - 1);
+  if (event.key === "f") document.documentElement.requestFullscreen?.();
+});
+
+show(Number(location.hash.slice(1)) - 1 || 0);
+</script>
+
+</body>
+</html>
