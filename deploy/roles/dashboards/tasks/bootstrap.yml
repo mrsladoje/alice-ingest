@@ -35,12 +35,11 @@
     Install the node self-registration script beside it (Item 3 — templates.sh
     calls this once per worker, and each worker runs the same file as
     ExecStartPre, so the per-worker index template has exactly one definition)
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../files/register_node.sh"
-    dest: "{{ dashboards_bootstrap_register_node_script }}"
-    owner: root
-    group: root
-    mode: "0750"
+  ansible.builtin.include_role:
+    name: node_registration
+  vars:
+    node_registration_dest: "{{ dashboards_bootstrap_register_node_script }}"
+    node_registration_mode: "0750"
 
 - name: Render the Dashboards index-pattern bootstrap script
   ansible.builtin.template:

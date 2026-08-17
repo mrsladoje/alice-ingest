@@ -66,13 +66,13 @@
 - name: >-
     Install the node self-registration script (Item 3 — the same file the
     control host runs once per worker during the deploy)
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../files/register_node.sh"
-    dest: "{{ collector_register_script }}"
-    owner: root
-    group: root
-    mode: "0755"
-  notify: restart fluent-bit
+  ansible.builtin.include_role:
+    name: node_registration
+  vars:
+    node_registration_dest: "{{ collector_register_script }}"
+    node_registration_mode: "0755"
+    node_registration_notify:
+      - restart fluent-bit
 
 - name: Create log_root and its dds/stdout subdirectories (local producers write here, this collector tails them)
   ansible.builtin.file:

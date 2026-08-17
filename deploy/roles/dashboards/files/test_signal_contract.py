@@ -2261,19 +2261,26 @@ def _ansible_tasks(path):
     return tasks
 
 
-def test_playbook_relative_files_resolve_from_playbooks_dir():
-    import yaml
+def _role_files(*suffixes):
+    roles_root = _checkout_file("roles")
+    if roles_root is None:
+        return None, []
+    found = []
+    for dirpath, dirnames, filenames in os.walk(roles_root):
+        dirnames[:] = [d for d in dirnames if d != "__pycache__"]
+        for name in filenames:
+            if name.endswith(suffixes):
+                full = os.path.join(dirpath, name)
+                found.append((os.path.relpath(full, roles_root), full))
+    return roles_root, sorted(found)
 
+
+def test_playbook_relative_files_resolve_from_playbooks_dir():
     playbook_dir = os.path.dirname(
         _checkout_file("playbooks", "site.yml") or "")
     status_path = _checkout_file("playbooks", "status.yml")
-    collector_path = _checkout_file("roles", "collector", "tasks", "main.yml")
-    bootstrap_path = _checkout_file(
-        "roles", "dashboards", "tasks", "bootstrap.yml")
-    producer_path = _checkout_file("roles", "producer", "tasks", "main.yml")
     vars_path = _checkout_file("group_vars", "all.yml")
-    if not all((playbook_dir, status_path, collector_path, bootstrap_path,
-                producer_path, vars_path)):
+    if not all((playbook_dir, status_path, vars_path)):
         print("[signal-contract] "
               "test_playbook_relative_files_resolve_from_playbooks_dir: "
               "skipped, deployment sources not beside this checkout")
@@ -2289,33 +2296,78 @@ def test_playbook_relative_files_resolve_from_playbooks_dir():
           "make status still looks for the detection probe as if the "
           "playbook lived at the deploy root")
 
-    register_srcs = []
-    for path in (collector_path, bootstrap_path):
-        for task in _ansible_tasks(path):
-            src = (task.get("ansible.builtin.copy") or {}).get("src", "")
-            if "register_node.sh" in str(src):
-                register_srcs.append(src)
-                check(os.path.isfile(_resolve_from_playbook_dir(src)),
-                      "register_node.sh is still copied via the playbook "
-                      "files/ fallback, which is now playbooks/files/")
-    check(len(register_srcs) == 2,
-          "collector or dashboards no longer copies the shared "
-          "register_node.sh")
-
-    replay_src = None
-    for task in _ansible_tasks(producer_path):
-        src = (task.get("ansible.builtin.copy") or {}).get("src", "")
-        if str(src).endswith("images/replay/replay.py"):
-            replay_src = src
-    check(replay_src and os.path.isfile(_resolve_from_playbook_dir(replay_src)),
-          "producer still copies replay.py as if site.yml lived at deploy/")
-
-    edges = None
+    # Site-level paths are allowed to point outside deploy/ — that is what
+    # group_vars is for. They still have to resolve from playbooks/.
+    site_paths = {}
     for line in open(vars_path):
-        if line.startswith("causal_edges_file:"):
-            edges = line.split(":", 1)[1].strip().strip('"')
-    check(edges and os.path.isfile(_resolve_from_playbook_dir(edges)),
-          "causal_edges_file still resolves from the old playbook_dir")
+        for key in ("causal_edges_file", "producer_replay_source"):
+            if line.startswith(key + ":"):
+                site_paths[key] = line.split(":", 1)[1].strip().strip('"')
+    for key in ("causal_edges_file", "producer_replay_source"):
+        value = site_paths.get(key)
+        check(value, f"{key} is no longer set in group_vars/all.yml")
+        check(value and os.path.isfile(_resolve_from_playbook_dir(value)),
+              f"{key} does not resolve from playbooks/")
+
+
+def test_no_role_reaches_outside_its_own_directory():
+    roles_root, files = _role_files(".yml", ".yaml", ".j2")
+    if roles_root is None:
+        print("[signal-contract] "
+              "test_no_role_reaches_outside_its_own_directory: "
+              "skipped, roles/ not beside this checkout")
+        return
+
+    offenders = [rel for rel, full in files
+                 if "playbook_dir" in open(full, errors="ignore").read()]
+    check(not offenders,
+          "a role must not depend on where the playbook sits, but these "
+          "reference playbook_dir: " + ", ".join(offenders) + ". Take the "
+          "path through a role variable and set it in group_vars instead.")
+
+
+def test_the_registration_script_has_exactly_one_definition():
+    roles_root, scripts = _role_files("register_node.sh")
+    collector_path = _checkout_file("roles", "collector", "tasks", "main.yml")
+    bootstrap_path = _checkout_file(
+        "roles", "dashboards", "tasks", "bootstrap.yml")
+    if roles_root is None or not all((collector_path, bootstrap_path)):
+        print("[signal-contract] "
+              "test_the_registration_script_has_exactly_one_definition: "
+              "skipped, roles/ not beside this checkout")
+        return
+
+    # Each worker runs this as ExecStartPre and the control host runs the same
+    # file once per worker. Two copies means two competing definitions of a
+    # worker's index template.
+    check([rel for rel, _ in scripts] ==
+          [os.path.join("node_registration", "files", "register_node.sh")],
+          "register_node.sh must exist exactly once, inside the "
+          "node_registration role, but roles/ holds: " +
+          ", ".join(rel for rel, _ in scripts))
+
+    for path, label, expected_notify in (
+            (collector_path, "collector", ["restart fluent-bit"]),
+            (bootstrap_path, "dashboards", None)):
+        includes = [
+            task for task in _ansible_tasks(path)
+            if (task.get("ansible.builtin.include_role") or {}).get("name")
+            == "node_registration"]
+        check(len(includes) == 1,
+              f"{label} no longer installs register_node.sh through the "
+              f"node_registration role ({len(includes)} include_role tasks)")
+        if not includes:
+            continue
+        task_vars = includes[0].get("vars") or {}
+        check(task_vars.get("node_registration_dest"),
+              f"{label} does not tell node_registration where to install "
+              "the script")
+        if expected_notify is not None:
+            check(task_vars.get("node_registration_notify")
+                  == expected_notify,
+                  f"{label} no longer restarts its service when the "
+                  "registration script changes; it runs as ExecStartPre, so "
+                  "an unrestarted collector keeps the old one")
 
 
 def test_status_exposes_functional_projector_and_replay_health():

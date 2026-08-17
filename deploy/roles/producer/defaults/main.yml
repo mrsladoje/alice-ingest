@@ -37,3 +37,10 @@ producer_autostart_marker: "{{ log_root }}/.replay-autostart-done"
 # (AUTOSTART_FAMILIES) and docker-compose.yml's AUTOSTART_REPLAY=true.
 producer_autostart_families: "infologger,dds,stdout"
 producer_autostart_replay: false
+
+# The replay engine this role installs, read from the controller. It defaults
+# to a copy bundled with the role so the role stands on its own. THIS
+# repository keeps exactly one copy, at images/replay/replay.py, because
+# docker-compose.yml builds the container from the same file — so
+# group_vars/all.yml overrides this to point there.
+producer_replay_source: "{{ role_path }}/files/replay.py"

@@ -1630,7 +1630,8 @@ never be aggregated or charted.
 
 ### Item 3 — a node registers itself
 
-`deploy/files/register_node.sh` is the single definition of the three
+`deploy/roles/node_registration/files/register_node.sh` is the single
+definition of the three
 per-worker objects: the `generic-log-info-<box>-*` index template, the
 retention-policy attachment, and a writable rollover index behind the alias.
 Two callers run the same file:

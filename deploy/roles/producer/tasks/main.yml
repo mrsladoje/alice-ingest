@@ -59,9 +59,9 @@
     group: root
     mode: "0755"
 
-- name: Copy images/replay/replay.py verbatim (PRESERVED ground truth, unmodified)
+- name: Copy the replay engine verbatim (PRESERVED ground truth, unmodified)
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../../images/replay/replay.py"
+    src: "{{ producer_replay_source }}"
     dest: "{{ producers_app_root }}/replay.py"
     owner: root
     group: root
