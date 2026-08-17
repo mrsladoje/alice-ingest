@@ -192,7 +192,7 @@
   hosts: control
   become: true
   vars_files:
-    - "{{ playbook_dir }}/group_vars/vault.yml"
+    - "{{ playbook_dir }}/../group_vars/vault.yml"
   roles:
     - dashboards
 
@@ -240,7 +240,7 @@
   hosts: workers
   become: true
   vars_files:
-    - "{{ playbook_dir }}/group_vars/vault.yml"
+    - "{{ playbook_dir }}/../group_vars/vault.yml"
   roles:
     - producer
 

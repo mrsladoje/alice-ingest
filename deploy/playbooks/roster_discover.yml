@@ -3,7 +3,7 @@
   become: true
   gather_facts: false
   vars_files:
-    - roles/dashboards/defaults/main.yml
+    - ../roles/dashboards/defaults/main.yml
 
   tasks:
     - name: Query the log families for distinct origin_host / node pairs

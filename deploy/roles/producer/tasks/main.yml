@@ -61,7 +61,7 @@
 
 - name: Copy images/replay/replay.py verbatim (PRESERVED ground truth, unmodified)
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../images/replay/replay.py"
+    src: "{{ playbook_dir }}/../../images/replay/replay.py"
     dest: "{{ producers_app_root }}/replay.py"
     owner: root
     group: root
@@ -165,7 +165,7 @@
     state: absent
   when: replay_clock | default('preserved') != 'shifted'
 
-# clock.conf is operational runtime state owned by replay.yml.  An ordinary
+# clock.conf is operational runtime state owned by playbooks/replay.yml.  An ordinary
 # deployment must not replace REPLAY_LOOP=true (or the selected pace) with the
 # group default and restart an active soak.  Fresh hosts already receive every
 # default in replay.service.j2; operators change them through make replay*.

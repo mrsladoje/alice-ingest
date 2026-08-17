@@ -2,7 +2,7 @@
 """Single-partition wrapper around images/replay/replay.py (PRESERVED,
 copied to the VM byte-for-byte — this file never imports a modified copy).
 
-LOCKED topology (deploy/site.yml / group_vars/all.yml): each VM replays ONLY
+LOCKED topology (deploy/playbooks/site.yml / group_vars/all.yml): each VM replays ONLY
 its own epn_partition slice (epn_num % NODE_COUNT == EPN_PARTITION) into its
 LOCAL log_root, and ships InfoLogger strictly to 127.0.0.1:INFOLOGGER_TCP_PORT
 — never to another VM's collector.

@@ -85,9 +85,9 @@ bootstrap:
 	cd deploy && $(VENV)/bin/ansible-galaxy collection install -r requirements.yml
 
 provision:
-	cd deploy && $(ANSIBLE_PLAYBOOK) provision.yml
+	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/provision.yml
 
-# Converges rather than giving up. Every play is idempotent, and site.yml opens
+# Converges rather than giving up. Every play is idempotent, and playbooks/site.yml opens
 # with a pre-flight that hard-reboots a node it cannot reach, so a pass that
 # dies because a node ran out of memory is repaired and resumed by the next one.
 # The vault password is read once and held in a 0600 file on tmpfs (never AFS),
@@ -174,7 +174,7 @@ deploy: deploy-preflight contract
 	  if [ "$$i" -gt 1 ]; then \
 	    printf '\n== deploy pass %s of %s — repairing and resuming ==\n\n' "$$i" "$(DEPLOY_ATTEMPTS)" >&2; \
 	  fi; \
-	  if (cd deploy && $(ANSIBLE_PLAYBOOK) site.yml --vault-password-file "$$vpf" $(ANSIBLE_EXTRA)); then \
+	  if (cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/site.yml --vault-password-file "$$vpf" $(ANSIBLE_EXTRA)); then \
 	    rc=0; break; \
 	  fi; \
 	done; \
@@ -184,17 +184,17 @@ deploy: deploy-preflight contract
 	exit $$rc
 
 deploy-migrate-rollover:
-	cd deploy && $(ANSIBLE_PLAYBOOK) site.yml --ask-vault-pass -e log_rollover_migrate_existing=true
+	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/site.yml --ask-vault-pass -e log_rollover_migrate_existing=true
 
 # Paced by default: the archive is stretched over roughly an hour so the log
 # detectors get the 32 consecutive one-minute windows they need to finish
 # training. Use replay-fast for the old ten-minute dump when you only want the
 # data loaded and do not care about the detection lane.
 replay:
-	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml
+	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/replay.yml
 
 replay-fresh:
-	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_fresh=true
+	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/replay.yml -e replay_fresh=true
 
 # Empties the stack and starts nothing — the /ops page's Delete logs button.
 # It stops any running replay first, deletes the log indices and everything
@@ -202,25 +202,25 @@ replay-fresh:
 # replay has to be the only data in there; replay-fresh reloads immediately,
 # so it never leaves you a clean baseline to look at.
 clear:
-	cd deploy && $(ANSIBLE_PLAYBOOK) clear.yml $(ANSIBLE_EXTRA)
+	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/clear.yml $(ANSIBLE_EXTRA)
 
 # Same thing under the name the indices use.
 wipe: clear
 
 replay-fast:
-	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_pace=fast
+	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/replay.yml -e replay_pace=fast
 
 # Never returns on its own: each pass is followed by another, so collector_time
 # never stalls and the detectors stay Running. Stop it with
 # `systemctl restart alice-replay` on the workers.
 replay-loop:
-	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_loop=true
+	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/replay.yml -e replay_loop=true
 
 # Rewrites every event timestamp so @timestamp lands near now. Costs you the
 # EPN -> collector latency measurement and pushes the archive's later months
 # into the future. Not needed for detection — see replay_clock in group_vars.
 replay-shifted:
-	cd deploy && $(ANSIBLE_PLAYBOOK) replay.yml -e replay_clock=shifted
+	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/replay.yml -e replay_clock=shifted
 
 # Starts a background calibration run on the control VM. The real paced replay
 # supplies/trains the baseline; the harness waits for all ten one-minute
@@ -228,7 +228,7 @@ replay-shifted:
 # and scores native AD results, projected episodes, and probe monitors. The
 # seven 30-minute detectors are deliberately excluded.
 poison-replay:
-	cd deploy && $(ANSIBLE_PLAYBOOK) poison_replay.yml $(ANSIBLE_EXTRA)
+	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/poison_replay.yml $(ANSIBLE_EXTRA)
 
 # Short operator-facing spelling.
 poison: poison-replay
@@ -237,25 +237,25 @@ poison: poison-replay
 posion-replay: poison-replay
 
 poison-status:
-	cd deploy && $(ANSIBLE_PLAYBOOK) poison_status.yml $(ANSIBLE_EXTRA)
+	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/poison_status.yml $(ANSIBLE_EXTRA)
 
 poison-stop:
-	cd deploy && $(ANSIBLE_PLAYBOOK) poison_stop.yml $(ANSIBLE_EXTRA)
+	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/poison_stop.yml $(ANSIBLE_EXTRA)
 
 # Runs each log detector's historical analysis over the window already
 # sitting in the indices and prints a report. Does not write into
 # alice-signals. Does not touch the real-time detectors.
 backtest:
-	cd deploy && $(ANSIBLE_PLAYBOOK) backtest.yml $(ANSIBLE_EXTRA)
+	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/backtest.yml $(ANSIBLE_EXTRA)
 
 SCENARIO ?= kill-fluent-bit
 OBSERVE  ?= 45
 inject:
-	cd deploy && $(ANSIBLE_PLAYBOOK) inject.yml \
+	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/inject.yml \
 	  -e scenario=$(SCENARIO) -e observe_minutes=$(OBSERVE) $(ANSIBLE_EXTRA)
 
 roster-discover:
-	cd deploy && $(ANSIBLE_PLAYBOOK) roster_discover.yml $(ANSIBLE_EXTRA)
+	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/roster_discover.yml $(ANSIBLE_EXTRA)
 
 monitors:
 	python3 deploy/roles/dashboards/files/gen_monitors.py
@@ -266,7 +266,7 @@ contract:
 	$(DEPLOY_PYTHON) deploy/roles/dashboards/files/test_signal_contract.py
 
 status:
-	cd deploy && $(ANSIBLE_PLAYBOOK) status.yml
+	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/status.yml
 
 teardown:
-	cd deploy && $(ANSIBLE_PLAYBOOK) teardown.yml
+	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/teardown.yml

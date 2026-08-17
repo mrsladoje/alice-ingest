@@ -157,7 +157,7 @@
 
     - name: "Write inventory.generated.yml with the real assigned IPs"
       ansible.builtin.copy:
-        dest: "{{ playbook_dir }}/inventory.generated.yml"
+        dest: "{{ playbook_dir }}/../inventory.generated.yml"
         mode: "0644"
         content: |
           {{ {'all': {'hosts': _generated_hosts}} | to_nice_yaml(indent=2) }}

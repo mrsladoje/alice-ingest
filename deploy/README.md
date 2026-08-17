@@ -272,23 +272,23 @@ locally; also gitignored).
 
 Run from `deploy/` (an `ansible.cfg` there points `inventory=` at
 `inventory.yml,inventory.generated.yml`, so no `-i` flag is needed for any of
-the commands below).
+the commands below). Playbooks live in `playbooks/`.
 
 ```bash
 cd deploy
 
 # 1. Provision the 5 OpenStack VMs (idempotent — safe to re-run).
 kinit    # if the ticket has expired
-ansible-playbook provision.yml
+ansible-playbook playbooks/provision.yml
 
 # 2. Configure everything (OpenSearch cluster, Dashboards+nginx+bootstrap,
 #    Fluent Bit, replay producers) — needs the vault password.
 #    This ARMS the pipeline but ingests nothing (AUTOSTART_REPLAY=false).
-ansible-playbook site.yml --ask-vault-pass
+ansible-playbook playbooks/site.yml --ask-vault-pass
 
 # 3. Load real logs — the "replay button". No vault needed.
-ansible-playbook replay.yml                  # first clean load
-ansible-playbook replay.yml -e replay_fresh=true   # wipe + reload (no dedup!)
+ansible-playbook playbooks/replay.yml                  # first clean load
+ansible-playbook playbooks/replay.yml -e replay_fresh=true   # wipe + reload (no dedup!)
 ```
 
 Equivalent shortcuts from the repo root: `make deploy`, `make replay`,
@@ -424,7 +424,7 @@ to "Last 30 days" or an absolute window covering June 2026, not the live
 
 ```bash
 cd deploy
-ansible-playbook teardown.yml
+ansible-playbook playbooks/teardown.yml
 ```
 Deletes the 5 VMs (idempotent — a missing VM is not an error), re-closes the
 `dashboards` security group's `5601/tcp` ingress rule and removes the group
@@ -445,8 +445,8 @@ below ran clean:
 | Check | Result |
 |---|---|
 | `ansible-inventory --graph` on `inventory.yml` | pass — `alice_nodes` resolves to `workers` (2) + `storage` (3); `control` = `alice-ingest-3` (a storage node) |
-| `ansible-playbook --syntax-check` on `site.yml`, `provision.yml`, `teardown.yml` | pass — zero syntax errors |
-| `ansible-playbook site.yml --list-hosts` | pass — common/opensearch/gate target all 5, dashboards → control, collector + producer → the 2 workers only |
+| `ansible-playbook --syntax-check` on `playbooks/site.yml`, `playbooks/provision.yml`, `playbooks/teardown.yml` | pass — zero syntax errors |
+| `ansible-playbook playbooks/site.yml --list-hosts` | pass — common/opensearch/gate target all 5, dashboards → control, collector + producer → the 2 workers only |
 | `group_vars/all.yml` derivations (`ansible -m debug`) | pass — `node_count=2` (from `workers`); seeds/initial-managers/Dashboards-hosts = the 3 storage nodes; `opensearch_cluster_hosts` = all 5 (firewall mesh) |
 | `opensearch.yml.j2` render (both tiers) | pass — workers get `node.roles: [data, ingest]` + `node.attr.role: worker` + `node.attr.box: <node_id>`; storage gets `[cluster_manager, data, ingest]` + `node.attr.role: storage` |
 | `opensearch.yml.j2` ingest role | pass — every index sets `default_pipeline: alice-add-ingest-time`, and explicit `node.roles` drops the implicit `ingest` role, so both tiers list `ingest` (`[data, ingest]` / `[cluster_manager, data, ingest]`); workers stay ingest-capable so the local info path needs no cross-node hop for the pipeline |

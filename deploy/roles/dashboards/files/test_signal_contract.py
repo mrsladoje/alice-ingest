@@ -1667,11 +1667,11 @@ def test_both_injection_front_doors_offer_the_same_scenarios():
     import yaml
     import inject_run as engine
 
-    path = _checkout_file("inject.yml")
+    path = _checkout_file("playbooks", "inject.yml")
     if path is None:
         print("[signal-contract] "
               "test_both_injection_front_doors_offer_the_same_scenarios: "
-              "skipped, inject.yml not beside this checkout")
+              "skipped, playbooks/inject.yml not beside this checkout")
         return
     plays = yaml.safe_load(open(path))
     allowed = None
@@ -1831,23 +1831,16 @@ def test_episode_grouping_gate_runs_after_the_projector_upgrade():
 
 
 def test_push_heartbeat_gate_runs_after_collector_cutover():
-    here = os.path.dirname(os.path.abspath(__file__))
-    site = None
-    role = None
-    for _ in range(7):
-        candidate = os.path.join(here, "site.yml")
-        task_dir = os.path.join(
-            here, "roles", "dashboards", "tasks")
-        if os.path.exists(candidate) and os.path.isdir(task_dir):
-            site = open(candidate).read()
-            role = task_dir
-            break
-        here = os.path.dirname(here)
-    if site is None:
+    site_path = _checkout_file("playbooks", "site.yml")
+    detection_path = _checkout_file(
+        "roles", "dashboards", "tasks", "detection.yml")
+    if site_path is None or detection_path is None:
         print("[signal-contract] "
               "test_push_heartbeat_gate_runs_after_collector_cutover"
-              ": skipped, site.yml not beside this checkout")
+              ": skipped, playbooks/site.yml not beside this checkout")
         return
+    site = open(site_path).read()
+    role = os.path.dirname(detection_path)
     detection = open(os.path.join(role, "detection.yml")).read()
     projector = open(os.path.join(role, "projector.yml")).read()
     post = open(os.path.join(role, "post_collector.yml")).read()
@@ -1870,18 +1863,11 @@ def test_push_heartbeat_gate_runs_after_collector_cutover():
 
 
 def test_control_host_is_quiet_before_fact_gathering():
-    here = os.path.dirname(os.path.abspath(__file__))
-    path = None
-    for _ in range(7):
-        candidate = os.path.join(here, "site.yml")
-        if os.path.exists(candidate):
-            path = candidate
-            break
-        here = os.path.dirname(here)
+    path = _checkout_file("playbooks", "site.yml")
     if path is None:
         print("[signal-contract] "
               "test_control_host_is_quiet_before_fact_gathering"
-              ": skipped, site.yml not beside this checkout")
+              ": skipped, playbooks/site.yml not beside this checkout")
         return
 
     import yaml
@@ -2084,7 +2070,7 @@ def test_projector_runtime_is_off_the_control_host():
     import yaml
 
     inventory_path = _checkout_file("inventory.yml")
-    site_path = _checkout_file("site.yml")
+    site_path = _checkout_file("playbooks", "site.yml")
     projector_path = _checkout_file(
         "roles", "dashboards", "tasks", "projector.yml")
     projector_unit_path = _checkout_file(
@@ -2093,7 +2079,7 @@ def test_projector_runtime_is_off_the_control_host():
     alertmanager_unit_path = _checkout_file(
         "roles", "alertmanager", "templates", "alertmanager.service.j2")
     common_path = _checkout_file("roles", "common", "tasks", "main.yml")
-    inject_path = _checkout_file("inject.yml")
+    inject_path = _checkout_file("playbooks", "inject.yml")
     if not all((inventory_path, site_path, projector_path,
                 projector_unit_path, alertmanager_unit_path, common_path,
                 inject_path)):
@@ -2188,7 +2174,7 @@ def test_dynamic_services_can_read_the_signal_catalog():
     projector_unit_path = _checkout_file(
         "roles", "dashboards", "templates",
         "alice-signal-projector.service.j2")
-    site_path = _checkout_file("site.yml")
+    site_path = _checkout_file("playbooks", "site.yml")
     projector = open(projector_path).read() if projector_path else ""
     projector_unit = (open(projector_unit_path).read()
                       if projector_unit_path else "")
@@ -2223,7 +2209,7 @@ def test_deploy_preserves_the_replay_runtime_dropin():
 
     producer_path = _checkout_file(
         "roles", "producer", "tasks", "main.yml")
-    replay_path = _checkout_file("replay.yml")
+    replay_path = _checkout_file("playbooks", "replay.yml")
     unit_path = _checkout_file(
         "roles", "producer", "templates", "replay.service.j2")
     if not all((producer_path, replay_path, unit_path)):
@@ -2250,8 +2236,90 @@ def test_deploy_preserves_the_replay_runtime_dropin():
           "fresh producer installs have no default replay runtime settings")
 
 
+def _resolve_from_playbook_dir(path):
+    playbook = _checkout_file("playbooks", "site.yml")
+    if playbook is None:
+        return None
+    return os.path.normpath(
+        path.replace("{{ playbook_dir }}", os.path.dirname(playbook)))
+
+
+def _ansible_tasks(path):
+    import yaml
+
+    loaded = yaml.safe_load(open(path))
+    if not loaded:
+        return []
+    if isinstance(loaded, dict):
+        loaded = [loaded]
+    tasks = []
+    for item in loaded:
+        if isinstance(item, dict) and "tasks" in item:
+            tasks.extend(item.get("tasks") or [])
+        else:
+            tasks.append(item)
+    return tasks
+
+
+def test_playbook_relative_files_resolve_from_playbooks_dir():
+    import yaml
+
+    playbook_dir = os.path.dirname(
+        _checkout_file("playbooks", "site.yml") or "")
+    status_path = _checkout_file("playbooks", "status.yml")
+    collector_path = _checkout_file("roles", "collector", "tasks", "main.yml")
+    bootstrap_path = _checkout_file(
+        "roles", "dashboards", "tasks", "bootstrap.yml")
+    producer_path = _checkout_file("roles", "producer", "tasks", "main.yml")
+    vars_path = _checkout_file("group_vars", "all.yml")
+    if not all((playbook_dir, status_path, collector_path, bootstrap_path,
+                producer_path, vars_path)):
+        print("[signal-contract] "
+              "test_playbook_relative_files_resolve_from_playbooks_dir: "
+              "skipped, deployment sources not beside this checkout")
+        return
+
+    cmd = None
+    for task in _ansible_tasks(status_path):
+        script = (task.get("ansible.builtin.script") or {})
+        if "detection_status.py" in str(script.get("cmd", "")):
+            cmd = script["cmd"]
+    check(cmd, "make status no longer runs the detection probe")
+    check(os.path.isfile(_resolve_from_playbook_dir(cmd)),
+          "make status still looks for the detection probe as if the "
+          "playbook lived at the deploy root")
+
+    register_srcs = []
+    for path in (collector_path, bootstrap_path):
+        for task in _ansible_tasks(path):
+            src = (task.get("ansible.builtin.copy") or {}).get("src", "")
+            if "register_node.sh" in str(src):
+                register_srcs.append(src)
+                check(os.path.isfile(_resolve_from_playbook_dir(src)),
+                      "register_node.sh is still copied via the playbook "
+                      "files/ fallback, which is now playbooks/files/")
+    check(len(register_srcs) == 2,
+          "collector or dashboards no longer copies the shared "
+          "register_node.sh")
+
+    replay_src = None
+    for task in _ansible_tasks(producer_path):
+        src = (task.get("ansible.builtin.copy") or {}).get("src", "")
+        if str(src).endswith("images/replay/replay.py"):
+            replay_src = src
+    check(replay_src and os.path.isfile(_resolve_from_playbook_dir(replay_src)),
+          "producer still copies replay.py as if site.yml lived at deploy/")
+
+    edges = None
+    for line in open(vars_path):
+        if line.startswith("causal_edges_file:"):
+            edges = line.split(":", 1)[1].strip().strip('"')
+    check(edges and os.path.isfile(_resolve_from_playbook_dir(edges)),
+          "causal_edges_file still resolves from the old playbook_dir")
+
+
 def test_status_exposes_functional_projector_and_replay_health():
-    status_path = _checkout_file("status.yml")
+    status_path = _checkout_file("playbooks", "status.yml")
     probe_path = _checkout_file(
         "roles", "dashboards", "files", "detection_status.py")
     if not all((status_path, probe_path)):

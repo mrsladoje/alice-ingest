@@ -61,5 +61,5 @@
 
     - name: "Remove local inventory.generated.yml"
       ansible.builtin.file:
-        path: "{{ playbook_dir }}/inventory.generated.yml"
+        path: "{{ playbook_dir }}/../inventory.generated.yml"
         state: absent

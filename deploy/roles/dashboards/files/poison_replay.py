@@ -10,7 +10,7 @@ from native AD results to projected incident episodes and Alerting monitors.
 
 The 30-minute detectors are intentionally out of scope.  Physical failures
 (dead Fluent Bit, a stopped metrics poller/projector, and replay silence) stay
-in inject.yml; manufacturing those failures by inserting documents would test
+in playbooks/inject.yml; manufacturing those failures by inserting documents would test
 the query but not the absence/dead-man contract.
 """
 

@@ -36,7 +36,7 @@
     calls this once per worker, and each worker runs the same file as
     ExecStartPre, so the per-worker index template has exactly one definition)
   ansible.builtin.copy:
-    src: register_node.sh
+    src: "{{ playbook_dir }}/../files/register_node.sh"
     dest: "{{ dashboards_bootstrap_register_node_script }}"
     owner: root
     group: root

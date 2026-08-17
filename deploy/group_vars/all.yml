@@ -195,7 +195,7 @@ alertmanager_page_group_interval: 2m
 
 # One declaration per causal edge; its proven flag decides whether it explains
 # or suppresses. Replaced alertmanager_proven_inhibit_rules. README section 9.
-causal_edges_file: "{{ playbook_dir }}/roles/dashboards/files/causal_edges.json"
+causal_edges_file: "{{ playbook_dir }}/../roles/dashboards/files/causal_edges.json"
 alertmanager_page_wait_covers_inhibition: false
 
 signal_projector_retention_days: 30
