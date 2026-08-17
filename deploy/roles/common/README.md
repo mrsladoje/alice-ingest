@@ -2,8 +2,12 @@
 
 Prepares a bare Alma 9 VM so that every other role in this tree can assume a
 working host. It creates the swap file, sets the two kernel parameters
-OpenSearch needs, installs the baseline packages, fixes the clock, creates the
-local log directory tree, and starts firewalld.
+OpenSearch needs, installs the baseline packages, fixes the clock, and starts
+firewalld.
+
+Every variable it reads is declared in its own `defaults/main.yml`. It names no
+inventory group and reads no `hostvars` entry. One value, the list of ports to
+open, is meant to be supplied by the playbook.
 
 It runs on all five nodes, as the first play in `site.yml` that touches them.
 
@@ -40,8 +44,6 @@ Holding this in a role keeps the ordering visible as one line in `site.yml`
 | `common_swapfile_path` | `/swapfile` | Swap file location. Also the string matched against `swapon --show`, so it must be the path as the kernel reports it. |
 | `common_swapfile_size_mb` | `2048` | Swap file size in mebibytes. 2 GB on a 3.66 GB node. |
 | `common_swappiness` | `60` | `vm.swappiness`. This looks wrong for a server. It is deliberate — see "Why swappiness is 60" below. |
-| `log_root` | `/var/log/node` | Root of the local log tree. Declared here so the role runs standalone; `group_vars/all.yml` sets the same value for the whole tree and wins on precedence. |
-| `common_log_dirs` | `log_root`, `log_root/dds`, `log_root/stdout` | The directories to create. `dds` and `stdout` are the two families the producers write locally before Fluent Bit tails them. |
 | `common_open_tcp_ports` | `[]` | TCP ports to open to any source on this host. Empty by default; the playbook supplies the list. |
 
 ## Why swappiness is 60
@@ -111,15 +113,21 @@ make the activation task run on every pass.
 
 ## What this role no longer does
 
-Three firewalld rules used to live here. They moved to the roles that own the
-ports, matching what `collector`, `producer`, `faults` and
-`dashboards/livelane.yml` already did:
+Three firewalld rules and the log directory tree used to live here. They moved to
+the roles that own them, matching what `collector`, `producer`, `faults` and
+`dashboards/livelane.yml` already did for their own ports:
 
-| Rule | Now in | Variable it reads |
+| Moved out | Now in | Variable it reads |
 |---|---|---|
 | OpenSearch HTTP, cluster nodes only | `opensearch` | `opensearch_cluster_hosts` |
 | OpenSearch transport, cluster nodes only | `opensearch` | `opensearch_cluster_hosts` |
 | Alertmanager API, projector host only | `alertmanager` | `alertmanager_allowed_client_addresses` |
+| `log_root` and its `dds/` and `stdout/` subdirectories | `collector` | `log_root` |
+
+The log tree moved because only the two worker VMs tail it. Creating it here put
+an unused directory tree on the three storage nodes. The `producer` role also
+creates the two subdirectories, so a worker running `producer` without
+`collector` still works.
 
 This role now names no inventory group and reads no `hostvars` entry. The
 Dashboards external port is still opened here, but through

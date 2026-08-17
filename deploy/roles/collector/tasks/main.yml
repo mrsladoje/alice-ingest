@@ -74,6 +74,18 @@
     node_registration_notify:
       - restart fluent-bit
 
+- name: Create the log directory tree the tail inputs watch ({{ log_root }})
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ log_root }}"
+    - "{{ log_root }}/dds"
+    - "{{ log_root }}/stdout"
+
 - name: Create Fluent Bit storage/buffer path (native equivalent of the container's /var/log/flb-storage)
   ansible.builtin.file:
     path: "{{ fluent_bit_storage_path }}"

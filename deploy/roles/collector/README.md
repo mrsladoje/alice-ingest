@@ -128,7 +128,7 @@ the right order.
 
 | Prerequisite | Provided by | What breaks without it |
 |---|---|---|
-| `firewalld` installed and running; `log_root` and its `dds/` and `stdout/` subdirectories exist | `common` role | The firewall task fails, and the tail inputs find no directory to watch. |
+| `firewalld` installed and running | `common` role | The firewall task fails. |
 | `/etc/alice-ingest/opensearch-node.env` exists | `opensearch` role | `fluent-bit.service` refuses to start — the `EnvironmentFile` has no leading dash on purpose. |
 | An OpenSearch node listening on `localhost:{{ opensearch_http_port }}` | `opensearch` role | `register_node.sh` waits, then the unit times out. |
 | The `alice-generic-info-retention` ISM policy and the ingest pipeline exist in the cluster | `dashboards` role, on the control host | Records still ship. Retention and field normalisation do not apply. |
@@ -209,7 +209,7 @@ defaults, because a second copy is a second place to change one value.
 | Variable | Owner | Used for |
 |---|---|---|
 | `node_id` | inventory, per host | `ALICE_NODE_ID`. Stamped on every record and used in the info index name. |
-| `log_root` | `group_vars/all.yml` | The directory tree the tail inputs watch. |
+| `log_root` | `group_vars/all.yml` | The directory tree this role creates and the tail inputs watch. Shared with the `producer` role, which writes into it. The `dds/` and `stdout/` subdirectory names are not variables: they are the two families `collector.yaml` tails by name. |
 | `infologger_tcp_port` | `group_vars/all.yml` | The TCP input port. Shared with the `producer` role. |
 | `opensearch_http_port` | `group_vars/all.yml` | The local OpenSearch every output writes to. |
 | `cockpit_metrics_index` | `group_vars/all.yml` | Where health documents land. |
@@ -291,20 +291,22 @@ lane, must do that enrichment itself.
 
 ## What this role deliberately does not do
 
-- **It does not create `log_root`.** The `common` role declares that tree in
-  `common_log_dirs` and creates it on all five nodes. The producer writes there
-  and this role only reads. One creator is correct.
 - **It does not define the info-tier index settings.** The `opensearch` role
   writes them to `opensearch-node.env`.
 - **It does not contain the registration script.** The `node_registration` role
   holds it, because the control host runs the same bytes.
 
 `/etc/alice-ingest` is the one directory both this role and `opensearch` create.
-That is on purpose and is not the `log_root` case. `log_root` has a declared
-owner — `common_log_dirs` — so a second creator was redundant. This directory has
-no owner: each role writes its own file into it, and `opensearch` also runs on
-storage nodes where this role never does. Both create it with the same owner,
-group and mode, so the two cannot drift.
+That is on purpose: it has no single owner. Each role writes its own file into
+it, and `opensearch` also runs on storage nodes where this role never does. Both
+create it with the same owner, group and mode, so the two cannot drift.
+
+`log_root` is a different case, and this role owns it. Only the two worker VMs
+tail those directories, so creating them on all five nodes left an unused tree on
+the three storage nodes. The `producer` role also creates the `dds/` and
+`stdout/` subdirectories, deliberately: it writes into them and must not depend
+on the collector having run first. `ansible.builtin.file` creates parents, so
+either role alone is sufficient, and both use the same owner, group and mode.
 
 One consequence worth knowing: changing an `opensearch_info_*` value no longer
 restarts `fluent-bit` on a worker, because the file that changed belongs to
