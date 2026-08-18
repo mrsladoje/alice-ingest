@@ -12,6 +12,7 @@ tools/cephs3usage
 # Python
 __pycache__/
 *.pyc
+.pytest_cache/
 .venv/
 
 # Local scratch downloads
