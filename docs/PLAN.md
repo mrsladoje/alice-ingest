@@ -12,7 +12,7 @@ Scope discipline: this is the product plan. The paper, peer-cohort prototyping, 
 
 - **Cluster:** 5× m2.medium (2 vCPU / 3.75 GB). 2 workers (`node-01/02`: data+ingest, box-pinned `generic-log-info-<node_id>`), 3 storage (`alice-ingest-3/4/5`: manager+data+ingest, hold `infologger` + `generic-log-other` + `cockpit-metrics`). OpenSearch 3.7.0 RPM, security disabled, heap **1g** (Stage 1).
 - **Plugins:** the RPM bundle ships `anomaly-detection`, `alerting`, `notifications`; the Dashboards RPM ships their UIs. Bootstrap provisions detectors/monitors and asserts them via `verify_detection.py`.
-- **Provisioning pattern:** `deploy/roles/dashboards/tasks/bootstrap.yml` runs rendered `sh`/`curl` scripts on the control host (`templates.sh` → `patterns.sh` → ndjson import → hydrate), idempotent via PUT/ensure, verified by assertions. New AD/alerting provisioning slots into exactly this pattern.
+- **Provisioning pattern:** `deploy/roles/dashboards/tasks/main.yml`, `deploy/roles/alerting_monitors/tasks/main.yml` and `deploy/roles/anomaly_detection/tasks/main.yml` run rendered `sh`/`curl` scripts on the control host (`templates.sh` → `patterns.sh` → ndjson import → hydrate), idempotent via PUT/ensure, verified by assertions. New AD/alerting provisioning slots into exactly this pattern.
 - **Telemetry:** `metrics_poller.py` → `cockpit-metrics` every 30 s, kinds `cluster` / `index` / `node` / `fluentbit` / `osd` — real-time (poller stamps `@timestamp = now`). This is the only real-time signal on the VM deployment.
 - **Logs:** three families — `infologger` (strict mapping, entity field `hostname`), `generic-log-other` and `generic-log-info-<node_id>` (generic mapping, entity field `host`). Dual clock on every log doc: `@timestamp` = event time (June under preserved replay), `collector_time` = Fluent Bit accept wall clock, `ingest_time` via `alice-add-ingest-time`. Shipping lag `ingest_lag_ms = ingest_time − collector_time` is valid on preserved replay; `enter_system_lag_ms` is prod-oriented.
 
@@ -45,7 +45,7 @@ Treat the first real-VM run as debugging, not confirmation.
 
 ## Stage 2 — Layer 0: deterministic hard rules (highest signal per unit of work)
 
-Alerting monitors over `cockpit-metrics`, provisioned as code: JSON definitions in `deploy/roles/dashboards/files/monitors/`, a new `alerting.sh.j2` rendered next to `templates.sh` and run from `bootstrap.yml`. Idempotency: monitors get random IDs on create, so the script upserts **by monitor name** (search → create-or-update). All fields below already exist in `cockpit-metrics` (after Stage 1.3).
+Alerting monitors over `cockpit-metrics`, provisioned as code: JSON definitions in `deploy/roles/alerting_monitors/files/monitors/`, a new `alerting.sh.j2` rendered next to `templates.sh` and run from `roles/alerting_monitors/tasks/main.yml`. Idempotency: monitors get random IDs on create, so the script upserts **by monitor name** (search → create-or-update). All fields below already exist in `cockpit-metrics` (after Stage 1.3).
 
 
 | Monitor             | Condition                                          | Severity    |
@@ -73,7 +73,7 @@ Per-node conditions (`fb_up`, disk, heap) use bucket-level monitors keyed on the
 
 ## Stage 3 — Layer 0.5: RCF detectors over cockpit-metrics (real-time today, no new data needed)
 
-Three small detectors (≤5 features each, per plugin guidance), provisioned as code in `deploy/roles/dashboards/files/detectors/` via the same upsert-by-name script, then **started** by the script (create ≠ start):
+Three small detectors (≤5 features each, per plugin guidance), provisioned as code in `deploy/roles/anomaly_detection/files/detectors/` via the same upsert-by-name script, then **started** by the script (create ≠ start):
 
 
 | Detector            | Category field     | Features                                                                             | Interval |

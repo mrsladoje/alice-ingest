@@ -131,7 +131,7 @@ The survey has a second output that matters as much as the count: the real file
 layout. That grounds our tail patterns and Item 2.
 
 Every ported parser also needs a strict numeric mapping in
-`deploy/roles/dashboards/templates/templates.sh.j2`. He extracts these fields and
+`deploy/roles/opensearch_bootstrap/templates/templates.sh.j2`. He extracts these fields and
 stores them as text, so they cannot be aggregated or charted. That is the whole
 value, and he does not collect it. Parsers without mappings repeat his mistake.
 
@@ -171,8 +171,8 @@ normalization against real names, not invented ones.
 
 Today the control host creates every worker's index template, ISM attachment and
 rollover write alias, by looping over the Ansible inventory
-(`deploy/roles/dashboards/templates/templates.sh.j2:879`,
-`deploy/roles/dashboards/templates/ism.sh.j2:145`).
+(`deploy/roles/opensearch_bootstrap/templates/templates.sh.j2:879`,
+`deploy/roles/opensearch_bootstrap/templates/ism.sh.j2:145`).
 
 So adding a worker needs an inventory edit and a deploy run. The EPN farm swaps
 machines often. That shape does not survive it.
@@ -765,7 +765,7 @@ mistake that one dropdown change undoes.
 
 The ops page exposes nine actions: `replay`, `stop`, `replay-fresh`, `wipe`,
 `clear`, `poison-replay`, `poison-stop`, `inject` and `inject-stop`
-(`deploy/roles/dashboards/files/ops_server.py:989-1077`). Four of them destroy
+(`deploy/roles/alice_ops/files/ops_server.py:989-1077`). Four of them destroy
 data. The page carries some prose today, but not per action.
 
 The documentation goes **on the page, beside each button**. A person about to

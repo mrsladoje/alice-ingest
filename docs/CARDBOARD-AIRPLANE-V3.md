@@ -67,7 +67,7 @@ and push `il_max_objects` higher (via `make replay-fresh`) if the storage tier s
 
 ## 3. The ALICE Cockpit
 
-Provisioned by the bootstrap: `deploy/roles/dashboards/files/gen_cockpit.py` generates a static `cockpit.ndjson` (regenerate with `python3 gen_cockpit.py`), which `bootstrap.yml` stages and imports via `_import?overwrite=true`, then sets the unified pattern as the default. The import runs on **every** deploy (idempotent overwrite), NOT behind the one-shot marker — so editing the queries and re-running `make deploy` updates the saved objects in place. The per-source index patterns are still created by the marker-guarded `patterns.sh`.
+Provisioned by the bootstrap: `deploy/roles/dashboards/files/gen_cockpit.py` generates a static `cockpit.ndjson` (regenerate with `python3 gen_cockpit.py`), which `roles/dashboards/tasks/main.yml` stages and imports via `_import?overwrite=true`, then sets the unified pattern as the default. The import runs on **every** deploy (idempotent overwrite), NOT behind the one-shot marker — so editing the queries and re-running `make deploy` updates the saved objects in place. The per-source index patterns are still created by the marker-guarded `patterns.sh`.
 
 **Unified index pattern** `infologger,generic-log-*` (time field `@timestamp`) is set as the **default** — the "one interface to rule them all" in Discover. The per-source patterns (`infologger`, `generic-log-info-*`, `generic-log-other`) are kept for focused views; a `log_source` filter chip narrows the unified view to one family.
 
