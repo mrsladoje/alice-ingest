@@ -4,10 +4,103 @@ Installs the live log lane on its own VM: a single-file Python server, a
 vendored React page, a firewall rule per client, a systemd unit, and two proofs
 that the port answers before any collector is told to push to it.
 
-The live lane is a tail, not a search. Collectors POST log lines to it over
-HTTP, it keeps the last `live_lane_buffer_rows` in memory, and it pushes them to
-every open browser over Server-Sent Events. Nothing is written to disk and
-OpenSearch is never queried, so the page keeps working while the cluster is red.
+## What the live lane is, and what it is for
+
+The live lane is the platform's `tail -f`: one page that shows log lines from
+every node as they arrive, with no query to write and no search cluster in the
+path. It is for watching — a run starting, a service being restarted, a fault
+injection landing — not for asking questions about the past. Discover stays for
+that.
+
+Collectors POST records to it over HTTP. It holds the newest
+`live_lane_replay_rows` in memory, pushes every record to every open browser
+over Server-Sent Events, and writes nothing to disk. Each browser then keeps its
+own window of the newest `live_lane_buffer_rows` records and filters inside that
+window, locally.
+
+Two properties follow from that shape, and they are the whole reason the lane
+exists:
+
+- **Watching costs the cluster nothing.** A live tail in Discover is a query
+  re-run every few seconds against the same nodes that are indexing the data,
+  once per watcher. The lane never reads OpenSearch, so a control-room screen
+  left open all shift adds no search load at all.
+- **It keeps working while the cluster is red.** The one moment everybody wants
+  to read logs is the moment OpenSearch is unhappy. Every other viewing surface
+  in this repository — Discover, the cockpit, the episode board — is a client of
+  the cluster and goes dark with it. This one is fed straight from the
+  collectors and does not.
+
+The cost it does have grows with **readers, not with data**: one open connection
+and one thread per viewer. That is why it runs on its own host and not on the
+control host.
+
+## What reaches it
+
+| | |
+|---|---|
+| **In scope** | `infologger` and `generic-log-other` — the InfoLogger stream, and every stdout record whose severity is not `Info`. |
+| **Never** | `generic-log-info`. The info tier is the bulk of the volume, and pushing all of it to a browser at farm scale gives a blur nobody can read. The severity split *is* the rate limiter here. |
+| **Latency** | About `fluent_bit_flush_seconds` (5 s). The collector's flush interval is service-level, so it is the lane's latency floor too. "Live" means five seconds, not instant. |
+| **Delivery** | Best-effort, deliberately. The collector's HTTP output gets a 1 MB buffer and one retry, so a lane that is down or a viewer that is slow can never push back on the OpenSearch path. |
+| **Enrichment** | The lane does its own. Field normalization lives in the `alice-add-ingest-time` ingest pipeline, which only records going to OpenSearch pass through. `live_lane.py` therefore carries its own copy of the severity table and its own `origin_host` fallback. |
+
+The producing end is the `collector` role: one `http` output, gzip-compressed,
+matching those two tags. Turning `live_lane_enabled` off removes that output
+entirely.
+
+## What the page gives you
+
+- **A status word and two counts in the header** — `live`, `reconnecting` or
+  `paused`; how many rows pass the filters out of how many the tab holds; and,
+  when it happened, how many records the server dropped for this viewer.
+- **Filters that run in the browser, over rows it already has.** Severity chips
+  (`fatal`, `error`, `warning`, `info`, `debug`, `system`, `unknown`), plus
+  host, program, run and free-text boxes. The text box searches the message, the
+  program and the host. Results are instant and no round trip is made.
+- **A view that never jumps.** New records enter the buffer while you read. A
+  `N new — show newest` button tells you how many arrived and renders them only
+  when you press it.
+- **One row per record**: clock, severity, host, program, message, coloured by
+  severity. Click a row to open a panel with every field of that record and its
+  full event time. Only the rows on screen are rendered, so the tab stays
+  responsive with ten thousand records in it.
+- **Honest gaps.** A missing run of records draws a marker row naming how many
+  were missed; a lane restart draws a marker saying what it held before is gone.
+  Neither is silent.
+- **A phone layout**: one column, two lines per record, no horizontal scroll.
+- **A link back to the Maintainer Cockpit**, matching the *LIVE LOG LANE* button
+  in the cockpit that opens this page in a new tab.
+
+## How to reach it
+
+- `/live/` on the Dashboards vhost — nginx on the control host proxies it, so
+  operators keep one address and one tunnel. This is the normal way in.
+- `http://<livelane host>:8092/` (`live_lane_port`) directly, from an address the
+  firewall rule allows.
+
+## What it is not
+
+- **Not a search tool.** No history beyond what your tab holds, no time range,
+  no aggregation, nothing on disk. Reload the page and everything older than the
+  server's replay backlog is gone. That is the trade for costing the cluster
+  nothing.
+- **Not complete.** Records can be dropped at both ends — by the collector when
+  its small buffer fills, by the server for a viewer that cannot keep up. Both
+  are counted and both are shown; neither is prevented.
+- **Not the whole log stream.** The info tier never arrives here. If a record is
+  missing and it was an `Info`, that is the design, not a fault.
+- **Not authenticated by itself** in the default configuration. See
+  `live_lane_token` below: the firewall is the boundary.
+
+## The server's endpoints
+
+| Method and path | Who calls it | What it does |
+|---|---|---|
+| `POST /ingest` (`live_lane_ingest_path`) | the collectors | Accepts one record or an array, gzip or plain. Returns `204`, `400` on a body it cannot parse, `401` when a token is set and not presented. |
+| `GET /stream` | the page | Server-Sent Events. Opens with a `hello` event carrying the boot epoch, then the replay backlog, then live records. A keepalive comment after every `LIVE_KEEPALIVE_SECONDS` of silence. |
+| `GET /healthz` | Ansible, and you | JSON: `ok`, `epoch`, `viewers`, `buffered`, `received`, `posts`, `bad_posts`, `dropped_slow_client`. This is where you look to tell "nothing is arriving" apart from "nobody is watching". |
+| `GET /` and the assets | the browser | The page shell, the script, the stylesheet and the two React files. Flat: only basenames inside the static directory are served. |
 
 ## Why it is a separate role
 
@@ -82,6 +175,12 @@ file, no service and no handler with the Dashboards stack.
 - **`live_lane_token` is empty by default.** An empty value makes the unit omit
   `LIVE_TOKEN`, and the server then accepts any POST from an address the
   firewall let through. The firewall is the boundary.
+- **The server's memory is `live_lane_replay_rows`, not
+  `live_lane_buffer_rows`.** One list holds the newest `live_lane_replay_rows`
+  records and is trimmed to it; that same list is the backlog a new viewer is
+  sent. `live_lane_buffer_rows` is the *browser's* window. The unit also passes
+  it as `LIVE_BUFFER_ROWS`, which the server reads into a constant and does not
+  use.
 
 ## Role variables
 
@@ -96,8 +195,8 @@ site-wide, or in `inventory.yml` for one group or host.
 | `live_lane_cockpit_url` | `/app/dashboards` | The "back to the cockpit" link in the page. Relative on purpose — the reverse proxy in front of Dashboards is on another host and another scheme. |
 | `live_lane_bind` | `0.0.0.0` | `LIVE_BIND`. All interfaces, because the collectors reach it across the network. |
 | `live_lane_token` | `""` | `LIVE_TOKEN`. Empty means no shared secret on the ingest path. |
-| `live_lane_buffer_rows` | `10000` | Lines held in memory. Also rendered into the page as `bufferRows`. |
-| `live_lane_replay_rows` | `500` | Lines sent to a viewer who connects mid-stream, so a fresh page is not blank. |
+| `live_lane_buffer_rows` | `10000` | Rows one browser tab holds and filters over. Rendered into the page as `bufferRows`; also passed to the unit as `LIVE_BUFFER_ROWS`, which the server does not act on. |
+| `live_lane_replay_rows` | `500` | The server's whole in-memory buffer, and therefore what a viewer who connects mid-stream is sent, so a fresh page is not blank. |
 | `live_lane_client_queue_max` | `2000` | Per viewer. A full queue drops for that viewer; it is never allowed to grow. |
 | `live_lane_hidden_grace_seconds` | `120` | How long a browser tab may sit in the background before the page closes its own stream. A visible tab is never closed. `0` turns the behaviour off. Rendered into the page shell as `hiddenGraceSeconds`. |
 | `live_lane_memory_high` | `192M` | `MemoryHigh` on the unit. |
@@ -162,16 +261,20 @@ In a playbook, against the live lane host:
   `collector` role.** The collector's HTTP output writes both numbers into
   `collector.yaml`. Change them in `group_vars/all.yml`, which both roles read.
   Changing them here alone gives a lane that listens where nothing pushes.
+- **The severity table is a second copy of the collector's normalization.**
+  Records that go to OpenSearch are normalized by the `alice-add-ingest-time`
+  ingest pipeline; the lane bypasses OpenSearch, so `live_lane.py` carries the
+  same table. A severity added on one side and not the other shows here as
+  `unknown`.
 - **`live_lane_script` and `dashboards_app_root` must stay consistent.** The
   script path is a literal, not `{{ dashboards_app_root }}/live_lane.py`, so
   moving the app root moves the static directory but not the server file.
 - **The four `register` names and the restart condition change together.**
   Adding a payload task without adding its `register` to the `state:`
   expression gives a file that is installed but never picked up.
-- **`live_lane_buffer_rows` appears in two places for one reason.** The unit
-  passes it as `LIVE_BUFFER_ROWS` and the page shell renders it as
-  `bufferRows`. The server trims its ring buffer, the browser trims its table.
-  They are one number and one template variable, so they cannot drift.
+- **`live_lane_buffer_rows` is rendered into the page shell.** The browser trims
+  its table to it. The server's own trim is `live_lane_replay_rows`; the two are
+  separate windows and are allowed to differ.
 - **`live_lane_allowed_client_addresses` only ever adds.** firewalld keeps a
   permanent rule once given one, so removing an address does not close the port
   on a host that already ran. Closing it means `state: disabled` or a fresh
