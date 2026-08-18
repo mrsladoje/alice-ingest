@@ -47,8 +47,8 @@
       <div>
         <div class="tick"></div>
         <h2>Outline</h2>
-        <p class="lede">Where the platform stands today, what it costs to run, and what
-          moving to staging asks of us.</p>
+        <p class="lede">Where the platform stands today, how each piece of it was
+          chosen, and what is still missing.</p>
       </div>
 
       <ol class="agenda">
@@ -60,7 +60,7 @@
         <li>
           <span class="num">02</span>
           <span class="what">Ingest at the edge</span>
-          <span class="note">Fluent Bit per worker, and what it does under burst</span>
+          <span class="note">Why a lightweight forwarder, and what it does per line</span>
         </li>
         <li>
           <span class="num">03</span>
@@ -69,18 +69,18 @@
         </li>
         <li>
           <span class="num">04</span>
-          <span class="what">Operations</span>
-          <span class="note">Ansible roles, configurable per environment, no snowflakes</span>
+          <span class="what">Anomaly detection</span>
+          <span class="note">Detectors, episodes, and who gets told</span>
         </li>
         <li>
           <span class="num">05</span>
-          <span class="what">Open questions</span>
-          <span class="note">Cross-worker shipping, retention, hyperparameter ownership</span>
+          <span class="what">Operations</span>
+          <span class="note">Two ways to look at it, and one command to deploy it</span>
         </li>
         <li>
           <span class="num">06</span>
-          <span class="what">Road to staging</span>
-          <span class="note">What lands on the EPN, and in what order</span>
+          <span class="what">What is not built</span>
+          <span class="note">The queue, the pager, and the shifter's own view</span>
         </li>
       </ol>
     </div>
@@ -242,6 +242,1147 @@
           <span class="claim"><em>Not</em> extensible</span>
           <span class="why">One script bridging to a syslog socket is the way out. No bus, and
             nowhere to attach detection or alerting.</span>
+        </li>
+      </ul>
+    </div>
+
+    <footer class="runner">
+      <span>ALICE Collaboration Board</span>
+      <span class="folio"></span>
+    </footer>
+
+  </section>
+
+  <section class="slide slide--content">
+
+    <header class="masthead">
+      <img src="assets/alice-logo.webp" alt="ALICE">
+      <p class="stamp">Scalable logging for ALICE O<sup>2</sup></p>
+    </header>
+
+    <div class="stage">
+      <div>
+        <div class="tick"></div>
+        <h2>Our suggested<br>architecture</h2>
+        <p class="lede">An attempt at the two things InfoLogger cannot do: grow with the
+          farm, and survive losing a machine.</p>
+        <p class="keyfacts">5 VMs — 2 worker, 3 storage<br>One OpenSearch cluster<br>Native
+          systemd, no Docker</p>
+      </div>
+
+      <figure class="figure">
+        <svg viewBox="0 0 820 438" role="img"
+             aria-label="Two-tier architecture. Worker tier, two VMs: an alice-replay producer feeds Fluent Bit, which writes to the OpenSearch node on the same machine. Application logs at info severity stay in a local index with one shard and no replicas. InfoLogger and the other application logs take one network hop to the storage tier. Storage tier, three VMs, each an OpenSearch cluster-manager and data node: node-03 also runs Dashboards, nginx and Alertmanager, node-04 runs the trend rollup and signal projector, node-05 runs the live lane. The infologger and generic-log-other indices are held there with one shard and two replicas, one copy on every storage node.">
+          <defs>
+            <marker id="a5" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,1 L10,5 L0,9 z" class="d-head"></path>
+            </marker>
+          </defs>
+
+          <text class="d-num" x="0" y="13">01</text>
+          <text class="d-stage" x="24" y="13">Worker tier</text>
+
+          <rect class="d-panel" x="0" y="24" width="820" height="186"></rect>
+
+          <rect class="d-card" x="12" y="38" width="392" height="158"></rect>
+          <text class="d-vm is-start" x="24" y="57">alice-ingest-1</text>
+          <text class="d-vm is-end" x="392" y="57">role = worker</text>
+
+          <rect class="d-card" x="24" y="70" width="92" height="46"></rect>
+          <text class="d-t is-sm" x="70" y="89">alice-replay</text>
+          <text class="d-s is-sm" x="70" y="102">real EPN logs</text>
+
+          <rect class="d-card" x="130" y="70" width="100" height="46"></rect>
+          <image href="assets/fluentbit-logo.webp" x="141" y="81.6" width="78" height="22.75"></image>
+
+          <rect class="d-card" x="246" y="70" width="146" height="46"></rect>
+          <image href="assets/opensearch-mark.webp" x="274" y="82" width="22" height="22"></image>
+          <text class="d-t is-sm is-start" x="304" y="89">node-01</text>
+          <text class="d-s is-sm is-start" x="304" y="102">data, ingest</text>
+
+          <path class="d-line" d="M116,93 H126" marker-end="url(#a5)"></path>
+          <path class="d-line" d="M230,93 H242" marker-end="url(#a5)"></path>
+
+          <path class="d-line" d="M280,116 V132 H131 V145" marker-end="url(#a5)"></path>
+          <rect class="d-elabel" x="146" y="123" width="118" height="18"></rect>
+          <text class="d-l" x="205" y="135.5">application-info</text>
+
+          <rect class="d-card is-soft" x="24" y="148" width="214" height="36"></rect>
+          <text class="d-ix is-start" x="36" y="164">application-logs-local-node-01</text>
+          <text class="d-fact is-start" x="36" y="177">1 shard, 0 replicas, never leaves</text>
+
+          <rect class="d-card" x="416" y="38" width="392" height="158"></rect>
+          <text class="d-vm is-start" x="428" y="57">alice-ingest-2</text>
+          <text class="d-vm is-end" x="796" y="57">role = worker</text>
+
+          <rect class="d-card" x="428" y="70" width="92" height="46"></rect>
+          <text class="d-t is-sm" x="474" y="89">alice-replay</text>
+          <text class="d-s is-sm" x="474" y="102">real EPN logs</text>
+
+          <rect class="d-card" x="534" y="70" width="100" height="46"></rect>
+          <image href="assets/fluentbit-logo.webp" x="545" y="81.6" width="78" height="22.75"></image>
+
+          <rect class="d-card" x="650" y="70" width="146" height="46"></rect>
+          <image href="assets/opensearch-mark.webp" x="678" y="82" width="22" height="22"></image>
+          <text class="d-t is-sm is-start" x="708" y="89">node-02</text>
+          <text class="d-s is-sm is-start" x="708" y="102">data, ingest</text>
+
+          <path class="d-line" d="M520,93 H530" marker-end="url(#a5)"></path>
+          <path class="d-line" d="M634,93 H646" marker-end="url(#a5)"></path>
+
+          <path class="d-line" d="M684,116 V132 H535 V145" marker-end="url(#a5)"></path>
+          <rect class="d-elabel" x="550" y="123" width="118" height="18"></rect>
+          <text class="d-l" x="609" y="135.5">application-info</text>
+
+          <rect class="d-card is-soft" x="428" y="148" width="214" height="36"></rect>
+          <text class="d-ix is-start" x="440" y="164">application-logs-local-node-02</text>
+          <text class="d-fact is-start" x="440" y="177">1 shard, 0 replicas, never leaves</text>
+
+          <path class="d-line" d="M376,116 V236 H544"></path>
+          <path class="d-line" d="M780,116 V236 H544"></path>
+          <path class="d-line" d="M544,236 V252" marker-end="url(#a5)"></path>
+          <rect class="d-elabel" x="557" y="227" width="206" height="18"></rect>
+          <text class="d-l" x="660" y="239.5">infologger + application-other</text>
+
+          <text class="d-num" x="0" y="248">02</text>
+          <text class="d-stage" x="24" y="248">Storage tier</text>
+
+          <rect class="d-panel" x="0" y="256" width="820" height="182"></rect>
+
+          <rect class="d-card" x="12" y="268" width="257" height="116"></rect>
+          <text class="d-vm is-start" x="24" y="286">alice-ingest-3</text>
+          <text class="d-tag is-end" x="257" y="286">Control</text>
+          <image href="assets/opensearch-mark.webp" x="24" y="296" width="22" height="22"></image>
+          <text class="d-t is-sm is-start" x="54" y="304">node-03</text>
+          <text class="d-s is-sm is-start" x="54" y="317">cluster_manager, data, ingest</text>
+          <text class="d-vm is-start" x="54" y="330">role = storage</text>
+          <path class="d-hair" d="M24,341 H257"></path>
+          <text class="d-fact is-start" x="24" y="356">Dashboards + nginx TLS</text>
+          <text class="d-fact is-start" x="24" y="370">Alertmanager</text>
+
+          <rect class="d-card" x="281" y="268" width="257" height="116"></rect>
+          <text class="d-vm is-start" x="293" y="286">alice-ingest-4</text>
+          <image href="assets/opensearch-mark.webp" x="293" y="296" width="22" height="22"></image>
+          <text class="d-t is-sm is-start" x="323" y="304">node-04</text>
+          <text class="d-s is-sm is-start" x="323" y="317">cluster_manager, data, ingest</text>
+          <text class="d-vm is-start" x="323" y="330">role = storage</text>
+          <path class="d-hair" d="M293,341 H526"></path>
+          <text class="d-fact is-start" x="293" y="356">Trend rollup</text>
+          <text class="d-fact is-start" x="293" y="370">Signal projector</text>
+
+          <rect class="d-card" x="550" y="268" width="258" height="116"></rect>
+          <text class="d-vm is-start" x="562" y="286">alice-ingest-5</text>
+          <image href="assets/opensearch-mark.webp" x="562" y="296" width="22" height="22"></image>
+          <text class="d-t is-sm is-start" x="592" y="304">node-05</text>
+          <text class="d-s is-sm is-start" x="592" y="317">cluster_manager, data, ingest</text>
+          <text class="d-vm is-start" x="592" y="330">role = storage</text>
+          <path class="d-hair" d="M562,341 H796"></path>
+          <text class="d-fact is-start" x="562" y="356">Live lane</text>
+          <text class="d-fact is-start" x="562" y="370">One connection per viewer</text>
+
+          <rect class="d-card is-hot" x="12" y="396" width="796" height="30"></rect>
+          <text class="d-ix is-hot is-start" x="168" y="415">infologger + application-logs-other</text>
+          <text class="d-fact is-hot is-start" x="398" y="415">1 shard, 2 replicas, one copy on every storage node</text>
+        </svg>
+      </figure>
+    </div>
+
+    <footer class="runner">
+      <span>ALICE Collaboration Board</span>
+      <span class="folio"></span>
+    </footer>
+
+  </section>
+
+  <section class="slide slide--content">
+
+    <header class="masthead">
+      <img src="assets/alice-logo.webp" alt="ALICE">
+      <p class="stamp">Scalable logging for ALICE O<sup>2</sup></p>
+    </header>
+
+    <div class="stage">
+      <div>
+        <div class="tick"></div>
+        <h2>Why this<br>design</h2>
+        <p class="lede">The five machines are only the shape of it. These are the decisions
+          underneath, and the cost we accepted for each one.</p>
+      </div>
+
+      <ul class="findings">
+        <li>
+          <span class="claim">The bulk <em>never</em> travels</span>
+          <span class="why">Application logs at info severity are most of the volume and the
+            least of the value. They are written to the node that made them and go no further.
+            That the bulk tier never crosses the wire was a requirement, not an optimisation.</span>
+        </li>
+        <li>
+          <span class="claim">Split by <em>severity</em></span>
+          <span class="why">The obvious cut is by source — DDS here, stdout there. That ships
+            the whole stdout bulk across the farm and discards DDS errors along with it.
+            Severity cuts the same stream where it matters: volume on one side, value on the
+            other.</span>
+        </li>
+        <li>
+          <span class="claim">Workers stay <em>cheap</em></span>
+          <span class="why">A worker is a data node and nothing else — never cluster manager,
+            no replicas, no dashboards. Thread pools are capped explicitly, or OpenSearch would
+            size itself to all 128 cores of an EPN.</span>
+        </li>
+        <li>
+          <span class="claim">Storage takes the <em>weight</em></span>
+          <span class="why">Only we run these three, so they carry the cluster manager, every
+            replica, the dashboards and the analytics. They run no collector and no producer,
+            and nothing on them competes with reconstruction.</span>
+        </li>
+        <li>
+          <span class="claim"><em>One</em> machine may die</span>
+          <span class="why">Three storage nodes give a quorum of two and two replicas of
+            everything valuable, so losing one costs nothing. Losing a worker costs that
+            worker's info logs. That is the trade.</span>
+        </li>
+      </ul>
+    </div>
+
+    <footer class="runner">
+      <span>ALICE Collaboration Board</span>
+      <span class="folio"></span>
+    </footer>
+
+  </section>
+
+  <section class="slide slide--content">
+
+    <header class="masthead">
+      <img src="assets/alice-logo.webp" alt="ALICE">
+      <p class="stamp">Scalable logging for ALICE O<sup>2</sup></p>
+    </header>
+
+    <div class="stage">
+      <div>
+        <div class="tick"></div>
+        <h2>Why<br>Fluent Bit</h2>
+        <p class="lede">A lightweight forwarder is a small program on the machine that
+          makes the log. It reads, routes and sends &mdash; it stores nothing.</p>
+        <p class="keyfacts">3 collectors weighed<br>Apache 2.0, all three<br>A queue is a
+          different job</p>
+      </div>
+
+      <figure class="figure">
+        <svg viewBox="0 0 820 460" role="img"
+             aria-label="A comparison of three log collectors and two message brokers. Band one, the candidates, is a table of three rows. Fluent Bit: written in C, the vendor quotes about 450 kilobytes, governed by the Cloud Native Computing Foundation as a graduated project; chosen, because it is one binary with no runtime and no package tree. Fluentd: written in C and Ruby, the vendor quotes over 60 megabytes, also a graduated foundation project; rejected because a Ruby gem tree on every worker is what we did not want. Vector by Datadog: written in Rust, no vendor memory figure published, governed by Datadog alone; rejected because one company decides its future. Band two, why not a message queue: Apache Kafka and RabbitMQ move records but do not make them, cannot tail a file, and would still need a forwarder in front, plus three more machines and a quorum.">
+
+          <text class="d-num" x="0" y="13">01</text>
+          <text class="d-stage" x="24" y="13">The candidates</text>
+          <text class="d-fact is-end" x="820" y="13">All three are Apache 2.0. It is the governance that differs.</text>
+
+          <rect class="d-panel" x="0" y="24" width="820" height="286"></rect>
+
+          <text class="d-vm" x="190" y="46">LANGUAGE</text>
+          <text class="d-vm" x="350" y="46">VENDOR&rsquo;S MEMORY FIGURE</text>
+          <text class="d-vm" x="540" y="46">WHO GOVERNS IT</text>
+          <path class="d-hair" d="M12,54 H808"></path>
+
+          <image href="assets/fluentbit-logo.webp" x="12" y="70" width="96" height="28"></image>
+          <text class="d-t is-sm is-start" x="190" y="90">C</text>
+          <text class="d-t is-sm is-start" x="350" y="90">about 450 KB</text>
+          <text class="d-t is-sm is-start" x="540" y="90">CNCF, graduated</text>
+          <text class="d-tag is-end" x="808" y="90">CHOSEN</text>
+          <text class="d-fact is-start" x="190" y="116">One binary, no runtime and no package tree. It is the smallest thing that can do the whole edge job.</text>
+          <path class="d-hair" d="M12,139 H808"></path>
+
+          <image href="assets/fluentd-logo.webp" x="12" y="153" width="92.3" height="32"></image>
+          <text class="d-t is-sm is-start" x="190" y="175">C and Ruby</text>
+          <text class="d-t is-sm is-start" x="350" y="175">over 60 MB</text>
+          <text class="d-t is-sm is-start" x="540" y="175">CNCF, graduated</text>
+          <text class="d-fact is-start" x="190" y="201">The same project and the same licence, one size up. A Ruby gem tree on every worker is what we did not want.</text>
+          <path class="d-hair" d="M12,224 H808"></path>
+
+          <image href="assets/vector-logo.webp" x="12" y="237" width="91.9" height="34"></image>
+          <text class="d-t is-sm is-start" x="190" y="260">Rust</text>
+          <text class="d-t is-sm is-start" x="350" y="260">no vendor figure</text>
+          <text class="d-t is-sm is-start" x="540" y="260">Datadog</text>
+          <text class="d-fact is-start" x="190" y="286">Small and fast, and the benchmarks disagree on which of the two is smaller. One company decides its future.</text>
+
+          <text class="d-num" x="0" y="346">02</text>
+          <text class="d-stage" x="24" y="346">Why not a message queue</text>
+
+          <rect class="d-panel" x="0" y="357" width="820" height="100"></rect>
+          <image href="assets/kafka-logo.webp" x="20" y="378" width="60.4" height="28"></image>
+          <image href="assets/rabbitmq-logo.webp" x="20" y="418" width="100" height="16"></image>
+
+          <text class="d-t is-sm is-start" x="140" y="384">A broker moves records. It does not make them.</text>
+          <text class="d-fact is-start" x="140" y="406">Neither can tail a file, parse a line or stamp a clock, so a forwarder would still run in front of it.</text>
+          <text class="d-fact is-start" x="140" y="422">The queue itself then costs three more machines, a quorum and its own disk budget.</text>
+          <text class="d-fact is-hot is-start" x="140" y="444">Kafka is on the roadmap for durability &mdash; never as a replacement for the collector.</text>
+        </svg>
+        <figcaption>Logstash was never a candidate: it needs a Java virtual machine with a
+          one-gigabyte default heap on every worker. The 450 KB is the vendor&rsquo;s figure for an
+          idle pipeline. Ours is bounded at 384 MB &mdash; the next slide.</figcaption>
+      </figure>
+    </div>
+
+    <footer class="runner">
+      <span>ALICE Collaboration Board</span>
+      <span class="folio"></span>
+    </footer>
+
+  </section>
+
+  <section class="slide slide--content">
+
+    <header class="masthead">
+      <img src="assets/alice-logo.webp" alt="ALICE">
+      <p class="stamp">Scalable logging for ALICE O<sup>2</sup></p>
+    </header>
+
+    <div class="stage">
+      <div>
+        <div class="tick"></div>
+        <h2>Inside the collector</h2>
+        <p class="lede">Four inputs, four tags, five outputs, one process. Every step runs on
+          the worker that made the line.</p>
+
+        <figure class="figure is-inset">
+          <svg viewBox="0 0 260 136" role="img"
+               aria-label="The collector&rsquo;s memory envelope as a five-line form. Sixty-four chunks may sit in memory at once, roughly 128 MB; the documented worst case is 307 MB; the systemd unit throttles the process at 384 MB and kills it at 768 MB. The fifth line, measured peak, is left blank with a red rule and the unit MB, because no measurement of this collector exists yet.">
+            <text class="d-stage" x="0" y="9">Memory envelope</text>
+            <path class="d-hair" d="M0,16 H260"></path>
+
+            <text class="d-vm is-start" x="0" y="32">64 chunks in memory</text>
+            <text class="d-t is-sm is-end" x="260" y="32">128 MB</text>
+            <path class="d-hair" d="M0,40 H260"></path>
+
+            <text class="d-vm is-start" x="0" y="56">Documented worst case</text>
+            <text class="d-t is-sm is-end" x="260" y="56">307 MB</text>
+            <path class="d-hair" d="M0,64 H260"></path>
+
+            <text class="d-vm is-start" x="0" y="80">MemoryHigh, kernel throttles</text>
+            <text class="d-t is-sm is-end" x="260" y="80">384 MB</text>
+            <path class="d-hair" d="M0,88 H260"></path>
+
+            <text class="d-vm is-start" x="0" y="104">MemoryMax, kernel kills it</text>
+            <text class="d-t is-sm is-end" x="260" y="104">768 MB</text>
+            <path class="d-hair" d="M0,112 H260"></path>
+
+            <text class="d-tag is-start" x="0" y="128">MEASURED PEAK</text>
+            <path class="d-brace" d="M152,131.5 H232"></path>
+            <text class="d-t is-sm is-end" x="260" y="128">MB</text>
+          </svg>
+          <figcaption>Four ceilings are decided. The fifth line is empty because nothing
+            here has been measured yet.</figcaption>
+        </figure>
+      </div>
+
+      <figure class="figure">
+        <svg viewBox="0 0 820 406" role="img"
+             aria-label="The collector pipeline, drawn as five stages left to right: input, tag, filter, retag, output. Row one: a tail input on the DDS log files carries the tag dds, is parsed by dds_text and stamped with collector_time. Row two: a tail input on the stdout files carries the tag stdout and is parsed by stdout_root. Those two rows join and split again by severity into the tags family.info and family.other, which write to application-logs-local and application-logs-other. Row three: a TCP input on port 5170 from the local producer carries the tag infologger, is parsed by il_event_time and is never retagged; it writes to the infologger index and to the live lane. Row four: an exec input running fb_health.py every 30 seconds carries the tag health, its counters become deltas, it is never retagged, and it writes to cockpit-metrics. Below, two limits: each log lane buffers 256 MB on disk with 10 retries, holding an OpenSearch outage between 50 seconds and 109 minutes; and when the retries run out the record is gone, because there is no hook and no second destination.">
+          <defs>
+            <marker id="a7" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,1 L10,5 L0,9 z" class="d-head"></path>
+            </marker>
+            <marker id="a7s" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,1 L10,5 L0,9 z" class="d-head is-soft"></path>
+            </marker>
+          </defs>
+
+          <image href="assets/fluentbit-logo.webp" x="0" y="0" width="96" height="28"></image>
+          <text class="d-vm" x="108" y="19">one process on every worker VM</text>
+          <text class="d-fact is-end" x="820" y="19">4 inputs &middot; 4 tags &middot; 5 outputs</text>
+          <path class="d-hair" d="M0,34 H820"></path>
+
+          <text class="d-stage is-mid" x="88" y="54">INPUT</text>
+          <text class="d-stage is-mid" x="248" y="54">TAG</text>
+          <text class="d-stage is-mid" x="395" y="54">FILTER</text>
+          <text class="d-stage is-mid" x="553" y="54">RETAG</text>
+          <text class="d-stage is-mid" x="728" y="54">OUTPUT</text>
+          <path class="d-hair" d="M0,62 H820"></path>
+
+          <rect class="d-card" x="0" y="74" width="176" height="50"></rect>
+          <text class="d-vm" x="10" y="94">tail, multiline</text>
+          <text class="d-ix" x="10" y="110">/var/log/node/dds/*.log</text>
+          <path class="d-line" d="M176,99 H190" marker-end="url(#a7)"></path>
+          <rect class="d-card" x="196" y="74" width="104" height="50"></rect>
+          <text class="d-ix is-mid" x="248" y="103">dds</text>
+          <path class="d-line" d="M300,99 H314" marker-end="url(#a7)"></path>
+          <rect class="d-card" x="320" y="74" width="150" height="50"></rect>
+          <text class="d-vm" x="330" y="94">dds_text</text>
+          <text class="d-fact" x="330" y="110">stamp collector_time</text>
+          <path class="d-line" d="M470,99 H478"></path>
+          <rect class="d-card is-hot" x="490" y="74" width="126" height="50"></rect>
+          <text class="d-ix is-hot is-mid" x="553" y="103">family.info</text>
+          <path class="d-line" d="M616,99 H630" marker-end="url(#a7)"></path>
+          <rect class="d-card" x="636" y="74" width="184" height="50"></rect>
+          <text class="d-ix" x="646" y="94">application-logs-local-*</text>
+          <text class="d-l is-start" x="646" y="110">localhost:9200, this VM</text>
+
+          <rect class="d-card" x="0" y="136" width="176" height="50"></rect>
+          <text class="d-vm" x="10" y="156">tail, multiline</text>
+          <text class="d-ix" x="10" y="172">/var/log/node/stdout/*.log</text>
+          <path class="d-line" d="M176,161 H190" marker-end="url(#a7)"></path>
+          <rect class="d-card" x="196" y="136" width="104" height="50"></rect>
+          <text class="d-ix is-mid" x="248" y="165">stdout</text>
+          <path class="d-line" d="M300,161 H314" marker-end="url(#a7)"></path>
+          <rect class="d-card" x="320" y="136" width="150" height="50"></rect>
+          <text class="d-vm" x="330" y="156">stdout_root</text>
+          <text class="d-fact" x="330" y="172">stamp collector_time</text>
+          <path class="d-line" d="M470,161 H478"></path>
+          <rect class="d-card is-hot" x="490" y="136" width="126" height="50"></rect>
+          <text class="d-ix is-hot is-mid" x="553" y="165">family.other</text>
+          <path class="d-line" d="M616,161 H630" marker-end="url(#a7)"></path>
+          <rect class="d-card" x="636" y="136" width="184" height="50"></rect>
+          <text class="d-ix" x="646" y="156">application-logs-other</text>
+          <text class="d-l is-start" x="646" y="172">localhost + the live lane</text>
+
+          <path class="d-brace" d="M478,99 V161"></path>
+          <path class="d-line" d="M478,99 H484" marker-end="url(#a7)"></path>
+          <path class="d-line" d="M478,161 H484" marker-end="url(#a7)"></path>
+          <text class="d-l is-mid is-hot" x="484" y="201">severity decides, not source</text>
+
+          <rect class="d-card" x="0" y="212" width="176" height="50"></rect>
+          <text class="d-vm" x="10" y="232">tcp, json</text>
+          <text class="d-ix" x="10" y="248">:5170, the local producer</text>
+          <path class="d-line" d="M176,237 H190" marker-end="url(#a7)"></path>
+          <rect class="d-card" x="196" y="212" width="104" height="50"></rect>
+          <text class="d-ix is-mid" x="248" y="241">infologger</text>
+          <path class="d-line" d="M300,237 H314" marker-end="url(#a7)"></path>
+          <rect class="d-card" x="320" y="212" width="150" height="50"></rect>
+          <text class="d-vm" x="330" y="232">il_event_time</text>
+          <text class="d-fact" x="330" y="248">stamp collector_time</text>
+          <path class="d-line is-dash" d="M470,237 H522"></path>
+          <text class="d-l is-mid" x="553" y="241">no retag</text>
+          <path class="d-line is-dash" d="M584,237 H630" marker-end="url(#a7s)"></path>
+          <rect class="d-card" x="636" y="212" width="184" height="50"></rect>
+          <text class="d-ix" x="646" y="232">infologger</text>
+          <text class="d-l is-start" x="646" y="248">localhost + the live lane</text>
+
+          <rect class="d-card" x="0" y="274" width="176" height="50"></rect>
+          <text class="d-vm" x="10" y="294">exec, every 30 s</text>
+          <text class="d-ix" x="10" y="310">fb_health.py</text>
+          <path class="d-line" d="M176,299 H190" marker-end="url(#a7)"></path>
+          <rect class="d-card" x="196" y="274" width="104" height="50"></rect>
+          <text class="d-ix is-mid" x="248" y="303">health</text>
+          <path class="d-line" d="M300,299 H314" marker-end="url(#a7)"></path>
+          <rect class="d-card" x="320" y="274" width="150" height="50"></rect>
+          <text class="d-vm" x="330" y="294">health_deltas</text>
+          <text class="d-fact" x="330" y="310">counters to deltas</text>
+          <path class="d-line is-dash" d="M470,299 H522"></path>
+          <text class="d-l is-mid" x="553" y="303">no retag</text>
+          <path class="d-line is-dash" d="M584,299 H630" marker-end="url(#a7s)"></path>
+          <rect class="d-card" x="636" y="274" width="184" height="50"></rect>
+          <text class="d-ix" x="646" y="294">cockpit-metrics</text>
+          <text class="d-l is-start" x="646" y="310">localhost:9200, this VM</text>
+
+          <path class="d-hair" d="M0,344 H820"></path>
+          <text class="d-tag" x="0" y="364">WHEN THE FAR END IS DOWN</text>
+          <text class="d-fact is-start" x="0" y="384">256 MB on disk per lane and 10 retries. That holds an</text>
+          <text class="d-fact is-start" x="0" y="398">OpenSearch outage for 50 seconds at best, 109 minutes at worst.</text>
+          <text class="d-tag" x="430" y="364">WHEN THE RETRIES RUN OUT</text>
+          <text class="d-fact is-start" x="430" y="384">The record is gone. No hook, no second destination, so</text>
+          <text class="d-fact is-start" x="430" y="398">no dead-letter queue can be built here. That needs a broker.</text>
+        </svg>
+        <figcaption>The tag is the address. Every filter and every output selects on it,
+          which is why a record can be re-addressed once, in the middle, without moving
+          anything else. <code>collector_time</code> is the second clock: every record keeps
+          its own event time and the time it reached this process, and four detectors train
+          on the difference between them.</figcaption>
+      </figure>
+    </div>
+
+    <footer class="runner">
+      <span>ALICE Collaboration Board</span>
+      <span class="folio"></span>
+    </footer>
+
+  </section>
+
+  <section class="slide slide--content">
+
+    <header class="masthead">
+      <img src="assets/alice-logo.webp" alt="ALICE">
+      <p class="stamp">Scalable logging for ALICE O<sup>2</sup></p>
+    </header>
+
+    <div class="stage">
+      <div>
+        <div class="tick"></div>
+        <h2>How we use<br>OpenSearch</h2>
+        <p class="lede">One cluster, two storage contracts. Where a record is written, how
+          many copies it gets, and how long it stays.</p>
+        <p class="keyfacts">6 retention policies<br>1 ingest pipeline, every family<br>Nothing
+          in the cluster is unbounded</p>
+      </div>
+
+      <figure class="figure">
+        <svg viewBox="0 0 820 425" role="img"
+             aria-label="The life of one index, drawn on a shared time scale in days. Local lane: application-logs-local, one shard and no replicas, rolls to a new backing index every day or 20 gigabytes. Eight daily blocks stand side by side, the last one pale, and the index is deleted at 8 days, so 7 days are always on disk. Replicated lane: infologger and application-logs-other, one primary and two replicas each, both rolling every 7 days or 20 gigabytes. InfoLogger runs eight weekly blocks and is deleted at 56 days, so 49 days are always on disk. Application-logs-other runs five weekly blocks and is deleted at 35 days, so 28 days are always on disk.">
+          <defs>
+            <marker id="a8s" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,1 L10,5 L0,9 z" class="d-head is-soft"></path>
+            </marker>
+          </defs>
+
+          <text class="d-num" x="0" y="13">01</text>
+          <text class="d-stage" x="24" y="13">Local lane</text>
+          <text class="d-fact is-end" x="808" y="13">1 shard, 0 replicas — one copy, pinned to the machine that wrote it</text>
+
+          <rect class="d-panel" x="0" y="24" width="820" height="118"></rect>
+
+          <text class="d-ix" x="12" y="50">application-logs-local-&lt;node&gt;</text>
+          <text class="d-l is-start" x="230" y="50">rolls 1d or 20gb</text>
+
+          <rect class="d-card" x="12" y="64" width="9.3" height="28"></rect>
+          <rect class="d-card" x="24.3" y="64" width="9.3" height="28"></rect>
+          <rect class="d-card" x="36.6" y="64" width="9.3" height="28"></rect>
+          <rect class="d-card" x="48.9" y="64" width="9.3" height="28"></rect>
+          <rect class="d-card" x="61.1" y="64" width="9.3" height="28"></rect>
+          <rect class="d-card" x="73.4" y="64" width="9.3" height="28"></rect>
+          <rect class="d-card" x="85.7" y="64" width="9.3" height="28"></rect>
+          <rect class="d-ghost" x="98" y="64" width="9.3" height="28"></rect>
+
+          <path class="d-line is-dash" d="M112,78 H126" marker-end="url(#a8s)"></path>
+          <text class="d-l is-start" x="132" y="81.5">deleted at 8d</text>
+
+          <path class="d-brace" d="M12,104 V110 H95 V104"></path>
+          <text class="d-bracelabel is-start" x="12" y="130">always have 7 days</text>
+
+          <text class="d-num" x="0" y="172">02</text>
+          <text class="d-stage" x="24" y="172">Replicated lane</text>
+          <text class="d-fact is-end" x="808" y="172">1 primary, 2 replicas — one copy on every storage node</text>
+
+          <rect class="d-panel" x="0" y="183" width="820" height="232"></rect>
+
+          <text class="d-ix" x="12" y="209">infologger</text>
+          <text class="d-l is-start" x="230" y="209">rolls 7d or 20gb</text>
+
+          <rect class="d-card" x="12" y="223" width="83" height="28"></rect>
+          <rect class="d-card" x="98" y="223" width="83" height="28"></rect>
+          <rect class="d-card" x="184" y="223" width="83" height="28"></rect>
+          <rect class="d-card" x="270" y="223" width="83" height="28"></rect>
+          <rect class="d-card" x="356" y="223" width="83" height="28"></rect>
+          <rect class="d-card" x="442" y="223" width="83" height="28"></rect>
+          <rect class="d-card" x="528" y="223" width="83" height="28"></rect>
+          <rect class="d-ghost" x="614" y="223" width="83" height="28"></rect>
+
+          <path class="d-line is-dash" d="M702,237 H716" marker-end="url(#a8s)"></path>
+          <text class="d-l is-start" x="722" y="240.5">deleted at 56d</text>
+
+          <path class="d-brace" d="M12,263 V269 H611 V263"></path>
+          <text class="d-bracelabel is-start" x="12" y="289">always have 49 days</text>
+
+          <text class="d-ix" x="12" y="317">application-logs-other</text>
+          <text class="d-l is-start" x="230" y="317">rolls 7d or 20gb</text>
+
+          <rect class="d-card" x="12" y="331" width="83" height="28"></rect>
+          <rect class="d-card" x="98" y="331" width="83" height="28"></rect>
+          <rect class="d-card" x="184" y="331" width="83" height="28"></rect>
+          <rect class="d-card" x="270" y="331" width="83" height="28"></rect>
+          <rect class="d-ghost" x="356" y="331" width="83" height="28"></rect>
+
+          <path class="d-line is-dash" d="M444,345 H458" marker-end="url(#a8s)"></path>
+          <text class="d-l is-start" x="464" y="348.5">deleted at 35d</text>
+
+          <path class="d-brace" d="M12,371 V377 H353 V371"></path>
+          <text class="d-bracelabel is-start" x="12" y="397">always have 28 days</text>
+        </svg>
+        <figcaption>Each block is one backing index. The pale block at the end is the extra
+          day or week carried so the red span always holds. Allocation filtering is a hard rule:
+          a shard that cannot meet it goes unassigned rather than onto the wrong tier.</figcaption>
+      </figure>
+    </div>
+
+    <footer class="runner">
+      <span>ALICE Collaboration Board</span>
+      <span class="folio"></span>
+    </footer>
+
+  </section>
+
+  <section class="slide slide--content">
+
+    <header class="masthead">
+      <img src="assets/alice-logo.webp" alt="ALICE">
+      <p class="stamp">Scalable logging for ALICE O<sup>2</sup></p>
+    </header>
+
+    <div class="stage">
+      <div>
+        <div class="tick"></div>
+        <h2>Anomaly<br>detection</h2>
+        <p class="lede">A detector counts one number every minute for one machine. It learns
+          what that number normally does, and reports how surprising the newest minute is.</p>
+        <p class="keyfacts">17 detectors — 3 metric, 14 log<br>Two horizons — 1 min and 30
+          min<br>One forecaster — disk fill</p>
+      </div>
+
+      <figure class="figure">
+        <svg viewBox="0 0 820 424" role="img"
+             aria-label="How anomaly detection works here, in three stages. One detector: log records landing in the local application index are bucketed every minute, reduced to at most four feature values such as volume, errors and p95 lag, scored by a Random Cut Forest model kept per EPN host over eight buckets of context, and written to the anomaly results as a grade and a confidence; a score alarms only above grade 0.7 and confidence 0.7. Why cuts, not thresholds: a scatter plot holds a dense cloud of ordinary points and one red point alone in empty space. A single red cut isolates the red point, while six further cuts still leave the cloud crowded, so the score is how few cuts it took. What we run: three detectors on cockpit-metrics at one minute, six on infologger, six on application-logs-local and two on application-logs-other, each of those at one minute and again at thirty, plus one disk-fill forecaster that runs hourly, predicts one day ahead and warns above 85 percent predicted fill.">
+          <defs>
+            <marker id="a9" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,1 L10,5 L0,9 z" class="d-head"></path>
+            </marker>
+          </defs>
+
+          <text class="d-num" x="0" y="13">01</text>
+          <text class="d-stage" x="24" y="13">One detector</text>
+
+          <rect class="d-panel" x="0" y="24" width="820" height="88"></rect>
+
+          <rect class="d-card" x="10" y="40" width="190" height="52"></rect>
+          <text class="d-ix is-start" x="21" y="57">application-logs-local-*</text>
+          <text class="d-fact is-start" x="21" y="72">log records, as they land</text>
+          <text class="d-fact is-start" x="21" y="86">one index per worker</text>
+
+          <rect class="d-card" x="244" y="40" width="150" height="52"></rect>
+          <text class="d-t is-sm" x="319" y="56">Features</text>
+          <text class="d-s is-sm" x="319" y="71">volume · errors · lag</text>
+          <text class="d-s is-sm" x="319" y="85">at most four</text>
+
+          <rect class="d-card is-hot" x="438" y="40" width="176" height="52"></rect>
+          <text class="d-t is-sm is-hot" x="526" y="56">Random Cut Forest</text>
+          <text class="d-s is-sm is-hot" x="526" y="71">one model per host</text>
+          <text class="d-s is-sm is-hot" x="526" y="85">eight buckets of context</text>
+
+          <rect class="d-card" x="658" y="40" width="152" height="52"></rect>
+          <text class="d-ix is-start" x="670" y="57">anomaly results</text>
+          <text class="d-fact is-start" x="670" y="72">grade 0 to 1</text>
+          <text class="d-fact is-start" x="670" y="86">with confidence</text>
+
+          <path class="d-line" d="M200,66 H240" marker-end="url(#a9)"></path>
+          <path class="d-line" d="M394,66 H434" marker-end="url(#a9)"></path>
+          <path class="d-line" d="M614,66 H654" marker-end="url(#a9)"></path>
+
+          <text class="d-l" x="222" y="58">1 min</text>
+          <text class="d-l" x="416" y="58">point</text>
+          <text class="d-l" x="636" y="58">score</text>
+
+          <text class="d-l is-end" x="810" y="106">a score alarms only above grade 0.7 and confidence 0.7</text>
+
+          <text class="d-num" x="0" y="124">02</text>
+          <text class="d-stage" x="24" y="124">Why cuts, not thresholds</text>
+
+          <rect class="d-panel" x="0" y="135" width="820" height="126"></rect>
+
+          <rect class="d-card" x="30" y="148" width="330" height="100"></rect>
+
+          <circle class="d-dot" cx="78" cy="193" r="2.6"></circle>
+          <circle class="d-dot" cx="92" cy="177" r="2.6"></circle>
+          <circle class="d-dot" cx="95" cy="214" r="2.6"></circle>
+          <circle class="d-dot" cx="106" cy="206" r="2.6"></circle>
+          <circle class="d-dot" cx="100" cy="228" r="2.6"></circle>
+          <circle class="d-dot" cx="120" cy="192" r="2.6"></circle>
+          <circle class="d-dot" cx="128" cy="211" r="2.6"></circle>
+          <circle class="d-dot" cx="137" cy="176" r="2.6"></circle>
+          <circle class="d-dot" cx="141" cy="194" r="2.6"></circle>
+          <circle class="d-dot" cx="152" cy="236" r="2.6"></circle>
+          <circle class="d-dot" cx="158" cy="190" r="2.6"></circle>
+          <circle class="d-dot" cx="160" cy="208" r="2.6"></circle>
+          <circle class="d-dot" cx="176" cy="183" r="2.6"></circle>
+          <circle class="d-dot" cx="183" cy="226" r="2.6"></circle>
+          <circle class="d-dot" cx="196" cy="194" r="2.6"></circle>
+          <circle class="d-dot" cx="205" cy="213" r="2.6"></circle>
+          <circle class="d-dot is-hot" cx="322" cy="168" r="3.2"></circle>
+
+          <path class="d-cut is-hot" pathLength="100" d="M272,148 V248"></path>
+          <path class="d-cut is-c2" pathLength="100" d="M30,200 H272"></path>
+          <path class="d-cut is-c3" pathLength="100" d="M130,168 V200"></path>
+          <path class="d-cut is-c4" pathLength="100" d="M115,200 V248"></path>
+          <path class="d-cut is-c5" pathLength="100" d="M30,186 H130"></path>
+          <path class="d-cut is-c6" pathLength="100" d="M170,200 V248"></path>
+          <path class="d-cut is-c7" pathLength="100" d="M115,222 H170"></path>
+
+          <text class="d-l" x="140" y="163">many cuts, still crowded</text>
+          <text class="d-l is-hot" x="316" y="192">isolated by</text>
+          <text class="d-l is-hot" x="316" y="204">the first cut</text>
+          <text class="d-l" x="195" y="258">the score is how few cuts it took</text>
+
+          <text class="d-t is-sm is-start" x="400" y="170">Few cuts, high score</text>
+          <text class="d-fact is-start" x="400" y="196">The forest slices the cloud of past points at random until</text>
+          <text class="d-fact is-start" x="400" y="212">each one stands alone. A point in the crowd needs many</text>
+          <text class="d-fact is-start" x="400" y="228">cuts. A point in empty space falls out in one or two.</text>
+          <text class="d-fact is-start" x="400" y="244">Few cuts is a high score. Nobody writes a threshold.</text>
+
+          <text class="d-num" x="0" y="273">03</text>
+          <text class="d-stage" x="24" y="273">What we run</text>
+
+          <rect class="d-panel" x="0" y="284" width="820" height="140"></rect>
+
+          <text class="d-vm" x="12" y="300">SOURCE INDEX</text>
+          <text class="d-vm is-end" x="224" y="300">COUNT</text>
+          <text class="d-vm" x="240" y="300">DETECTORS</text>
+          <text class="d-vm" x="500" y="300">ONE MODEL PER</text>
+          <text class="d-vm is-end" x="808" y="300">INTERVAL</text>
+          <path class="d-hair" d="M12,306 H808"></path>
+
+          <text class="d-ix is-start" x="12" y="322">cockpit-metrics</text>
+          <text class="d-ix is-end" x="224" y="322">3</text>
+          <text class="d-fact is-start" x="240" y="322">ingest-flow · node-health · dashboards-health</text>
+          <text class="d-fact is-start" x="500" y="322">collector / OpenSearch node / fleet</text>
+          <text class="d-fact is-end" x="808" y="322">1 min</text>
+          <path class="d-hair" d="M12,330 H808"></path>
+
+          <text class="d-ix is-start" x="12" y="346">infologger</text>
+          <text class="d-ix is-end" x="224" y="346">6</text>
+          <text class="d-fact is-start" x="240" y="346">volume + errors · entry lag · shipping lag</text>
+          <text class="d-fact is-start" x="500" y="346">EPN host / collector</text>
+          <text class="d-fact is-end" x="808" y="346">1 min + 30 min</text>
+          <path class="d-hair" d="M12,354 H808"></path>
+
+          <text class="d-ix is-start" x="12" y="370">application-logs-local-&lt;node&gt;</text>
+          <text class="d-ix is-end" x="224" y="370">6</text>
+          <text class="d-fact is-start" x="240" y="370">volume · entry lag · shipping lag</text>
+          <text class="d-fact is-start" x="500" y="370">EPN host / collector</text>
+          <text class="d-fact is-end" x="808" y="370">1 min + 30 min</text>
+          <path class="d-hair" d="M12,378 H808"></path>
+
+          <text class="d-ix is-start" x="12" y="394">application-logs-other</text>
+          <text class="d-ix is-end" x="224" y="394">2</text>
+          <text class="d-fact is-start" x="240" y="394">volume + errors</text>
+          <text class="d-fact is-start" x="500" y="394">EPN host</text>
+          <text class="d-fact is-end" x="808" y="394">1 min + 30 min</text>
+
+          <rect class="d-card" x="12" y="402" width="796" height="16"></rect>
+          <text class="d-ix is-start" x="24" y="413">disk-fill forecaster</text>
+          <text class="d-ix is-end" x="224" y="413">1</text>
+          <text class="d-fact is-start" x="240" y="413">predicts filesystem fill per OpenSearch node</text>
+          <text class="d-fact is-start" x="500" y="413">warns above 85 percent predicted</text>
+          <text class="d-fact is-end" x="796" y="413">hourly, one day ahead</text>
+        </svg>
+        <figcaption>Beside the models run 28 deterministic monitors for the cliffs we already
+          know — heap above 90 percent, disk above 92. The rules catch the known number. The
+          models catch the combination.</figcaption>
+      </figure>
+    </div>
+
+    <footer class="runner">
+      <span>ALICE Collaboration Board</span>
+      <span class="folio"></span>
+    </footer>
+
+  </section>
+
+  <section class="slide slide--content">
+
+    <header class="masthead">
+      <img src="assets/alice-logo.webp" alt="ALICE">
+      <p class="stamp">Scalable logging for ALICE O<sup>2</sup></p>
+    </header>
+
+    <div class="stage">
+      <div>
+        <div class="tick"></div>
+        <h2>After a<br>detector fires</h2>
+        <p class="lede">A hit is not an alert. The projector folds hits into episodes, and
+          Alertmanager decides when anyone is told.</p>
+        <p class="keyfacts">One episode per entity<br>Re-sent every 30 s<br>Design values, not
+          yet measured</p>
+      </div>
+
+      <figure class="figure">
+        <svg viewBox="0 0 820 372" role="img"
+             aria-label="The response path in four stages. Detect: 28 saved-query monitors, 17 Random Cut Forest detectors and one disk-fill forecaster produce raw hits, each fired trigger throttled for 30 minutes. Project: the alice-signal-projector runs every 30 seconds over a 15-minute overlap, hashes source kind, alert name, entity kind, entity id and scope into one incident id, and appends an episode keyed on the event time it opened; detectors close an episode only after two or three clean windows, and a missed evaluation goes stale rather than resolved. Notify: Alertmanager holds pages 30 seconds then 2 minutes and everything else 5 minutes then 10 minutes, repeats every 4 hours, and carries 22 causal edges of which none is proven, so it mutes nothing. Record: a webhook writes each batch into alice-notifications, the cockpit board draws 20 grouped cards from alice-incidents, and delivery to a person is not built. A dashed break-glass path takes two monitors around Alertmanager.">
+          <defs>
+            <marker id="a10" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,1 L10,5 L0,9 z" class="d-head"></path>
+            </marker>
+            <marker id="a10s" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,1 L10,5 L0,9 z" class="d-head is-soft"></path>
+            </marker>
+          </defs>
+
+          <text class="d-num" x="0" y="12">01</text>
+          <text class="d-stage" x="24" y="12">Detect</text>
+          <text class="d-num" x="158" y="12">02</text>
+          <text class="d-stage" x="182" y="12">Project</text>
+          <text class="d-num" x="470" y="12">03</text>
+          <text class="d-stage" x="494" y="12">Notify</text>
+          <text class="d-num" x="672" y="12">04</text>
+          <text class="d-stage" x="696" y="12">Record</text>
+
+          <rect class="d-panel" x="0" y="22" width="132" height="284"></rect>
+          <rect class="d-panel" x="158" y="22" width="286" height="284"></rect>
+          <rect class="d-panel" x="470" y="22" width="176" height="284"></rect>
+          <rect class="d-panel" x="672" y="22" width="148" height="284"></rect>
+
+          <rect class="d-ghost" x="12" y="66" width="108" height="52"></rect>
+          <rect class="d-ghost" x="12" y="60" width="108" height="52"></rect>
+          <rect class="d-card" x="12" y="54" width="108" height="52"></rect>
+
+          <rect class="d-ghost" x="12" y="138" width="108" height="52"></rect>
+          <rect class="d-ghost" x="12" y="132" width="108" height="52"></rect>
+          <rect class="d-card" x="12" y="126" width="108" height="52"></rect>
+
+          <rect class="d-card" x="12" y="206" width="108" height="42"></rect>
+
+          <rect class="d-card is-hot" x="170" y="54" width="262" height="52"></rect>
+          <rect class="d-card is-soft" x="170" y="126" width="262" height="60"></rect>
+          <rect class="d-card" x="170" y="206" width="262" height="56"></rect>
+
+          <rect class="d-card" x="482" y="54" width="152" height="52"></rect>
+          <rect class="d-card" x="482" y="126" width="152" height="60"></rect>
+          <rect class="d-card is-soft" x="482" y="206" width="152" height="56"></rect>
+
+          <rect class="d-card" x="684" y="54" width="124" height="52"></rect>
+          <rect class="d-card" x="684" y="126" width="124" height="60"></rect>
+          <rect class="d-card is-soft" x="684" y="206" width="124" height="56"></rect>
+
+          <path class="d-line" d="M120,227 H140 V80"></path>
+          <path class="d-line" d="M120,152 H140"></path>
+          <path class="d-line" d="M120,80 H166" marker-end="url(#a10)"></path>
+          <path class="d-line" d="M301,106 V122" marker-end="url(#a10)"></path>
+          <path class="d-line" d="M301,186 V202" marker-end="url(#a10)"></path>
+          <path class="d-line" d="M558,106 V122" marker-end="url(#a10)"></path>
+          <path class="d-line" d="M432,80 H478" marker-end="url(#a10)"></path>
+          <path class="d-line" d="M634,80 H680" marker-end="url(#a10)"></path>
+          <path class="d-line is-dash" d="M66,54 V36 H746 V50" marker-end="url(#a10s)"></path>
+
+          <path class="d-hair" d="M492,169 H624"></path>
+          <rect class="d-elabel" x="226" y="27" width="150" height="18"></rect>
+
+          <text class="d-l" x="301" y="39.5">break-glass, 2 monitors</text>
+          <rect class="d-elabel" x="123" y="59.5" width="44" height="18"></rect>
+          <text class="d-l is-xs" x="145" y="72">hits</text>
+          <rect class="d-elabel" x="434" y="59.5" width="42" height="18"></rect>
+          <text class="d-l is-xs" x="455" y="72">episode</text>
+          <rect class="d-elabel" x="636" y="59.5" width="42" height="18"></rect>
+          <text class="d-l is-xs" x="657" y="72">webhook</text>
+
+          <text class="d-t is-sm" x="66" y="76">28 monitors</text>
+          <text class="d-s is-sm" x="66" y="91">saved queries</text>
+          <text class="d-t is-sm" x="66" y="148">17 detectors</text>
+          <text class="d-s is-sm" x="66" y="163">Random Cut Forest</text>
+          <text class="d-t is-sm" x="66" y="226">1 forecaster</text>
+          <text class="d-s is-sm" x="66" y="241">disk fill</text>
+          <text class="d-fact is-start" x="12" y="282">30 min throttle</text>
+          <text class="d-fact is-start" x="12" y="296">per fired trigger</text>
+
+          <text class="d-t is-hot" x="301" y="76">alice-signal-projector</text>
+          <text class="d-s is-hot" x="301" y="91">every 30 s, 15 min overlap</text>
+          <text class="d-ix is-mid" x="301" y="146">source_kind, alertname, entity_kind,</text>
+          <text class="d-ix is-mid" x="301" y="159">entity_id, scope</text>
+          <text class="d-fact is-mid" x="301" y="176">hashed into one incident_id</text>
+          <text class="d-ix is-mid" x="301" y="224">episode_id = incident_id.episode_start</text>
+          <text class="d-fact is-mid" x="301" y="240">opened by event time, not by a counter</text>
+          <text class="d-fact is-mid" x="301" y="254">written to alice-incidents, the durable record</text>
+          <text class="d-fact is-start" x="170" y="282">Detectors close only after 2 or 3 clean windows.</text>
+          <text class="d-fact is-start" x="170" y="296">A missed evaluation goes stale, never resolved.</text>
+
+          <text class="d-t" x="558" y="76">Alertmanager</text>
+          <text class="d-s" x="558" y="91">notification only</text>
+          <text class="d-ix is-start" x="492" y="144">page</text>
+          <text class="d-fact is-end" x="624" y="144">30 s, then 2 m</text>
+          <text class="d-ix is-start" x="492" y="160">warn</text>
+          <text class="d-fact is-end" x="624" y="160">5 m, then 10 m</text>
+          <text class="d-fact is-start" x="492" y="180">repeat 4 h, both tiers</text>
+          <text class="d-ix is-soft is-start" x="492" y="225">inhibit_rules</text>
+          <text class="d-fact is-start" x="492" y="241">22 edges declared</text>
+          <text class="d-fact is-start" x="492" y="255">0 proven, nothing muted</text>
+          <text class="d-fact is-start" x="482" y="282">A silence is placed by</text>
+          <text class="d-fact is-start" x="482" y="296">hand, before a replay.</text>
+
+          <text class="d-ix is-start" x="692" y="76">alice-notifications</text>
+          <text class="d-fact is-start" x="692" y="92">what was sent</text>
+          <text class="d-t is-sm is-start" x="692" y="147">Cockpit board</text>
+          <text class="d-ix is-start" x="692" y="163">alice-incidents</text>
+          <text class="d-fact is-start" x="692" y="177">20 grouped cards</text>
+          <text class="d-fact is-start" x="692" y="226">Delivery to a person</text>
+          <text class="d-fact is-start" x="692" y="240">is not built yet.</text>
+          <text class="d-fact is-start" x="692" y="254">No pager, no mail.</text>
+          <text class="d-fact is-start" x="684" y="282">Retention 30 days.</text>
+          <text class="d-fact is-start" x="684" y="296">Grouping is display only.</text>
+
+          <path class="d-brace" d="M170,326 V334 H808 V326"></path>
+          <text class="d-bracelabel" x="489" y="356">Alertmanager decides when someone is told; alice-incidents decides what is true</text>
+        </svg>
+        <figcaption>Stacked cards are many. One detector hit is not one message: the
+          projector folds hits into episodes, and Alertmanager folds episodes into
+          notifications. The dashed path is the only route around it.</figcaption>
+      </figure>
+    </div>
+
+    <footer class="runner">
+      <span>ALICE Collaboration Board</span>
+      <span class="folio"></span>
+    </footer>
+
+  </section>
+
+  <section class="slide slide--content">
+
+    <header class="masthead">
+      <img src="assets/alice-logo.webp" alt="ALICE">
+      <p class="stamp">Scalable logging for ALICE O<sup>2</sup></p>
+    </header>
+
+    <div class="stage">
+      <div>
+        <div class="tick"></div>
+        <h2>Two ways<br>to look</h2>
+        <p class="lede">One page asks whether the pipeline is healthy. The other shows what
+          the farm is saying, now. The shifter's own cockpit, a copy of the InfoLogger
+          interface, is not built yet.</p>
+        <p class="keyfacts">One door — TLS port 5601<br>Cockpit — 34 panels, refresh 30 s<br>Live
+          lane — zero queries on the cluster</p>
+      </div>
+
+      <figure class="figure">
+        <svg viewBox="0 0 820 438" role="img"
+             aria-label="The two viewing surfaces, side by side behind one door. One nginx listener on alice-ingest-3 carries TLS, port 5601 and one basic-auth account, and it leads to both. Left lane, the cockpit: OpenSearch Dashboards 3.7.0 on the control host with heap capped at 512 MB, sending one query per panel down to the OpenSearch cluster it needs alive; 34 panels on auto-refresh, 56 saved objects re-imported on every deploy, 12 saved searches, status chips that grey out past 90 seconds, and two clocks on one page — health panels pinned to the last hour, log panels stored at the last year. Right lane, the live lane: alice-live-lane on alice-ingest-5, one open connection per viewer on port 8092, fed upward by a second Fluent Bit output carrying infologger and application-other; a 500-row backlog then live only, 10000 rows in the browser, drops for a slow viewer, and no query, no disk and no time picker. The info bulk is never pushed. A red brace under the right lane alone marks it as the only view that still works when the cluster is red.">
+          <defs>
+            <marker id="a11" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,1 L10,5 L0,9 z" class="d-head"></path>
+            </marker>
+          </defs>
+
+          <text class="d-num" x="0" y="13">00</text>
+          <text class="d-stage" x="24" y="13">One door</text>
+
+          <rect class="d-card" x="0" y="24" width="820" height="44"></rect>
+          <text class="d-t is-sm is-start" x="16" y="51">nginx on alice-ingest-3</text>
+          <text class="d-s is-sm is-end" x="804" y="51">TLS, one basic-auth account, port 5601</text>
+
+          <path class="d-line" d="M198,68 V108" marker-end="url(#a11)"></path>
+          <path class="d-line" d="M622,68 V108" marker-end="url(#a11)"></path>
+
+          <text class="d-num" x="0" y="89">01</text>
+          <text class="d-stage" x="24" y="89">Cockpit</text>
+          <text class="d-num" x="424" y="89">02</text>
+          <text class="d-stage" x="448" y="89">Live lane</text>
+
+          <rect class="d-panel" x="0" y="100" width="396" height="286"></rect>
+          <rect class="d-panel" x="424" y="100" width="396" height="286"></rect>
+
+          <rect class="d-card" x="12" y="112" width="372" height="46"></rect>
+          <image href="assets/opensearch-mark.webp" x="24" y="124" width="22" height="22"></image>
+          <text class="d-t is-sm is-start" x="54" y="131">OpenSearch Dashboards 3.7.0</text>
+          <text class="d-s is-sm is-start" x="54" y="145">on the control host, heap capped 512 MB</text>
+
+          <path class="d-line" d="M198,158 V186" marker-end="url(#a11)"></path>
+          <rect class="d-elabel" x="143" y="165" width="110" height="18"></rect>
+          <text class="d-l" x="198" y="177.5">query per panel</text>
+
+          <rect class="d-card" x="12" y="190" width="372" height="46"></rect>
+          <image href="assets/opensearch-mark.webp" x="24" y="202" width="22" height="22"></image>
+          <text class="d-t is-sm is-start" x="54" y="210">OpenSearch cluster</text>
+          <text class="d-s is-sm is-start" x="54" y="224">three storage nodes, and they must be alive</text>
+
+          <path class="d-hair" d="M12,252 H384"></path>
+          <text class="d-fact is-start" x="12" y="268">34 panels, auto-refresh 30 s</text>
+          <text class="d-fact is-start" x="12" y="286">56 saved objects, re-imported on every deploy</text>
+          <text class="d-fact is-start" x="12" y="304">12 saved searches waiting in Discover</text>
+          <text class="d-fact is-start" x="12" y="322">Status chips grey out past 90 s, never a stale green</text>
+
+          <rect class="d-card is-soft" x="12" y="332" width="372" height="48"></rect>
+          <text class="d-ix is-start" x="24" y="348">ingest clock — now-1h</text>
+          <text class="d-fact is-start" x="200" y="348">health panels, pinned to the hour</text>
+          <path class="d-hair" d="M24,356 H372"></path>
+          <text class="d-ix is-start" x="24" y="372">event clock — now-1y</text>
+          <text class="d-fact is-start" x="200" y="372">log panels, March + June 2026</text>
+
+          <rect class="d-card is-hot" x="436" y="112" width="372" height="46"></rect>
+          <text class="d-t is-sm is-hot is-start" x="448" y="131">alice-live-lane on alice-ingest-5</text>
+          <text class="d-s is-sm is-hot is-start" x="448" y="145">one open connection per viewer, port 8092</text>
+
+          <path class="d-line" d="M622,190 V162" marker-end="url(#a11)"></path>
+          <rect class="d-elabel" x="519" y="165" width="206" height="18"></rect>
+          <text class="d-l" x="622" y="177.5">infologger + application-other</text>
+
+          <rect class="d-card" x="436" y="190" width="372" height="46"></rect>
+          <image href="assets/fluentbit-logo.webp" x="448" y="201.6" width="78" height="22.75"></image>
+          <text class="d-t is-sm is-start" x="540" y="210">on every collector</text>
+          <text class="d-s is-sm is-start" x="540" y="224">a second output, not a query</text>
+
+          <path class="d-hair" d="M436,252 H808"></path>
+          <text class="d-fact is-start" x="436" y="268">500-row backlog on connect, then live only</text>
+          <text class="d-fact is-start" x="436" y="286">10 000 rows held in the browser, nothing older</text>
+          <text class="d-fact is-start" x="436" y="304">Drops for a slow viewer, and prints the count</text>
+          <text class="d-fact is-start" x="436" y="322">No query, no disk, no time picker</text>
+
+          <rect class="d-card is-soft" x="436" y="332" width="372" height="48"></rect>
+          <text class="d-ix is-start" x="448" y="348">application-logs-local-*</text>
+          <text class="d-fact is-start" x="612" y="348">the info bulk, never pushed</text>
+          <path class="d-hair" d="M448,356 H796"></path>
+          <text class="d-ix is-start" x="448" y="372">1 MB buffer, 1 retry</text>
+          <text class="d-fact is-start" x="612" y="372">never slows the write to OpenSearch</text>
+
+          <path class="d-brace" d="M436,398 V406 H808 V398"></path>
+          <text class="d-bracelabel" x="622" y="426">The only view that still works when the cluster is red</text>
+        </svg>
+        <figcaption>The cockpit reads the cluster; the lane reads the collectors. Only the
+          cockpit needs two clocks, because the replay keeps the archive's own event times —
+          and only the cockpit needs the cluster alive.</figcaption>
+      </figure>
+    </div>
+
+    <footer class="runner">
+      <span>ALICE Collaboration Board</span>
+      <span class="folio"></span>
+    </footer>
+
+  </section>
+
+  <section class="slide slide--content">
+
+    <header class="masthead">
+      <img src="assets/alice-logo.webp" alt="ALICE">
+      <p class="stamp">Scalable logging for ALICE O<sup>2</sup></p>
+    </header>
+
+    <div class="stage">
+      <div>
+        <div class="tick"></div>
+        <h2>Deployment<br>with Ansible</h2>
+        <p class="lede">One playbook configures all five machines; another creates them in
+          OpenStack first. The play order is chosen for what breaks, and every play is
+          written to converge.</p>
+        <p class="keyfacts">19 plays, 17 roles<br>7 inventory groups<br>12 gates stop the run</p>
+      </div>
+
+      <figure class="figure">
+        <svg viewBox="0 0 820 424" role="img"
+             aria-label="The site.yml play sequence as a seven-step ladder. One command — ansible-playbook playbooks/site.yml with the vault password prompted — runs 19 plays over the five machines: recover any wedged node, prepare all five, form the OpenSearch cluster with all five nodes at once and then gate cluster health one node at a time, build the control plane in dependency order, distribute the analytics off the control host, start ingest and its detection gate, and return a final verdict on the signal projector. Five of the seven steps carry a gate that can stop the run.">
+
+          <rect class="d-card is-hot" x="1" y="1" width="818" height="28"></rect>
+          <image href="assets/ansible-mark.webp" x="12" y="5" width="20" height="20"></image>
+          <text class="d-ix is-hot is-start" x="42" y="19">ansible-playbook playbooks/site.yml --ask-vault-pass</text>
+          <text class="d-fact is-hot is-end" x="808" y="19">one command, all five machines</text>
+
+          <path class="d-hair" d="M0,42 H820"></path>
+          <path class="d-hair" d="M0,96 H820"></path>
+          <path class="d-hair" d="M0,150 H820"></path>
+          <path class="d-hair" d="M0,204 H820"></path>
+          <path class="d-hair" d="M0,258 H820"></path>
+          <path class="d-hair" d="M0,312 H820"></path>
+          <path class="d-hair" d="M0,366 H820"></path>
+          <path class="d-hair" d="M0,420 H820"></path>
+
+          <text class="d-num" x="0" y="62">01</text>
+          <text class="d-vm" x="0" y="77">3 plays</text>
+          <text class="d-stage" x="56" y="62">Recover</text>
+          <text class="d-vm" x="56" y="77">alice_nodes + control + storage</text>
+          <text class="d-fact" x="262" y="62">Probe every machine over SSH for 40 seconds. One that does not answer is hard-rebooted</text>
+          <text class="d-fact" x="262" y="77">through OpenStack, then given 900 seconds to return. Moved and retired services are cleared.</text>
+          <text class="d-tag is-end" x="820" y="62">Gate</text>
+
+          <text class="d-num" x="0" y="116">02</text>
+          <text class="d-vm" x="0" y="131">1 play</text>
+          <text class="d-stage" x="56" y="116">Prepare</text>
+          <text class="d-vm" x="56" y="131">alice_nodes</text>
+          <text class="d-fact" x="262" y="116">Swap file, kernel limits, firewall and UTC clock, on all five machines. The OpenSearch</text>
+          <text class="d-fact" x="262" y="131">heap is capped at 1 GB, because each machine is 2 vCPU and 3.75 GB and nothing is spare.</text>
+
+          <text class="d-num" x="0" y="170">03</text>
+          <text class="d-vm" x="0" y="185">2 plays</text>
+          <text class="d-stage" x="56" y="170">Form the cluster</text>
+          <text class="d-vm" x="56" y="185">alice_nodes</text>
+          <text class="d-fact" x="262" y="170">All five start together: the manager quorum is two of the three storage machines, and it</text>
+          <text class="d-fact" x="262" y="185">cannot be reached one node at a time. Then a health gate releases one machine at a time.</text>
+          <text class="d-tag is-end" x="820" y="170">Gate</text>
+          <text class="d-vm is-end" x="820" y="185">serial: 1</text>
+
+          <text class="d-num" x="0" y="224">04</text>
+          <text class="d-vm" x="0" y="239">4 plays</text>
+          <text class="d-stage" x="56" y="224">Control plane</text>
+          <text class="d-vm" x="56" y="239">control</text>
+          <text class="d-fact" x="262" y="224">Index templates and aliases, then Alertmanager, then six roles in a fixed order, then the</text>
+          <text class="d-fact" x="262" y="239">notification receiver. Each step reads what the step above it wrote.</text>
+          <text class="d-tag is-end" x="820" y="224">Gate</text>
+
+          <text class="d-num" x="0" y="278">05</text>
+          <text class="d-vm" x="0" y="293">4 plays</text>
+          <text class="d-stage" x="56" y="278">Distribute</text>
+          <text class="d-vm" x="56" y="293">projector + control</text>
+          <text class="d-vm" x="56" y="305">background + livelane</text>
+          <text class="d-fact" x="262" y="278">The signal projector, the trend rollup and the live lane land off the control machine.</text>
+          <text class="d-fact" x="262" y="293">The inventory decides where; moving a service is an inventory edit, not a code edit.</text>
+
+          <text class="d-num" x="0" y="332">06</text>
+          <text class="d-vm" x="0" y="347">4 plays</text>
+          <text class="d-stage" x="56" y="332">Ingest</text>
+          <text class="d-vm" x="56" y="347">workers + control + projector</text>
+          <text class="d-fact" x="262" y="332">Fluent Bit on the workers, then a gate that waits for every worker's heartbeat and counts</text>
+          <text class="d-fact" x="262" y="347">28 monitors, 17 detectors and 1 forecaster. Then the replay producers and the fault agents.</text>
+          <text class="d-tag is-end" x="820" y="332">Gate</text>
+
+          <text class="d-num" x="0" y="386">07</text>
+          <text class="d-vm" x="0" y="401">1 play</text>
+          <text class="d-stage" x="56" y="386">Verdict</text>
+          <text class="d-vm" x="56" y="401">control</text>
+          <text class="d-fact" x="262" y="386">If the signal projector never proved a cycle, the deploy exits non-zero and names the one</text>
+          <text class="d-fact" x="262" y="401">block worth reading. Everything else can converge and the run still fails here.</text>
+          <text class="d-tag is-end" x="820" y="386">Gate</text>
+        </svg>
+        <figcaption>Red marks where the run stops. Every play is written to converge, so a
+          pass that dies is repaired by the pre-flight and resumed by the next one — the
+          driver makes two.</figcaption>
+      </figure>
+    </div>
+
+    <footer class="runner">
+      <span>ALICE Collaboration Board</span>
+      <span class="folio"></span>
+    </footer>
+
+  </section>
+
+  <section class="slide slide--content">
+
+    <header class="masthead">
+      <img src="assets/alice-logo.webp" alt="ALICE">
+      <p class="stamp">Scalable logging for ALICE O<sup>2</sup></p>
+    </header>
+
+    <div class="stage">
+      <div>
+        <div class="tick"></div>
+        <h2>What is<br>not built</h2>
+        <p class="lede">Five things are missing, and none of them is a surprise. Each has a
+          written reason for waiting and a cost we already know.</p>
+        <p class="keyfacts">Trigger for the queue: a third consumer<br>Security plugin off,
+          firewalld is the boundary<br>Detector timings are design values, not measured</p>
+      </div>
+
+      <ul class="findings">
+        <li>
+          <span class="claim">The queue is <em>not</em> built</span>
+          <span class="why">Fluent Bit discards its oldest chunk when the disk queue fills;
+            it does not push back on the input. An Apache Kafka commit log would survive a
+            collector restart and a storage outage. It costs three brokers and a second
+            system to run.</span>
+        </li>
+        <li>
+          <span class="claim">The names are <em>ahead</em> of the code</span>
+          <span class="why">This deck uses <code>application-logs-local</code> and
+            <code>application-logs-other</code>. The code still ships
+            <code>generic-log-*</code>, in 35 files that are not READMEs: templates,
+            retention, detectors, monitors and the cockpit.</span>
+        </li>
+        <li>
+          <span class="claim">No alert reaches a <em>person</em></span>
+          <span class="why">Alertmanager routes today, but its only receiver is a webhook
+            back into the cluster. An external channel is a config change. Grouping is the
+            real work: one fleet-wide breach emits about 215 alerts.</span>
+        </li>
+        <li>
+          <span class="claim">The model budget is <em>unproven</em></span>
+          <span class="why">Three days of the archive hold 211, 214 and 215 distinct
+            hostnames, not the 31 assumed. Ten per-host detectors at that count is about
+            2,100 models, against a budget estimated at 256 for this heap.</span>
+        </li>
+        <li>
+          <span class="claim">The <em>shifter's</em> view is missing</span>
+          <span class="why">The Operator Cockpit is not built, and it cannot be finished
+            without EPN access. It has to copy the interface shifters already use, because a
+            tool that needs training does not get used.</span>
         </li>
       </ul>
     </div>
