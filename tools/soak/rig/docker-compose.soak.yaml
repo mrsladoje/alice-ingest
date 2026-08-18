@@ -1,0 +1,70 @@
+name: alice-soak
+
+volumes:
+  soaklogs:
+  soakstorage:
+  osdata:
+
+services:
+  sink:
+    image: ${PY_IMAGE:-python:3.12-slim}
+    container_name: soak-sink
+    command: ["python3", "/opt/soak/sink.py", "--port", "9200",
+              "--stats-file", "/out/sink-stats.json"]
+    stop_grace_period: 10s
+    volumes:
+      - ${SOAK_TOOLS:-..}:/opt/soak:ro
+      - ${SOAK_RUN:-./out}:/out
+    ports:
+      - "${SINK_PORT:-9201}:9200"
+
+  fluent-bit:
+    image: ${FB_IMAGE:-fluent/fluent-bit}:${FB_VERSION:-5.0.8}
+    container_name: soak-fluent-bit
+    command: ["/fluent-bit/bin/fluent-bit", "-c", "/etc/fluent-bit/collector.yaml"]
+    environment:
+      ALICE_LOG_ROOT: /var/log/node
+      ALICE_FB_STORAGE_PATH: /var/log/flb-storage
+      ALICE_FB_HTTP_LISTEN: 0.0.0.0
+      ALICE_FB_HTTP_PORT: "2020"
+      ALICE_INFOLOGGER_TCP_PORT: "5170"
+      ALICE_NODE_ID: ${SOAK_NODE_ID:-node-soak}
+      ALICE_OS_HTTP_PORT: "9200"
+    volumes:
+      - ${SOAK_CONF:-./conf}:/etc/fluent-bit:ro
+      - soaklogs:/var/log/node
+      - soakstorage:/var/log/flb-storage
+    ports:
+      - "${FB_HTTP_PORT:-2020}:2020"
+      - "${FB_TCP_PORT:-5170}:5170"
+    mem_limit: ${FB_MEM_MAX:-768m}
+    cpus: ${FB_CPUS:-2}
+
+  gun:
+    image: ${PY_IMAGE:-python:3.12-slim}
+    container_name: soak-gun
+    profiles: ["gun"]
+    volumes:
+      - ${SOAK_TOOLS:-..}:/opt/soak:ro
+      - ${SOAK_RUN:-./out}:/out
+      - soaklogs:/var/log/node
+    network_mode: "service:fluent-bit"
+    command: ["sleep", "1"]
+
+  opensearch:
+    image: opensearchproject/opensearch:${OS_VERSION:-2.17.0}
+    container_name: soak-opensearch
+    profiles: ["os"]
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms${OS_HEAP:-1g} -Xmx${OS_HEAP:-1g}
+      bootstrap.memory_lock: "true"
+    ulimits:
+      memlock: {soft: -1, hard: -1}
+      nofile: {soft: 65536, hard: 65536}
+    volumes:
+      - osdata:/usr/share/opensearch/data
+    ports:
+      - "${OS_PORT:-9202}:9200"
+    mem_limit: ${OS_MEM_MAX:-2g}
