@@ -8,16 +8,17 @@
     group: root
     mode: "0755"
 
-- name: Open the fault-agent port ({{ fault_agent_port }}/tcp) to the control node only
+- name: Open the fault-agent port ({{ fault_agent_port }}/tcp) to the allowed clients only
   ansible.posix.firewalld:
     rich_rule: >-
       rule family="ipv4"
-      source address="{{ hostvars[groups['control'][0]].ansible_host }}"
+      source address="{{ item }}"
       port port="{{ fault_agent_port }}" protocol="tcp"
       accept
     permanent: true
     immediate: true
     state: enabled
+  loop: "{{ fault_agent_allowed_client_addresses }}"
 
 - name: Install the fault-injection agent
   ansible.builtin.copy:

@@ -86,6 +86,21 @@ alertmanager_host_address: "{{ hostvars[groups['control'][0]].ansible_host }}"
 live_lane_allowed_client_addresses: "{{ (groups['workers'] + groups['control']) |
   map('extract', hostvars, 'ansible_host') | unique | list }}"
 
+# The control host is the only client of the fault agents and of the replay
+# triggers, so both roles take the same one-address list. Kept separate from
+# alertmanager_host_address, which happens to resolve to the same host but
+# means "where Alertmanager runs", not "who is allowed to call in".
+control_host_address: "{{ hostvars[groups['control'][0]].ansible_host }}"
+fault_agent_allowed_client_addresses: "{{ [control_host_address] }}"
+producer_allowed_client_addresses: "{{ [control_host_address] }}"
+
+# Which services this node's fault agent may stop and start. A node may fault
+# only the service it owns: a worker its Fluent Bit, the projector host its
+# signal projector. Nothing else is reachable that way. Resolved here, per
+# host, because a role default must never name an inventory group.
+fault_agent_services: "{{ (['fluent-bit'] if inventory_hostname in groups['workers'] else []) +
+  (['alice-signal-projector'] if inventory_hostname == signal_projector_host else []) }}"
+
 dashboards_opensearch_hosts: "{{ groups['storage'] | map('extract', hostvars, 'ansible_host') |
   map('regex_replace', '^(.*)$', 'http://\\1:' ~ (opensearch_http_port | string)) | list }}"
 

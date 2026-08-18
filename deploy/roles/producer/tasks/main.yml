@@ -40,16 +40,17 @@
       - python3-pip
     state: present
 
-- name: Open the replay trigger ({{ replay_http_port }}/tcp) to the control node
+- name: Open the replay trigger ({{ replay_http_port }}/tcp) to the allowed clients only
   ansible.posix.firewalld:
     rich_rule: >-
       rule family="ipv4"
-      source address="{{ hostvars[groups['control'][0]].ansible_host }}"
+      source address="{{ item }}"
       port port="{{ replay_http_port }}" protocol="tcp"
       accept
     permanent: true
     immediate: true
     state: enabled
+  loop: "{{ producer_allowed_client_addresses }}"
 
 - name: Ensure the app root exists (replay.py + partition wrapper land here)
   ansible.builtin.file:

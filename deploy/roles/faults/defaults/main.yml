@@ -4,5 +4,10 @@ fault_agent_script: /opt/alice-ingest/fault_agent.py
 
 # A node may only fault the service it owns: a worker its Fluent Bit, the
 # projector host its signal projector. Nothing else is reachable this way.
-fault_agent_services: "{{ (['fluent-bit'] if inventory_hostname in groups['workers'] else []) +
-  (['alice-signal-projector'] if inventory_hostname == signal_projector_host else []) }}"
+# Empty here so the role never names an inventory group; the playbook supplies
+# the real per-host list from group_vars.
+fault_agent_services: []
+
+# Addresses permitted through the firewall to fault_agent_port. Empty here for
+# the same reason; group_vars resolves it to the control host.
+fault_agent_allowed_client_addresses: []

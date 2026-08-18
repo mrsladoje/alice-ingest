@@ -20,6 +20,11 @@
 # name for a DDS/stdout file, so os.makedirs() is never called for one.
 producer_nodes_root: /var/log/alice-replay-root
 
+# Addresses permitted through the firewall to replay_http_port. Empty here so
+# the role never names an inventory group; group_vars resolves it to the
+# control host, which is what drives the /ops replay button.
+producer_allowed_client_addresses: []
+
 # systemd unit + AWS credentials plumbing.
 producer_service_name: alice-replay
 producer_aws_dir: /root/.aws
