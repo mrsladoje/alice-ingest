@@ -16,6 +16,8 @@
   var ROW_HEIGHT_NARROW = 58;
   var OVERSCAN = 12;
   var COUNTER_INTERVAL_MS = 400;
+  var HIDDEN_GRACE_MS = (CONFIG.hiddenGraceSeconds == null
+    ? 120 : CONFIG.hiddenGraceSeconds) * 1000;
 
   var SEVERITIES = ['fatal', 'error', 'warning', 'info', 'debug', 'system',
                     'unknown'];
@@ -45,6 +47,15 @@
     return isNaN(d.getTime()) ? String(raw) : d.toISOString();
   }
 
+  function graceLabel(ms) {
+    var seconds = Math.round(ms / 1000);
+    if (seconds >= 60 && seconds % 60 === 0) {
+      var minutes = seconds / 60;
+      return minutes + (minutes === 1 ? ' minute' : ' minutes');
+    }
+    return seconds + ' seconds';
+  }
+
   function useNarrow() {
     var query = '(max-width: 760px)';
     var initial = window.matchMedia ? window.matchMedia(query).matches : false;
@@ -67,51 +78,143 @@
   function useLiveBuffer() {
     var bufferRef = useRef([]);
     var sinceRef = useRef(0);
+    var sourceRef = useRef(null);
+    var hiddenTimerRef = useRef(null);
+    var gapRef = useRef(0);
+    var seenIdRef = useRef(0);
+    var reopenedRef = useRef(false);
+    var epochRef = useRef(null);
     var snapshotState = useState([]);
     var pendingState = useState(0);
     var connectedState = useState(false);
+    var pausedState = useState(false);
     var droppedState = useState(0);
 
     var setSnapshot = snapshotState[1];
     var setPending = pendingState[1];
     var setConnected = connectedState[1];
+    var setPaused = pausedState[1];
     var setDropped = droppedState[1];
 
-    useEffect(function () {
+    var refresh = useCallback(function () {
+      sinceRef.current = 0;
+      setPending(0);
+      setSnapshot(bufferRef.current.slice());
+    }, []);
+
+    var push = useCallback(function (rec) {
+      var buf = bufferRef.current;
+      buf.push(rec);
+      if (buf.length > BUFFER_MAX) {
+        buf.splice(0, buf.length - BUFFER_MAX);
+      }
+    }, []);
+
+    var connect = useCallback(function () {
+      if (sourceRef.current) { return; }
       var source = new EventSource(STREAM_URL);
-      var lastId = 0;
-      source.onopen = function () { setConnected(true); };
+      source.onopen = function () {
+        reopenedRef.current = true;
+        setConnected(true);
+      };
       source.onerror = function () { setConnected(false); };
+      source.addEventListener('hello', function (ev) {
+        var epoch;
+        try { epoch = JSON.parse(ev.data).epoch; } catch (err) { return; }
+        if (epochRef.current !== null && epochRef.current !== epoch) {
+          if (seenIdRef.current) {
+            gapRef.current += 1;
+            push({
+              _gap: gapRef.current,
+              _missed: null,
+              '@timestamp': new Date().toISOString()
+            });
+          }
+          seenIdRef.current = 0;
+        }
+        epochRef.current = epoch;
+      });
       source.onmessage = function (ev) {
         var rec;
         try { rec = JSON.parse(ev.data); } catch (err) { return; }
         if (typeof rec._id === 'number') {
-          if (lastId && rec._id > lastId + 1) {
-            setDropped(function (d) { return d + (rec._id - lastId - 1); });
+          var seen = seenIdRef.current;
+          if (rec._id <= seen) { return; }
+          if (seen && rec._id > seen + 1) {
+            var missed = rec._id - seen - 1;
+            if (reopenedRef.current) {
+              gapRef.current += 1;
+              push({
+                _gap: gapRef.current,
+                _missed: missed,
+                '@timestamp': new Date().toISOString()
+              });
+            } else {
+              setDropped(function (d) { return d + missed; });
+            }
           }
-          lastId = rec._id;
+          seenIdRef.current = rec._id;
         }
-        var buf = bufferRef.current;
-        buf.push(rec);
-        if (buf.length > BUFFER_MAX) {
-          buf.splice(0, buf.length - BUFFER_MAX);
-        }
+        reopenedRef.current = false;
+        push(rec);
         sinceRef.current += 1;
       };
-      return function () { source.close(); };
-    }, []);
+      sourceRef.current = source;
+    }, [push]);
+
+    var pause = useCallback(function () {
+      if (!sourceRef.current) { return; }
+      sourceRef.current.close();
+      sourceRef.current = null;
+      setConnected(false);
+      setPaused(true);
+      refresh();
+    }, [refresh]);
+
+    var resume = useCallback(function () {
+      setPaused(false);
+      connect();
+    }, [connect]);
+
+    useEffect(function () {
+      connect();
+      return function () {
+        if (sourceRef.current) {
+          sourceRef.current.close();
+          sourceRef.current = null;
+        }
+      };
+    }, [connect]);
+
+    useEffect(function () {
+      if (!HIDDEN_GRACE_MS) { return undefined; }
+      var clear = function () {
+        if (hiddenTimerRef.current) {
+          window.clearTimeout(hiddenTimerRef.current);
+          hiddenTimerRef.current = null;
+        }
+      };
+      var onVisibility = function () {
+        if (document.visibilityState !== 'hidden') { clear(); return; }
+        if (hiddenTimerRef.current) { return; }
+        hiddenTimerRef.current = window.setTimeout(function () {
+          hiddenTimerRef.current = null;
+          pause();
+        }, HIDDEN_GRACE_MS);
+      };
+      document.addEventListener('visibilitychange', onVisibility);
+      onVisibility();
+      return function () {
+        document.removeEventListener('visibilitychange', onVisibility);
+        clear();
+      };
+    }, [pause]);
 
     useEffect(function () {
       var timer = window.setInterval(function () {
         setPending(sinceRef.current);
       }, COUNTER_INTERVAL_MS);
       return function () { window.clearInterval(timer); };
-    }, []);
-
-    var refresh = useCallback(function () {
-      sinceRef.current = 0;
-      setPending(0);
-      setSnapshot(bufferRef.current.slice());
     }, []);
 
     useEffect(function () {
@@ -125,8 +228,10 @@
       snapshot: snapshotState[0],
       pending: pendingState[0],
       connected: connectedState[0],
+      paused: pausedState[0],
       dropped: droppedState[0],
       refresh: refresh,
+      resume: resume,
       buffered: bufferRef.current.length
     };
   }
@@ -216,8 +321,21 @@
     var visible = [];
     for (var i = start; i < end; i += 1) {
       var rec = rows[i];
+      if (rec._gap) {
+        visible.push(e('div', {
+          className: 'gap',
+          key: 'gap-' + rec._gap,
+          style: { top: (i * rowHeight) + 'px', height: rowHeight + 'px' }
+        }, rec._missed == null
+             ? 'the lane server restarted at ' + clockOf(rec) +
+               ' — what it held before that is gone'
+             : rec._missed.toLocaleString() + ' records were produced while ' +
+               'this page was not connected and are not held here — resumed ' +
+               'at ' + clockOf(rec)));
+        continue;
+      }
       visible.push(e(Row, {
-        key: rec._id == null ? i : rec._id,
+        key: rec._id == null ? 'i' + i : rec._id,
         rec: rec,
         narrow: narrow,
         top: i * rowHeight,
@@ -316,24 +434,31 @@
     var filters = filtersState[0];
     var selected = selectedState[0];
 
-    var rows = useMemo(function () {
+    var view = useMemo(function () {
       var out = [];
+      var shown = 0;
+      var total = 0;
       var snap = live.snapshot;
       for (var i = snap.length - 1; i >= 0; i -= 1) {
-        if (matches(snap[i], filters)) { out.push(snap[i]); }
+        var rec = snap[i];
+        if (rec._gap) { out.push(rec); continue; }
+        total += 1;
+        if (matches(rec, filters)) { out.push(rec); shown += 1; }
       }
-      return out;
+      return { rows: out, shown: shown, total: total };
     }, [live.snapshot, filters]);
 
-    var status = live.connected ? 'live' : 'reconnecting';
+    var status = live.paused
+      ? 'paused'
+      : (live.connected ? 'live' : 'reconnecting');
 
     return e('div', { className: 'app' },
       e('header', null,
         e('h1', null, 'Live log'),
         e('span', { className: 'status ' + status }, status),
         e('span', { className: 'count' },
-          rows.length.toLocaleString() + ' of ' +
-          live.snapshot.length.toLocaleString() + ' shown'),
+          view.shown.toLocaleString() + ' of ' +
+          view.total.toLocaleString() + ' shown'),
         live.dropped
           ? e('span', { className: 'dropped' },
               live.dropped.toLocaleString() + ' dropped by the server')
@@ -341,6 +466,14 @@
         e('a', { className: 'ghost link', href: COCKPIT_URL },
           'Maintainer Cockpit')),
       e(Filters, { filters: filters, setFilters: filtersState[1] }),
+      live.paused
+        ? e('div', { className: 'pausebar' },
+            e('span', { className: 'pausetext' },
+              'Stream stopped after ' + graceLabel(HIDDEN_GRACE_MS) +
+              ' in the background. Nothing is arriving now.'),
+            e('button', { className: 'resume', onClick: live.resume },
+              'Resume live stream'))
+        : null,
       e('div', { className: 'newbar' + (live.pending ? ' armed' : '') },
         e('button', {
           className: 'refresh',
@@ -351,7 +484,7 @@
             : 'up to date')),
       e('main', null,
         e(LogView, {
-          rows: rows,
+          rows: view.rows,
           narrow: narrow,
           selectedId: selected ? selected._id : null,
           onSelect: function (rec) { selectedState[1](rec); }

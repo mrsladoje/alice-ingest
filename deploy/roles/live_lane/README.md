@@ -60,6 +60,25 @@ file, no service and no handler with the Dashboards stack.
 - **React is committed, not fetched.** The deploy has no network to unpkg and no
   build step. `files/live/VENDORED.md` records the versions, the source URLs and
   the SHA-256 sums.
+- **The page closes its own stream when its tab is hidden, not when the user
+  stops typing.** After `live_lane_hidden_grace_seconds` in the background the
+  page closes the `EventSource` and offers a resume button; a visible tab is
+  never closed, so a control room screen keeps running untouched. The cost this
+  removes is mostly the browser's: `/live/` is proxied over HTTP/1.1 from the
+  same origin as Dashboards, so each forgotten tab holds one of the six
+  connections that origin is allowed. The server reclaims its thread at the next
+  keepalive write, up to `LIVE_KEEPALIVE_SECONDS` later, not immediately.
+- **A reconnect is deduplicated, because the server replays its backlog to
+  every new connection.** The page ignores any `_id` at or below the highest it
+  has seen, so resuming adds no duplicate row. If the first record after a
+  reconnect is not the next `_id`, the page draws a marker row naming how many
+  records it never received, and does not count them as a slow-client drop.
+- **The stream begins with a `hello` event carrying the server's boot epoch.**
+  `_seq` restarts at 0 on every service restart, and this role restarts the
+  service whenever a payload file changes. The watermark above would then reject
+  the whole new sequence and leave an open page reading *live* with nothing
+  arriving. A changed epoch clears the watermark and draws a restart marker. The
+  epoch is also reported by `/healthz`.
 - **`live_lane_token` is empty by default.** An empty value makes the unit omit
   `LIVE_TOKEN`, and the server then accepts any POST from an address the
   firewall let through. The firewall is the boundary.
@@ -80,6 +99,7 @@ site-wide, or in `inventory.yml` for one group or host.
 | `live_lane_buffer_rows` | `10000` | Lines held in memory. Also rendered into the page as `bufferRows`. |
 | `live_lane_replay_rows` | `500` | Lines sent to a viewer who connects mid-stream, so a fresh page is not blank. |
 | `live_lane_client_queue_max` | `2000` | Per viewer. A full queue drops for that viewer; it is never allowed to grow. |
+| `live_lane_hidden_grace_seconds` | `120` | How long a browser tab may sit in the background before the page closes its own stream. A visible tab is never closed. `0` turns the behaviour off. Rendered into the page shell as `hiddenGraceSeconds`. |
 | `live_lane_memory_high` | `192M` | `MemoryHigh` on the unit. |
 | `live_lane_memory_max` | `384M` | `MemoryMax` on the unit. |
 | `live_lane_allowed_client_addresses` | `[]` | Addresses allowed through the firewall to the lane port. The playbook supplies it. |

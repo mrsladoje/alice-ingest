@@ -2082,6 +2082,48 @@ Browser behaviour, as specified:
   if a measured arrival rate ever makes the network the limit.
 - Mobile: one column, no horizontal scroll, two lines per record, tap for the
   full record.
+- **A tab that has been in the background for two minutes closes its own
+  stream.** A *visible* tab is never closed, so a screen that is watched but not
+  touched keeps running; only a forgotten tab is dropped. The page then shows a
+  *Resume live stream* button and reconnects on that press alone, never by
+  itself. `live_lane_hidden_grace_seconds: 0` turns the behaviour off entirely.
+- **Records are deduplicated by `_id`, and a real gap is drawn as a row.** Every
+  new connection is sent the replay backlog, so a reconnect would otherwise
+  repeat rows the buffer already holds. The page ignores any `_id` it has seen.
+  When the first record after a reconnect is not the next one, the page inserts
+  a marker row naming how many records it never received.
+- **The stream opens with a `hello` event carrying the server's boot epoch, and
+  that is not decoration.** `_seq` restarts at 0 whenever the service restarts,
+  and this role restarts it on any deploy that changes a payload file. Without
+  the epoch, an id watermark would reject every record from the new sequence and
+  the open page would read *live* while showing nothing, until the new sequence
+  passed the old high-water mark. On a changed epoch the page clears its
+  watermark and draws a marker saying the server restarted. The epoch is also in
+  `/healthz`, so a restart is visible without a browser.
+
+The trigger is deliberately the tab being hidden, not the user being idle: a
+control room screen shows the lane for a whole shift without a keystroke, and an
+idle timer would disconnect exactly the viewer using it as intended.
+
+**The saving is mostly in the browser, not on the server.** One forgotten viewer
+costs the server a thread and a bounded queue. It costs the *browser* one of the
+six connections it gives an origin over HTTP/1.1 — and nginx serves `/live/`
+from the same origin as Dashboards, so forgotten lane tabs are taken from the
+cockpit's own connection budget. The server-side gain is real but second: the
+thread is reclaimed at its next keepalive write, up to `LIVE_KEEPALIVE_SECONDS`
+after the browser closed the socket, not at the moment it closed.
+
+Two limits of the mechanism, both accepted. Browsers throttle timers in
+background tabs, so the drop can happen later than two minutes but never
+earlier. And a tab hidden behind another window still counts as hidden, which is
+the intent — a lane nobody can see holds a connection nobody is reading.
+
+Verified in a headless browser against the real server: a tab hidden for the
+grace period closed its stream and the server dropped to zero viewers; returning
+to the tab showed the paused bar and did **not** reconnect; pressing resume
+reconnected, replayed 500 backlog rows with no duplicate of the 5 rows already
+held, drew one marker reading *100 records were produced while this page was not
+connected*, and reported nothing as a server-side drop.
 
 #### Two deviations from the plan's wording, both deliberate
 

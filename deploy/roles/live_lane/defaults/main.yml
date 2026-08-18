@@ -14,6 +14,11 @@ live_lane_replay_rows: 500
 # Per viewer. A full queue drops for that viewer; it is never allowed to grow.
 live_lane_client_queue_max: 2000
 
+# How long a tab may sit in the background before the page drops its stream.
+# A visible tab is never dropped, so a wall display keeps running. Set 0 to
+# turn the whole behaviour off.
+live_lane_hidden_grace_seconds: 120
+
 live_lane_memory_high: "192M"
 live_lane_memory_max: "384M"
 

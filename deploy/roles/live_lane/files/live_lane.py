@@ -46,6 +46,7 @@ _clients = []
 _recent = []
 _stats = {"received": 0, "dropped_slow_client": 0, "posts": 0, "bad_posts": 0}
 _seq = 0
+_epoch = f"{int(time.time() * 1000)}-{os.getpid()}"
 
 
 def log(msg):
@@ -183,6 +184,7 @@ class Handler(BaseHTTPRequestHandler):
             with _lock:
                 body = json.dumps({
                     "ok": True,
+                    "epoch": _epoch,
                     "viewers": len(_clients),
                     "buffered": len(_recent),
                     **_stats,
@@ -227,6 +229,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Connection", "keep-alive")
             self.send_header("X-Accel-Buffering", "no")
             self.end_headers()
+            hello = json.dumps({"epoch": _epoch})
+            self.wfile.write(f"event: hello\ndata: {hello}\n\n".encode())
             for payload in backlog:
                 self.wfile.write(f"data: {payload}\n\n".encode())
             self.wfile.flush()
