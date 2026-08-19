@@ -33,22 +33,22 @@ to `localhost` — this VM's own node.
                                       v
 ┌─ ROUTE BY SEVERITY: two log families ───────────────────────────────────────┐
 │  [dds]     severity == inf     ─┐                                           │
-│  [stdout]  severity == Info    ─┴--> [family.info]                          │
-│  either one, anything else      --> [family.other]                          │
+│  [stdout]  severity == Info    ─┴--> [family.local]                         │
+│  either one, anything else      --> [family.central]                        │
 └─────────────────────────────────────┬───────────────────────────────────────┘
                                       v
 ┌─ OUTPUTS ───────────────────────────────────────────────────────────────────┐
 │  [infologger]    --> localhost:9200   infologger                            │
-│  [family.info]   --> localhost:9200   generic-log-info-<node_id>            │
-│  [family.other]  --> localhost:9200   generic-log-other                     │
+│  [family.local]   --> localhost:9200   application-logs-local-<node_id>     │
+│  [family.central]  --> localhost:9200   application-logs-central            │
 │  [health]        --> localhost:9200   cockpit-metrics                       │
 │                                                                             │
-│  [infologger] + [family.other] --> live lane, HTTP, a different VM          │
+│  [infologger] + [family.central] --> live lane, HTTP, a different VM        │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **No worker ever writes to another worker.** A worker owns its own
-`generic-log-info-<node_id>` index and nothing else. That is why the info tier
+`application-logs-local-<node_id>` index and nothing else. That is why the info tier
 is disposable and why cross-worker log shipping is out of scope.
 
 **Two timestamps travel with every record.** `@timestamp` is the event's own
@@ -78,13 +78,53 @@ detectors train on it.
 The commonly quoted "Fluent Bit uses 10 MB" figure does not hold for this
 configuration. `MemoryHigh` and `MemoryMax` are what bound it.
 
+**Measured, August 2026** (`tools/soak`, container rig, two processor cores, this
+exact configuration). Peak resident memory rises with the offered rate and never
+approaches 10 MB:
+
+| Offered rate | Peak memory | Records lost |
+|---|---|---|
+| 20,000 /s | 133 MB | 0 |
+| 35,000 /s | 172 MB | 0 |
+| 50,000 /s | 228 MB | 0 |
+
+Ingest saturates near **53,000 records a second**. Above that, Fluent Bit reads
+its tail files more slowly than they are written and the surplus waits in the
+files themselves — no loss, and the backlog drains once the load stops.
+
+`flush` is the one setting that moves memory. At the same 20,000 /s, `flush: 1`
+peaks at 66 MB against 133 MB for `flush: 5`, because a second of data is in
+flight instead of five. `storage.max_chunks_up` at 32 or at 256 changes nothing
+at steady state — the queue never gets deep enough to reach it. It is a ceiling
+for backpressure, not a working-set control.
+
 **Durability, measured in time and not in megabytes**
 
 | Lane | Buffer | Retries | Worst case | Why |
 |---|---|---|---|---|
-| Three log families | `256M` | `10` | ~50 s best, ~109 min worst | This tier's job is not to lose logs during data taking. The spread is wide because the backoff is jittered. |
+| Three log families | `256M` | `10` | ~61 s at 20,000 /s, measured | This tier's job is not to lose logs during data taking. The window scales with the buffer: 2 GB held for 491 s at the same rate. |
 | Health | `512K` | `5` | seconds | A heartbeat is worth only its freshness. A late heartbeat is not worth the disk. |
 | Live lane | `1M` | `1` | seconds | Best-effort by construction. A dead viewer must never push back on OpenSearch. |
+
+**The three families are not protected equally.** Measured with a fifteen-minute
+sink outage at 20,000 records a second: every lost record was InfoLogger.
+`family.info` and `family.other` lost **nothing**.
+
+| Output | Delivered | Dropped |
+|---|---|---|
+| `infologger` | 4,314,450 | 10,085,550 |
+| `family.info` | 3,674,985 | 0 |
+| `family.other` | 3,600,948 | 0 |
+
+The difference is the source, not the buffer. DDS and stdout arrive by `tail`, so
+a slow collector simply leaves the data in the log files — the file is the
+backpressure, and nothing is lost while the disk holds. InfoLogger arrives over
+TCP, where nothing sits behind the socket: once the output buffer fills, those
+records are gone. Raising `fluent_bit_log_buffer_limit` therefore buys time for
+InfoLogger alone, and a queue in front of the TCP path would buy far more.
+
+Retries never decided any of this. `retries_failed` stayed at zero throughout —
+the buffer cap discards records long before the ten retries are exhausted.
 
 **Latency and reachability**
 
@@ -131,7 +171,7 @@ of them satisfied by the role order in `playbooks/site.yml`.
 | `firewalld` installed and running | `common` role | The firewall task fails. |
 | `/etc/alice-ingest/opensearch-node.env` exists | `opensearch` role | `fluent-bit.service` refuses to start — the `EnvironmentFile` has no leading dash on purpose. |
 | An OpenSearch node listening on `localhost:{{ opensearch_http_port }}` | `opensearch` role | `register_node.sh` waits, then the unit times out. |
-| The `alice-generic-info-retention` ISM policy and the ingest pipeline exist in the cluster | `opensearch_bootstrap` role, on the control host | Records still ship. Retention and field normalisation do not apply. |
+| The `alice-application-local-retention` ISM policy and the ingest pipeline exist in the cluster | `opensearch_bootstrap` role, on the control host | Records still ship. Retention and field normalisation do not apply. |
 
 **The `producer` role is not a prerequisite.** A collector with no producer starts
 and ships nothing.
@@ -255,7 +295,7 @@ defaults, because a second copy is a second place to change one value.
   `opensearch-node.env` from `opensearch`, and the unit loads both. Moving either
   means updating `collector_opensearch_env_file`.
 - **Index names are literals in `collector.yaml.j2`** — `infologger`,
-  `generic-log-info-${ALICE_NODE_ID}` and `generic-log-other`. They are matched by
+  `application-logs-local-${ALICE_NODE_ID}` and `application-logs-central`. They are matched by
   the index templates, the ISM policies, 17 detectors and about 28 monitors, so
   renaming one is a cross-cutting change rather than a variable.
 
@@ -268,7 +308,7 @@ is a collector that does nothing.
 - The two multiline regular expressions, for DDS and stdout.
 - The three Lua filters: health deltas, `collector_time` stamping, InfoLogger
   event time.
-- The `rewrite_tag` rules that split `family.info` from `family.other`.
+- The `rewrite_tag` rules that split `family.local` from `family.central`.
 
 ## What this role does not do
 

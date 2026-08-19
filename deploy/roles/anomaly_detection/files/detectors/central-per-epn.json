@@ -1,9 +1,9 @@
 {
-  "name": "other-per-epn-slow",
-  "description": "generic-log-other per-EPN 30m",
+  "name": "central-per-epn",
+  "description": "application-logs-central per-EPN volume errors",
   "time_field": "collector_time",
   "indices": [
-    "generic-log-other"
+    "application-logs-central"
   ],
   "feature_attributes": [
     {
@@ -34,7 +34,7 @@
   ],
   "detection_interval": {
     "period": {
-      "interval": 30,
+      "interval": 1,
       "unit": "Minutes"
     }
   },

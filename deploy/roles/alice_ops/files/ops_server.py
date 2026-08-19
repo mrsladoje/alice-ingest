@@ -55,7 +55,7 @@ INJECT_WORKER_SCENARIOS = {
 INJECT_LIVE_STATES = {
     "starting", "injecting", "observing", "restoring", "scoring"}
 RESET_TIMEOUT = float(os.environ.get("OPS_RESET_TIMEOUT", "900"))
-COUNT_TARGET = "infologger,generic-log-*"
+COUNT_TARGET = "infologger,application-logs-*"
 INCIDENTS_INDEX = os.environ.get("INCIDENTS_INDEX", "alice-incidents")
 SIGNALS_INDEX = os.environ.get("SIGNALS_INDEX", "alice-signals")
 GRADE_FLOOR = float(os.environ.get("GRADE_FLOOR", "0.5"))
@@ -150,8 +150,8 @@ def start_job(action, label, work):
 
 
 def _log_families():
-    return ["infologger", "generic-log-other"] + [
-        f"generic-log-info-{n}" for n in INFO_NODES]
+    return ["infologger", "application-logs-central"] + [
+        f"application-logs-local-{n}" for n in INFO_NODES]
 
 
 LOG_FAMILIES = _log_families()
@@ -290,8 +290,8 @@ def reset_derived(mode="full", lines=None):
 
 def wipe(lines=None):
     lines = [] if lines is None else lines
-    patterns = ["infologger-*", "generic-log-other-*"]
-    patterns += [f"generic-log-info-{n}-*" for n in INFO_NODES]
+    patterns = ["infologger-*", "application-logs-central-*"]
+    patterns += [f"application-logs-local-{n}-*" for n in INFO_NODES]
     for pat in patterns:
         code, _ = _req(
             "DELETE",
@@ -980,7 +980,7 @@ PAGE = Template("""<!doctype html>
     <article class="metric" data-state="$count_state">
       <p class="lbl">Documents indexed</p>
       <p class="val" id="total">$count</p>
-      <p class="cap">Across <code>infologger</code> and <code>generic-log-*</code></p>
+      <p class="cap">Across <code>infologger</code> and <code>application-logs-*</code></p>
     </article>
     <article class="metric" data-state="$incidents_state">
       <p class="lbl"><span class="dot crit"></span>Open incidents</p>

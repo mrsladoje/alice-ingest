@@ -33,8 +33,8 @@ the local dev path (Docker Compose on a single machine — see the root
 │ Fluent Bit -> localhost:9200 ONLY             │ Fluent Bit -> localhost:9200 ONLY
 │ alice-replay  epn%2==0 slice                  │ alice-replay  epn%2==1 slice
 │ alice-fault-agent (control-triggered)         │ alice-fault-agent
-│ generic-log-info-node-01 (1 shard,0 repl,     │ generic-log-info-node-02 (local,
-│   pinned require.box=node-01, disposable)     │   pinned require.box=node-02)
+│ application-logs-local-node-01 (1 shard,      │ application-logs-local-node-02 (local,
+│   0 repl, require.box=node-01, disposable)    │   pinned require.box=node-02)
 └───────────────────┘                          └───────────────────┘
     └──────────────────────── STORAGE TIER (3) ───────────────────────┘
 ┌───────────────────┐   ┌───────────────────┐   ┌───────────────────┐
@@ -43,10 +43,10 @@ the local dev path (Docker Compose on a single machine — see the root
 │ OpenSearch node-03 │   │ OpenSearch node-04 │   │ OpenSearch node-05 │
 │  roles:[cluster_manager,data]  attr role=storage on all three (quorum 2)
 │ nginx (TLS+auth)   │   │                    │   │                    │
-│  :5601 (SG-open)   │   │ generic-log-other  │   │ infologger         │
-│ Dashboards :5602   │   │  + infologger:     │   │  + generic-log-other:
-│ idempotent bootstrap│   │  3 shards, 2 repl, require.role=storage, balanced across the 3
-│ alice-ops (/ops)   │   │  + cockpit-metrics: 1 shard, 2 repl, storage-pinned
+│  :5601 (SG-open)   │   │                    │   │                    │
+│ Dashboards :5602   │   infologger + application-logs-central:
+│ idempotent bootstrap│  3 shards, 2 repl, require.role=storage, balanced across the 3
+│ alice-ops (/ops)   │   + cockpit-metrics: 1 shard, 2 repl, storage-pinned
 │ alice-metrics      │   │ alice-trend-rollup │   │ alice-live-lane     │
 │ alertmanager       │   │ alice-signal-      │   │                    │
 │ notification-ingest│   │ projector          │   │                    │
@@ -61,7 +61,7 @@ hard-pinned tiers by shard-allocation `require` filtering:
 - **Worker tier (2 nodes):** `node.roles: [data, ingest]` (never
   manager-eligible), `node.attr.role: worker`, `node.attr.box: <node_id>`. Runs
   the Fluent Bit collector + S3-replay producer for its own EPN slice, and holds
-  only its own `generic-log-info-<node_id>` index (1 shard, **0 replicas**,
+  only its own `application-logs-local-<node_id>` index (1 shard, **0 replicas**,
   `require.box: <node_id>`) — so the info firehose is written localhost → local
   shard with zero network hops and is deliberately disposable. The `ingest` role
   is required because every index sets `default_pipeline: alice-add-ingest-time`,
@@ -69,7 +69,7 @@ hard-pinned tiers by shard-allocation `require` filtering:
   locally rather than hopping to another node.
 - **Storage tier (3 nodes):** `node.roles: [cluster_manager, data, ingest]`,
   `node.attr.role: storage`, quorum 2 (tolerates one storage node lost). Holds
-  `generic-log-other` and `infologger` (3 shards, **2 replicas**,
+  `application-logs-central` and `infologger` (3 shards, **2 replicas**,
   `require.role: storage`). Runs no collector and no producer.
 
 Exactly one VM — `alice-ingest-3`, the first storage node, the "control" host —
@@ -89,21 +89,21 @@ not co-located with that UI stack: `alice-signal-projector` runs on
   services with normal `systemctl`/journald operational ergonomics, not a
   second container runtime to operate on top of OpenStack.
 - **Tier by severity, not by source.** The collector already routes by
-  severity (`rewrite_tag` → `family.info` / `family.other`), so dds and stdout
+  severity (`rewrite_tag` → `family.local` / `family.central`), so dds and stdout
   stay merged. `info` is simultaneously the bulk and the trash → kept local and
   disposable on the worker. `other` is simultaneously rare and valuable → shipped
   to the replicated storage tier (cheap, because low-volume, and worth
   replicating). Source-based placement ("dds local, stdout to storage") can't do
   that — it would ship the whole stdout-info bulk across the network while
   disposably discarding dds errors. The only edit to the v1 collector pipeline is
-  the `family.info` output index name (`generic-log-info` →
-  `generic-log-info-<node_id>`); the `family.other` and `infologger` outputs are
+  the `family.local` output index name (`application-logs-local` →
+  `application-logs-local-<node_id>`); the `family.central` and `infologger` outputs are
   byte-for-byte unchanged and now land on the storage tier via one network hop.
 - **Fluent Bit → its own LOCAL OpenSearch node only.** Each worker's collector
   writes to `http://localhost:9200`; there is no cross-VM write hop from the
-  collector. The `generic-log-info-<node_id>` index is pinned to that same VM
+  collector. The `application-logs-local-<node_id>` index is pinned to that same VM
   (`require.box`), so the high-volume info path is localhost → local shard, zero
-  network. `generic-log-other`/`infologger` are written to localhost too, then
+  network. `application-logs-central`/`infologger` are written to localhost too, then
   the local coordinator forwards them one hop to the storage tier — acceptable
   because that tier is low-volume. Only the 2 worker VMs run a collector.
 - **One control VM for Dashboards/nginx/bootstrap, on the storage tier.**
@@ -423,24 +423,24 @@ the control host for the notification receiver — the receiver binds
 # From any VM, or via SSH:
 curl -s http://localhost:9200/_cluster/health?pretty | grep status   # want: green (all 5 nodes joined)
 
-curl -s 'http://localhost:9200/_cat/indices/infologger,generic-log-*?v'
+curl -s 'http://localhost:9200/_cat/indices/infologger,application-logs-*?v'
 
 # Verify tier placement — each index must land STRICTLY on its intended tier:
-curl -s 'http://localhost:9200/_cat/shards/infologger,generic-log-*?v&h=index,shard,prirep,state,node'
+curl -s 'http://localhost:9200/_cat/shards/infologger,application-logs-*?v&h=index,shard,prirep,state,node'
 ```
 Expected indices and placement (rendered by the native bootstrap, forked from
 `init/opensearch/templates.sh`):
 
 | index | shards | replicas | lands on |
 |---|---|---|---|
-| `generic-log-info-node-01-*` | 1 | **0** | worker node-01 only (`require.box: node-01`) — write alias `generic-log-info-node-01` |
-| `generic-log-info-node-02-*` | 1 | **0** | worker node-02 only (`require.box: node-02`) — write alias `generic-log-info-node-02` |
-| `generic-log-other-*` | 1 | **2** | storage tier only (`require.role: storage`) — write alias `generic-log-other` |
+| `application-logs-local-node-01-*` | 1 | **0** | worker node-01 only (`require.box: node-01`) — write alias `application-logs-local-node-01` |
+| `application-logs-local-node-02-*` | 1 | **0** | worker node-02 only (`require.box: node-02`) — write alias `application-logs-local-node-02` |
+| `application-logs-central-*` | 1 | **2** | storage tier only (`require.role: storage`) — write alias `application-logs-central` |
 | `infologger-*` | 1 | **2** | storage tier only (`require.role: storage`) — write alias `infologger` |
 | `cockpit-metrics` | 1 | **2** | storage tier only (`require.role: storage`) — health samples from the `alice-metrics` poller |
 | `trend-rollup` | 1 | **2** | storage tier only (`require.role: storage`) — 10m per-entity aggregates from the `alice-trend-rollup` service |
 
-The two per-worker `generic-log-info-*` indices are single-shard, zero-replica,
+The two per-worker `application-logs-local-*` indices are single-shard, zero-replica,
 and hard-pinned to their own VM — if a worker dies its info index is lost with no
 recovery (accepted: it is the disposable trash tier). The two storage indices are
 9 shard copies balanced 3-per-node across the storage tier. `require` is a **hard**
@@ -452,9 +452,9 @@ basic-auth user `alice` (password = `vault_dashboards_basic_auth_password`),
 self-signed cert (browser will warn — expected). The bootstrap (idempotent,
 re-run on every deploy)
 auto-provisions the three per-source index patterns (`infologger`,
-`generic-log-info-*`, `generic-log-other`; `generic-log-info-*` is a wildcard so
+`application-logs-local-*`, `application-logs-central`; `application-logs-local-*` is a wildcard so
 both per-worker info indices appear together), plus the **unified**
-`infologger,generic-log-*` pattern (set as the Discover default), the
+`infologger,application-logs-*` pattern (set as the Discover default), the
 `cockpit-metrics` pattern, seven seed saved searches, and the **ALICE Cockpit**
 home dashboard — logs on top, a platform-health band (cluster status, per-index
 state, Fluent Bit per node, Dashboards self-health) below, with drill-down links
@@ -500,7 +500,7 @@ below ran clean:
 | `group_vars/all.yml` derivations (`ansible -m debug`) | pass — `node_count=2` (from `workers`); seeds/initial-managers/Dashboards-hosts = the 3 storage nodes; `opensearch_cluster_hosts` = all 5 (firewall mesh) |
 | `opensearch.yml.j2` render (both tiers) | pass — workers get `node.roles: [data, ingest]` + `node.attr.role: worker` + `node.attr.box: <node_id>`; storage gets `[cluster_manager, data, ingest]` + `node.attr.role: storage` |
 | `opensearch.yml.j2` ingest role | pass — every index sets `default_pipeline: alice-add-ingest-time`, and explicit `node.roles` drops the implicit `ingest` role, so both tiers list `ingest` (`[data, ingest]` / `[cluster_manager, data, ingest]`); workers stay ingest-capable so the local info path needs no cross-node hop for the pipeline |
-| Native bootstrap render (`templates.sh.j2`, `patterns.sh.j2`) + `sh -n`, rendered under Ansible's real Jinja (`trim_blocks=True`) | pass — info template `generic-log-info-*` (1 shard/0 repl); `generic-log-other`+`infologger` carry `require.role: storage`; per-worker pre-creates emit `require.box` and are idempotent (`ensure_index` GET-then-PUT, no crash if the index already exists); all 6 JSON payloads parse; the OpenSearch mustache `{{{_ingest.timestamp}}}` is wrapped **inline** in `{% raw %}…{% endraw %}` (wrapping the whole heredoc glued `}` to the `JSON` terminator under `trim_blocks`, breaking the first PUT — inline wrapping leaves no newline for `trim_blocks` to eat) |
+| Native bootstrap render (`templates.sh.j2`, `patterns.sh.j2`) + `sh -n`, rendered under Ansible's real Jinja (`trim_blocks=True`) | pass — info template `application-logs-local-*` (1 shard/0 repl); `application-logs-central`+`infologger` carry `require.role: storage`; per-worker pre-creates emit `require.box` and are idempotent (`ensure_index` GET-then-PUT, no crash if the index already exists); all 6 JSON payloads parse; the OpenSearch mustache `{{{_ingest.timestamp}}}` is wrapped **inline** in `{% raw %}…{% endraw %}` (wrapping the whole heredoc glued `}` to the `JSON` terminator under `trim_blocks`, breaking the first PUT — inline wrapping leaves no newline for `trim_blocks` to eat) |
 
 **Not validated** (requires the real infrastructure, out of scope for a
 static/offline check): an actual `provision.yml` run against CERN OpenStack, an
@@ -519,7 +519,7 @@ CERN network access and real quota.
   receivers are still absent by design; adding one is a receiver config change,
   not an architecture change.
 - **`dds-other` value (out to Lubos).** The bootstrap folds `dds-other` into
-  `generic-log-other` → storage tier (the safe default: keeping a possibly-valuable
+  `application-logs-central` → storage tier (the safe default: keeping a possibly-valuable
   log is a cheaper mistake than trashing it). If dds turns out worthless
   end-to-end, re-cut so all dds stays on the worker tier. Nothing blocks on it.
 - **Retention (ISM).** Still deferred, same as v1: `other` deserves longer
@@ -532,7 +532,7 @@ CERN network access and real quota.
   new `make provision`, not an in-place v1→v2 upgrade), so this is the intended
   path. The per-worker index pre-creates are idempotent (skip if already present),
   so a control-VM rebuild against a surviving cluster is safe; but **reconciling
-  allocation settings on already-populated `generic-log-other`/`infologger`
+  allocation settings on already-populated `application-logs-central`/`infologger`
   indices** (e.g. if they were created before the storage-tier rules) is **not**
   done here and would need an explicit `PUT _settings` migration step.
 - **Day-2 reconfiguration restarts all OpenSearch nodes at once (inherited from
@@ -550,8 +550,8 @@ CERN network access and real quota.
   symmetric 3+3 tier with a spare needs an `instances` quota bump to 6.
 - **Everything else in the LOCKED v2 topology and quality bar is implemented**:
   native no-Docker services, two-tier cluster (2 worker + 3 storage) hard-pinned
-  by `require` shard-allocation filtering, per-worker local `generic-log-info-<node_id>`
-  (1 shard/0 replicas/`require.box`), replicated `generic-log-other`+`infologger`
+  by `require` shard-allocation filtering, per-worker local `application-logs-local-<node_id>`
+  (1 shard/0 replicas/`require.box`), replicated `application-logs-central`+`infologger`
   on the storage tier (`require.role: storage`), worker-only Fluent Bit → local
   OpenSearch write path, single storage-host Dashboards/nginx/bootstrap, `epn_num % 2`
   slicing, 1 GB heap, inventory-driven discovery/publish/Dashboards-hosts Jinja
@@ -659,7 +659,7 @@ is applied.
 | `heap-spiral` | heap > 90% for 5 min on an `os_node` | GC death spiral risk; check load / queries |
 | `telemetry-silence` | no `kind:cluster` **and** no `kind:osd` docs for 5 min | `alice-metrics` poller dead on control host |
 | `fleet-fb-silence` | ≥ 50% of the roster missing heartbeats at once | Whole-fleet cause: credentials, network, OpenSearch rejecting writes |
-| `log-family-silence` | the rollup is still committing but reports 0 records for a whole log family (`infologger`, `info`, `other`) that averaged ≥ 50 records/bucket over 24 h | The stream stopped: producers, replay, or the collectors for that family. **Read this before any per-host volume alert** |
+| `log-family-silence` | the rollup is still committing but reports 0 records for a whole log family (`infologger`, `local`, `central`) that averaged ≥ 50 records/bucket over 24 h | The stream stopped: producers, replay, or the collectors for that family. **Read this before any per-host volume alert** |
 | `ad-high-grade` | real-time RCF anomaly grade/confidence high | Open Anomaly Detection UI; correlate with Layer 0 |
 | `signal-projector-stale` | `alice-signal-projector` stopped | **Break-glass** page. Nothing is re-sending to Alertmanager, so live incidents are resolving themselves |
 | `alertmanager-down` | the projector cannot reach Alertmanager | **Break-glass** page. Alertmanager does not persist alerts |
@@ -692,8 +692,8 @@ entity_count p95_entry_lag_ms p95_shipping_lag_ms avg_entry_lag_ms avg_shipping_
 ```
 
 Five (family, entity) combinations are rolled up: `infologger`×`origin_host`,
-`infologger`×`node`, `generic-log-other`×`origin_host`,
-`generic-log-info-*`×`origin_host`, `generic-log-info-*`×`node`. Errors are
+`infologger`×`node`, `application-logs-central`×`origin_host`,
+`application-logs-local-*`×`origin_host`, `application-logs-local-*`×`node`. Errors are
 counted with one `severity_norm:(error or fatal)` filter across all three
 families — no per-family severity enumeration anywhere in the lane. Document `_id` is deterministic
 (`family.kind.entity.bucket_ts`), so each run re-writes the last
@@ -711,7 +711,7 @@ Why it exists:
 - **`fleet_count` on every document** is what makes share-of-fleet possible. A
   bucket-level trigger can only read aggregations *inside* its own entity bucket,
   so the fleet total has to travel on the entity's own rows.
-- **Retention.** Raw `generic-log-info` is kept 7d, which made a 7d raw baseline
+- **Retention.** Raw `application-logs-local` is kept 7d, which made a 7d raw baseline
   marginal. Rollups are tiny and kept `trend_rollup_retention_days` (30d) —
   pruned **by document** (hourly `_delete_by_query` on `ts`) inside the service,
   *not* by ISM. Every other index here uses whole-index delete-by-age; doing
@@ -830,11 +830,11 @@ Generic families do not have this problem: DDS is **2,013 objects, one per EPN, 
 | `trend-il-ef` | `infologger` | `origin_host` | error share of own volume | yes |
 | `trend-il-entry-lag` | `infologger` | `origin_host` | p95 `enter_system_lag_ms` | yes (self-gating) |
 | `trend-il-shipping-lag` | `infologger` | `node` | p95 `ingest_lag_ms` | yes |
-| `trend-other-volume` | `generic-log-other` | `origin_host` | share of fleet volume | yes |
-| `trend-other-errors` | `generic-log-other` | `origin_host` | error share of own volume | yes |
-| `trend-info-volume` | `generic-log-info-*` | `origin_host` | share of fleet volume | yes |
-| `trend-info-entry-lag` | `generic-log-info-*` | `origin_host` | p95 `enter_system_lag_ms` | yes (self-gating) |
-| `trend-info-shipping-lag` | `generic-log-info-*` | `node` | p95 `ingest_lag_ms` | yes |
+| `trend-central-volume` | `application-logs-central` | `origin_host` | share of fleet volume | yes |
+| `trend-central-errors` | `application-logs-central` | `origin_host` | error share of own volume | yes |
+| `trend-local-volume` | `application-logs-local-*` | `origin_host` | share of fleet volume | yes |
+| `trend-local-entry-lag` | `application-logs-local-*` | `origin_host` | p95 `enter_system_lag_ms` | yes (self-gating) |
+| `trend-local-shipping-lag` | `application-logs-local-*` | `node` | p95 `ingest_lag_ms` | yes |
 | `trend-rollup-stale` | — | — | rollup heartbeat absent 40 min | yes |
 | `trend-entity-cap` | — | — | entity ceiling approached | yes |
 | `log-family-silence` | all three | `cohort_family` (`_meta` rows) | live rollup reports 0 records for the family | yes |
@@ -945,7 +945,7 @@ asserts both fields are present.
 
 `rewrite_tag` routing deliberately still keys on the **raw** `severity`. Routing
 decides which tier a document lands on, and `dds:cout` normalizes to `info`
-while currently routing to `generic-log-other`; switching the rules to
+while currently routing to `application-logs-central`; switching the rules to
 `severity_norm` would silently move data between the storage and worker tiers.
 That is a separate, deliberate decision — not a side effect of normalization.
 
@@ -969,10 +969,10 @@ than clustered on second boundaries.
 | `il-per-epn` (+ `-slow`) | InfoLogger per-`origin_host` volume, error count |
 | `il-per-epn-entry-lag` (+ `-slow`) | InfoLogger per-`origin_host` `p95(enter_system_lag_ms)` |
 | `il-collector-shipping-lag` (+ `-slow`) | InfoLogger per-`node` `p95(ingest_lag_ms)` |
-| `other-per-epn` (+ `-slow`) | generic-other per-`origin_host` volume / errors |
-| `info-volume` (+ `-slow`) | generic-info per-`origin_host` volume |
-| `info-per-epn-entry-lag` (+ `-slow`) | generic-info per-`origin_host` `p95(enter_system_lag_ms)` |
-| `info-collector-shipping-lag` (+ `-slow`) | generic-info per-`node` `p95(ingest_lag_ms)` |
+| `central-per-epn` (+ `-slow`) | application-logs-central per-`origin_host` volume / errors |
+| `local-volume` (+ `-slow`) | application-logs-local per-`origin_host` volume |
+| `local-per-epn-entry-lag` (+ `-slow`) | application-logs-local per-`origin_host` `p95(enter_system_lag_ms)` |
+| `local-collector-shipping-lag` (+ `-slow`) | application-logs-local per-`node` `p95(ingest_lag_ms)` |
 
 **17** detectors total (3 metrics + 14 log). RCF needs a few hundred intervals before scores are meaningful (~3–5 h at 1 min).
 
@@ -1101,8 +1101,8 @@ The guarantee is one subtraction:
 | Index | Rolls | Backing index deleted at | Always have | Shard copies |
 |---|---|---|---|---|
 | `infologger` | 7d / 20 GB | 56d | ≥49d | 8 × 3 = 24 |
-| `generic-log-other` | 7d / 20 GB | 35d | ≥28d | 5 × 3 = 15 |
-| `generic-log-info-<node>` | **1d** / 20 GB | 8d | ≥7d | 8 × 1 per worker |
+| `application-logs-central` | 7d / 20 GB | 35d | ≥28d | 5 × 3 = 15 |
+| `application-logs-local-<node>` | **1d** / 20 GB | 8d | ≥7d | 8 × 1 per worker |
 | `alice-alert-actions` | 7d / 1 GB | 30d | ≥23d | 5 × 1 |
 | `cockpit-metrics` | — | 7d, **by document** | exactly 7d | 3 |
 | `trend-rollup` | — | 30d, **by document** | exactly 30d | 3 |
@@ -1138,7 +1138,7 @@ gives an exact window at no meaningful cost.
 
 **Shard budget is the binding constraint, not disk.** Every index costs heap just
 by existing; the rule of thumb is ~20 shards per GB, so ~60 across the 3-node
-storage tier at 1 GB heap each. That is why `infologger` and `generic-log-other`
+storage tier at 1 GB heap each. That is why `infologger` and `application-logs-central`
 dropped from **3 primaries to 1** — at 3 primaries, eight weekly `infologger`
 indices alone would be 72 shards. Current storage-tier total is ~45. Each extra
 week of `infologger` retention costs 3 more shards.
@@ -1153,7 +1153,7 @@ which is fine here because the data is a replay you can re-run:
 make deploy-migrate-rollover
 ```
 
-After `generic-log-info-*` indices are deleted, `alice-metrics` recreates the
+After `application-logs-local-*` indices are deleted, `alice-metrics` recreates the
 box-pinned write alias if it is missing.
 
 ### Signals, incidents and notification
@@ -1592,7 +1592,7 @@ or shingles skip.
 
 Every monitor above answers *how much* and *how late*. None answers **what the
 host is actually saying**. When `trend-il-volume`, `trend-il-ef` or
-`trend-other-errors` names an entity, the next question is which messages
+`trend-central-errors` names an entity, the next question is which messages
 changed — and that is a query, not a detector.
 
 PPL's `patterns` command groups raw messages into templates at query time. It
@@ -1612,7 +1612,7 @@ source=infologger
 Run it twice — once over the alert window, once over the hour before — and
 compare. A template whose `pattern_count` jumped, or one that appears only in
 the second result, is the message behind the alert. Swap `infologger` /
-`origin_host` for `generic-log-other` or `generic-log-info-*` on the other
+`origin_host` for `application-logs-central` or `application-logs-local-*` on the other
 families; the field names are the same after `severity_norm` / `origin_host`
 normalisation (Non-optimal §4/§5).
 
@@ -1665,7 +1665,7 @@ if its identity exists only in a central inventory.
 
 The trap this introduces is handled: Fluent Bit expands an unset variable to an
 empty string and says nothing, so a missing node id would write into an index
-literally named `generic-log-info-`. `EnvironmentFile=` is declared without a
+literally named `application-logs-local-`. `EnvironmentFile=` is declared without a
 leading dash, so systemd fails the unit if the file is absent, and
 `register_node.sh` exits non-zero if `ALICE_NODE_ID` is empty.
 
@@ -1684,7 +1684,7 @@ never be aggregated or charted.
 
 `deploy/roles/opensearch_local_index_registration/files/register_node.sh` is the single
 definition of the three
-per-worker objects: the `generic-log-info-<box>-*` index template, the
+per-worker objects: the `application-logs-local-<box>-*` index template, the
 retention-policy attachment, and a writable rollover index behind the alias.
 Two callers run the same file:
 
@@ -1709,7 +1709,7 @@ back.
 Failure behaviour differs by caller on purpose. Under `REGISTER_STRICT=true`
 (the deploy) an unreachable cluster fails the run. At boot it warns and exits
 zero, because the same collector also ships `infologger` and
-`generic-log-other` to the storage tier and that lane must not be held hostage
+`application-logs-central` to the storage tier and that lane must not be held hostage
 by the local one. `ExecStartPre` counts against the unit's start timeout, so
 `TimeoutStartSec` is raised to cover the wait — change both together.
 
@@ -1732,8 +1732,8 @@ Lubos requires that the bulk tier never crosses the wire. Only the cost changes.
    improvement and is the opposite of one.
 
    `index.search.idle.after` is set against the detector interval, not on its
-   own. Three detectors query this tier every minute — `info-volume`,
-   `info-per-epn-entry-lag`, `info-collector-shipping-lag` — and a detector
+   own. Three detectors query this tier every minute — `local-volume`,
+   `local-per-epn-entry-lag`, `local-collector-shipping-lag` — and a detector
    query counts as a search, so the shard never sleeps for long; it cycles. Any
    value at or above one minute is therefore **inert**.
 
@@ -1810,7 +1810,7 @@ Lubos requires that the bulk tier never crosses the wire. Only the cost changes.
    record enters Fluent Bit — so the buffer wait is inside the measurement, and
    raising `flush` moves that metric by up to five seconds in one step. Four
    detectors and two trend monitors watch it. `trend-il-shipping-lag` and
-   `trend-info-shipping-lag` fire at **twice a seven-day baseline**, and
+   `trend-local-shipping-lag` fire at **twice a seven-day baseline**, and
    `trend_lag_floor_ms` of 250 says normal lag is sub-second, so an unmitigated
    step would hold both monitors firing fleet-wide until the baseline rolls
    forward. Run **Clear findings** on the ops page with the change; the RCF
@@ -1897,8 +1897,30 @@ never push back on OpenSearch.
 **Memory is now bounded by the unit, not by hope.** The Fluent Bit documentation
 puts a chunk at about 2 MB on average, so `storage.max_chunks_up: 64` allows
 roughly 128 MB of chunks in memory. The "Fluent Bit uses 10 MB" claim was never
-true here, and nothing enforced it. Raising the *disk* buffer does not raise
-memory: chunks above `max_chunks_up` stay on disk only.
+true here, and nothing enforced it.
+
+**Corrected, August 2026.** This paragraph used to end "raising the *disk* buffer
+does not raise memory: chunks above `max_chunks_up` stay on disk only." That is
+wrong, and `tools/soak` measured it. A fifteen-minute sink outage at 20,000
+records a second, run twice with only `storage.total_limit_size` changed:
+
+| Buffer | Protection before the first drop | Peak memory | `memory.high` throttle events |
+|---|---|---|---|
+| `256M` | 61 s | 373 MB | 0 |
+| `2G` | 491 s | **404 MB** | **65,413** |
+
+The payloads do stay on disk, but a thousand queued chunks cost real memory in
+bookkeeping, and that was enough to cross `MemoryHigh` and have the kernel
+throttle the collector during exactly the outage it is meant to survive.
+**Raising `fluent_bit_log_buffer_limit` to the farm value requires raising
+`fluent_bit_memory_high` with it.** Shipping one without the other reintroduces
+the failure the 384 MB / 768 MB pair was chosen to avoid.
+
+The protection window itself scales cleanly with the buffer — roughly four
+seconds per 100 MB at 20,000 records a second — but it buys time for the
+InfoLogger output alone. See `roles/collector/README.md`: the DDS and stdout
+tiers lost nothing in either run, because their `tail` sources hold the backlog
+in the log files.
 
 `fluent_bit_memory_high` is 384 MB and `fluent_bit_memory_max` is 768 MB, and both
 come from the estimate the memory-management page gives rather than from taste.
@@ -1930,7 +1952,9 @@ true for the version we run. Revisit it whenever `fluent_bit_version` moves to
 is pulled into memory at startup, and its default is not stated in the 5.0
 buffering page. It mattered little at a 1 MB queue and matters more at 256 MB. The
 memory headroom above is sized to absorb it, but the setting should be pinned
-explicitly once the default is confirmed.
+explicitly once the default is confirmed. Setting it to `64M` changed nothing
+measurable at steady state (`tools/soak`, p6 sweep) — the question is what it does
+during startup with a full backlog, which the rig has not yet exercised.
 
 ### Item 6 — anomaly detection stays on the workers and costs less
 
@@ -1991,7 +2015,7 @@ its own failure mode.
 
 One extra Fluent Bit output, one small service on **alice-ingest-5**, one
 standalone page behind the nginx we already run. Scope is `infologger` and
-`generic-log-other` only, never the info tier — our severity routing is the rate
+`application-logs-central` only, never the info tier — our severity routing is the rate
 limiter his design lacks, because he pushes every non-system record to a browser
 and at farm scale that is a blur.
 
@@ -2147,7 +2171,7 @@ deploy time. See `live/VENDORED.md` for versions, hashes and provenance. React
 ### Item 8 — the write load, and why the shard count is still 1 here
 
 **The mechanism is built and the value is deliberately not yet raised.** The
-primary count for `infologger` and `generic-log-other` is one setting,
+primary count for `infologger` and `application-logs-central` is one setting,
 `log_primary_shards_storage`, and it is pinned to **1** on this tier.
 
 The plan asks for one primary per storage node. That is right on the farm and
@@ -2192,7 +2216,7 @@ and let readers be added without touching the collectors. It is not built:
    and farm storage can be treated as unlimited. The worker tier is where we are
    short, and a queue does not help there.
 3. The bulk tier must not cross the wire at all, so a queue could only ever
-   carry `generic-log-other` and `infologger` — the small fraction.
+   carry `application-logs-central` and `infologger` — the small fraction.
 
 **The trigger is a third consumer of the stream.** Two consumers — OpenSearch
 and the live lane — are served by two Fluent Bit outputs. A third means editing
@@ -2426,7 +2450,7 @@ health unusable as a signal. Watch the storage-tier indices.
 
 **Node selection in the cockpit is an index filter, never a field filter.**
 Picking a machine must produce a filter on `_index`, which lets OpenSearch skip
-shards; a `node: epn345` filter over `generic-log-info-*` reads all 200 shards
+shards; a `node: epn345` filter over `application-logs-local-*` reads all 200 shards
 and discards 199. Item 10 is the enforcement path and lives on the standalone
 page, because Dashboards can only filter fields.
 

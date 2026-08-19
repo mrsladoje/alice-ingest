@@ -193,7 +193,7 @@ ensure_index() {
   put "/$idx" "$body" "index $idx"
 }
 
-GENERIC_MAPPINGS=$(cat <<'JSON'
+APPLICATION_MAPPINGS=$(cat <<'JSON'
 {
   "template": {
     "mappings": {
@@ -223,7 +223,7 @@ GENERIC_MAPPINGS=$(cat <<'JSON'
     }
   },
   "_meta": {
-    "family": "generic-log",
+    "family": "application-logs",
     "sources": ["dds", "stdout"]
   }
 }
@@ -283,10 +283,10 @@ REGISTER_NODE="$(dirname "$0")/register_node.sh"
 # Bulk fan-out spreads across primaries instead of funnelling through the one
 # node that holds a single primary. Pinned low here by shard budget, not by
 # design — see log_primary_shards_storage in group_vars/all.yml.
-GENERIC_OTHER_TPL=$(cat <<'JSON'
+APPLICATION_CENTRAL_TPL=$(cat <<'JSON'
 {
-  "index_patterns": ["generic-log-other-*"],
-  "composed_of": ["alice-logs-generic-mappings"],
+  "index_patterns": ["application-logs-central-*"],
+  "composed_of": ["alice-logs-application-mappings"],
   "priority": 200,
   "template": {
     "settings": {
@@ -295,7 +295,7 @@ GENERIC_OTHER_TPL=$(cat <<'JSON'
       "codec": "zstd",
       "index.default_pipeline": "alice-add-ingest-time",
       "index.routing.allocation.require.role": "storage",
-      "index.plugins.index_state_management.rollover_alias": "generic-log-other"
+      "index.plugins.index_state_management.rollover_alias": "application-logs-central"
     }
   },
   "_meta": { "note": "storage tier: durable, replicated, pinned to require.role=storage" }
@@ -922,9 +922,9 @@ wait_os
 # better. The backing indices (family-000001) are unaffected: they carry a
 # suffix so they do not match these exact patterns, and explicit index creation
 # is never governed by this setting anyway.
-AUTO_CREATE="-infologger,-generic-log-other,-alice-alert-actions"
+AUTO_CREATE="-infologger,-application-logs-central,-alice-alert-actions"
 for wn in $WORKER_NODES; do
-  AUTO_CREATE="$AUTO_CREATE,-generic-log-info-$wn"
+  AUTO_CREATE="$AUTO_CREATE,-application-logs-local-$wn"
 done
 AUTO_CREATE="$AUTO_CREATE,+*"
 put "/_cluster/settings" \
@@ -937,10 +937,10 @@ del "/_index_template/alice-anomaly-digest"   "legacy index template alice-anoma
 
 put "/_ingest/pipeline/alice-add-ingest-time" "$INGEST_PIPELINE" "ingest pipeline alice-add-ingest-time"
 
-put "/_component_template/alice-logs-generic-mappings"    "$GENERIC_MAPPINGS"    "component alice-logs-generic-mappings"
+put "/_component_template/alice-logs-application-mappings"    "$APPLICATION_MAPPINGS"    "component alice-logs-application-mappings"
 put "/_component_template/alice-logs-infologger-mappings" "$INFOLOGGER_MAPPINGS" "component alice-logs-infologger-mappings"
 
-put "/_index_template/alice-logs-generic-other" "$GENERIC_OTHER_TPL"    "index template alice-logs-generic-other"
+put "/_index_template/alice-logs-application-central" "$APPLICATION_CENTRAL_TPL"    "index template alice-logs-application-central"
 put "/_index_template/alice-logs-infologger"    "$INFOLOGGER_INDEX_TPL" "index template alice-logs-infologger"
 put "/_index_template/alice-cockpit-metrics"    "$COCKPIT_METRICS_TPL"  "index template alice-cockpit-metrics"
 put "/_index_template/alice-trend-rollup"       "$TREND_ROLLUP_TPL"     "index template alice-trend-rollup"
@@ -968,7 +968,7 @@ for wn in $WORKER_NODES; do
 done
 
 ensure_rollover_index "infologger" ""
-ensure_rollover_index "generic-log-other" ""
+ensure_rollover_index "application-logs-central" ""
 ensure_alert_actions_alias
 ensure_index "{{ cockpit_metrics_index }}" '{}'
 ensure_index "{{ trend_rollup_index }}" '{}'
@@ -1006,34 +1006,34 @@ except Exception:
 done
 
 put "/infologger*/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on infologger"
-put "/generic-log-other*/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on generic-log-other"
+put "/application-logs-central*/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on application-logs-central"
 for wn in $WORKER_NODES; do
-  put "/generic-log-info-$wn*/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on generic-log-info-$wn"
+  put "/application-logs-local-$wn*/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on application-logs-local-$wn"
 done
 
 put "/infologger*/_mapping" "$NORM_MAPPING" "mapping severity_norm/origin_host on infologger"
-put "/generic-log-other*/_mapping" "$NORM_MAPPING" "mapping severity_norm/origin_host on generic-log-other"
+put "/application-logs-central*/_mapping" "$NORM_MAPPING" "mapping severity_norm/origin_host on application-logs-central"
 for wn in $WORKER_NODES; do
-  put "/generic-log-info-$wn*/_mapping" "$NORM_MAPPING" "mapping severity_norm/origin_host on generic-log-info-$wn"
+  put "/application-logs-local-$wn*/_mapping" "$NORM_MAPPING" "mapping severity_norm/origin_host on application-logs-local-$wn"
 done
-put "/generic-log-other*/_mapping" "$SOURCE_FILE_MAPPING" "mapping source_file on generic-log-other"
+put "/application-logs-central*/_mapping" "$SOURCE_FILE_MAPPING" "mapping source_file on application-logs-central"
 for wn in $WORKER_NODES; do
-  put "/generic-log-info-$wn*/_mapping" "$SOURCE_FILE_MAPPING" "mapping source_file on generic-log-info-$wn"
+  put "/application-logs-local-$wn*/_mapping" "$SOURCE_FILE_MAPPING" "mapping source_file on application-logs-local-$wn"
 done
 
 put "/{{ cockpit_metrics_index }}/_mapping" "$RETRIES_FAILED_DELTA_MAPPING" "mapping output_retries_failed_delta on cockpit-metrics"
 put "/{{ cockpit_metrics_index }}/_mapping" "$ADMISSION_MAPPING" "mapping admission-control rejection counters on cockpit-metrics"
 put "/infologger*/_mapping" "$POISON_MAPPING" "mapping labelled poison-replay evidence on infologger"
-put "/generic-log-other*/_mapping" "$POISON_MAPPING" "mapping labelled poison-replay evidence on generic-log-other"
+put "/application-logs-central*/_mapping" "$POISON_MAPPING" "mapping labelled poison-replay evidence on application-logs-central"
 for wn in $WORKER_NODES; do
-  put "/generic-log-info-$wn*/_mapping" "$POISON_MAPPING" "mapping labelled poison-replay evidence on generic-log-info-$wn"
+  put "/application-logs-local-$wn*/_mapping" "$POISON_MAPPING" "mapping labelled poison-replay evidence on application-logs-local-$wn"
 done
 put "/{{ cockpit_metrics_index }}/_mapping" "$POISON_MAPPING" "mapping labelled poison-replay evidence on cockpit-metrics"
 
 seed_if_empty "infologger"
-seed_if_empty "generic-log-other"
+seed_if_empty "application-logs-central"
 for wn in $WORKER_NODES; do
-  seed_if_empty "generic-log-info-$wn"
+  seed_if_empty "application-logs-local-$wn"
 done
 
 echo "[os-init] DONE — tier-aware mappings, rollover write aliases and all indices in place before first write"

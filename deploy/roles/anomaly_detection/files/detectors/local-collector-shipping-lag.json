@@ -1,21 +1,21 @@
 {
-  "name": "info-per-epn-entry-lag-slow",
-  "description": "generic-log-info per-EPN p95(enter_system_lag_ms) 30m (archive-age under preserved replay)",
+  "name": "local-collector-shipping-lag",
+  "description": "application-logs-local per-collector p95(ingest_lag_ms)",
   "time_field": "collector_time",
   "indices": [
-    "generic-log-info-*"
+    "application-logs-local-*"
   ],
   "category_field": [
-    "origin_host"
+    "node"
   ],
   "feature_attributes": [
     {
-      "feature_name": "p95_entry_lag",
+      "feature_name": "p95_shipping_lag",
       "feature_enabled": true,
       "aggregation_query": {
-        "p95_entry_lag": {
+        "p95_shipping_lag": {
           "percentiles": {
-            "field": "enter_system_lag_ms",
+            "field": "ingest_lag_ms",
             "percents": [
               95
             ]
@@ -26,7 +26,7 @@
   ],
   "detection_interval": {
     "period": {
-      "interval": 30,
+      "interval": 1,
       "unit": "Minutes"
     }
   },

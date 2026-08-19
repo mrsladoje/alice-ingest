@@ -185,42 +185,42 @@
       "feed": "logs",
       "healthy_windows_required": 3
     },
-    "trend-other-volume": {
+    "trend-central-volume": {
       "entity_kind": "epn",
       "entity_source": "bucket_key",
-      "family": "other",
+      "family": "central",
       "notification_scope": "fleet",
       "feed": "logs",
       "healthy_windows_required": 3
     },
-    "trend-other-errors": {
+    "trend-central-errors": {
       "entity_kind": "epn",
       "entity_source": "bucket_key",
-      "family": "other",
+      "family": "central",
       "notification_scope": "fleet",
       "feed": "logs",
       "healthy_windows_required": 3
     },
-    "trend-info-volume": {
+    "trend-local-volume": {
       "entity_kind": "epn",
       "entity_source": "bucket_key",
-      "family": "info",
+      "family": "local",
       "notification_scope": "fleet",
       "feed": "logs",
       "healthy_windows_required": 3
     },
-    "trend-info-entry-lag": {
+    "trend-local-entry-lag": {
       "entity_kind": "epn",
       "entity_source": "bucket_key",
-      "family": "info",
+      "family": "local",
       "notification_scope": "fleet",
       "feed": "logs",
       "healthy_windows_required": 3
     },
-    "trend-info-shipping-lag": {
+    "trend-local-shipping-lag": {
       "entity_kind": "collector",
       "entity_source": "bucket_key",
-      "family": "info",
+      "family": "local",
       "notification_scope": "collector",
       "feed": "logs",
       "healthy_windows_required": 3
@@ -345,10 +345,10 @@
       "healthy_windows_required": 2,
       "close_threshold": 0.0
     },
-    "other-per-epn": {
+    "central-per-epn": {
       "entity_kind": "epn",
       "category_field": "origin_host",
-      "family": "other",
+      "family": "central",
       "notification_scope": "fleet",
       "feed": "logs",
       "silence_policy": "unknown",
@@ -358,10 +358,10 @@
       "healthy_windows_required": 3,
       "close_threshold": 0.0
     },
-    "other-per-epn-slow": {
+    "central-per-epn-slow": {
       "entity_kind": "epn",
       "category_field": "origin_host",
-      "family": "other",
+      "family": "central",
       "notification_scope": "fleet",
       "feed": "logs",
       "silence_policy": "unknown",
@@ -371,10 +371,10 @@
       "healthy_windows_required": 2,
       "close_threshold": 0.0
     },
-    "info-volume": {
+    "local-volume": {
       "entity_kind": "epn",
       "category_field": "origin_host",
-      "family": "info",
+      "family": "local",
       "notification_scope": "fleet",
       "feed": "logs",
       "silence_policy": "unknown",
@@ -384,10 +384,10 @@
       "healthy_windows_required": 3,
       "close_threshold": 0.0
     },
-    "info-volume-slow": {
+    "local-volume-slow": {
       "entity_kind": "epn",
       "category_field": "origin_host",
-      "family": "info",
+      "family": "local",
       "notification_scope": "fleet",
       "feed": "logs",
       "silence_policy": "unknown",
@@ -397,10 +397,10 @@
       "healthy_windows_required": 2,
       "close_threshold": 0.0
     },
-    "info-per-epn-entry-lag": {
+    "local-per-epn-entry-lag": {
       "entity_kind": "epn",
       "category_field": "origin_host",
-      "family": "info",
+      "family": "local",
       "notification_scope": "fleet",
       "feed": "logs",
       "silence_policy": "unknown",
@@ -410,10 +410,10 @@
       "healthy_windows_required": 3,
       "close_threshold": 0.0
     },
-    "info-per-epn-entry-lag-slow": {
+    "local-per-epn-entry-lag-slow": {
       "entity_kind": "epn",
       "category_field": "origin_host",
-      "family": "info",
+      "family": "local",
       "notification_scope": "fleet",
       "feed": "logs",
       "silence_policy": "unknown",
@@ -423,10 +423,10 @@
       "healthy_windows_required": 2,
       "close_threshold": 0.0
     },
-    "info-collector-shipping-lag": {
+    "local-collector-shipping-lag": {
       "entity_kind": "collector",
       "category_field": "node",
-      "family": "info",
+      "family": "local",
       "notification_scope": "collector",
       "feed": "logs",
       "silence_policy": "unknown",
@@ -436,10 +436,10 @@
       "healthy_windows_required": 3,
       "close_threshold": 0.0
     },
-    "info-collector-shipping-lag-slow": {
+    "local-collector-shipping-lag-slow": {
       "entity_kind": "collector",
       "category_field": "node",
-      "family": "info",
+      "family": "local",
       "notification_scope": "collector",
       "feed": "logs",
       "silence_policy": "unknown",

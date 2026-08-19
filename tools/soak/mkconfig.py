@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import re
 import sys
 
 import yaml
@@ -13,7 +14,7 @@ TEMPLATE = os.path.join(
 PARSERS = os.path.join(
     REPO, "deploy", "roles", "collector", "templates", "parsers.yaml.j2")
 
-LOG_MATCHES = {"infologger", "family.info", "family.other"}
+LOG_MATCHES = {"infologger", "family.local", "family.central"}
 
 
 def ternary(value, when_true, when_false):
@@ -26,7 +27,8 @@ def to_bool(value):
     return str(value).strip().lower() in ("1", "true", "yes", "on")
 
 
-def render(live_lane, flush, buffer_limit, retry_limit):
+def render(live_lane, flush, buffer_limit, retry_limit,
+           lane_host="sink", lane_port=9200, lane_path="/ingest"):
     with open(TEMPLATE, "r") as handle:
         source = handle.read()
     env = Environment(undefined=StrictUndefined, keep_trailing_newline=True)
@@ -43,10 +45,41 @@ def render(live_lane, flush, buffer_limit, retry_limit):
         fluent_bit_log_retry_limit=retry_limit,
         health_metrics_emit_legacy_node=False,
         live_lane_enabled=live_lane,
-        live_lane_host="livelane",
-        live_lane_port=8092,
-        live_lane_ingest_path="/ingest",
+        live_lane_host=lane_host,
+        live_lane_port=lane_port,
+        live_lane_ingest_path=lane_path,
     )
+
+
+DUP = "__dup%d__"
+
+
+class DupKeyLoader(yaml.SafeLoader):
+    pass
+
+
+def _mapping_with_dups(loader, node, deep=False):
+    mapping = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        value = loader.construct_object(value_node, deep=True)
+        if key in mapping:
+            index = 2
+            while (key + DUP % index) in mapping:
+                index += 1
+            key = key + DUP % index
+        mapping[key] = value
+    return mapping
+
+
+DupKeyLoader.construct_mapping = _mapping_with_dups
+DupKeyLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    lambda loader, node: _mapping_with_dups(loader, node))
+
+
+def strip_dup_markers(text):
+    return re.sub(r"__dup\d+__", "", text)
 
 
 def block_str(dumper, data):
@@ -83,12 +116,16 @@ def main():
     parser.add_argument("--lua", default="on", choices=["on", "off"])
     parser.add_argument("--health", default="off", choices=["on", "off"])
     parser.add_argument("--live-lane", default="off", choices=["on", "off"])
+    parser.add_argument("--live-lane-host", default="sink")
+    parser.add_argument("--live-lane-port", type=int, default=9200)
+    parser.add_argument("--live-lane-path", default="/ingest")
     parser.add_argument("--parsers-out", default="")
     args = parser.parse_args()
 
     text = render(args.live_lane == "on", args.flush,
-                  args.total_limit_size, args.retry_limit)
-    config = yaml.safe_load(text)
+                  args.total_limit_size, args.retry_limit,
+                  args.live_lane_host, args.live_lane_port, args.live_lane_path)
+    config = yaml.load(text, Loader=DupKeyLoader)
 
     service = config["service"]
     service["flush"] = args.flush
@@ -131,6 +168,9 @@ def main():
         if item.get("match") == "health":
             if args.health == "off":
                 continue
+            if args.sink != "opensearch":
+                item["host"] = args.sink_host
+                item["port"] = args.sink_port
             outputs.append(item)
             continue
         if item.get("name") == "http" and item.get("uri") == "/ingest":
@@ -172,9 +212,10 @@ def main():
     pipeline["outputs"] = outputs
 
     yaml.add_representer(str, block_str)
+    rendered = yaml.dump(config, sort_keys=False, default_flow_style=False,
+                         width=4096)
     with open(args.out, "w") as handle:
-        yaml.dump(config, handle, sort_keys=False, default_flow_style=False,
-                  width=4096)
+        handle.write(strip_dup_markers(rendered))
 
     if args.parsers_out:
         with open(PARSERS, "r") as handle:

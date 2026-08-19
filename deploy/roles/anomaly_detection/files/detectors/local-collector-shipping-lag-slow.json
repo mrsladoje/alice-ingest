@@ -1,9 +1,9 @@
 {
-  "name": "info-collector-shipping-lag",
-  "description": "generic-log-info per-collector p95(ingest_lag_ms)",
+  "name": "local-collector-shipping-lag-slow",
+  "description": "application-logs-local per-collector p95(ingest_lag_ms) 30m",
   "time_field": "collector_time",
   "indices": [
-    "generic-log-info-*"
+    "application-logs-local-*"
   ],
   "category_field": [
     "node"
@@ -26,7 +26,7 @@
   ],
   "detection_interval": {
     "period": {
-      "interval": 1,
+      "interval": 30,
       "unit": "Minutes"
     }
   },

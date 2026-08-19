@@ -1,7 +1,7 @@
 {
   "type": "monitor",
-  "name": "trend-other-errors",
-  "description": "Warn when the generic-log-other per-host error share of that host's own volume rises. Metric is the error SHARE of this entity's own volume (error docs / all its docs), not an absolute count, so a host that doubles traffic and doubles errors stays quiet and does not double-alert alongside the volume monitor. Needs >=50 docs and >=10 error docs in every slice; a historically error-free entity is compared against a 0.1% floor instead of dividing by zero. Needs >=6 baseline buckets (60 minutes of history) before it may fire at all. A freshly created or freshly reset rollup otherwise offers a single partial first bucket as the 7d baseline, and every entity in the cohort breaches against it at once. Reads the trend-rollup 10m rollup, not raw logs: the 7d baseline is a few thousand tiny docs per entity. Dwell: fire only if the breach holds on 3 consecutive 10m rollup buckets (~30m), offset 10m so the newest bucket is always complete. Baseline 7d excluding the last 40m; 24h fallback when 7d is empty. Schedule 10m. Throttle 30m per alert key via alice-incluster-alert-sink. Every action payload names its entity, so a fleet-wide breach is attributable even when the plugin rewrites per_alert to per_execution above the actionable-alert limit.",
+  "name": "trend-central-errors",
+  "description": "Warn when the application-logs-central per-host error share of that host's own volume rises. Metric is the error SHARE of this entity's own volume (error docs / all its docs), not an absolute count, so a host that doubles traffic and doubles errors stays quiet and does not double-alert alongside the volume monitor. Needs >=50 docs and >=10 error docs in every slice; a historically error-free entity is compared against a 0.1% floor instead of dividing by zero. Needs >=6 baseline buckets (60 minutes of history) before it may fire at all. A freshly created or freshly reset rollup otherwise offers a single partial first bucket as the 7d baseline, and every entity in the cohort breaches against it at once. Reads the trend-rollup 10m rollup, not raw logs: the 7d baseline is a few thousand tiny docs per entity. Dwell: fire only if the breach holds on 3 consecutive 10m rollup buckets (~30m), offset 10m so the newest bucket is always complete. Baseline 7d excluding the last 40m; 24h fallback when 7d is empty. Schedule 10m. Throttle 30m per alert key via alice-incluster-alert-sink. Every action payload names its entity, so a fleet-wide breach is attributable even when the plugin rewrites per_alert to per_execution above the actionable-alert limit.",
   "monitor_type": "bucket_level_monitor",
   "enabled": true,
   "schedule": {
@@ -23,7 +23,7 @@
               "filter": [
                 {
                   "term": {
-                    "family": "other"
+                    "family": "central"
                   }
                 },
                 {
@@ -183,7 +183,7 @@
   "triggers": [
     {
       "bucket_level_trigger": {
-        "name": "trend-other-errors",
+        "name": "trend-central-errors",
         "severity": "2",
         "condition": {
           "buckets_path": {

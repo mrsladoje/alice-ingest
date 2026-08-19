@@ -57,7 +57,7 @@ already do this; ported ones must match.
 
 He routes by source: the tag names the program, and each tag gets its own topic
 and its own index. We route by severity: `rewrite_tag` sends every record to
-`family.info` or `family.other` (`deploy/roles/collector/templates/collector.yaml.j2:169`).
+`family.local` or `family.central` (`deploy/roles/collector/templates/collector.yaml.j2:169`).
 
 Our routing stays. His costs four edits in lockstep for every new log source.
 
@@ -181,8 +181,8 @@ machines often. That shape does not survive it.
 
 Each node registers itself before the collector starts, using its own node name:
 
-1. Put its own index template for `generic-log-info-<box>-*`.
-2. Attach the retention policy `alice-generic-info-retention`.
+1. Put its own index template for `application-logs-local-<box>-*`.
+2. Attach the retention policy `alice-application-local-retention`.
 3. Ensure a writable rollover index behind the alias, which is what
    `ensure_rollover_index` (`templates.sh.j2:56`) already does.
 
@@ -243,8 +243,8 @@ tuning improvement and is the opposite.
 Item 6 keeps anomaly detection running on this tier, and a detector query counts
 as a search. So the shard never sleeps for long — it cycles.
 
-Three detectors query `generic-log-info` every minute: `info-volume`,
-`info-per-epn-entry-lag` and `info-collector-shipping-lag`. Their seven slow
+Three detectors query `application-logs-local` every minute: `local-volume`,
+`local-per-epn-entry-lag` and `local-collector-shipping-lag`. Their seven slow
 partners run every 30 minutes. So the shortest gap between searches on this tier
 is one minute, and any `search.idle.after` at or above one minute is inert.
 
@@ -336,7 +336,7 @@ this at farm scale.
 `rewrite_tag` re-injects the record with a new tag, and the record then passes the
 whole filter chain again from the top. `normalize_fields` matches both the source
 tags and the family tags (`collector.yaml.j2:204`), so it runs on `dds` and again
-on `family.info`.
+on `family.local`.
 
 `stamp_collector_time` guards against exactly this (`:106`). `normalize_fields`
 does not.
@@ -458,7 +458,7 @@ Our severity routing is the rate limiter his design lacks.
 
 ### Scope
 
-`infologger` and `generic-log-other` only. Never the info tier.
+`infologger` and `application-logs-central` only. Never the info tier.
 
 ### Cost
 
@@ -513,7 +513,7 @@ holds.
 
 Ten thousand rows in memory, filtered on each change, is ordinary work for
 consumer hardware in 2026, and this system is meant to be in use well beyond
-that. The lane also carries only `infologger` and `generic-log-other`, which is
+that. The lane also carries only `infologger` and `application-logs-central`, which is
 low volume by construction. There is no measurement that says the client cannot
 do this.
 
@@ -594,7 +594,7 @@ mounting paths for one component, which is the worst of each.
 **Status: TAKE. Not from him. A defect in our current design, found while
 answering how we load balance.**
 
-`infologger` and `generic-log-other` are created with one primary shard and two
+`infologger` and `application-logs-central` are created with one primary shard and two
 replicas (`templates.sh.j2:264` and `:244`).
 
 Every collector writes to `host: localhost` (`collector.yaml.j2:233, 243, 253`),
@@ -659,7 +659,7 @@ We are not building it, for three reasons:
    tier, and Lubos has said storage on the EPN farm can be treated as unlimited.
    The worker tier is where we are short, and a queue does not help there.
 3. The bulk tier must not cross the wire at all, so a queue could only ever carry
-   `generic-log-other` and `infologger` — the small fraction.
+   `application-logs-central` and `infologger` — the small fraction.
 
 ### The trigger
 
@@ -710,7 +710,7 @@ rule we have already written.
 The last operating rule says node selection must produce a filter on `_index`,
 never a filter on the `node` field. Nothing today stops an operator doing the
 wrong one. A form does: the operator picks a machine from a dropdown, and the form
-sets the index pattern to `generic-log-info-epn345-*`. The wrong query stops being
+sets the index pattern to `application-logs-local-epn345-*`. The wrong query stops being
 reachable rather than being merely discouraged.
 
 ### Why — the one-year window is a blunt instrument
@@ -1072,7 +1072,7 @@ is not a usable signal for us. Watch the storage-tier indices.
 ### Node selection in the cockpit is an index filter, never a field filter
 
 Picking a machine must produce a filter on `_index`, which lets OpenSearch skip
-shards. A `node: epn345` filter over `generic-log-info-*` reads all 200 shards and
+shards. A `node: epn345` filter over `application-logs-local-*` reads all 200 shards and
 discards 199.
 
 Item 10 is the enforcement path: the operator picks a machine from a dropdown and

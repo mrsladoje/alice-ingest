@@ -64,7 +64,7 @@ now sits in its own role and can be re-run without touching the web tier.
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 6. COCKPIT — the browsing surface, re-applied every run ──────────────────┐
-│  patterns.sh                infologger, generic-log-info-*, -other         │
+│  patterns.sh                the three log index patterns                   │
 │  saved-object import        cockpit.ndjson, overwrite=true, then verified  │
 │  delete retired objects     four ids the import cannot remove              │
 │  hydrate_patterns.py        serialized field catalog per pattern           │

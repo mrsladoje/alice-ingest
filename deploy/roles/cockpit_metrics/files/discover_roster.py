@@ -10,7 +10,7 @@ OS_URL = os.environ.get("OS_URL", "http://localhost:9200")
 LOOKBACK = os.environ.get("LOOKBACK", "now-7d")
 MAX_HOSTS = int(os.environ.get("MAX_HOSTS", "5000"))
 TARGETS = os.environ.get(
-    "TARGETS", "infologger,generic-log-other,generic-log-info-*")
+    "TARGETS", "infologger,application-logs-central,application-logs-local-*")
 
 
 def log(msg):

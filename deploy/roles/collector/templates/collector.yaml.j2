@@ -166,8 +166,8 @@ pipeline:
         - file
     - name: rewrite_tag
       match: dds
-      rule: $severity ^inf$  family.info false
-      rule: $severity ^.*$  family.other false
+      rule: $severity ^inf$  family.local false
+      rule: $severity ^.*$  family.central false
       emitter_name: dds_router
     - name: parser
       match: stdout
@@ -183,8 +183,8 @@ pipeline:
         - file
     - name: rewrite_tag
       match: stdout
-      rule: $severity ^Info$  family.info false
-      rule: $message ^.*$  family.other false
+      rule: $severity ^Info$  family.local false
+      rule: $message ^.*$  family.central false
       emitter_name: stdout_router
 
   # normalize_fields moved into the alice-add-ingest-time ingest pipeline, so
@@ -203,20 +203,20 @@ pipeline:
       retry_limit: {{ fluent_bit_log_retry_limit }}
 
     - name: opensearch
-      match: family.info
+      match: family.local
       host: localhost
       port: ${ALICE_OS_HTTP_PORT}
-      index: generic-log-info-${ALICE_NODE_ID}
+      index: application-logs-local-${ALICE_NODE_ID}
       suppress_type_name: true
       trace_error: true
       storage.total_limit_size: {{ fluent_bit_log_buffer_limit }}
       retry_limit: {{ fluent_bit_log_retry_limit }}
 
     - name: opensearch
-      match: family.other
+      match: family.central
       host: localhost
       port: ${ALICE_OS_HTTP_PORT}
-      index: generic-log-other
+      index: application-logs-central
       suppress_type_name: true
       trace_error: true
       storage.total_limit_size: {{ fluent_bit_log_buffer_limit }}
@@ -238,7 +238,7 @@ pipeline:
     # is needed yet. Never the info tier. Best-effort by construction — a small
     # buffer and one retry, so a dead viewer never pushes back on OpenSearch.
     - name: http
-      match_regex: ^(infologger|family\.other)$
+      match_regex: ^(infologger|family\.central)$
       host: {{ live_lane_host }}
       port: {{ live_lane_port }}
       uri: {{ live_lane_ingest_path }}

@@ -490,7 +490,7 @@ def check_live_mappings(errors):
                        "assignments"],
         LANE_STATE_INDEX: ["lane", "watermark_ms"],
         "infologger": ["severity_norm", "origin_host"],
-        "generic-log-other": ["severity_norm", "origin_host"],
+        "application-logs-central": ["severity_norm", "origin_host"],
     }
     for index, fields in wanted.items():
         props = live_properties(index)
@@ -616,7 +616,7 @@ def check_rollup_commits(errors):
 
 
 def check_aliases():
-    for alias in ("infologger", "generic-log-other"):
+    for alias in ("infologger", "application-logs-central"):
         code, body = req("GET", f"/_alias/{alias}")
         if code == 200 and body:
             print(f"[verify-detection] {alias}: write alias over "
@@ -830,8 +830,8 @@ def check_cockpit_board_query(errors):
 
 
 def check_ism(errors):
-    for pid in ("alice-generic-info-retention",
-                "alice-generic-other-retention",
+    for pid in ("alice-application-local-retention",
+                "alice-application-central-retention",
                 "alice-infologger-retention",
                 "alice-ad-results-retention",
                 "alice-alert-history-retention",

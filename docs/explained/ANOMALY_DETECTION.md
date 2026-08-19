@@ -79,10 +79,10 @@ different idea.
 | Detector                          | Index                | Watches                                                                                                  |
 | --------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------- |
 | `il-per-epn` (+ slow)             | `infologger`         | volume + error/fatal count. Silence and error bursts on one EPN while the farm looks fine.               |
-| `other-per-epn` (+ slow)          | `generic-log-other`  | same idea for stdout/DDS “other”.                                                                        |
-| `info-volume` (+ slow)            | `generic-log-info-*` | volume only (info is high-volume; error mix lives in `other`).                                           |
+| `central-per-epn` (+ slow)          | `application-logs-central`  | same idea for stdout/DDS “other”.                                                                        |
+| `local-volume` (+ slow)            | `application-logs-local-*` | volume only (info is high-volume; error mix lives in `other`).                                           |
 | `il-per-epn-entry-lag` (+ slow)   | `infologger`         | p95 `enter_system_lag_ms`. How late the EPN’s logs arrived at the collector. Meaningless on June replay. |
-| `info-per-epn-entry-lag` (+ slow) | `generic-log-info-*` | same for the info family.                                                                                |
+| `local-per-epn-entry-lag` (+ slow) | `application-logs-local-*` | same for the info family.                                                                                |
 
 
 
@@ -96,10 +96,10 @@ load-bearing.
 | Detector                               | Watches                                               |
 | -------------------------------------- | ----------------------------------------------------- |
 | `il-collector-shipping-lag` (+ slow)   | p95 `ingest_lag_ms` on Infologger (ships to storage). |
-| `info-collector-shipping-lag` (+ slow) | same on info (worker-local indices, different path).  |
+| `local-collector-shipping-lag` (+ slow) | same on info (worker-local indices, different path).  |
 
 
-No “other” shipping-lag detector: `generic-log-other` sits with Infologger on
+No “other” shipping-lag detector: `application-logs-central` sits with Infologger on
 storage.
 
 ### 🔮 Forecaster (same RCF family, different job)
@@ -224,10 +224,10 @@ the last 40 minutes so the dwell window is not in the baseline.
 
 | Monitor                                                      | Metric                                                                                                                             |
 | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `trend-il-volume`, `trend-other-volume`, `trend-info-volume` | Host’s **share of fleet** volume. Fleet-wide ramp (run start) cancels. 2× rise or ≤0.5× collapse, all three slices same direction. |
-| `trend-il-ef`, `trend-other-errors`                          | Error **share of that host’s own volume**. Doubling traffic and errors together stays quiet.                                       |
-| `trend-il-entry-lag`, `trend-info-entry-lag`                 | p95 entry lag vs baseline, ≥2×. Self-gates: slices above 1 h are treated as archive age, so June replay is silent.                 |
-| `trend-il-shipping-lag`, `trend-info-shipping-lag`           | p95 shipping lag vs baseline. No ceiling — a multi-hour backlog is real.                                                           |
+| `trend-il-volume`, `trend-central-volume`, `trend-local-volume` | Host’s **share of fleet** volume. Fleet-wide ramp (run start) cancels. 2× rise or ≤0.5× collapse, all three slices same direction. |
+| `trend-il-ef`, `trend-central-errors`                          | Error **share of that host’s own volume**. Doubling traffic and errors together stays quiet.                                       |
+| `trend-il-entry-lag`, `trend-local-entry-lag`                 | p95 entry lag vs baseline, ≥2×. Self-gates: slices above 1 h are treated as archive age, so June replay is silent.                 |
+| `trend-il-shipping-lag`, `trend-local-shipping-lag`           | p95 shipping lag vs baseline. No ceiling — a multi-hour backlog is real.                                                           |
 
 
 Guards: ≥50 docs (volume/errors), ≥10 error docs, ≥100 docs for lag (otherwise

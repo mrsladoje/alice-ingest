@@ -258,7 +258,7 @@ the role reads directly rather than re-declaring.
 
 - **`node_count` is `groups['workers'] | length`, and `epn_partition` is per
   host.** Adding a worker re-slices the archive for every existing worker. Their
-  local `generic-log-info-<node>` indices then hold a different set of EPN hosts
+  local `application-logs-local-<node>` indices then hold a different set of EPN hosts
   than before, so a comparison across the change is not a comparison of like with
   like. Re-slicing means a `make replay-fresh`, not a `make replay`.
 - **`log_root` is shared with `collector`.** This role writes DDS and stdout

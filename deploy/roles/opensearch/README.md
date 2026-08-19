@@ -69,7 +69,7 @@ in the inventory.
 - **Only storage nodes are cluster-manager eligible.** A worker runs the ingest
   firehose. Cluster-manager work must not queue behind it.
 - **`node.attr.box` is what pins a worker's own info index to its own machine.**
-  The index template sets `require.box`, so `generic-log-info-<node_id>` never
+  The index template sets `require.box`, so `application-logs-local-<node_id>` never
   leaves the VM that produced it. That is why the high-volume path is localhost
   to local shard, with no network hop.
 

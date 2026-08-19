@@ -56,7 +56,7 @@ PROJECTOR_CATCHUP_DELAY = int(
 INGEST_PIPELINE = os.environ.get(
     "INJECT_INGEST_PIPELINE", "alice-add-ingest-time")
 INJECTED_PIPELINE = f"{INGEST_PIPELINE}-injected"
-LOG_INDEX_TARGET = "infologger*,generic-log-*"
+LOG_INDEX_TARGET = "infologger*,application-logs-*"
 
 SCENARIOS = (
     "kill-fluent-bit",

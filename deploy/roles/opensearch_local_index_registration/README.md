@@ -38,20 +38,20 @@ paths can run it and the last one to look simply finds nothing to do.
 ┌─ WHAT THE SCRIPT APPLIES, for ALICE_NODE_ID=N ──────────────────────────────┐
 │  0. wait   _cluster/health at yellow, else give up (strict decides how)     │
 │                                                                             │
-│  1. PUT    _index_template/alice-logs-generic-info-N                        │
-│              pattern generic-log-info-N-*, priority 300                     │
+│  1. PUT    _index_template/alice-logs-application-local-N                   │
+│              pattern application-logs-local-N-*, priority 300               │
 │              1 shard, 0 replicas, zstd, pinned by require.box == N          │
 │              no refresh_interval — search idle must stay on                 │
 │                                                                             │
-│  2. POST   _plugins/_ism/add/generic-log-info-N-*                           │
-│              attaches alice-generic-info-retention, best effort here;       │
+│  2. POST   _plugins/_ism/add/application-logs-local-N-*                     │
+│              attaches alice-application-local-retention, best effort here;  │
 │              ism.sh on the control host is the authoritative attach         │
 │                                                                             │
-│  3. alias  generic-log-info-N                                               │
-│              absent        -> create generic-log-info-N-000001, write index │
-│              healthy       -> leave it alone                                │
-│              red backing   -> _rollover onto a fresh index, never delete    │
-│              concrete index-> strict fails, boot warns, migrate deletes     │
+│  3. alias  application-logs-local-N                                         │
+│        absent        -> create application-logs-local-N-000001, write index │
+│        healthy       -> leave it alone                                      │
+│        red backing   -> _rollover onto a fresh index, never delete          │
+│        concrete index-> strict fails, boot warns, migrate deletes           │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -120,7 +120,7 @@ caller supplies them. It defaults every one of them, so it also runs by hand.
 | `ALICE_INFO_SEARCH_IDLE_AFTER` | `10s` | Index setting written into the template. |
 | `ALICE_INFO_TRANSLOG_SYNC_INTERVAL` | `30s` | Index setting written into the template. |
 | `ALICE_INFO_MERGE_THREADS` | `1` | Index setting written into the template. |
-| `ALICE_INFO_RETENTION_POLICY` | `alice-generic-info-retention` | Retention policy to attach. |
+| `ALICE_LOCAL_RETENTION_POLICY` | `alice-application-local-retention` | Retention policy to attach. |
 
 On a worker these arrive from two files, both loaded by `fluent-bit.service` as
 `EnvironmentFile`:

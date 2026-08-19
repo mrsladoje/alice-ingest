@@ -49,9 +49,9 @@
     status_code: [200, 404]
   register: _seed_cleanup
   failed_when: false
-  loop: "{{ ['infologger', 'generic-log-other']
+  loop: "{{ ['infologger', 'application-logs-central']
             + (fleet_collector_node_ids
-               | map('regex_replace', '^(.*)$', 'generic-log-info-\\1')
+               | map('regex_replace', '^(.*)$', 'application-logs-local-\\1')
                | list) }}"
 
 - name: Report bootstrap seed cleanup (a leftover seed is inert, so this never fails the deploy)

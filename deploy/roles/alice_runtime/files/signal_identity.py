@@ -160,35 +160,35 @@ MONITOR_PRESENTATION = {
         "least 250 ms and 2x baseline for three complete 10-minute buckets.",
         "Inspect Fluent Bit buffering, retries, network latency, and "
         "OpenSearch indexing pressure on {entity}."),
-    "trend-other-volume": (
-        "generic-log-other volume share changed persistently",
-        "{entity}'s share of generic-log-other volume stayed at least 2x its "
+    "trend-central-volume": (
+        "application-logs-central volume share changed persistently",
+        "{entity}'s share of application-logs-central volume stayed at least 2x its "
         "baseline or at most half its baseline for three complete 10-minute "
         "buckets.",
         "Compare this EPN with its peers and inspect the processes producing "
-        "generic-log-other."),
-    "trend-other-errors": (
-        "generic-log-other error share rose persistently",
-        "{entity}'s generic-log-other error fraction stayed at least 2x "
+        "application-logs-central."),
+    "trend-central-errors": (
+        "application-logs-central error share rose persistently",
+        "{entity}'s application-logs-central error fraction stayed at least 2x "
         "baseline for three complete 10-minute buckets, with at least 50 "
         "records and 10 errors in each bucket.",
-        "Inspect the dominant generic-log-other errors for {entity}."),
-    "trend-info-volume": (
-        "generic-log-info volume share changed persistently",
-        "{entity}'s share of generic-log-info volume stayed at least 2x its "
+        "Inspect the dominant application-logs-central errors for {entity}."),
+    "trend-local-volume": (
+        "application-logs-local volume share changed persistently",
+        "{entity}'s share of application-logs-local volume stayed at least 2x its "
         "baseline or at most half its baseline for three complete 10-minute "
         "buckets.",
         "Compare this EPN with its peers and inspect the processes producing "
-        "generic-log-info."),
-    "trend-info-entry-lag": (
-        "generic-log-info entry lag rose persistently",
+        "application-logs-local."),
+    "trend-local-entry-lag": (
+        "application-logs-local entry lag rose persistently",
         "{entity}'s p95 event-to-collector delay stayed at least 250 ms and "
         "2x baseline for three complete 10-minute buckets (archive-age "
         "values above one hour are excluded).",
         "Check the producer and collector path for queueing before logs enter "
         "the ingest system."),
-    "trend-info-shipping-lag": (
-        "generic-log-info shipping lag rose persistently",
+    "trend-local-shipping-lag": (
+        "application-logs-local shipping lag rose persistently",
         "Collector {entity}'s p95 collector-to-OpenSearch delay stayed at "
         "least 250 ms and 2x baseline for three complete 10-minute buckets.",
         "Inspect Fluent Bit buffering, retries, network latency, and "
@@ -238,22 +238,22 @@ DETECTOR_PRESENTATION = {
     "il-collector-shipping-lag-slow": (
         "Long-window InfoLogger shipping-lag anomaly",
         "30-minute collector-to-OpenSearch p95 delay"),
-    "other-per-epn": ("Unusual generic-log-other EPN behaviour",
+    "central-per-epn": ("Unusual application-logs-central EPN behaviour",
                       "volume or error count"),
-    "other-per-epn-slow": ("Long-window generic-log-other anomaly",
+    "central-per-epn-slow": ("Long-window application-logs-central anomaly",
                            "30-minute volume or error count"),
-    "info-volume": ("Unusual generic-log-info volume", "volume"),
-    "info-volume-slow": ("Long-window generic-log-info volume anomaly",
+    "local-volume": ("Unusual application-logs-local volume", "volume"),
+    "local-volume-slow": ("Long-window application-logs-local volume anomaly",
                          "30-minute volume"),
-    "info-per-epn-entry-lag": ("Unusual generic-log-info entry lag",
+    "local-per-epn-entry-lag": ("Unusual application-logs-local entry lag",
                                "event-to-collector p95 delay"),
-    "info-per-epn-entry-lag-slow": (
-        "Long-window generic-log-info entry-lag anomaly",
+    "local-per-epn-entry-lag-slow": (
+        "Long-window application-logs-local entry-lag anomaly",
         "30-minute event-to-collector p95 delay"),
-    "info-collector-shipping-lag": ("Unusual generic-log-info shipping lag",
+    "local-collector-shipping-lag": ("Unusual application-logs-local shipping lag",
                                     "collector-to-OpenSearch p95 delay"),
-    "info-collector-shipping-lag-slow": (
-        "Long-window generic-log-info shipping-lag anomaly",
+    "local-collector-shipping-lag-slow": (
+        "Long-window application-logs-local shipping-lag anomaly",
         "30-minute collector-to-OpenSearch p95 delay"),
 }
 

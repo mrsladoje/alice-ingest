@@ -91,7 +91,7 @@
     {
       "cause": "collector-down",
       "cause_severity": "page",
-      "symptom": "info-collector-shipping-lag",
+      "symptom": "local-collector-shipping-lag",
       "equal": [
         "cluster_id",
         "collector_id"
@@ -103,7 +103,7 @@
     {
       "cause": "collector-down",
       "cause_severity": "page",
-      "symptom": "info-collector-shipping-lag-slow",
+      "symptom": "local-collector-shipping-lag-slow",
       "equal": [
         "cluster_id",
         "collector_id"
@@ -127,7 +127,7 @@
     {
       "cause": "collector-down",
       "cause_severity": "page",
-      "symptom": "trend-info-shipping-lag",
+      "symptom": "trend-local-shipping-lag",
       "equal": [
         "cluster_id",
         "collector_id"

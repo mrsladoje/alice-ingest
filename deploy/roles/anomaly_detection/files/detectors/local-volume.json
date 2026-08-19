@@ -1,9 +1,9 @@
 {
-  "name": "info-volume",
-  "description": "generic-log-info per-EPN volume",
+  "name": "local-volume",
+  "description": "application-logs-local per-EPN volume",
   "time_field": "collector_time",
   "indices": [
-    "generic-log-info-*"
+    "application-logs-local-*"
   ],
   "feature_attributes": [
     {

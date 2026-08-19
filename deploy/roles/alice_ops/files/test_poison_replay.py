@@ -54,8 +54,8 @@ def test_fast_detector_inventory_matches_live_definitions():
 def test_burst_is_labelled_and_uses_trained_entities():
     samples = {
         "il": {"origin_host": "epn101", "node": "node-01"},
-        "info": {"origin_host": "epn102", "node": "node-02"},
-        "other": {"origin_host": "epn103", "node": "node-01"},
+        "local": {"origin_host": "epn102", "node": "node-02"},
+        "central": {"origin_host": "epn103", "node": "node-01"},
         "fluentbit": {"collector_id": "node-01"},
         "node": {"os_node": "node-03"},
         "roster": {"collectors": ["node-01", "node-02"],
@@ -75,7 +75,7 @@ def test_burst_is_labelled_and_uses_trained_entities():
          poison.MAX_LOG_DOCS, poison.METRIC_DOCS) = old
     check(volumes["il"]["injected"] == 4,
           f"adaptive volume cap was not applied: {volumes}")
-    check(any(index == "generic-log-info-node-02" for index, _, _ in docs),
+    check(any(index == "application-logs-local-node-02" for index, _, _ in docs),
           "generic info poison did not target the selected trained collector")
     check(all(source.get("synthetic") is True for _, _, source in docs),
           "at least one poison document is not explicitly synthetic")

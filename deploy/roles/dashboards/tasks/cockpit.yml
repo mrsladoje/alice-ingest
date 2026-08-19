@@ -84,7 +84,7 @@
     cmd: "python3 {{ dashboards_bootstrap_hydrate_script }}"
   environment:
     OSD_URL: "http://127.0.0.1:{{ dashboards_internal_port }}"
-    EXTRA_PATTERNS: "infologger,generic-log-info-*,generic-log-other"
+    EXTRA_PATTERNS: "infologger,application-logs-local-*,application-logs-central"
   register: _hydrate
   changed_when: true
 

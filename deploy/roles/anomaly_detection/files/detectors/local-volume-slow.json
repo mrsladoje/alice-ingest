@@ -1,9 +1,9 @@
 {
-  "name": "other-per-epn",
-  "description": "generic-log-other per-EPN volume errors",
+  "name": "local-volume-slow",
+  "description": "application-logs-local per-EPN volume 30m",
   "time_field": "collector_time",
   "indices": [
-    "generic-log-other"
+    "application-logs-local-*"
   ],
   "feature_attributes": [
     {
@@ -16,25 +16,11 @@
           }
         }
       }
-    },
-    {
-      "feature_name": "err_count",
-      "feature_enabled": true,
-      "aggregation_query": {
-        "err_count": {
-          "sum": {
-            "script": {
-              "lang": "painless",
-              "source": "doc.containsKey('severity_norm') && doc['severity_norm'].size() != 0 && (doc['severity_norm'].value == 'error' || doc['severity_norm'].value == 'fatal') ? 1.0 : 0.0"
-            }
-          }
-        }
-      }
     }
   ],
   "detection_interval": {
     "period": {
-      "interval": 1,
+      "interval": 30,
       "unit": "Minutes"
     }
   },

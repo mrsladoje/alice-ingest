@@ -36,3 +36,6 @@ docs/OPENSTACK_GUIDE.md
 docs/DEPLOY-DISTRIBUTED.md
 docs/RESEARCH.md
 LUBOS_MEETING.md
+
+# Soak rig run artefacts (fixtures, CSVs, charts)
+tools/soak/runs/

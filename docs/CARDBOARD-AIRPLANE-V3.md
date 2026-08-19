@@ -20,7 +20,7 @@ The hand-to-Lubos increment on top of the v2 two-tier design. Same 5-VM two-tier
 
 **`make replay`** runs `deploy/playbooks/replay.yml`, which POSTs `/replay` to each worker's local `alice-replay` trigger (`127.0.0.1:8088`). Each worker streams *its own* EPN partition (the v2 single-partition wrapper is unchanged). No vault password is needed — the playbook touches no secrets.
 
-**`make replay-fresh`** = wipe then replay. Because the replay engine has **no dedup**, a second plain `make replay` double-counts every document. `replay-fresh` first deletes the log indices on the control node — `infologger`, `generic-log-other`, and each worker's `generic-log-info-<node_id>` — then **re-creates the per-worker info indices pinned to their box** (`require.box`, exactly as the v2 bootstrap does; the wildcard index template alone can't set a per-index box), and only then triggers the load. Result: a clean reload with the worker-locality guarantee intact.
+**`make replay-fresh`** = wipe then replay. Because the replay engine has **no dedup**, a second plain `make replay` double-counts every document. `replay-fresh` first deletes the log indices on the control node — `infologger`, `application-logs-central`, and each worker's `application-logs-local-<node_id>` — then **re-creates the per-worker info indices pinned to their box** (`require.box`, exactly as the v2 bootstrap does; the wildcard index template alone can't set a per-index box), and only then triggers the load. Result: a clean reload with the worker-locality guarantee intact.
 
 Typical flow:
 
@@ -69,7 +69,7 @@ and push `il_max_objects` higher (via `make replay-fresh`) if the storage tier s
 
 Provisioned by the bootstrap: `deploy/roles/dashboards/files/gen_cockpit.py` generates a static `cockpit.ndjson` (regenerate with `python3 gen_cockpit.py`), which `roles/dashboards/tasks/main.yml` stages and imports via `_import?overwrite=true`, then sets the unified pattern as the default. The import runs on **every** deploy (idempotent overwrite), NOT behind the one-shot marker — so editing the queries and re-running `make deploy` updates the saved objects in place. The per-source index patterns are still created by the marker-guarded `patterns.sh`.
 
-**Unified index pattern** `infologger,generic-log-*` (time field `@timestamp`) is set as the **default** — the "one interface to rule them all" in Discover. The per-source patterns (`infologger`, `generic-log-info-*`, `generic-log-other`) are kept for focused views; a `log_source` filter chip narrows the unified view to one family.
+**Unified index pattern** `infologger,application-logs-*` (time field `@timestamp`) is set as the **default** — the "one interface to rule them all" in Discover. The per-source patterns (`infologger`, `application-logs-local-*`, `application-logs-central`) are kept for focused views; a `log_source` filter chip narrows the unified view to one family.
 
 **One home dashboard, "ALICE Cockpit":**
 - health tiles — total records, Errors & Warnings count, records-by-source table, and a link tile to the built-in **Index Management** UI (Lubos's "see how OpenSearch is working" — the indices table: health / shards / replicas / docs / size, no custom build);

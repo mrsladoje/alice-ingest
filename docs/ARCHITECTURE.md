@@ -42,14 +42,14 @@ Topology (from diagram):
 
 ### OpenSearch
 
-- One **OpenSearch Multi-Node Cluster** split into **Worker Nodes** (hold `generic-log-info` / `generic-log-other` indices) and **InfoLogger Storage Nodes** (dedicated `infologger` indices).
+- One **OpenSearch Multi-Node Cluster** split into **Worker Nodes** (hold `application-logs-local` / `application-logs-central` indices) and **InfoLogger Storage Nodes** (dedicated `infologger` indices).
 - Distributed cluster across worker nodes; each node indexes its own local logs.
 - Dedicated storage nodes hold InfoLogger indices (higher access rates).
 - Flexible lifecycle management: compression, tiering, and storage policies per index family; automatic archival or deletion after the retention window.
 
 Index families:
-- **generic-log-info** — high volume, less queried → strong compression, shorter retention.
-- **generic-log-other** (warn/error/debug) — smaller, more valuable → strong compression, longer retention.
+- **application-logs-local** — high volume, less queried → strong compression, shorter retention.
+- **application-logs-central** (warn/error/debug) — smaller, more valuable → strong compression, longer retention.
 - **infologger** — high query rate → fast compression, higher replication, dedicated storage for faster querying.
 
 ### Kafka — Extensibility Backbone

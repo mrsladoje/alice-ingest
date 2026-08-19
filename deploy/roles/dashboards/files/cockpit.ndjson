@@ -1,4 +1,4 @@
-{"type": "index-pattern", "id": "alice-unified", "attributes": {"title": "infologger,generic-log-*", "timeFieldName": "@timestamp"}, "references": []}
+{"type": "index-pattern", "id": "alice-unified", "attributes": {"title": "infologger,application-logs-*", "timeFieldName": "@timestamp"}, "references": []}
 {"type": "index-pattern", "id": "alice-metrics", "attributes": {"title": "cockpit-metrics", "timeFieldName": "@timestamp"}, "references": []}
 {"type": "index-pattern", "id": "alice-ad-results", "attributes": {"title": ".opendistro-anomaly-results*", "timeFieldName": "data_end_time"}, "references": []}
 {"type": "index-pattern", "id": "alice-alerts", "attributes": {"title": ".opendistro-alerting-alerts*", "timeFieldName": "start_time"}, "references": []}

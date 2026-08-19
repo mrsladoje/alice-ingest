@@ -10,10 +10,10 @@
         url: "http://localhost:{{ opensearch_http_port }}/{{ item }}?ignore_unavailable=true&allow_no_indices=true"
         method: DELETE
         status_code: [200, 404]
-      loop: "{{ ['infologger-*', 'generic-log-other-*']
+      loop: "{{ ['infologger-*', 'application-logs-central-*']
                 + (groups['workers']
                    | map('extract', hostvars, 'node_id')
-                   | map('regex_replace', '^(.*)$', 'generic-log-info-\\1-*')
+                   | map('regex_replace', '^(.*)$', 'application-logs-local-\\1-*')
                    | list) }}"
       when: replay_fresh | default(false) | bool
 
@@ -23,10 +23,10 @@
       environment:
         OS_URL: "http://localhost:{{ opensearch_http_port }}"
         ROLLUP_INDEX: "{{ trend_rollup_index }}"
-        LOG_FAMILIES: "{{ (['infologger', 'generic-log-other']
+        LOG_FAMILIES: "{{ (['infologger', 'application-logs-central']
                            + (groups['workers']
                               | map('extract', hostvars, 'node_id')
-                              | map('regex_replace', '^(.*)$', 'generic-log-info-\\1')
+                              | map('regex_replace', '^(.*)$', 'application-logs-local-\\1')
                               | list)) | join(',') }}"
       register: _reset
       changed_when: true

@@ -245,8 +245,8 @@ def detectors_report():
 def family_clocks_report():
     rule("LOG FAMILY CLOCKS (why a family can vanish from the cockpit)")
     families = [f for f in os.environ.get(
-        "LOG_FAMILIES", "infologger,generic-log-other").split(",") if f]
-    families += [f"generic-log-info-{n}" for n in
+        "LOG_FAMILIES", "infologger,application-logs-central").split(",") if f]
+    families += [f"application-logs-local-{n}" for n in
                  os.environ.get("INFO_NODES", "").split(",") if n]
     print("the cockpit log panels filter on @timestamp; the detectors use "
           "collector_time")

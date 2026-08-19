@@ -1,7 +1,7 @@
 {
   "type": "monitor",
-  "name": "trend-info-shipping-lag",
-  "description": "Warn when generic-log-info per-collector p95 ingest_lag_ms rises. Metric is the per-bucket p95 of ingest_lag_ms, not the mean: backlogs show in the tail first. The baseline averages ~1000 per-bucket p95 values, so a slice p95 is compared against a typical bucket's p95 - like against like. Needs >=100 records in every slice, because a p95 over a handful of records is just the maximum. Floor 250 ms absolute as well as 2x baseline (both substituted at bootstrap). Needs >=6 baseline buckets (60 minutes of history) before it may fire at all. A freshly created or freshly reset rollup otherwise offers a single partial first bucket as the 7d baseline, and every entity in the cohort breaches against it at once. Reads the trend-rollup 10m rollup, not raw logs: the 7d baseline is a few thousand tiny docs per entity. Dwell: fire only if the breach holds on 3 consecutive 10m rollup buckets (~30m), offset 10m so the newest bucket is always complete. Baseline 7d excluding the last 40m; 24h fallback when 7d is empty. Schedule 10m. Throttle 30m per alert key via alice-incluster-alert-sink. Every action payload names its entity, so a fleet-wide breach is attributable even when the plugin rewrites per_alert to per_execution above the actionable-alert limit.",
+  "name": "trend-local-entry-lag",
+  "description": "Warn when application-logs-local per-host p95 enter_system_lag_ms rises. Metric is the per-bucket p95 of enter_system_lag_ms, not the mean: backlogs show in the tail first. The baseline averages ~1000 per-bucket p95 values, so a slice p95 is compared against a typical bucket's p95 - like against like. Needs >=100 records in every slice, because a p95 over a handful of records is just the maximum. Floor 250 ms absolute as well as 2x baseline (both substituted at bootstrap). Needs >=6 baseline buckets (60 minutes of history) before it may fire at all. A freshly created or freshly reset rollup otherwise offers a single partial first bucket as the 7d baseline, and every entity in the cohort breaches against it at once. Reads the trend-rollup 10m rollup, not raw logs: the 7d baseline is a few thousand tiny docs per entity. Dwell: fire only if the breach holds on 3 consecutive 10m rollup buckets (~30m), offset 10m so the newest bucket is always complete. Baseline 7d excluding the last 40m; 24h fallback when 7d is empty. Schedule 10m. Throttle 30m per alert key via alice-incluster-alert-sink. Every action payload names its entity, so a fleet-wide breach is attributable even when the plugin rewrites per_alert to per_execution above the actionable-alert limit. Self-gating instead of flag-gated: a slice above the ceiling (trend_entry_lag_ceiling_ms, 1h) is archive age, not pipeline health, so under preserved June replay - where entry lag is about a month - this monitor is naturally silent, and in production - where entry lag is seconds - it is naturally live. Nothing to switch on at cutover.",
   "monitor_type": "bucket_level_monitor",
   "enabled": true,
   "schedule": {
@@ -23,12 +23,12 @@
               "filter": [
                 {
                   "term": {
-                    "family": "info"
+                    "family": "local"
                   }
                 },
                 {
                   "term": {
-                    "entity_kind": "node"
+                    "entity_kind": "host"
                   }
                 },
                 {
@@ -71,7 +71,7 @@
                   "aggregations": {
                     "lag": {
                       "avg": {
-                        "field": "p95_shipping_lag_ms"
+                        "field": "p95_entry_lag_ms"
                       }
                     },
                     "docs": {
@@ -94,7 +94,7 @@
                   "aggregations": {
                     "lag": {
                       "avg": {
-                        "field": "p95_shipping_lag_ms"
+                        "field": "p95_entry_lag_ms"
                       }
                     },
                     "docs": {
@@ -117,7 +117,7 @@
                   "aggregations": {
                     "lag": {
                       "avg": {
-                        "field": "p95_shipping_lag_ms"
+                        "field": "p95_entry_lag_ms"
                       }
                     },
                     "docs": {
@@ -140,7 +140,7 @@
                   "aggregations": {
                     "lag": {
                       "avg": {
-                        "field": "p95_shipping_lag_ms"
+                        "field": "p95_entry_lag_ms"
                       }
                     },
                     "docs": {
@@ -163,7 +163,7 @@
                   "aggregations": {
                     "lag": {
                       "avg": {
-                        "field": "p95_shipping_lag_ms"
+                        "field": "p95_entry_lag_ms"
                       }
                     },
                     "docs": {
@@ -183,7 +183,7 @@
   "triggers": [
     {
       "bucket_level_trigger": {
-        "name": "trend-info-shipping-lag",
+        "name": "trend-local-entry-lag",
         "severity": "2",
         "condition": {
           "buckets_path": {
@@ -200,7 +200,7 @@
           },
           "parent_bucket_path": "composite_agg",
           "script": {
-            "source": "if (params.s0_lag == null || params.s1_lag == null || params.s2_lag == null) { return false; } double minLagDocs = 100.0; if (params.s0_docs < minLagDocs || params.s1_docs < minLagDocs || params.s2_docs < minLagDocs) { return false; } double lagFloor = 250.0; if (params.s0_lag < lagFloor || params.s1_lag < lagFloor || params.s2_lag < lagFloor) { return false; } double minBaselineBuckets = 6.0; boolean weekly = params.b7_lag != null && params.b7_lag > 0; double base = weekly ? params.b7_lag : ((params.b24_lag != null) ? params.b24_lag : 0); double bb = weekly ? params.b7_buckets : params.b24_buckets; if (base <= 0) { return false; } if (bb < minBaselineBuckets) { return false; } return (params.s0_lag / base) >= 2.0 && (params.s1_lag / base) >= 2.0 && (params.s2_lag / base) >= 2.0;",
+            "source": "if (params.s0_lag == null || params.s1_lag == null || params.s2_lag == null) { return false; } double minLagDocs = 100.0; if (params.s0_docs < minLagDocs || params.s1_docs < minLagDocs || params.s2_docs < minLagDocs) { return false; } double lagFloor = 250.0; if (params.s0_lag < lagFloor || params.s1_lag < lagFloor || params.s2_lag < lagFloor) { return false; } double lagCeiling = 3600000.0; if (params.s0_lag > lagCeiling || params.s1_lag > lagCeiling || params.s2_lag > lagCeiling) { return false; } double minBaselineBuckets = 6.0; boolean weekly = params.b7_lag != null && params.b7_lag > 0; double base = weekly ? params.b7_lag : ((params.b24_lag != null) ? params.b24_lag : 0); double bb = weekly ? params.b7_buckets : params.b24_buckets; if (base <= 0) { return false; } if (bb < minBaselineBuckets) { return false; } return (params.s0_lag / base) >= 2.0 && (params.s1_lag / base) >= 2.0 && (params.s2_lag / base) >= 2.0;",
             "lang": "painless"
           }
         },
@@ -213,7 +213,7 @@
               "lang": "mustache"
             },
             "message_template": {
-              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_start\":\"{{ctx.periodStart}}\",\"period_end\":\"{{ctx.periodEnd}}\",\"entity_kind\":\"collector\",\"notification_scope\":\"collector\",\"feed\":\"logs\",\"delivery_path\":\"alertmanager\",\"entity\":\"{{#ctx.newAlerts}}{{{bucket_keys}}} {{/ctx.newAlerts}}\"}",
+              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_start\":\"{{ctx.periodStart}}\",\"period_end\":\"{{ctx.periodEnd}}\",\"entity_kind\":\"epn\",\"notification_scope\":\"fleet\",\"feed\":\"logs\",\"delivery_path\":\"alertmanager\",\"entity\":\"{{#ctx.newAlerts}}{{{bucket_keys}}} {{/ctx.newAlerts}}\"}",
               "lang": "mustache"
             },
             "throttle_enabled": true,

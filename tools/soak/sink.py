@@ -17,9 +17,11 @@ STATE = {
     "requests": 0,
     "bytes": 0,
     "rejected": 0,
+    "restarts": 0,
     "started": time.time(),
 }
 LOCK = threading.Lock()
+STATS_PATH = ""
 INFO = {
     "name": "soak-sink",
     "cluster_name": "alice-soak",
@@ -42,8 +44,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.startswith("/__stats"):
-            with LOCK:
-                self._send(200, dict(STATE))
+            self._send(200, snapshot())
             return
         self._send(200, INFO)
 
@@ -113,22 +114,65 @@ class Handler(BaseHTTPRequestHandler):
         return
 
 
+def snapshot():
+    with LOCK:
+        data = dict(STATE)
+    data["seconds"] = time.time() - data["started"]
+    return data
+
+
+def persist():
+    if not STATS_PATH:
+        return
+    while True:
+        try:
+            with open(STATS_PATH + ".tmp", "w") as handle:
+                json.dump(snapshot(), handle, indent=2)
+            os.replace(STATS_PATH + ".tmp", STATS_PATH)
+        except OSError:
+            pass
+        time.sleep(2)
+
+
+def restore():
+    if not STATS_PATH or not os.path.exists(STATS_PATH):
+        return
+    try:
+        with open(STATS_PATH) as handle:
+            previous = json.load(handle)
+    except (OSError, ValueError):
+        return
+    with LOCK:
+        for key in ("docs", "requests", "bytes", "rejected"):
+            STATE[key] = previous.get(key, 0)
+        STATE["restarts"] = previous.get("restarts", 0) + 1
+
+
 def main():
+    global STATS_PATH
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=9200)
     parser.add_argument("--stats-file", default="")
+    parser.add_argument("--fresh", action="store_true")
     args = parser.parse_args()
+
+    STATS_PATH = args.stats_file
+    if not args.fresh:
+        restore()
+    if STATS_PATH:
+        keeper = threading.Thread(target=persist, daemon=True)
+        keeper.start()
 
     server = ThreadingHTTPServer(("0.0.0.0", args.port), Handler)
     server.daemon_threads = True
 
     def dump(*_):
-        if args.stats_file:
-            with LOCK:
-                snapshot = dict(STATE)
-            snapshot["seconds"] = time.time() - snapshot["started"]
-            with open(args.stats_file, "w") as handle:
-                json.dump(snapshot, handle, indent=2)
+        if STATS_PATH:
+            try:
+                with open(STATS_PATH, "w") as handle:
+                    json.dump(snapshot(), handle, indent=2)
+            except OSError:
+                pass
         os._exit(0)
 
     signal.signal(signal.SIGTERM, dump)

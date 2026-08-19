@@ -26,7 +26,7 @@ WAIT_MAX_TIME="${REGISTER_WAIT_MAX_TIME:-10}"
 IDLE_AFTER="${ALICE_INFO_SEARCH_IDLE_AFTER:-10s}"
 TRANSLOG_SYNC="${ALICE_INFO_TRANSLOG_SYNC_INTERVAL:-30s}"
 MERGE_THREADS="${ALICE_INFO_MERGE_THREADS:-1}"
-RETENTION_POLICY="${ALICE_INFO_RETENTION_POLICY:-alice-generic-info-retention}"
+RETENTION_POLICY="${ALICE_LOCAL_RETENTION_POLICY:-alice-application-local-retention}"
 
 CURL="curl -s --connect-timeout ${OS_CONNECT_TIMEOUT:-5} --max-time ${OS_MAX_TIME:-60}"
 
@@ -34,7 +34,7 @@ say() { echo "[register-node] $*"; }
 
 # The one failure that must stop the collector: Fluent Bit expands an unset
 # variable to an empty string silently, so this would write to
-# "generic-log-info-" and the auto-create guard would reject every record.
+# "application-logs-local-" and the auto-create guard would reject every record.
 if [ -z "$NODE" ]; then
   echo "[register-node] FATAL: ALICE_NODE_ID is empty or unset." >&2
   echo "[register-node] FATAL: This node cannot know which index is its own." >&2
@@ -43,7 +43,7 @@ if [ -z "$NODE" ]; then
   exit 1
 fi
 
-ALIAS="generic-log-info-$NODE"
+ALIAS="application-logs-local-$NODE"
 
 give_up() {
   if [ "$STRICT" = "true" ]; then
@@ -52,7 +52,7 @@ give_up() {
   fi
   say "WARN: $1"
   say "WARN: $ALIAS is not registered. This node's own log tier will reject"
-  say "WARN: writes until it is. infologger and generic-log-other are"
+  say "WARN: writes until it is. infologger and application-logs-central are"
   say "WARN: unaffected — they go to the storage tier. Retried at next boot."
   exit 0
 }
@@ -93,8 +93,8 @@ put() {
 # is the opposite of one. See README section 9, Item 4.2 for the rest.
 index_template_body() {
   printf '{
-  "index_patterns": ["generic-log-info-%s-*"],
-  "composed_of": ["alice-logs-generic-mappings"],
+  "index_patterns": ["application-logs-local-%s-*"],
+  "composed_of": ["alice-logs-application-mappings"],
   "priority": 300,
   "template": {
     "settings": {
@@ -108,7 +108,7 @@ index_template_body() {
       "index.translog.sync_interval": "%s",
       "index.merge.scheduler.max_thread_count": %s,
       "index.search.concurrent_segment_search.mode": "none",
-      "index.plugins.index_state_management.rollover_alias": "generic-log-info-%s"
+      "index.plugins.index_state_management.rollover_alias": "application-logs-local-%s"
     }
   },
   "_meta": { "note": "worker tier: local, disposable, rolled daily, pinned by require.box; registered by register_node.sh" }
@@ -131,7 +131,7 @@ attach_policy() {
         *)
           # ism.sh is the authoritative attach and runs later, so on a fresh
           # cluster the policy does not exist yet. Not a hole: the policy's own
-          # ism_template claims new generic-log-info-* indices at creation.
+          # ism_template claims new application-logs-local-* indices at creation.
           say "WARN: attach $RETENTION_POLICY -> $ALIAS-* HTTP $code: $body"
           ;;
       esac
@@ -221,8 +221,8 @@ say "registering $NODE against $OS"
 
 wait_os || give_up "OpenSearch at $OS never became ready"
 
-put "/_index_template/alice-logs-generic-info-$NODE" "$(index_template_body)" \
-  "index template alice-logs-generic-info-$NODE" \
+put "/_index_template/alice-logs-application-local-$NODE" "$(index_template_body)" \
+  "index template alice-logs-application-local-$NODE" \
   || give_up "could not put the index template for $NODE"
 
 attach_policy

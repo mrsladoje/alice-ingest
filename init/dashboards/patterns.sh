@@ -8,7 +8,7 @@ set -eu
 
 OSD="${OSD_URL:-http://opensearch-dashboards:5601}"
 OS="${OS_URL:-http://opensearch:9200}"
-PATTERNS="infologger generic-log-info generic-log-other"
+PATTERNS="infologger application-logs-local application-logs-central"
 TIME_FIELD="@timestamp"
 
 # Note: index/component TEMPLATES (field mappings, shards) are applied by the
@@ -51,7 +51,7 @@ wait_ready() {
 
 # Best-effort wait for an index to exist so @timestamp is mapped when the
 # pattern is created (populated field list up front). Bounded so a still-empty
-# index — e.g. generic-log-other before any warning/error lands — never hangs us.
+# index — e.g. application-logs-central before any warning/error lands — never hangs us.
 wait_index() {
   id="$1"
   j=1

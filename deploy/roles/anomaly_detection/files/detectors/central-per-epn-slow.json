@@ -1,9 +1,9 @@
 {
-  "name": "info-volume-slow",
-  "description": "generic-log-info per-EPN volume 30m",
+  "name": "central-per-epn-slow",
+  "description": "application-logs-central per-EPN 30m",
   "time_field": "collector_time",
   "indices": [
-    "generic-log-info-*"
+    "application-logs-central"
   ],
   "feature_attributes": [
     {
@@ -13,6 +13,20 @@
         "volume": {
           "value_count": {
             "field": "@timestamp"
+          }
+        }
+      }
+    },
+    {
+      "feature_name": "err_count",
+      "feature_enabled": true,
+      "aggregation_query": {
+        "err_count": {
+          "sum": {
+            "script": {
+              "lang": "painless",
+              "source": "doc.containsKey('severity_norm') && doc['severity_norm'].size() != 0 && (doc['severity_norm'].value == 'error' || doc['severity_norm'].value == 'fatal') ? 1.0 : 0.0"
+            }
           }
         }
       }

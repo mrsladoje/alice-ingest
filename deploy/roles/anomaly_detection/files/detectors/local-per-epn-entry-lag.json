@@ -1,9 +1,9 @@
 {
-  "name": "info-per-epn-entry-lag",
-  "description": "generic-log-info per-EPN p95(enter_system_lag_ms) (archive-age under preserved replay)",
+  "name": "local-per-epn-entry-lag",
+  "description": "application-logs-local per-EPN p95(enter_system_lag_ms) (archive-age under preserved replay)",
   "time_field": "collector_time",
   "indices": [
-    "generic-log-info-*"
+    "application-logs-local-*"
   ],
   "category_field": [
     "origin_host"

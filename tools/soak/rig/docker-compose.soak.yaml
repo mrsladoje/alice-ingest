@@ -18,6 +18,19 @@ services:
     ports:
       - "${SINK_PORT:-9201}:9200"
 
+  sink2:
+    image: ${PY_IMAGE:-python:3.12-slim}
+    container_name: soak-sink2
+    profiles: ["livelane"]
+    command: ["python3", "/opt/soak/sink.py", "--port", "9200",
+              "--stats-file", "/out/sink2-stats.json"]
+    stop_grace_period: 10s
+    volumes:
+      - ${SOAK_TOOLS:-..}:/opt/soak:ro
+      - ${SOAK_RUN:-./out}:/out
+    ports:
+      - "${SINK2_PORT:-9203}:9200"
+
   fluent-bit:
     image: ${FB_IMAGE:-fluent/fluent-bit}:${FB_VERSION:-5.0.8}
     container_name: soak-fluent-bit

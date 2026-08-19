@@ -227,8 +227,8 @@ log_rollover_period_info: "1d"
 log_rollover_max_size: "20gb"
 log_rollover_migrate_existing: false
 
-ism_retention_generic_info: "8d"
-ism_retention_generic_other: "35d"
+ism_retention_application_local: "8d"
+ism_retention_application_central: "35d"
 ism_retention_infologger: "56d"
 ism_retention_ad_results: "14d"
 ism_retention_alert_history: "30d"

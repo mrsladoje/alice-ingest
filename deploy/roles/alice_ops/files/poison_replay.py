@@ -60,12 +60,12 @@ FAST_DETECTORS = {
     "il-collector-shipping-lag",
     "il-per-epn",
     "il-per-epn-entry-lag",
-    "info-collector-shipping-lag",
-    "info-per-epn-entry-lag",
-    "info-volume",
+    "local-collector-shipping-lag",
+    "local-per-epn-entry-lag",
+    "local-volume",
     "ingest-flow",
     "node-health",
-    "other-per-epn",
+    "central-per-epn",
 }
 
 # These are deterministic consequences of the injected documents.  Dead-man
@@ -86,12 +86,12 @@ DETECTOR_ENTITY = {
     "il-collector-shipping-lag": ("il", "node"),
     "il-per-epn": ("il", "origin_host"),
     "il-per-epn-entry-lag": ("il", "origin_host"),
-    "info-collector-shipping-lag": ("info", "node"),
-    "info-per-epn-entry-lag": ("info", "origin_host"),
-    "info-volume": ("info", "origin_host"),
+    "local-collector-shipping-lag": ("local", "node"),
+    "local-per-epn-entry-lag": ("local", "origin_host"),
+    "local-volume": ("local", "origin_host"),
     "ingest-flow": ("fluentbit", "collector_id"),
     "node-health": ("node", "os_node"),
-    "other-per-epn": ("other", "origin_host"),
+    "central-per-epn": ("central", "origin_host"),
 }
 
 _STOP = False
@@ -398,10 +398,10 @@ def discover_samples():
     return {
         "il": common_pair(
             "infologger", "collector_time", "origin_host", "node"),
-        "info": common_pair(
-            "generic-log-info-*", "collector_time", "origin_host", "node"),
-        "other": common_pair(
-            "generic-log-other", "collector_time", "origin_host", "node"),
+        "local": common_pair(
+            "application-logs-local-*", "collector_time", "origin_host", "node"),
+        "central": common_pair(
+            "application-logs-central", "collector_time", "origin_host", "node"),
         "fluentbit": latest_kind("fluentbit", "collector_id"),
         "node": latest_kind("node", "os_node"),
         "roster": latest_roster(),
@@ -452,10 +452,10 @@ def log_doc(family, sample, run_id, stage, sequence, anchor_ms):
         "il": {
             "il-per-epn", "il-per-epn-entry-lag",
             "il-collector-shipping-lag"},
-        "info": {
-            "info-volume", "info-per-epn-entry-lag",
-            "info-collector-shipping-lag"},
-        "other": {"other-per-epn"},
+        "local": {
+            "local-volume", "local-per-epn-entry-lag",
+            "local-collector-shipping-lag"},
+        "central": {"central-per-epn"},
     }[family]
     doc = {
         "@timestamp": anchor_ms - entry_lag,
@@ -480,7 +480,7 @@ def log_doc(family, sample, run_id, stage, sequence, anchor_ms):
             "partition": "calibration", "run": 0, "errcode": 9001,
             "errline": sequence, "errsource": "poison_replay.py",
         })
-    elif family == "info":
+    elif family == "local":
         doc.update({
             "log_source": "stdout", "severity": "Info",
             "severity_norm": "info", "host": sample["origin_host"],
@@ -501,8 +501,8 @@ def build_burst(samples, run_id, burst, intensity):
     docs = []
     family_specs = [
         ("il", "infologger", "infologger"),
-        ("info", "generic-log-info-*", None),
-        ("other", "generic-log-other", "generic-log-other"),
+        ("local", "application-logs-local-*", None),
+        ("central", "application-logs-central", "application-logs-central"),
     ]
     volumes = {}
     for family, read_index, fixed_target in family_specs:
@@ -513,7 +513,7 @@ def build_burst(samples, run_id, burst, intensity):
             MAX_LOG_DOCS,
             max(MIN_LOG_DOCS,
                 math.ceil(baseline * VOLUME_MULTIPLIER * intensity)))
-        target = fixed_target or f"generic-log-info-{sample['node']}"
+        target = fixed_target or f"application-logs-local-{sample['node']}"
         volumes[family] = {"baseline_p95": baseline, "injected": count}
         for sequence in range(count):
             doc_id = f"poison:{run_id}:{stage}:{family}:{sequence}"

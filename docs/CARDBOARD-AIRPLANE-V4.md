@@ -154,7 +154,7 @@ fixed and locally verified:
 - **Template-before-first-write.** The poller previously started before the
   bootstrap had installed the `cockpit-metrics` template — the first bulk write
   would auto-create the index with dynamic mappings on the wrong tier. Order is
-  now: templates → explicit index creation (`infologger`, `generic-log-other`,
+  now: templates → explicit index creation (`infologger`, `application-logs-central`,
   `cockpit-metrics`, per-worker info indices) → import → hydrate → *then* start
   `alice-metrics`.
 - **`failed=0` means deployed.** The import and settings tasks no longer mask

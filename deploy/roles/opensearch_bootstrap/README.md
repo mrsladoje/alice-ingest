@@ -59,8 +59,8 @@ verification are now the `anomaly_detection` role.
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 4. ism.sh — retention, one policy per family ─────────────────────────────┐
-│  alice-generic-info-retention        8d                                    │
-│  alice-generic-other-retention      35d                                    │
+│  alice-application-local-retention        8d                               │
+│  alice-application-central-retention      35d                              │
 │  alice-infologger-retention         56d                                    │
 │  alice-ad-results-retention         14d                                    │
 │  alice-alert-history-retention      30d                                    │
@@ -113,7 +113,7 @@ All from `group_vars/all.yml`, and all read by the two templates.
 | Connection | `opensearch_http_port` |
 | Info tier | `opensearch_info_search_idle_after`, `opensearch_info_translog_sync_interval`, `opensearch_info_merge_threads` |
 | Shards and rollover | `log_primary_shards_storage`, `log_rollover_period`, `log_rollover_period_info`, `log_rollover_max_size`, `log_rollover_migrate_existing`, `alert_actions_rollover_period`, `alert_actions_rollover_max_size` |
-| Retention | `ism_retention_generic_info`, `ism_retention_generic_other`, `ism_retention_infologger`, `ism_retention_ad_results`, `ism_retention_alert_history`, `ism_retention_alert_actions` |
+| Retention | `ism_retention_application_local`, `ism_retention_application_central`, `ism_retention_infologger`, `ism_retention_ad_results`, `ism_retention_alert_history`, `ism_retention_alert_actions` |
 | Cluster settings | `admission_control_mode`, `admission_control_cpu_limit`, `ad_max_batch_task_per_node`, `ad_batch_task_piece_interval_seconds` |
 | Index names | `cockpit_metrics_index`, `trend_rollup_index`, `fleet_roster_index`, `lane_state_index`, `signals_index`, `incidents_index`, `notifications_index` |
 
@@ -157,7 +157,7 @@ All from `group_vars/all.yml`, and all read by the two templates.
   it there too.
 - **Retention policy names are literals in `ism.sh.j2`.** `verify_detection.py`
   asserts them by name and `register_node.sh` falls back to
-  `alice-generic-info-retention`. A variable would only let one end of the set
+  `alice-application-local-retention`. A variable would only let one end of the set
   move.
 
 ## What is frozen

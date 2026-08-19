@@ -50,8 +50,8 @@ run the same installed copy — see couplings.
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 4. CLEAN UP THE SEEDS ────────────────────────────────────────────────────┐
-│  DELETE alice-bootstrap-seed from infologger, generic-log-other and        │
-│  generic-log-info-<node_id> for every collector node. Never fails the run. │
+│  DELETE alice-bootstrap-seed from infologger, application-logs-central and │
+│  application-logs-local-<node_id> on every node. Never fails the run.      │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 5. VERIFY ────────────────────────────────────────────────────────────────┐
@@ -112,7 +112,7 @@ site-wide, or in `inventory.yml` for one group or host.
 | `forecast_history` | `168` | Points of history used. At an hourly interval, seven days. |
 | `forecast_max_primary_shards` | `1` | `plugins.forecast.max_primary_shards`, set cluster-wide. See non-obvious settings. |
 | `forecast_result_retention` | `14d` | `plugins.forecast.forecast_result_history_retention_period`. |
-| `fleet_collector_node_ids` | `[]` | The `node_id` of every collector node. The seed cleanup derives `generic-log-info-<node_id>` from it. The playbook supplies it. |
+| `fleet_collector_node_ids` | `[]` | The `node_id` of every collector node. The seed cleanup derives `application-logs-local-<node_id>` from it. The playbook supplies it. |
 
 ### Variables the role requires but does not own
 
@@ -172,7 +172,7 @@ In a playbook, against the control host:
 - **The role is safe to re-run.** Detectors whose definition has not changed keep
   their trained models and are only restarted if they were stopped.
 - **`fleet_collector_node_ids` must be supplied.** With the default empty list the
-  seed cleanup only clears `infologger` and `generic-log-other`. Nothing fails,
+  seed cleanup only clears `infologger` and `application-logs-central`. Nothing fails,
   but the per-node info seeds stay in place.
 
 ## Couplings

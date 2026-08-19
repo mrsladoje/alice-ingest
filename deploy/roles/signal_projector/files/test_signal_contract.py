@@ -1168,7 +1168,7 @@ def _trend_rows(specs):
     hits = []
     for aid, state, start, end in specs:
         index = sp.ALERTS_CURRENT if state == "ACTIVE" else history
-        hits.append(alert_hit(aid, index, state, "trend-other-volume",
+        hits.append(alert_hit(aid, index, state, "trend-central-volume",
                               ["epn001"], start=start, end=end))
     rows = sp.merge_alert_rows(
         [sp.alert_signal(h, h["_index"]) for h in hits])
@@ -1214,7 +1214,7 @@ def test_trend_monitor_still_closes_after_its_healthy_windows():
 def test_a_replayed_clear_cannot_count_twice_toward_closing():
     stub_roster(["node-01"], {"epn001": "node-01"})
     hit = alert_hit("a-r-linger", sp.ALERTS_CURRENT, "COMPLETED",
-                    "trend-other-volume", ["epn001"], start=1000, end=1100)
+                    "trend-central-volume", ["epn001"], start=1000, end=1100)
     episodes = {}
     for cycle in range(1, 7):
         rows = sp.merge_alert_rows([sp.alert_signal(hit, sp.ALERTS_CURRENT)])
@@ -1242,8 +1242,8 @@ def test_a_bucket_alert_names_the_entity_opensearch_actually_indexes():
     indexed = {
         "_id": "a-plugin-shape", "_index": sp.ALERTS_CURRENT,
         "_source": {
-            "id": "a-plugin-shape", "monitor_name": "trend-other-volume",
-            "trigger_name": "trend-other-volume", "state": "ACTIVE",
+            "id": "a-plugin-shape", "monitor_name": "trend-central-volume",
+            "trigger_name": "trend-central-volume", "state": "ACTIVE",
             "severity": "2", "start_time": 1000,
             "last_notification_time": 1000, "monitor_id": "m1",
             "agg_alert_content": {
@@ -1267,7 +1267,7 @@ def test_a_bucket_alert_names_the_entity_opensearch_actually_indexes():
     check(row["evidence"]["bucket_keys"] == "epn001",
           f"evidence dropped the key: {row['evidence']['bucket_keys']!r}")
     helper = alert_hit("a-helper", sp.ALERTS_CURRENT, "ACTIVE",
-                       "trend-other-volume", ["epn001"], severity="2")
+                       "trend-central-volume", ["epn001"], severity="2")
     check("bucket_keys" not in helper["_source"]
           and ((helper["_source"].get("agg_alert_content") or {})
                .get("bucket_keys") == ["epn001"]),
@@ -1353,12 +1353,12 @@ def test_bucket_key_gate_runs_only_after_the_projector_restart():
 def test_a_bucket_alert_with_no_key_never_becomes_a_fleet_incident():
     stub_roster(["node-01"], {"epn001": "node-01"})
     named = sp.alert_signal(
-        alert_hit("a-named", sp.ALERTS_CURRENT, "ACTIVE", "trend-other-volume",
+        alert_hit("a-named", sp.ALERTS_CURRENT, "ACTIVE", "trend-central-volume",
                   ["epn001"], severity="2"), sp.ALERTS_CURRENT)
     for keys in (None, [], [""], ["  "]):
         row = sp.alert_signal(
             alert_hit("a-keyless", sp.ALERTS_CURRENT, "ACTIVE",
-                      "trend-other-volume", keys, severity="2"),
+                      "trend-central-volume", keys, severity="2"),
             sp.ALERTS_CURRENT)
         check(row["entity_id"] != signal_identity.sentinel("entity_id"),
               f"bucket_keys={keys!r} produced the sentinel entity. Hashing it "
@@ -1366,14 +1366,14 @@ def test_a_bucket_alert_with_no_key_never_becomes_a_fleet_incident():
               f"incident that says 'whole fleet' and names nobody.")
         check(row["class"] == sp.ENTITY_MISSING
               and row["entity_kind"] == "monitor"
-              and row["entity_id"] == "trend-other-volume",
+              and row["entity_id"] == "trend-central-volume",
               f"bucket_keys={keys!r} was not attributed to the monitor: "
               f"{row['entity_kind']}/{row['entity_id']} class {row['class']}")
         check(sp.incident_id(row) != sp.incident_id(named),
               f"bucket_keys={keys!r} shares an incident with a real breach of "
               f"the same rule")
         ep = sp.blank_incident(row, sp.incident_id(row), row["first_seen"])
-        check(ep["affected"] == "monitor trend-other-volume"
+        check(ep["affected"] == "monitor trend-central-volume"
               and "without naming an entity" in ep["title"],
               f"the operator is not told the rule is broken: "
               f"{ep['title']!r} / {ep['affected']!r}")
@@ -1382,7 +1382,7 @@ def test_a_bucket_alert_with_no_key_never_becomes_a_fleet_incident():
 def test_an_orphaned_anonymous_episode_closes_instead_of_paging_forever():
     stub_roster(["node-01"], {"epn001": "node-01"})
     named = sp.alert_signal(
-        alert_hit("a-keep", sp.ALERTS_CURRENT, "ACTIVE", "trend-other-volume",
+        alert_hit("a-keep", sp.ALERTS_CURRENT, "ACTIVE", "trend-central-volume",
                   ["epn001"], severity="2"), sp.ALERTS_CURRENT)
     named["incident_id"] = sp.incident_id(named)
     incidents = {}
@@ -1506,7 +1506,7 @@ def test_the_deploy_gate_fails_on_a_board_query_opensearch_rejects():
 def test_a_stale_error_message_cannot_steal_a_named_breach():
     stub_roster(["node-01"], {"epn001": "node-01"})
     hit = alert_hit("a-lingering", sp.ALERTS_CURRENT, "ACTIVE",
-                    "trend-other-volume", ["epn001"], severity="2")
+                    "trend-central-volume", ["epn001"], severity="2")
     hit["_source"]["error_message"] = "failed to evaluate 40 minutes ago"
     row = sp.alert_signal(hit, sp.ALERTS_CURRENT)
     check(row["class"] == sp.SINGLE and row["entity_id"] == "epn001"
@@ -1980,7 +1980,7 @@ def test_ops_actions_run_in_background_and_refresh_is_safe():
         "incidents": [],
         "replay_running": True,
         "replay_workers": 2,
-        "families": [["infologger", 7132], ["generic-log-other", 119]],
+        "families": [["infologger", 7132], ["application-logs-central", 119]],
     }
     prior_snapshot = ops.snapshot
     prior_action = ops.ACTIONS["stop"]

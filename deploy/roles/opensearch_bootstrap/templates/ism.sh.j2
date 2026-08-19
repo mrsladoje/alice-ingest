@@ -3,8 +3,8 @@ set -eu
 
 OS="${OS_URL:-http://localhost:9200}"
 
-RET_INFO="{{ ism_retention_generic_info }}"
-RET_OTHER="{{ ism_retention_generic_other }}"
+RET_INFO="{{ ism_retention_application_local }}"
+RET_OTHER="{{ ism_retention_application_central }}"
 RET_IL="{{ ism_retention_infologger }}"
 RET_AD="{{ ism_retention_ad_results }}"
 RET_ALERT="{{ ism_retention_alert_history }}"
@@ -125,13 +125,13 @@ print(json.dumps({
 ' "$desc" "$age" "$patterns" "$priority"
 }
 
-put_policy "alice-generic-info-retention" \
-  "$(rollover_delete_policy "roll generic-log-info every $ROLL_AGE_INFO/$ROLL_SIZE, delete backing indices at $RET_INFO" \
-     "$ROLL_AGE_INFO" "$ROLL_SIZE" "$RET_INFO" "generic-log-info-*" 100)"
+put_policy "alice-application-local-retention" \
+  "$(rollover_delete_policy "roll application-logs-local every $ROLL_AGE_INFO/$ROLL_SIZE, delete backing indices at $RET_INFO" \
+     "$ROLL_AGE_INFO" "$ROLL_SIZE" "$RET_INFO" "application-logs-local-*" 100)"
 
-put_policy "alice-generic-other-retention" \
-  "$(rollover_delete_policy "roll generic-log-other every $ROLL_AGE/$ROLL_SIZE, delete backing indices at $RET_OTHER" \
-     "$ROLL_AGE" "$ROLL_SIZE" "$RET_OTHER" "generic-log-other-*" 100)"
+put_policy "alice-application-central-retention" \
+  "$(rollover_delete_policy "roll application-logs-central every $ROLL_AGE/$ROLL_SIZE, delete backing indices at $RET_OTHER" \
+     "$ROLL_AGE" "$ROLL_SIZE" "$RET_OTHER" "application-logs-central-*" 100)"
 
 put_policy "alice-infologger-retention" \
   "$(rollover_delete_policy "roll infologger every $ROLL_AGE/$ROLL_SIZE, delete backing indices at $RET_IL" \
@@ -147,11 +147,11 @@ put_policy "alice-alert-actions-retention" \
   "$(rollover_delete_policy "roll alice-alert-actions every $ROLL_AGE_ACTIONS/$ROLL_SIZE_ACTIONS, delete backing indices at $RET_ACTIONS" \
      "$ROLL_AGE_ACTIONS" "$ROLL_SIZE_ACTIONS" "$RET_ACTIONS" "alice-alert-actions-*" 100)"
 
-attach_policy "alice-generic-other-retention" "generic-log-other-*"
+attach_policy "alice-application-central-retention" "application-logs-central-*"
 attach_policy "alice-infologger-retention" "infologger-*"
 attach_policy "alice-alert-actions-retention" "alice-alert-actions-*"
 for wn in $WORKER_NODES; do
-  attach_policy "alice-generic-info-retention" "generic-log-info-$wn-*"
+  attach_policy "alice-application-local-retention" "application-logs-local-$wn-*"
 done
 
 echo "[ism] DONE — rollover+delete on the log families; cockpit-metrics and trend-rollup prune by document"

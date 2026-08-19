@@ -111,7 +111,7 @@ ssh -L 5601:<control-VM-internal-ip>:5601 lxplus.cern.ch    # then https://local
 
 Open the **ALICE Cockpit** dashboard (auto-provisioned) for the unified view —
 logs on top, platform health (cluster, per-index, Fluent Bit per node, Dashboards
-itself) below — or Discover on the default `infologger,generic-log-*` pattern
+itself) below — or Discover on the default `infologger,application-logs-*` pattern
 with the seven seed saved searches (which apply their query on open, the v4 fix). For a browser-driven load without the CLI, the control node also
 serves an ops page at **`https://<control-VM>:5601/ops`** (same basic-auth) with
 safe post/redirect/get actions for **Reload data (fresh)** / **Append replay** /
@@ -158,7 +158,7 @@ into OpenSearch. First boot: OpenSearch takes ~30–90 s to go healthy (longer u
 CPU contention — it's booting, not stuck).
 
 **3. View.** Open **http://localhost:5601 → Discover**. The three index patterns
-(`infologger`, `generic-log-info`, `generic-log-other`) are already created — no
+(`infologger`, `application-logs-local`, `application-logs-central`) are already created — no
 manual setup. Pick one, set a time range, and browse.
 
 **Teardown.**

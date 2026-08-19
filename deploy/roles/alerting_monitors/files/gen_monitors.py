@@ -606,8 +606,8 @@ def trend_monitor(name, description, family, entity_kind, metric, script,
 
 for name, family, kind, label in [
     ("trend-il-volume", "infologger", "host", "InfoLogger per-host"),
-    ("trend-other-volume", "other", "host", "generic-log-other per-host"),
-    ("trend-info-volume", "info", "host", "generic-log-info per-host"),
+    ("trend-central-volume", "central", "host", "application-logs-central per-host"),
+    ("trend-local-volume", "local", "host", "application-logs-local per-host"),
 ]:
     monitors.append(trend_monitor(
         name,
@@ -624,8 +624,8 @@ for name, family, kind, label in [
 
 for name, family, kind, label in [
     ("trend-il-ef", "infologger", "host", "InfoLogger per-host error"),
-    ("trend-other-errors", "other", "host",
-     "generic-log-other per-host error"),
+    ("trend-central-errors", "central", "host",
+     "application-logs-central per-host error"),
 ]:
     monitors.append(trend_monitor(
         name,
@@ -643,12 +643,12 @@ for name, family, kind, label in [
 for name, family, kind, label, metric, field, extra in [
     ("trend-il-entry-lag", "infologger", "host", "InfoLogger per-host",
      "entry_lag", "enter_system_lag_ms", REPLAY_NOTE),
-    ("trend-info-entry-lag", "info", "host", "generic-log-info per-host",
+    ("trend-local-entry-lag", "local", "host", "application-logs-local per-host",
      "entry_lag", "enter_system_lag_ms", REPLAY_NOTE),
     ("trend-il-shipping-lag", "infologger", "node",
      "InfoLogger per-collector", "shipping_lag", "ingest_lag_ms", ""),
-    ("trend-info-shipping-lag", "info", "node",
-     "generic-log-info per-collector", "shipping_lag", "ingest_lag_ms", ""),
+    ("trend-local-shipping-lag", "local", "node",
+     "application-logs-local per-collector", "shipping_lag", "ingest_lag_ms", ""),
 ]:
     ceiling = CEILING_CLAUSE if metric == "entry_lag" else ""
     monitors.append(trend_monitor(
@@ -667,7 +667,7 @@ for name, family, kind, label, metric, field, extra in [
 monitors.append(bucket_monitor(
     "log-family-silence",
     "Page when a whole log family stops arriving. Bucketed on cohort_family, "
-    "so the entity is infologger, info or other rather than a host. This is "
+    "so the entity is infologger, local or central rather than a host. This is "
     "the monitor that owns fleet-wide log silence, and the per-host share "
     "monitors defer to it: when fleet_count is 0 a host's share of fleet "
     "volume is undefined, not zero, so trend-*-volume skips the slice "

@@ -3,7 +3,7 @@ import json
 import sys
 
 UNIFIED_ID = "alice-unified"
-UNIFIED_TITLE = "infologger,generic-log-*"
+UNIFIED_TITLE = "infologger,application-logs-*"
 METRICS_ID = "alice-metrics"
 METRICS_TITLE = "cockpit-metrics"
 AD_RESULTS_ID = "alice-ad-results"
