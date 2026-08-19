@@ -1,10 +1,16 @@
 # presentation
 
 HTML + CSS deck for the ALICE Collaboration Board, Wednesday 19 August 2026.
-Fifteen slides: title, outline, InfoLogger today, why it must change, our
-suggested architecture, why this design, why Fluent Bit, inside the collector,
-why OpenSearch, how we use OpenSearch, anomaly detection, the interface,
-deployment with Ansible, what is not built, thank you.
+
+The project's official name is **Modern Logging Platform with Machine Learning
+for HPC**. It is the title, the running head on every slide and the `<title>`
+tag. Do not shorten it and do not reintroduce "Scalable logging for ALICE O2".
+
+Sixteen slides: title, outline, logging today, what we want to build, our
+suggested architecture, federated search, why Fluent Bit, inside the collector,
+why OpenSearch, how we use OpenSearch, deployment with Ansible, the interface,
+log anomaly detection, anomaly detection on metrics, what is not built, thank
+you.
 
 ## View
 
@@ -26,10 +32,11 @@ Keys: `→` / `←` change slide, `f` goes fullscreen.
 To add a slide, copy the `slide--content` section. The footer folio numbers itself.
 On the outline list, `data-now` on an `<li>` marks the current section in red.
 
-The outline groups the twelve content slides into seven parts, and each part names
-the slides it covers: 01 the problem (slides 3-4), 02 the architecture (5-6),
-03 ingest at the edge (7-8), 04 storage (9-10), 05 anomaly detection (11),
-06 operations (12-13), 07 what is not built (14). Change the outline whenever a
+The outline groups the fourteen content slides into four parts, and each part
+names the slides it covers: 01 the problem, and the design (slides 3-6),
+02 choosing the tech (7-11), 03 what people see, and what watches it (12-14),
+04 what is next (15). "Choosing the tech" exists only here: there is no divider
+page and no running section mark anywhere else. Change the outline whenever a
 slide is added, removed or renamed, or it stops describing the deck. The closing
 slide is deliberately absent from it, because it carries no argument.
 
@@ -63,28 +70,70 @@ templates say 1, and section 5 agrees with the templates.
 
 Slide 5's arrow labels name the traffic, not the index. Only the **dds** and
 **stdout** inputs are split by severity in
-`roles/collector/templates/collector.yaml.j2` — hence "application-info" and
-"application-other". The **infologger** input is not split at all and goes to the
+`roles/collector/templates/collector.yaml.j2` — hence "application-local" and
+"application-central". The **infologger** input is not split at all and goes to the
 storage tier whole, which is why it rides the second arrow unconditionally.
 
-The index names are the **new** ones everywhere they appear —
-`application-logs-local-<node>` and `application-logs-other`. `deploy/` has not
-been renamed and still ships `generic-log-info-<node>` and `generic-log-other`,
-across 35 files that are not READMEs. Slides 5, 9, 10, 12 and 14 all carry the new
-names; slide 14 says so out loud, as an outstanding item. The deck is deliberately
-ahead of the code; rename the templates before anyone runs a command off a slide.
-Do not pair any slide with a screenshot of the real cockpit until the rename
-lands, because its saved index pattern is literally titled `infologger,generic-log-*`.
+The index names on the slides are the ones the code ships —
+`application-logs-local-<node>` and `application-logs-central`. `deploy/` carries
+the same two names, across 35 files that are not READMEs. Slides 5, 9, 10, 12 and
+15 all use them. The deck no longer runs ahead of the code, so a command read off
+a slide works as written, and a slide may be paired with a screenshot of the real
+cockpit: its saved index pattern is titled `infologger,application-logs-*`.
 
-Slide 6 states the reasoning. Its claims come from `deploy/README.md` section 2
+Slide 4 states the reasoning. Its claims come from `deploy/README.md` section 2
 (severity over source), item 4 (the `node.processors` cap and the 128-core EPN
 node), item 6, and section 1 (storage quorum of two, no collector or producer on
 that tier).
 
-Slides 7 to 14 were each grounded in `deploy/` before they were drawn, and every
+Slides 3 to 15 were each grounded in `deploy/` before they were drawn, and every
 number on them carries a `file:line` citation recorded in the drafting notes.
 Slide 7 is the only one that also cites sources outside the repository; they are
 named in its entry below.
+
+- **Slide 3, logging today.** Rebuilt and widened. The point Lubos made is that
+  we are not replacing InfoLogger, we are replacing more than that, so the slide
+  now opens with what a node actually writes: application messages through
+  libInfoLogger or piped stdout, log files on disk including ten named O2 process
+  logs, the machine's own journal, and host metrics. A red brace under the middle
+  two says **neither of these reaches InfoLogger**. The InfoLogger topology then
+  runs underneath it, unchanged, as one road out of four.
+  - **Host metrics are drawn grey and outside the brace**, with the note that
+    monitoring already collects them. ALICE O2 runs Telegraf for machine and
+    service metrics, so putting metrics in the "goes nowhere" bracket would have
+    been wrong and correctable from the floor.
+  - **The limits of today live here now**, in band 05, because the slide that
+    used to carry them was merged away. One SQL table, ten thousand rows, lines
+    not counts, archives by hand. They are stated flatly as facts about a system
+    built for a different era. The argument is made positively on slide 4.
+  - **"No counts over time" is scoped to infoBrowser**, not to InfoLogger as a
+    whole, because the server has a windowed statistics socket. The slide says
+    "infoBrowser lists messages. It draws no counts over time."
+  - **The ten-thousand-row cap is attributed to infoBrowser by name**, because
+    the limit is configurable in ILG.
+  - Where the journal and the on-disk files actually go at ALICE today is not
+    publicly documented. The slide claims only that they do not reach InfoLogger.
+    Do not add "stays on the node" or a MONIT destination without a source.
+- **Slide 6, federated search.** New. Lubos asked for it and considers it a big
+  feature, so it is framed as a feature: **one box searches the whole farm**. Five
+  bands: ask once and every node answers; one cluster and not many; data stays
+  where it was written; avoid fanout where we can; we push and we do not poll.
+  A soft caution band at the foot carries what one cluster costs us.
+  - **The slide does not claim we evaluated and rejected cross-cluster search.**
+    The repository records no such decision. It says we run one cluster, that the
+    other way is many clusters joined by cross-cluster search, and that each extra
+    cluster is one more thing to upgrade and run. Do not upgrade that to a
+    rejection.
+  - **"Many sets of credentials" is not used as a reason.** The security plugin is
+    off, so there are no in-cluster credentials today and the floor could say so.
+  - **"Most questions never fan out" is not claimed**, because it is not measured.
+    The three avoidance mechanisms are shown instead, and the default search
+    pattern's fanout is put honestly in the caution band.
+  - **Fanout is defined in red on first use**: one query that asks every machine.
+    It takes as long as the slowest machine and costs more as the farm grows.
+  - The pinning mechanism is drawn from `register_node.sh`: the machine sets
+    `node.attr.box = node-01`, the index demands `require.box = node-01`, and that
+    shard never leaves node-01.
 
 - **Slide 7, why Fluent Bit.** The comparison is sourced, not asserted, and it
   argues from maturity rather than from megabytes. Language and memory figures for
@@ -110,6 +159,26 @@ named in its entry below.
     ever trimmed, the asterisk goes with it.
   - The 450 KB is the vendor's idle figure and the caption says so, because slide 8
     bounds our own collector at 384 MB and the two must not read as a contradiction.
+  - **Telegraf is the fourth row, and it is marked A DIFFERENT JOB, not rejected.**
+    Go, no vendor figure, InfluxData, MIT rather than Apache 2.0. It is a metrics
+    agent and a good one; ALICE O2 already runs it for machine and service
+    metrics, which is confirmed by ALICE's own papers (EPJ Web of Conferences 245,
+    01042 and ICALEPCS 2019 TUDPP01). It emits measurements in line protocol — a
+    name, tags, numbers and a clock — and a log line is not that shape. Reject it
+    on the job, never on quality. There is no Telegraf logo in `assets/`, so the
+    name is set in type, as Splunk is on slide 9.
+    - Do **not** write "Telegraf cannot read logs". It can tail a file. The
+      argument is the shape of what comes out, not the input.
+    - Do **not** widen the claim to CERN. It is confirmed for ALICE O2 only. CERN
+      IT's public MONIT documentation names Fluent Bit, Node Exporter and
+      Collectd, and zero of nine MONIT pages mention Telegraf.
+  - **Band 03 renames the disk buffer, and this was a specific instruction.** It
+    is a **hiccup safety layer, not durability**. Every input writes to a local
+    disk buffer on the worker first; it survives a restart of Fluent Bit and a
+    short network outage; it does **not** survive losing the node, and those
+    records are gone. One red line then teases Kafka as the real durability, on
+    the roadmap. Keep both halves — saying only the good half is what was wrong
+    before.
 - **Slide 8, inside the collector.** Deliberately an **overview, not the
   internals**. It draws the five stages Fluent Bit puts a line through — input,
   tag, filter, retag, output — in plain words, with one concrete example under
@@ -135,17 +204,37 @@ named in its entry below.
     and `roles/collector/files/fb_health.py` collects eight counters with no memory
     field. Fill it in after the soak, and nothing else on the slide has to move.
   - **The figure has no caption on purpose.** It had one; it repeated the diagram.
-- **Slide 6, why this design.** Not a prose list. It is an asymmetric board:
+- **Slide 4, what we want to build.** Not a prose list. It is an asymmetric board:
   twelve columns, three rows, six cells of deliberately unequal size, separated
   by hairlines rather than gaps. Two cells carry the weight — the red **no bulk
   over the wire** cell and the full-height **split by severity** cell — and four
   are quiet. The labels are the argument, so they are set as words a board member
-  can repeat: DISTRIBUTED, DURABLE, WORKERS STAY CHEAP, ONE MACHINE MAY DIE. The
+  can repeat: DISTRIBUTED, DURABLE, WORKERS STAY CHEAP, FAULT TOLERANT. The
   six icons are hairline geometry drawn here, in one stroke weight; none of them
   is a brand mark. The trade stays on the slide: losing a worker costs that
   worker's own info logs, and we took it. Layout lives in `.stage--dboard`,
   `.d-board` and `.d-cell` in `css/deck.css`; the cells are placed by
   `is-c1` to `is-c6`.
+  - **This slide absorbed "why it must change", which no longer exists.** Lubos
+    asked for the two to merge and for the tone to be positive: what we gain, not
+    what is broken. The concrete limits of today moved backwards to slide 3 and
+    must not be restated here.
+  - **It now runs before the architecture, framed as the objective.** It states
+    the six properties the platform must have; slide 5 then shows the machines
+    that meet them.
+  - **Its CSS delta is scoped to `.stage--buys`**, a third class on this slide's
+    own stage div: `<div class="stage stage--dboard stage--buys">`. Remove that
+    class and the whole delta stops applying. It is scoped on purpose, because
+    `stage--dboard` is a shared board style.
+  - **DURABLE names its own exclusion in the same sentence**: "Durable means the
+    storage tier, not a worker's disk buffer." That is not padding. Slide 7 spends
+    a whole band renaming the worker's buffer, and the two must not contradict.
+  - **Six cells, not seven.** The board now has about 525px where the six cells
+    were designed for 385px, and the extra went to air and larger icons. Adding a
+    seventh cell takes that back.
+  - The deleted slide's date block (`.deadline`, "LHC switched off 29 June 2026 /
+    Run 4 first beam June 2030") went with it, and the now-unused `.deadline` rule
+    was removed from `deck.css`. Those two dates are currently nowhere in the deck.
 - **Slide 9, why OpenSearch.** Built to the same grammar as slide 7: three axes
   (licence and governance, what it can answer, what it costs us to run), a
   full-width red row for the choice, and the reason line inside that row. Rows
@@ -175,7 +264,7 @@ named in its entry below.
     watch items, beside the JVM heap and the memory outside it. The old retention
     timeline was the whole slide and it was the least important fact on it. Do not
     bring it back.
-- **Slide 11, anomaly detection.** One slide, replacing two. Three bands: where
+- **Slide 14, anomaly detection on metrics.** One slide, replacing two. Three bands: where
   the numbers come from, three lanes that read them, and hits folding into one
   alert. It names no detector and lists no monitor. Counts only.
   - **Push versus poll is stated exactly.** Every worker pushes its own counters
@@ -198,7 +287,7 @@ named in its entry below.
   Each row says what it answers and who opens it. Port numbers, panel counts,
   saved-object counts, heap figures and row limits were all cut on purpose: they
   are maintenance trivia and they made the slide dense.
-- **Slide 13, deployment with Ansible.** Not the play order. The play ladder was
+- **Slide 11, deployment with Ansible.** Not the play order. The play ladder was
   removed because a Collaboration Board does not want a play list. Band 01 is the
   same comparison grammar as slide 7, on three questions: an agent on every
   machine, when it runs, and whether it also creates the machines. Band 02 is four
@@ -208,19 +297,78 @@ named in its entry below.
     for the farm; it is wrong for five machines one person deploys. Saying that
     out loud costs nothing and buys credibility. Do not sharpen it.
   - No Makefile and no `make` command appear anywhere on the slide.
-- **Slide 14, what is not built.** Five items in the order we would build them,
+- **Slide 15, what is not built.** Five items in the order we would build them,
   as a table with unequal rows, the Kafka row at twice the height and in red.
   Kafka for durability first, then more log types, then anomaly detection on the
   log text itself, then the shifter's own view, then authentication inside the
   cluster.
+  - **The prose inside each cell is now bullets**, at Lubos's request, so a glance
+    lands. The uneven-row table stays and the Kafka row stays double height and
+    red. KRaft is defined on the slide: Kafka keeping its own cluster state, with
+    no separate coordination service beside it.
+  - **Row 2 cross-references slide 3 and row 3 cross-references slide 13.** Both
+    say a slide number out loud. If the running order changes, both strings must
+    change with it.
   - **Three earlier items were deleted and must not come back**: "the names are
     ahead of the code", "no alert reaches a person", and "the model budget is
     unproven". The first is an internal chore and reads as an admission of
     sloppiness to a room that does not care about index naming.
 
-Every marker `id` in the deck must stay unique, because all fourteen slides live
-in one document. Currently: `ah`, `ahs`, `a5`, `a7`, `a7s`, `a9b`, `a10n`,
-`a12`.
+- **Slide 13, log anomaly detection.** New, and marked COMING SOON in a solid red
+  badge. Everything the platform runs today watches numbers about the logs. Nothing
+  reads the words in the line. Lubos considers the log text to be the real work,
+  and it is one of the project's next focuses, so it gets its own page ahead of the
+  metrics one.
+  - **All three routes are shown as equal, and none is chosen.** Templating alone,
+    k-NN alone, and the two fused. This is deliberate: the choice is genuinely not
+    made, and the slide says so twice. Do not quietly pick one.
+  - **The trade-offs come from `docs/explained/ANOMALY_DETECTION.md`, verbatim in
+    substance.** Templating alone: the signal runs out, because software can only
+    print the messages in its source, so once every template has been seen it stops
+    firing. k-NN alone: rejected on cost, every line through a model at ingest and
+    millions of vectors in memory already rationed. Fused: it fixes the cost and
+    inherits some of the saturation, and that document names it as still open.
+  - **The pipeline is push-based with little work on the worker**: extract the
+    template and count it, which needs no model; push template counts and any
+    unseen template upward; the storage tier holds the vocabulary and does the
+    scoring. Nothing polls the worker.
+  - Nothing on this slide is built. If the badge is ever removed, the slide is a
+    lie.
+- **Slide 14 opens with a scope line, and it is not an apology.** "This lane
+  watches the numbers about the logs: counts, error rates and lag. It does not
+  read the log text. The log text has its own lane, on the page before." The
+  slide moved to second-last at Lubos's request; the content did not change,
+  because it is built and it runs.
+
+Every marker `id` in the deck must stay unique, because all sixteen slides live
+in one document. Currently: `a9b`, `a10n`, `a12`, `mk03a`, `mk03s`, `mk04a`,
+`mk05a`, `mk08a`, `mk08b`, `mk13a`, `mk13r`.
+
+## Template geometry, revised 18 August 2026
+
+The template used to eat 40% of every slide. Lubos said so and he was right. It
+now eats about 25%, and the room that freed went to the figures, not to type.
+These six numbers are the change. Do not put them back.
+
+| Rule | Was | Is | Why |
+|---|---|---|---|
+| `.slide` padding | `8cqh 7cqw` | `5cqh 5cqw` | the biggest single win, 54px of height |
+| `.slide--title` padding | — | `6cqh 7cqw` | the title slide keeps its old air; only content slides are tight |
+| `.masthead` padding-bottom | `3cqh` | `2cqh` | with `.slide--title .masthead` restoring `3cqh` |
+| `.slide--content .masthead img` | `7.5cqh` | `5.5cqh` | the running logo is a mark, not a headline |
+| `.slide--content .stage` padding | `5cqh 0` | `1.5cqh 0` | the stage was double-padding inside an already padded slide |
+| `.slide--content .stage` columns | `30cqw 1fr` | `24cqw 1fr` | 35% of the width for two words was the horizontal version of the same waste |
+| `.keyfacts` font-size | `1.35cqh` | `1.70cqh` | 12px to 15px, still under the lede's `1.95cqh` so it stays a caption |
+
+Content height went from about 535px of 900 to about 675px. The figure column
+went from about 51cqw to about 61cqw, and because every figure is an SVG that
+keeps its aspect ratio, figures grew about 20% in both directions on their own.
+That is the mechanism: **the vertical room is spent by widening the figure**, not
+by any height rule. If you ever narrow the figure column again, the slides will
+not just get narrower, they will get shorter and leave slack.
+
+Type inside figures was deliberately **not** enlarged. The instruction was more
+air and bigger pictures, not bigger words.
 
 ### Contradictions found in `deploy/` while building these slides
 
@@ -390,4 +538,13 @@ trademarks of the Apache Software Foundation.
 ## Export to PDF
 
 Print from Chrome. The `@media print` rule sets a 1600 × 900 page with no margins.
-Turn on "Background graphics".
+Turn on "Background graphics". A correct export is **sixteen pages**.
+
+Headless, for a check:
+
+```
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --headless --disable-gpu --no-pdf-header-footer \
+  --print-to-pdf=deck.pdf --virtual-time-budget=8000 \
+  "file://$PWD/index.html"
+```
