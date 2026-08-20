@@ -1,4 +1,4 @@
-- name: Provision the 5 CERN OpenStack VMs for alice-ingest (2 worker + 3 storage)
+- name: Provision the CERN OpenStack VMs for alice-ingest (one per machine in provision_machines)
   hosts: localhost
   connection: local
   gather_facts: false
@@ -93,23 +93,25 @@
     - name: "Create the alice-ingest VMs (idempotent by name; does not block on boot)"
       openstack.cloud.server:
         state: present
-        name: "{{ item }}"
+        name: "{{ item.name }}"
         image: "{{ os_image }}"
-        flavor: "{{ os_flavor }}"
+        flavor: "{{ item.flavor | default(os_flavor) }}"
         key_name: "{{ keypair_name }}"
         network: "{{ os_network }}"
-        security_groups: "{{ ['default', ssh_security_group] + ([dashboards_security_group] if item in groups['control'] else []) }}"
+        security_groups: "{{ ['default', ssh_security_group] + ([dashboards_security_group] if (item.dashboards | default(false)) else []) }}"
         auto_ip: false
         wait: false
-      loop: "{{ groups['alice_nodes'] }}"
-
-    - name: "Wait for each VM to reach ACTIVE (all five are building at once)"
-      openstack.cloud.server_info:
-        name: "{{ item }}"
-      register: _server_state
-      loop: "{{ groups['alice_nodes'] }}"
+      loop: "{{ provision_machines }}"
       loop_control:
-        label: "{{ item }}"
+        label: "{{ item.name }} ({{ item.flavor | default(os_flavor) }})"
+
+    - name: "Wait for each VM to reach ACTIVE (they are all building at once)"
+      openstack.cloud.server_info:
+        name: "{{ item.name }}"
+      register: _server_state
+      loop: "{{ provision_machines }}"
+      loop_control:
+        label: "{{ item.name }}"
       until: >-
         (_server_state.servers | default([]) | length) > 0
         and _server_state.servers[0].status in ['ACTIVE', 'ERROR']
@@ -119,41 +121,51 @@
     - name: "Fail with the cloud's own reason if any VM did not build"
       ansible.builtin.assert:
         that: item.servers[0].status == 'ACTIVE'
-        success_msg: "{{ item.item }} is ACTIVE."
+        success_msg: "{{ item.item.name }} is ACTIVE."
         fail_msg: >-
-          {{ item.item }} did not build (status={{ item.servers[0].status }}).
+          {{ item.item.name }} did not build (status={{ item.servers[0].status }}).
           Reason reported by OpenStack:
           {{ item.servers[0].fault | default('(none reported)') }}
       loop: "{{ _server_state.results }}"
       loop_control:
-        label: "{{ item.item }}"
+        label: "{{ item.item.name }}"
 
-    - name: "Determine each VM's assigned IPv4 and build the generated-inventory host map"
+    - name: "Determine each machine's assigned IPv4"
       ansible.builtin.set_fact:
-        _generated_hosts: >-
+        _machine_ips: >-
           {{
-            _generated_hosts | default({}) | combine({
-              item.item: {
-                'ansible_host': (item.servers[0].addresses[os_network]
-                  | selectattr('version', 'equalto', 4)
-                  | map(attribute='addr')
-                  | first)
-              }
+            _machine_ips | default({}) | combine({
+              item.item.name: (item.servers[0].addresses[os_network]
+                | selectattr('version', 'equalto', 4)
+                | map(attribute='addr')
+                | first)
             })
           }}
       loop: "{{ _server_state.results }}"
       loop_control:
-        label: "{{ item.item }}"
+        label: "{{ item.item.name }}"
 
-    - name: "Wait for SSH (tcp/22) to accept connections on each VM"
+    - name: "Wait for SSH (tcp/22) to accept connections on each machine"
       ansible.builtin.wait_for:
-        host: "{{ item.value.ansible_host }}"
+        host: "{{ item.value }}"
         port: 22
         timeout: "{{ provision_ssh_timeout }}"
-      loop: "{{ _generated_hosts | dict2items }}"
+      loop: "{{ _machine_ips | dict2items }}"
       loop_control:
         label: "{{ item.key }}"
       when: provision_wait_for_ssh | bool
+
+    - name: "Map every inventory host onto the machine it runs on"
+      ansible.builtin.set_fact:
+        _generated_hosts: >-
+          {{
+            _generated_hosts | default({}) | combine({
+              item: {
+                'ansible_host': _machine_ips[hostvars[item].machine | default(item)]
+              }
+            })
+          }}
+      loop: "{{ groups['alice_nodes'] }}"
 
     - name: "Write inventory.generated.yml with the real assigned IPs"
       ansible.builtin.copy:

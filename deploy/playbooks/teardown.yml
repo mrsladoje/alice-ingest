@@ -1,4 +1,4 @@
-- name: Tear down the 5 CERN OpenStack VMs for alice-ingest (2 worker + 3 storage)
+- name: Tear down the CERN OpenStack VMs for alice-ingest (one per machine in provision_machines)
   hosts: localhost
   connection: local
   gather_facts: false
@@ -35,10 +35,12 @@
     - name: "Delete the alice-ingest VMs (idempotent — missing servers are not an error)"
       openstack.cloud.server:
         state: absent
-        name: "{{ item }}"
+        name: "{{ item.name }}"
         wait: true
         timeout: 300
-      loop: "{{ groups['alice_nodes'] }}"
+      loop: "{{ provision_machines }}"
+      loop_control:
+        label: "{{ item.name }}"
 
     - name: "Re-close 5601 by removing the Dashboards security group's ingress rule on tcp/{{ _dashboards_port }}"
       openstack.cloud.security_group_rule:

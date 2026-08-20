@@ -2,6 +2,16 @@ all:
   vars:
     ansible_user: root
 
+    # The OpenStack machines provision.yml creates. One entry per VM, which on
+    # this inventory is one entry per OpenSearch node.
+    provision_machines:
+      - name: alice-ingest-1
+      - name: alice-ingest-2
+      - name: alice-ingest-3
+        dashboards: true
+      - name: alice-ingest-4
+      - name: alice-ingest-5
+
   children:
 
     alice_nodes:
@@ -36,6 +46,8 @@ all:
             alice-ingest-5:
               ansible_host: 203.0.113.15
               node_id: node-05
+
+    container_hosts: {}
 
     control:
       hosts:
