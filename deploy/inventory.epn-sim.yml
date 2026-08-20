@@ -1,0 +1,71 @@
+all:
+  vars:
+    ansible_user: root
+
+    provision_machines:
+      - name: alice-epn-w1
+      - name: alice-epn-w2
+      - name: alice-epn-w3
+      - name: alice-epn-s1
+        flavor: m2.large
+        dashboards: true
+
+  children:
+
+    alice_nodes:
+      children:
+        workers:
+          vars:
+            node_tier: worker
+            opensearch_heap_size: "1g"
+          hosts:
+            alice-epn-w1:
+              node_id: node-01
+              epn_partition: 0
+            alice-epn-w2:
+              node_id: node-02
+              epn_partition: 1
+            alice-epn-w3:
+              node_id: node-03
+              epn_partition: 2
+        storage:
+          vars:
+            node_tier: storage
+            opensearch_install_method: container
+            opensearch_heap_size: "1g"
+            opensearch_container_memory_max: "2G"
+            machine: alice-epn-s1
+          hosts:
+            os-node-04:
+              node_id: node-04
+              opensearch_http_port: 9201
+              opensearch_transport_port: 9301
+            os-node-05:
+              node_id: node-05
+              opensearch_http_port: 9202
+              opensearch_transport_port: 9302
+            os-node-06:
+              node_id: node-06
+              opensearch_http_port: 9203
+              opensearch_transport_port: 9303
+
+    control:
+      hosts:
+        os-node-04: {}
+
+    projector:
+      hosts:
+        os-node-05: {}
+
+    background:
+      hosts:
+        os-node-05:
+          background_services: [rollup]
+
+    livelane:
+      hosts:
+        os-node-06: {}
+
+    container_hosts:
+      hosts:
+        os-node-04: {}

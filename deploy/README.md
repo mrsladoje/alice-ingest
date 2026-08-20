@@ -265,6 +265,29 @@ so a plaintext draft can never be committed by accident — only the encrypted
 file should ever exist on disk. Every subsequent playbook run needs
 `--ask-vault-pass` (or `--vault-password-file <path>` if you keep one
 locally; also gitignored).
+### 3.4 EPN farm access (staging)
+
+The EPN farm is a **separate environment from the OpenStack VMs above**. It is
+not reachable through the `OS_*` / `openstack.cloud` path; it is plain SSH
+through an EPN login node (`alihlt-gw-prod.cern.ch:2020`, or
+`alice-epn.cern.ch`), tunnelled via `lxplus`/`lxtunnel` from outside the CERN
+network. Root is granted on the nodes allocated to us.
+
+The authoritative instructions — login nodes, the `~/.ssh/config` that makes
+`ssh epn228` work from anywhere, SOCKS proxies for EPN-internal web services —
+are at **`https://alice-epn.docs.cern.ch/general/ssh.html`** (CERN SSO).
+Operational notes for this deployment belong in the `alice-epn/docs`
+repository.
+
+A personal working copy, including the node allocation table, lives at
+[`../docs/EPN-ACCESS.md`](../docs/EPN-ACCESS.md). It is **gitignored** — if it
+is not on your checkout, read the upstream page above.
+
+**What it means for Ansible.** With the upstream `Host epn*` block in
+`~/.ssh/config` (`HostName %h.internal`, `ProxyJump login`), the inventory can
+name nodes bare — `epn146` — and Ansible inherits both the jump and the
+`ControlMaster` multiplexing. No `ansible_ssh_common_args` is needed, and the
+control node can be a laptop rather than lxplus.
 
 ---
 
@@ -313,6 +336,60 @@ second, so the generated file's real IPs silently override the placeholders
 for the same host names — nothing needs editing by hand, and `site.yml` never
 sees a placeholder IP. Re-running `provision.yml` (e.g. after a VM was
 recreated) just refreshes `inventory.generated.yml`.
+
+**A host is not a machine.** `provision.yml` builds one VM per entry in
+`provision_machines`, and then maps every host in `alice_nodes` onto the
+machine it lives on. A host declares its machine with the `machine` variable;
+a host with no `machine` variable is its own machine, which is the case for
+every host in `inventory.yml`. That indirection is what lets three storage
+hosts share one VM in the rehearsal inventory below, and it is why
+`provision_machines` exists rather than the playbook looping over
+`groups['alice_nodes']`.
+
+### 4.0 The EPN rehearsal — `inventory.epn-sim.yml`
+
+The EPN farm allocates **three worker nodes** (`epn146`, `epn228`, `epn323`)
+and **one machine for the storage tier** (`epn-infra13`). The storage tier
+stays three nodes; they become three podman containers on that one machine.
+`inventory.epn-sim.yml` reproduces that shape on OpenStack so the whole thing
+can be rehearsed before it touches the farm:
+
+| | Machines | Nodes | Flavor |
+|---|---|---|---|
+| Workers | `alice-epn-w1..w3` | `node-01..03`, native RPM | `m2.medium` |
+| Storage | `alice-epn-s1` | `node-04..06`, containers on one VM | `m2.large` |
+
+Four VMs, ten cores, 18.75 GB — the whole personal quota is 10 cores and
+40 GB. The three storage hosts (`os-node-04`, `os-node-05`, `os-node-06`) all
+carry `machine: alice-epn-s1`, `opensearch_install_method: container`, and
+their own `opensearch_http_port` / `opensearch_transport_port` pair
+(9201–9203 and 9301–9303). Everything else — the tier attributes, the shard
+allocation filters, the replica counts, the index templates, the monitors —
+is unchanged from the five-VM layout.
+
+`ansible.cfg` points at `inventory.yml`, so this inventory is passed
+explicitly:
+
+```bash
+cd deploy
+ansible-playbook -i inventory.epn-sim.yml -i inventory.generated.yml \
+  playbooks/provision.yml
+ansible-playbook -i inventory.epn-sim.yml -i inventory.generated.yml \
+  playbooks/site.yml --ask-vault-pass
+```
+
+Two consequences of three hosts on one machine, both deliberate:
+
+- **`common` runs three times on the storage machine**, once per host. It is
+  idempotent, so the result is right; it costs runtime, not correctness.
+- **`container_host` runs once**, because it targets the `container_hosts`
+  group, which names one host per machine. Podman and the quadlet directory
+  are machine-level facts, not node-level ones.
+
+What this does **not** rehearse is fault tolerance. Three replicas on one disk
+survive nothing. The layout exists so that the design does not have to change
+when the storage tier grows onto a second machine — see "What the container
+path does not simulate" in `roles/opensearch/README.md`.
 
 ### 4.1 Two auth paths
 

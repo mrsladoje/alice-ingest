@@ -39,3 +39,6 @@ LUBOS_MEETING.md
 
 # Soak rig run artefacts (fixtures, CSVs, charts)
 tools/soak/runs/
+
+# EPN farm access (personal copy; upstream is alice-epn.docs.cern.ch)
+docs/EPN-ACCESS.md
