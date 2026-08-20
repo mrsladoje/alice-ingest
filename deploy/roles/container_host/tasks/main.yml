@@ -1,0 +1,30 @@
+- name: Install the container runtime
+  ansible.builtin.dnf:
+    name: "{{ container_host_packages }}"
+    state: present
+
+- name: Read the installed podman version
+  ansible.builtin.command:
+    cmd: podman --version
+  register: _podman_version
+  changed_when: false
+
+- name: Assert podman is new enough to generate systemd units from quadlet files
+  ansible.builtin.assert:
+    that:
+      - (_podman_version.stdout.split()[2] is version(container_host_min_podman_version, '>='))
+    fail_msg: >-
+      podman {{ _podman_version.stdout.split()[2] }} cannot read
+      {{ container_host_quadlet_dir }}. Quadlet arrived in podman
+      {{ container_host_min_podman_version }}, and the OpenSearch instances on
+      this machine are declared as .container units.
+    success_msg: "podman {{ _podman_version.stdout.split()[2] }} supports quadlet."
+
+- name: Ensure the quadlet unit directory exists
+  ansible.builtin.file:
+    path: "{{ container_host_quadlet_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+

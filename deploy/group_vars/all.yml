@@ -49,14 +49,32 @@ alice_service_memory_max: "512M"
 # Its memory bounds are role defaults, in roles/signal_projector.
 signal_projector_host: "{{ groups['projector'][0] }}"
 
+# Both ports are declared here, not only in roles/opensearch/defaults/main.yml,
+# because the discovery lists below read them out of hostvars — and hostvars
+# holds group and host variables, never a role default. An inventory host entry
+# outranks this file, which is how three containers on one machine each get
+# their own pair.
 opensearch_http_port: 9200
+opensearch_transport_port: 9300
 
-# opensearch_transport_port, opensearch_data_path and opensearch_log_path moved
-# into roles/opensearch/defaults/main.yml. Nothing outside that role reads them.
+# opensearch_data_path and opensearch_log_path stay in the role's defaults.
+# Nothing outside that role reads them.
 
-opensearch_cluster_hosts: "{{ groups['alice_nodes'] | map('extract', hostvars, 'ansible_host') | list }}"
-opensearch_seed_hosts: "{{ groups['storage'] | map('extract', hostvars, 'ansible_host') | list }}"
+# Distinct addresses, because three storage nodes may share one machine and one
+# IP. The list feeds firewalld source rules, where a repeat is a duplicate rule.
+opensearch_cluster_hosts: "{{ groups['alice_nodes'] | map('extract', hostvars, 'ansible_host') | unique | list }}"
+
+# address:port, not address. Nodes that share an IP are only distinguishable to
+# discovery by their transport port.
+opensearch_seed_hosts: "{{ groups['storage'] | map('extract', hostvars, 'ansible_host') | list |
+  zip(groups['storage'] | map('extract', hostvars, 'opensearch_transport_port') | list) |
+  map('join', ':') | list }}"
 opensearch_initial_cluster_manager_nodes: "{{ groups['storage'] | map('extract', hostvars, 'node_id') | list }}"
+
+# The instance identity the opensearch role builds its container name, unit
+# name and per-instance paths from. It is node_id, resolved here because a role
+# default must never name an inventory variable it does not declare.
+opensearch_instance_id: "{{ node_id }}"
 
 # The worker node identities the bootstrap writes a per-node index template and
 # retention policy for. Resolved here so opensearch_bootstrap names no inventory
@@ -101,8 +119,9 @@ producer_allowed_client_addresses: "{{ [control_host_address] }}"
 fault_agent_services: "{{ (['fluent-bit'] if inventory_hostname in groups['workers'] else []) +
   (['alice-signal-projector'] if inventory_hostname == signal_projector_host else []) }}"
 
-dashboards_opensearch_hosts: "{{ groups['storage'] | map('extract', hostvars, 'ansible_host') |
-  map('regex_replace', '^(.*)$', 'http://\\1:' ~ (opensearch_http_port | string)) | list }}"
+dashboards_opensearch_hosts: "{{ groups['storage'] | map('extract', hostvars, 'ansible_host') | list |
+  zip(groups['storage'] | map('extract', hostvars, 'opensearch_http_port') | list) |
+  map('join', ':') | map('regex_replace', '^(.*)$', 'http://\\1') | list }}"
 
 dashboards_internal_port: 5602
 dashboards_external_port: 5601

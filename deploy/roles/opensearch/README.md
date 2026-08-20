@@ -1,17 +1,24 @@
 # `opensearch`
 
-Installs one OpenSearch node on every VM in the cluster and joins them into a
-single cluster. It opens the two cluster ports to the other nodes, installs the
-version-pinned RPM, writes the node's identity and tier into `opensearch.yml`,
-caps the heap, starts the service, and proves that the detection plugins
-answer.
+Installs one OpenSearch node and joins it to the `alice-logs` cluster. It opens
+the two cluster ports to the other nodes, installs the version-pinned build,
+writes the node's identity and tier into `opensearch.yml`, caps the heap, starts
+the service, and proves that the detection plugins answer.
+
+It installs **either** the vendor RPM **or** a podman container, chosen by
+`opensearch_install_method`. One node per machine is an RPM. Several nodes on
+one machine are containers, because a second RPM install cannot give a second
+service, data directory and port pair on the same host.
 
 The role does not create indices, index templates, retention policies or the
 ingest pipeline. The `opensearch_bootstrap` role does that, once, on the control
 host.
 
-It runs on all five nodes in one play, so that a storage-tier node can be
-elected cluster manager while the whole cluster comes up together.
+It runs on every node in one play, so that a storage-tier node can be elected
+cluster manager while the whole cluster comes up together. "Node" means an
+inventory host, not a machine: three inventory hosts may share one
+`ansible_host`, and then this role runs three times on that machine and builds
+three instances.
 
 ## What it does
 
@@ -23,15 +30,26 @@ elected cluster manager while the whole cluster comes up together.
 │  9300/tcp   transport   rich rule per address in opensearch_cluster_hosts  │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
-┌─ 2. INSTALL — signed RPM, version-pinned ──────────────────────────────────┐
+┌─ 2a. INSTALL, native — signed RPM, version-pinned ─────────────────────────┐
 │  yum_repository             artifacts.opensearch.org, gpgcheck on          │
 │  rpm_key                    signing key into the rpm keyring               │
 │  dnf install                opensearch-{{ opensearch_version }}            │
 │  DISABLE_INSTALL_DEMO_CONFIG   suppresses the demo security material       │
+│  ulimits-override.conf      LimitMEMLOCK, LimitNOFILE on the vendor unit   │
+└────────────────────────────────────┬───────────────────────────────────────┘
+                                     v
+┌─ 2b. INSTALL, container — one podman instance ─────────────────────────────┐
+│  /etc/opensearch/<node_id>  this instance's own configuration directory    │
+│  podman pull                opensearchproject/opensearch:{{ version }}     │
+│  <node_id>.container        a quadlet unit; systemd generates the service  │
+│  Network=host               distinct http.port/transport.port per instance │
+│  --ulimit memlock=-1        the same limit the RPM path sets on the unit   │
+│  DISABLE_INSTALL_DEMO_CONFIG   the same env the RPM path passes to dnf     │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 3. DIRECTORIES ───────────────────────────────────────────────────────────┐
 │  /var/lib/opensearch        0750, owned by opensearch                      │
+│    .../<node_id> per instance and owned by uid 1000 on the container path  │
 │  /var/log/opensearch        0750, owned by opensearch                      │
 │  /etc/alice-ingest          0755, root — shared with the collector         │
 └────────────────────────────────────┬───────────────────────────────────────┘
@@ -219,6 +237,19 @@ In a playbook, against every node in the cluster:
   `ism.sh.j2` in `opensearch_bootstrap` creates the policy under that exact name,
   `verify_detection.py` asserts it, and `register_node.sh` falls back to the same
   literal. A variable here would only let one end of the set move.
+- **`opensearch_seed_hosts` carries ports, not bare addresses.** Three nodes on
+  one machine share one IP, and discovery can only tell them apart by transport
+  port. `group_vars/all.yml` builds the list as `address:port`, reading each
+  host's `opensearch_transport_port` out of `hostvars` — which is why both ports
+  are declared there and not only in this role's defaults. A role default never
+  reaches `hostvars`.
+- **`opensearch_quadlet_dir` must equal `container_host_quadlet_dir`.** The
+  `container_host` role creates that directory; this role writes
+  `opensearch-<node_id>.container` into it.
+- **The container path is not enabled by systemd.** Quadlet generates the unit
+  at `daemon-reload`, and a generated unit cannot be enabled — its `[Install]`
+  section does that instead. `opensearch_service_enabled` is therefore false on
+  the container path, and the role only ever starts the service.
 - **`opensearch_cluster_hosts` only ever adds.** firewalld keeps a permanent rule
   once given one, so removing an address does not close the port on a node that
   already ran. Closing it means `state: disabled` or a fresh provision.
@@ -266,6 +297,42 @@ settings published to each node, and the plugin gate.
 
 **Re-open this decision** if the OpenSearch project publishes its role to Ansible
 Galaxy.
+
+## The container path, in variables
+
+Everything below is derived from `opensearch_install_method` and
+`opensearch_instance_id`. Set the method on a group and the identity in
+`group_vars/all.yml`; nothing else needs an inventory entry except the two
+ports.
+
+| Name | Native | Container |
+|---|---|---|
+| `opensearch_service_name` | `opensearch` | `opensearch-<node_id>` |
+| `opensearch_service_enabled` | true | false — see the coupling above |
+| `opensearch_config_dir` | `/etc/opensearch` | `/etc/opensearch/<node_id>` |
+| `opensearch_data_path` | `/var/lib/opensearch` | `/var/lib/opensearch/<node_id>` |
+| `opensearch_log_path` | `/var/log/opensearch` | `/var/log/opensearch/<node_id>` |
+| `opensearch_path_data_setting` | the host path | `/usr/share/opensearch/data`, the path inside the container |
+| `opensearch_dir_owner` | `opensearch` | `1000`, the image's own uid |
+| `opensearch_plugin_list_cmd` | `opensearch-plugin list` | the same, through `podman exec` |
+
+Two more are set per host in the inventory, because they are the only values
+that must differ between instances on one machine: `opensearch_http_port` and
+`opensearch_transport_port`.
+
+`opensearch_container_memory_max` is empty by default. Set it on a machine that
+carries several instances, or on a shared node, and it becomes the unit's
+`MemoryMax`.
+
+## What the container path does not simulate
+
+Three containers on one machine give three services, three data directories and
+a real cluster-manager quorum of three. They do **not** give fault tolerance. A
+replica whose primary is on the same physical disk protects against nothing, and
+the machine is a single failure domain. The layout exists so the tier design —
+`node.attr.role`, the shard-allocation filters, the replica counts, the index
+templates — stays byte-identical to the multi-machine one, and so the move to
+several machines is an inventory change rather than a redesign.
 
 ## Used by
 

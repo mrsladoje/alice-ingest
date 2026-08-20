@@ -1,6 +1,6 @@
 # `deploy/roles`
 
-Seventeen roles. Each one owns a single lifecycle: one package, one service,
+Eighteen roles. Each one owns a single lifecycle: one package, one service,
 one closed set of REST objects, or one shared file set. A role never installs a
 thing it does not also configure, start and prove.
 
@@ -11,8 +11,9 @@ the wiring diagram, the variables it reads and the couplings it carries.
 
 | Role | Runs on | What it does |
 | --- | --- | --- |
-| `common` | all 5 VMs | Prepares a bare Alma 9 host: swap file, the two kernel parameters OpenSearch needs, baseline packages, clock, firewalld. Runs first. |
-| `opensearch` | all 5 VMs | Installs one OpenSearch node per VM and joins them into the `alice-logs` cluster. Writes the node identity and tier, caps the heap, opens 9200 and 9300 to cluster members only. |
+| `common` | every VM | Prepares a bare Alma 9 host: swap file, the two kernel parameters OpenSearch needs, baseline packages, clock, firewalld. Runs first. |
+| `container_host` | machines carrying more than one node | Installs podman and proves it is new enough to read quadlet unit files. Runs once per machine, not once per node. The kernel parameters stay with `common`. |
+| `opensearch` | every node | Installs one OpenSearch node and joins it to the `alice-logs` cluster. Writes the node identity and tier, caps the heap, opens its HTTP and transport ports to cluster members only. Installs from the vendor RPM or as a podman container, chosen by `opensearch_install_method`. |
 | `opensearch_bootstrap` | control | Applies the cluster-wide state that must exist exactly once: ingest pipeline, component and index templates, cluster settings, pre-created indices, retention policies. |
 | `opensearch_local_index_registration` | control + workers | Installs `register_node.sh`, the one definition of a worker's local index template, retention attachment and write alias. Installed by two callers; starts nothing itself. |
 | `alertmanager` | control | Installs Prometheus Alertmanager: severity-tiered grouping, one webhook receiver, inhibit rules generated from the repository's causal edges. Decides when a human is told. |
@@ -34,8 +35,8 @@ the wiring diagram, the variables it reads and the couplings it carries.
 `playbooks/site.yml` runs the roles in the order of the table. The order is a
 dependency chain, not a preference:
 
-1. **Hosts, then the cluster.** `common` on all five VMs, then `opensearch` on
-   all five in one play, so a storage-tier node can be elected cluster manager
+1. **Hosts, then the cluster.** `common` on every VM, `container_host` on any
+   machine that carries several nodes, then `opensearch` on every node in one play, so a storage-tier node can be elected cluster manager
    while the cluster comes up together. A rolling gate follows.
 2. **Cluster state, then the things that read it.** `opensearch_bootstrap`
    creates the indices before any index pattern, monitor or detector names one.

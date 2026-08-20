@@ -144,11 +144,17 @@
         daemon_reload: true
       failed_when: false
 
-- name: Common host prep (all 5 VMs — workers + storage)
+- name: Common host prep (every VM — workers + storage)
   hosts: alice_nodes
   become: true
   roles:
     - common
+
+- name: Container runtime, once per machine that hosts more than one OpenSearch node
+  hosts: container_hosts
+  become: true
+  roles:
+    - container_host
 
 - name: OpenSearch cluster — initial bring-up (all 5 nodes together, so a storage-tier manager can be elected)
   hosts: alice_nodes

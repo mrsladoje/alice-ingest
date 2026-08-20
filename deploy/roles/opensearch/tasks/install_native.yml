@@ -1,0 +1,40 @@
+- name: Add the official OpenSearch yum repository
+  ansible.builtin.yum_repository:
+    name: "opensearch-{{ opensearch_version.split('.')[0] }}.x"
+    description: "OpenSearch {{ opensearch_version.split('.')[0] }}.x repository"
+    baseurl: "{{ opensearch_yum_repo_baseurl }}"
+    enabled: true
+    gpgcheck: true
+    gpgkey: "{{ opensearch_yum_repo_gpgkey }}"
+
+- name: Import the OpenSearch RPM GPG signing key into the rpm keyring
+  ansible.builtin.rpm_key:
+    state: present
+    key: "{{ opensearch_yum_repo_gpgkey }}"
+
+- name: Install OpenSearch RPM (version-pinned, security demo config suppressed)
+  ansible.builtin.dnf:
+    name: "{{ opensearch_package }}"
+    state: present
+    update_cache: true
+  environment:
+    DISABLE_INSTALL_DEMO_CONFIG: "true"
+
+- name: Ensure systemd drop-in directory exists for the opensearch unit
+  ansible.builtin.file:
+    path: "{{ opensearch_systemd_dropin_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Template systemd drop-in (LimitMEMLOCK/LimitNOFILE, ported from compose's ulimits block)
+  ansible.builtin.template:
+    src: ulimits-override.conf.j2
+    dest: "{{ opensearch_systemd_dropin_dir }}/ulimits-override.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - reload systemd
+    - restart opensearch

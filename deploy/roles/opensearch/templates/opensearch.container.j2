@@ -1,0 +1,29 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description=OpenSearch node {{ opensearch_instance_id }}
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+ContainerName={{ opensearch_container_name }}
+Image={{ opensearch_container_image }}
+Network=host
+User={{ opensearch_container_uid }}:{{ opensearch_container_gid }}
+AddCapability=IPC_LOCK
+Environment=DISABLE_INSTALL_DEMO_CONFIG=true
+Volume={{ opensearch_data_path }}:{{ opensearch_container_data_path }}:Z
+Volume={{ opensearch_log_path }}:{{ opensearch_container_log_path }}:Z
+Volume={{ opensearch_config_dir }}/opensearch.yml:{{ opensearch_container_config_dir }}/opensearch.yml:ro,Z
+Volume={{ opensearch_jvm_options_d }}/heap.options:{{ opensearch_container_config_dir }}/jvm.options.d/heap.options:ro,Z
+PodmanArgs=--ulimit memlock=-1:-1 --ulimit nofile={{ opensearch_limit_nofile }}:{{ opensearch_limit_nofile }}
+
+[Service]
+Restart=always
+TimeoutStartSec={{ opensearch_container_start_timeout_seconds }}
+{% if opensearch_container_memory_max %}
+MemoryMax={{ opensearch_container_memory_max }}
+{% endif %}
+
+[Install]
+WantedBy=multi-user.target

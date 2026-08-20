@@ -10,7 +10,24 @@ opensearch_yum_repo_gpgkey: "https://artifacts.opensearch.org/publickeys/opensea
 
 opensearch_package: "opensearch-{{ opensearch_version }}"
 
-opensearch_service_name: opensearch
+opensearch_install_method: native
+
+opensearch_instance_id: default
+
+opensearch_container_image: "docker.io/opensearchproject/opensearch:{{ opensearch_version }}"
+opensearch_container_name: "opensearch-{{ opensearch_instance_id }}"
+opensearch_container_config_dir: /usr/share/opensearch/config
+opensearch_container_data_path: /usr/share/opensearch/data
+opensearch_container_log_path: /usr/share/opensearch/logs
+opensearch_container_uid: 1000
+opensearch_container_gid: 1000
+opensearch_quadlet_dir: /etc/containers/systemd
+opensearch_container_memory_max: ""
+opensearch_container_start_timeout_seconds: 900
+
+opensearch_service_name: "{{ 'opensearch' if opensearch_install_method == 'native' else opensearch_container_name }}"
+
+opensearch_service_enabled: "{{ opensearch_install_method == 'native' }}"
 
 # Supplied by the playbook. The role names no inventory group of its own, so
 # these three arrive as plain lists resolved in group_vars/all.yml.
@@ -20,8 +37,14 @@ opensearch_initial_cluster_manager_nodes: []
 
 opensearch_transport_port: 9300
 
-opensearch_data_path: /var/lib/opensearch
-opensearch_log_path: /var/log/opensearch
+opensearch_data_path: "{{ '/var/lib/opensearch' if opensearch_install_method == 'native' else '/var/lib/opensearch/' ~ opensearch_instance_id }}"
+opensearch_log_path: "{{ '/var/log/opensearch' if opensearch_install_method == 'native' else '/var/log/opensearch/' ~ opensearch_instance_id }}"
+
+opensearch_path_data_setting: "{{ opensearch_data_path if opensearch_install_method == 'native' else opensearch_container_data_path }}"
+opensearch_path_logs_setting: "{{ opensearch_log_path if opensearch_install_method == 'native' else opensearch_container_log_path }}"
+
+opensearch_dir_owner: "{{ opensearch_user if opensearch_install_method == 'native' else opensearch_container_uid }}"
+opensearch_dir_group: "{{ opensearch_group if opensearch_install_method == 'native' else opensearch_container_gid }}"
 
 # Declared here rather than in group_vars/all.yml so that a group or host
 # assignment in inventory.yml actually wins. Role defaults rank below every
@@ -66,8 +89,9 @@ opensearch_group: opensearch
 
 opensearch_home: /usr/share/opensearch
 opensearch_plugin_bin: "{{ opensearch_home }}/bin/opensearch-plugin"
-opensearch_config_dir: /etc/opensearch
-opensearch_jvm_options_d: /etc/opensearch/jvm.options.d
+opensearch_plugin_list_cmd: "{{ opensearch_plugin_bin ~ ' list' if opensearch_install_method == 'native' else 'podman exec ' ~ opensearch_container_name ~ ' opensearch-plugin list' }}"
+opensearch_config_dir: "{{ '/etc/opensearch' if opensearch_install_method == 'native' else '/etc/opensearch/' ~ opensearch_instance_id }}"
+opensearch_jvm_options_d: "{{ opensearch_config_dir }}/jvm.options.d"
 opensearch_systemd_dropin_dir: "/etc/systemd/system/{{ opensearch_service_name }}.service.d"
 
 # The info-tier index settings this cluster publishes to its nodes, so a worker

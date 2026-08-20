@@ -22,42 +22,28 @@
     state: enabled
   loop: "{{ opensearch_cluster_hosts }}"
 
-- name: Add the official OpenSearch yum repository
-  ansible.builtin.yum_repository:
-    name: "opensearch-{{ opensearch_version.split('.')[0] }}.x"
-    description: "OpenSearch {{ opensearch_version.split('.')[0] }}.x repository"
-    baseurl: "{{ opensearch_yum_repo_baseurl }}"
-    enabled: true
-    gpgcheck: true
-    gpgkey: "{{ opensearch_yum_repo_gpgkey }}"
+- name: Install OpenSearch natively from the vendor RPM
+  ansible.builtin.include_tasks: install_native.yml
+  when: opensearch_install_method == 'native'
 
-- name: Import the OpenSearch RPM GPG signing key into the rpm keyring
-  ansible.builtin.rpm_key:
-    state: present
-    key: "{{ opensearch_yum_repo_gpgkey }}"
-
-- name: Install OpenSearch RPM (version-pinned, security demo config suppressed)
-  ansible.builtin.dnf:
-    name: "{{ opensearch_package }}"
-    state: present
-    update_cache: true
-  environment:
-    DISABLE_INSTALL_DEMO_CONFIG: "true"
+- name: Install OpenSearch as a podman container beside its siblings on this machine
+  ansible.builtin.include_tasks: install_container.yml
+  when: opensearch_install_method == 'container'
 
 - name: Ensure OpenSearch data directory exists with correct ownership
   ansible.builtin.file:
     path: "{{ opensearch_data_path }}"
     state: directory
-    owner: "{{ opensearch_user }}"
-    group: "{{ opensearch_group }}"
+    owner: "{{ opensearch_dir_owner }}"
+    group: "{{ opensearch_dir_group }}"
     mode: "0750"
 
 - name: Ensure OpenSearch log directory exists with correct ownership
   ansible.builtin.file:
     path: "{{ opensearch_log_path }}"
     state: directory
-    owner: "{{ opensearch_user }}"
-    group: "{{ opensearch_group }}"
+    owner: "{{ opensearch_dir_owner }}"
+    group: "{{ opensearch_dir_group }}"
     mode: "0750"
 
 - name: Ensure the shared per-node environment directory exists
@@ -83,8 +69,8 @@
   ansible.builtin.template:
     src: opensearch.yml.j2
     dest: "{{ opensearch_config_dir }}/opensearch.yml"
-    owner: "{{ opensearch_user }}"
-    group: "{{ opensearch_group }}"
+    owner: "{{ opensearch_dir_owner }}"
+    group: "{{ opensearch_dir_group }}"
     mode: "0640"
   notify: restart opensearch
 
@@ -92,29 +78,10 @@
   ansible.builtin.template:
     src: heap.options.j2
     dest: "{{ opensearch_jvm_options_d }}/heap.options"
-    owner: "{{ opensearch_user }}"
-    group: "{{ opensearch_group }}"
+    owner: "{{ opensearch_dir_owner }}"
+    group: "{{ opensearch_dir_group }}"
     mode: "0640"
   notify: restart opensearch
-
-- name: Ensure systemd drop-in directory exists for the opensearch unit
-  ansible.builtin.file:
-    path: "{{ opensearch_systemd_dropin_dir }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-
-- name: Template systemd drop-in (LimitMEMLOCK/LimitNOFILE, ported from compose's ulimits block)
-  ansible.builtin.template:
-    src: ulimits-override.conf.j2
-    dest: "{{ opensearch_systemd_dropin_dir }}/ulimits-override.conf"
-    owner: root
-    group: root
-    mode: "0644"
-  notify:
-    - reload systemd
-    - restart opensearch
 
 - name: Apply pending unit/config changes before first start
   ansible.builtin.meta: flush_handlers
@@ -122,7 +89,7 @@
 - name: Enable and start the opensearch service
   ansible.builtin.systemd:
     name: "{{ opensearch_service_name }}"
-    enabled: true
+    enabled: "{{ opensearch_service_enabled | bool }}"
     state: started
 
 - name: Wait for this node's OpenSearch HTTP API to respond (first boot / fresh install)
@@ -136,7 +103,7 @@
 
 - name: List installed OpenSearch plugins
   ansible.builtin.command:
-    cmd: "{{ opensearch_plugin_bin }} list"
+    cmd: "{{ opensearch_plugin_list_cmd }}"
   register: _opensearch_plugins
   changed_when: false
 

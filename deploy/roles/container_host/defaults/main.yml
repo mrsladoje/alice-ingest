@@ -1,0 +1,6 @@
+container_host_packages:
+  - podman
+
+container_host_min_podman_version: "4.4"
+
+container_host_quadlet_dir: /etc/containers/systemd

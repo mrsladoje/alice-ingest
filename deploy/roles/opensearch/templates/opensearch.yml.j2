@@ -16,8 +16,8 @@ node.processors: {{ [opensearch_worker_processors | int, ansible_processor_vcpus
 indices.memory.index_buffer_size: {{ opensearch_worker_index_buffer_size }}
 {% endif %}
 
-path.data: {{ opensearch_data_path }}
-path.logs: {{ opensearch_log_path }}
+path.data: {{ opensearch_path_data_setting }}
+path.logs: {{ opensearch_path_logs_setting }}
 
 network.host:
 {% for h in opensearch_network_host %}
