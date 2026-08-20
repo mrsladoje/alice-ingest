@@ -3,7 +3,7 @@
   connection: local
   gather_facts: false
   vars:
-    os_image: b5e094ad-88a9-4f78-8211-06532cdf492c
+    os_image: "ALMA9 - x86_64"
     os_flavor: m2.medium
     os_network: CERN_NETWORK
     keypair_name: masladoj-key
@@ -31,20 +31,30 @@
       ansible.builtin.assert:
         that:
           - _auth_check is succeeded
-          - (_auth_check.images | default([]) | length) > 0
         success_msg: "OpenStack auth OK — able to query project resources."
         fail_msg: >-
-          OpenStack authentication failed, or the ALMA9 image
-          ({{ os_image }}) was not visible in the current project. This
-          playbook needs ambient OpenStack auth already established in the
-          environment it runs in. On lxplus: run `kinit`, then export
+          OpenStack authentication failed. This playbook needs ambient
+          OpenStack auth already established in the environment it runs in.
+          On lxplus: run `kinit`, then export
           OS_AUTH_URL=https://keystone.cern.ch/v3, OS_AUTH_TYPE=v3fedkerb,
           OS_IDENTITY_PROVIDER=sssd, OS_PROTOCOL=kerberos,
           OS_PROJECT_DOMAIN_ID=default,
           OS_PROJECT_NAME="Personal masladoj" (see docs/OPENSTACK_GUIDE.md
           section 1). From a Mac outside CERN, use an application credential
-          instead (same doc). Underlying error (if any):
-          {{ _auth_check.msg | default('image lookup returned no results') }}
+          instead (same doc). Underlying error:
+          {{ _auth_check.msg | default('(none reported)') }}
+
+    - name: "Pre-flight — fail fast if the base image is not in this project"
+      ansible.builtin.assert:
+        that:
+          - (_auth_check.images | default([]) | length) > 0
+        success_msg: "Base image found: {{ os_image }}."
+        fail_msg: >-
+          Authentication works, but no image named "{{ os_image }}" is visible
+          in this project. os_image is a NAME, not a UUID, precisely because
+          CERN rotates the UUID whenever the image is rebuilt. Run
+          `openstack image list --status active | grep -i alma` and set
+          os_image to the name in that list.
 
     - name: "Look up existing keypair {{ keypair_name }}"
       openstack.cloud.keypair_info:
