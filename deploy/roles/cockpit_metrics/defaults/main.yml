@@ -1,4 +1,5 @@
 dashboards_metrics_script: /opt/alice-ingest/metrics_poller.py
+cockpit_metrics_unit_path: "/etc/systemd/system/{{ dashboards_metrics_service_name }}.service"
 dashboards_roster_publish_script: /opt/alice-ingest/roster_publish.py
 
 fleet_collector_node_ids: []

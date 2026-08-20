@@ -1,6 +1,13 @@
+- name: Check whether the alice-metrics unit has been installed yet
+  ansible.builtin.stat:
+    path: "{{ cockpit_metrics_unit_path }}"
+  register: _cockpit_metrics_unit
+  listen: restart alice-metrics
+
 - name: Restart alice-metrics
   ansible.builtin.systemd:
     name: "{{ dashboards_metrics_service_name }}"
     state: restarted
     daemon_reload: true
+  when: _cockpit_metrics_unit.stat.exists
   listen: restart alice-metrics

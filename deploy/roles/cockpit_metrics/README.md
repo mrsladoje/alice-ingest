@@ -104,6 +104,7 @@ defaults, because a second copy is a second place to change one value.
 | `opensearch_http_port` | `group_vars/all.yml` | Every REST call this role makes, always against `localhost`. |
 | `dashboards_internal_port` | `group_vars/all.yml` | `OSD_URL` on the unit. The poller samples the Dashboards status API. |
 | `dashboards_metrics_service_name` | `group_vars/all.yml` | The unit name. `playbooks/status.yml` and the `alice_ops` role read the same name. |
+| `cockpit_metrics_unit_path` | this role | Where that unit is written. The handler stats it before restarting, so a notification that arrives before the unit exists is a no-op rather than a failure. |
 | `dashboards_discover_roster_script` | `group_vars/all.yml` | Install path of `discover_roster.py`. `playbooks/roster_discover.yml` runs that path. |
 | `dashboards_bootstrap_verify_script` | `group_vars/all.yml` | The detection verify `post_collector.yml` runs. The file belongs to `anomaly_detection`. See couplings. |
 | `cockpit_metrics_index` | `group_vars/all.yml` | The index the poller writes and the purge cleans. |
