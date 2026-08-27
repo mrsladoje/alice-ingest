@@ -790,6 +790,11 @@ deliverable, not a chart.
 
 ## Round 4 — log templating (before embeddings, deliberately)
 
+**Results: `docs/TEMPLATING_RESULTS.md`, 27 August 2026.** Measured against
+45.6 million lines of the real archive. The new-template rate settles at 48.9 per
+million lines, Drain3 in Python costs 19.73 core-seconds per million, and both
+answers point the same way: round 3 is affordable and the rewrite can wait.
+
 **Not in Fluent Bit.** There is no Drain filter, and a Lua or exec call per record
 does not survive these rates. A sidecar fed by a Fluent Bit output, writing to the
 local OpenSearch node, also gets its own cgroup — the only way to price it.
