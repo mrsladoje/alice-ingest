@@ -16,6 +16,9 @@ PARSERS = os.path.join(
 
 LOG_MATCHES = {"infologger", "family.local", "family.central"}
 
+# Which tag each input carries, so a filter can be matched back to its input.
+INPUT_TAGS = {"dds", "stdout", "infologger"}
+
 
 def ternary(value, when_true, when_false):
     return when_true if value else when_false
@@ -87,6 +90,174 @@ def block_str(dumper, data):
     return dumper.represent_scalar("tag:yaml.org,2002:str", data, style=style)
 
 
+def filter_tags(item):
+    """Which of the three families a filter applies to.
+
+    A filter selects by `match` or by `match_regex`. Only the simple
+    alternation the template actually uses is understood; anything else
+    returns nothing and the filter stays on the main loop, which is the safe
+    answer."""
+    match = item.get("match")
+    if match in INPUT_TAGS:
+        return {match}
+    pattern = item.get("match_regex")
+    if not pattern:
+        return set()
+    body = pattern.strip()
+    if body.startswith("^(") and body.endswith(")$"):
+        names = {name.strip() for name in body[2:-2].split("|")}
+        if names <= INPUT_TAGS:
+            return names
+    return set()
+
+
+def to_processor(item):
+    """A filter, as a processor. Processors run inside the input's own thread;
+    filters always run on the main event loop. That difference is the whole
+    point of the t2 arm."""
+    processor = {key: value for key, value in item.items()
+                 if key not in ("match", "match_regex")}
+    return processor
+
+
+def make_threaded(config):
+    """t1 — `threaded: on` on both tails and on the tcp input."""
+    for item in config["pipeline"]["inputs"]:
+        if item.get("name") in ("tail", "tcp"):
+            item["threaded"] = "on"
+
+
+def move_filters_to_processors(config):
+    """t2 — the per-tag work moved off the main loop.
+
+    `rewrite_tag` cannot move: changing a tag changes routing, and routing is
+    filter-only. So the severity split stays on the main loop whatever else
+    happens, and that is the arm's ceiling.
+    """
+    pipeline = config["pipeline"]
+    by_tag = {}
+    keep = []
+    for item in pipeline["filters"]:
+        tags = filter_tags(item)
+        if not tags or item.get("name") == "rewrite_tag":
+            keep.append(item)
+            continue
+        for tag in tags:
+            by_tag.setdefault(tag, []).append(to_processor(item))
+    pipeline["filters"] = keep
+    moved = 0
+    for item in pipeline["inputs"]:
+        chain = by_tag.get(item.get("tag"))
+        if not chain:
+            continue
+        item["processors"] = {"logs": chain}
+        moved += len(chain)
+    return moved
+
+
+def lane_on_its_own_tag(config, lane_match):
+    """lt — the live lane fed from its own tag.
+
+    A chunk is freed only when every matching output has finished with it, so
+    a slow lane holds InfoLogger chunks open. Its own tag makes the lane's
+    chunks independent. `keep true` means the original record still reaches
+    OpenSearch."""
+    pipeline = config["pipeline"]
+    router = {
+        "name": "rewrite_tag",
+        "match_regex": lane_match,
+        "rule": "$log_source ^.*$ lane.$log_source true",
+        "emitter_name": "lane_router",
+    }
+    pipeline["filters"].append(router)
+    for item in pipeline["outputs"]:
+        if item.get("name") == "http" and item.get("uri") not in ("/_bulk",):
+            item.pop("match_regex", None)
+            item["match"] = "lane.*"
+    return router
+
+
+TAILED = {"dds", "stdout", "family.local", "family.central"}
+
+
+def keep_families(config, families):
+    """t3 — split the pipeline so two Fluent Bit processes can share the work.
+
+    The main-loop ceiling is per process. One process for the tailed families
+    and one for InfoLogger doubles the ceiling and isolates the fragile path.
+    Both still have to fit inside the same four cores, which is the arm's
+    whole question.
+    """
+    if families == "all":
+        return
+    want_il = families == "infologger"
+    pipeline = config["pipeline"]
+
+    inputs = []
+    for item in pipeline["inputs"]:
+        tag = item.get("tag")
+        if tag == "health":
+            inputs.append(item)
+            continue
+        is_il = tag == "infologger"
+        if is_il == want_il:
+            inputs.append(item)
+    pipeline["inputs"] = inputs
+
+    filters = []
+    for item in pipeline["filters"]:
+        tags = filter_tags(item)
+        if not tags:
+            filters.append(item)
+            continue
+        if want_il:
+            if "infologger" in tags:
+                filters.append(item)
+        elif tags - {"infologger"}:
+            filters.append(item)
+    pipeline["filters"] = filters
+
+    outputs = []
+    for item in pipeline["outputs"]:
+        match = item.get("match")
+        if match == "health" or item.get("match_regex"):
+            outputs.append(item)
+            continue
+        if want_il:
+            if match == "infologger":
+                outputs.append(item)
+        elif match in TAILED:
+            outputs.append(item)
+    pipeline["outputs"] = outputs
+
+
+def swap_infologger_to_tail(pipeline, path):
+    """s1 — InfoLogger read from a file instead of straight off the socket.
+
+    DDS and stdout survived round 1's outage because the log file *is* the
+    queue. The tcp input has nothing behind the socket, and lost every record
+    the outage touched. This gives InfoLogger the same file the other two
+    already have.
+    """
+    inputs = []
+    for item in pipeline["inputs"]:
+        if item.get("name") != "tcp":
+            inputs.append(item)
+            continue
+        inputs.append({
+            "name": "tail",
+            "path": path,
+            "path_key": "file",
+            "tag": item.get("tag", "infologger"),
+            "parser": "json",
+            "read_from_head": True,
+            "refresh_interval": 5,
+            "storage.type": item.get("storage.type", "filesystem"),
+            "db": "${ALICE_FB_STORAGE_PATH}/infologger.db",
+        })
+    pipeline["inputs"] = inputs
+
+
 def is_log_output(item):
     return item.get("match") in LOG_MATCHES or item.get("match_regex") is not None \
         and item.get("name") == "opensearch"
@@ -119,7 +290,37 @@ def main():
     parser.add_argument("--live-lane-host", default="sink")
     parser.add_argument("--live-lane-port", type=int, default=9200)
     parser.add_argument("--live-lane-path", default="/ingest")
+    parser.add_argument("--lane-compress", default="",
+                        choices=["", "off", "gzip", "zstd", "snappy"],
+                        help="the live lane's own compression. The template "
+                             "ships gzip; this is the only knob that touches "
+                             "the lane output rather than the sink outputs.")
+    parser.add_argument("--os-buffer-size", default="",
+                        help="response buffer for the opensearch outputs. The "
+                             "shipped template now sets 'False', which "
+                             "reads the whole response. Leave empty for "
+                             "the plugin default, which truncates a large "
+                             "bulk response and makes the output retry a "
+                             "write OpenSearch already applied.")
     parser.add_argument("--parsers-out", default="")
+    parser.add_argument("--arm", default="t0",
+                        choices=["t0", "t1", "t2"],
+                        help="t0 as shipped; t1 threaded inputs; t2 also "
+                             "moves the per-tag filters into each input's "
+                             "processors, off the main event loop")
+    parser.add_argument("--lane-own-tag", default="off", choices=["on", "off"],
+                        help="lt — feed the live lane from its own tag so a "
+                             "slow lane cannot retain InfoLogger chunks")
+    parser.add_argument("--infologger-tap", default="tcp",
+                        choices=["tcp", "file"],
+                        help="tcp as shipped; file tails what the appender "
+                             "wrote, the way a real InfoLogger file tap would")
+    parser.add_argument("--infologger-path",
+                        default="${ALICE_LOG_ROOT}/infologger/*.log")
+    parser.add_argument("--families", default="all",
+                        choices=["all", "tailed", "infologger"],
+                        help="t3 splits the pipeline across two processes: "
+                             "one for the tailed families, one for InfoLogger")
     args = parser.parse_args()
 
     text = render(args.live_lane == "on", args.flush,
@@ -135,6 +336,9 @@ def main():
         service["storage.backlog.mem_limit"] = args.backlog_mem_limit
 
     pipeline = config["pipeline"]
+
+    if args.infologger_tap == "file":
+        swap_infologger_to_tail(pipeline, args.infologger_path)
 
     inputs = []
     for item in pipeline["inputs"]:
@@ -174,6 +378,10 @@ def main():
             outputs.append(item)
             continue
         if item.get("name") == "http" and item.get("uri") == "/ingest":
+            if args.lane_compress == "off":
+                item.pop("compress", None)
+            elif args.lane_compress:
+                item["compress"] = args.lane_compress
             outputs.append(item)
             continue
 
@@ -198,6 +406,8 @@ def main():
                 "suppress_type_name": True,
                 "trace_error": True,
             })
+            if args.os_buffer_size:
+                new["buffer_size"] = args.os_buffer_size
         if args.sink != "null":
             new["storage.total_limit_size"] = args.total_limit_size
             new["retry_limit"] = args.retry_limit
@@ -210,6 +420,15 @@ def main():
             new["workers"] = args.output_workers
         outputs.append(new)
     pipeline["outputs"] = outputs
+
+    keep_families(config, args.families)
+
+    if args.arm in ("t1", "t2"):
+        make_threaded(config)
+    if args.arm == "t2":
+        move_filters_to_processors(config)
+    if args.lane_own_tag == "on" and args.live_lane == "on":
+        lane_on_its_own_tag(config, r"^(infologger|family\.central)$")
 
     yaml.add_representer(str, block_str)
     rendered = yaml.dump(config, sort_keys=False, default_flow_style=False,

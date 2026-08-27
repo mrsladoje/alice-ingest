@@ -2,8 +2,18 @@ name: alice-soak
 
 volumes:
   soaklogs:
+  soaklogsram:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: size=${SOAKLOGS_RAM_SIZE:-12g}
   soakstorage:
+  soakstorage2:
   osdata:
+  osworker:
+  osstore1:
+  osstore2:
 
 services:
   sink:
@@ -17,6 +27,7 @@ services:
       - ${SOAK_RUN:-./out}:/out
     ports:
       - "${SINK_PORT:-9201}:9200"
+    cpuset: ${SINK_CPUSET:-10-11}
 
   sink2:
     image: ${PY_IMAGE:-python:3.12-slim}
@@ -30,6 +41,7 @@ services:
       - ${SOAK_RUN:-./out}:/out
     ports:
       - "${SINK2_PORT:-9203}:9200"
+    cpuset: ${LANE_CPUSET:-10-11}
 
   fluent-bit:
     image: ${FB_IMAGE:-fluent/fluent-bit}:${FB_VERSION:-5.0.8}
@@ -45,13 +57,14 @@ services:
       ALICE_OS_HTTP_PORT: "9200"
     volumes:
       - ${SOAK_CONF:-./conf}:/etc/fluent-bit:ro
-      - soaklogs:/var/log/node
+      - ${SOAKLOGS_VOLUME:-soaklogs}:/var/log/node
       - soakstorage:/var/log/flb-storage
     ports:
       - "${FB_HTTP_PORT:-2020}:2020"
       - "${FB_TCP_PORT:-5170}:5170"
+      - "${FB2_HTTP_PORT:-2021}:2021"
     mem_limit: ${FB_MEM_MAX:-768m}
-    cpus: ${FB_CPUS:-2}
+    cpuset: ${FB_CPUSET:-0-3}
 
   gun:
     image: ${PY_IMAGE:-python:3.12-slim}
@@ -60,8 +73,88 @@ services:
     volumes:
       - ${SOAK_TOOLS:-..}:/opt/soak:ro
       - ${SOAK_RUN:-./out}:/out
-      - soaklogs:/var/log/node
+      - ${SOAKLOGS_VOLUME:-soaklogs}:/var/log/node
     network_mode: "service:fluent-bit"
+    cpuset: ${GUN_CPUSET:-8-9}
+    command: ["sleep", "1"]
+
+  fluent-bit2:
+    image: ${FB_IMAGE:-fluent/fluent-bit}:${FB_VERSION:-5.0.8}
+    container_name: soak-fluent-bit2
+    profiles: ["twoproc"]
+    command: ["/fluent-bit/bin/fluent-bit", "-c", "/etc/fluent-bit/collector.yaml"]
+    environment:
+      ALICE_LOG_ROOT: /var/log/node
+      ALICE_FB_STORAGE_PATH: /var/log/flb-storage2
+      ALICE_FB_HTTP_LISTEN: 0.0.0.0
+      ALICE_FB_HTTP_PORT: "2021"
+      ALICE_INFOLOGGER_TCP_PORT: "5170"
+      ALICE_NODE_ID: ${SOAK_NODE_ID:-node-soak}
+      ALICE_OS_HTTP_PORT: "9200"
+    volumes:
+      - ${SOAK_CONF2:-./conf2}:/etc/fluent-bit:ro
+      - ${SOAKLOGS_VOLUME:-soaklogs}:/var/log/node
+      - soakstorage2:/var/log/flb-storage2
+    network_mode: "service:fluent-bit"
+    mem_limit: ${FB_MEM_MAX:-768m}
+    cpuset: ${FB_CPUSET:-0-3}
+
+  appender:
+    image: ${PY_IMAGE:-python:3.12-slim}
+    container_name: soak-appender
+    profiles: ["appender"]
+    command: ["python3", "/opt/soak/appender.py",
+              "--port", "5170",
+              "--dir", "/var/log/node/infologger",
+              "--stats-file", "/out/appender-stats.txt"]
+    stop_grace_period: 10s
+    volumes:
+      - ${SOAK_TOOLS:-..}:/opt/soak:ro
+      - ${SOAK_RUN:-./out}:/out
+      - ${SOAKLOGS_VOLUME:-soaklogs}:/var/log/node
+    network_mode: "service:fluent-bit"
+    cpuset: ${FB_CPUSET:-0-3}
+
+  # The real live lane server, not the fake sink. Round 1's five-per-cent
+  # figure came from one starved Python process, so this one gets its own
+  # pinned cores and is measured separately from the collector's budget.
+  lane:
+    image: ${PY_IMAGE:-python:3.12-slim}
+    container_name: soak-lane
+    profiles: ["reallane"]
+    environment:
+      LIVE_BIND: 0.0.0.0
+      LIVE_PORT: "8092"
+      LIVE_INGEST_PATH: /ingest
+      LIVE_STATIC_DIR: /opt/live/live
+    volumes:
+      - ${SOAK_LIVE_LANE:-../../../deploy/roles/live_lane/files}:/opt/live:ro
+    command: ["python3", "/opt/live/live_lane.py"]
+    ports:
+      - "${LANE_PORT:-8092}:8092"
+    cpuset: ${LANE_CPUSET:-10-11}
+
+  # The viewers for the lv cells. Pinned to the storage tier's cores, which
+  # are idle in every collector-only stage, so they cannot steal from either
+  # the lane server or the worker.
+  viewers:
+    image: ${PY_IMAGE:-python:3.12-slim}
+    container_name: soak-viewers
+    profiles: ["viewers"]
+    volumes:
+      - ${SOAK_TOOLS:-..}:/opt/soak:ro
+      - ${SOAK_RUN:-./out}:/out
+    cpuset: ${VIEWERS_CPUSET:-4-7}
+    command: ["sleep", "1"]
+
+  gunsolo:
+    image: ${PY_IMAGE:-python:3.12-slim}
+    container_name: soak-gunsolo
+    profiles: ["gunsolo"]
+    volumes:
+      - ${SOAK_TOOLS:-..}:/opt/soak:ro
+      - ${SOAK_RUN:-./out}:/out
+    cpuset: ${GUN_CPUSET:-8-9}
     command: ["sleep", "1"]
 
   opensearch:
@@ -81,3 +174,87 @@ services:
     ports:
       - "${OS_PORT:-9202}:9200"
     mem_limit: ${OS_MEM_MAX:-2g}
+    cpuset: ${OS_CPUSET:-0-3}
+
+  # The cluster sink: the worker's own node plus two storage containers, which
+  # is the production topology with one storage node removed for want of
+  # processors. The worker node is data and ingest only, exactly as production
+  # has it, so it coordinates and forwards over the transport layer rather than
+  # holding the replicated shards itself.
+  os-worker:
+    image: opensearchproject/opensearch:${OS_VERSION:-2.17.0}
+    container_name: soak-os-worker
+    profiles: ["cluster"]
+    environment:
+      cluster.name: ${OS_CLUSTER:-alice-soak}
+      node.name: worker
+      node.roles: data,ingest
+      node.attr.role: worker
+      # application-logs-local-<node> pins with require.box, so the worker
+      # needs the same attribute the opensearch role gives it in production.
+      node.attr.box: ${SOAK_NODE_ID:-node-soak}
+      discovery.seed_hosts: os-storage1,os-storage2
+      cluster.initial_cluster_manager_nodes: storage1
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms${OS_HEAP:-1g} -Xmx${OS_HEAP:-1g}
+      bootstrap.memory_lock: "true"
+    ulimits:
+      memlock: {soft: -1, hard: -1}
+      nofile: {soft: 65536, hard: 65536}
+    volumes:
+      - osworker:/usr/share/opensearch/data
+    ports:
+      - "${OS_PORT:-9202}:9200"
+    mem_limit: ${OS_MEM_MAX:-2g}
+    cpuset: ${OS_CPUSET:-0-3}
+
+  # Exactly one storage container is cluster-manager eligible. Losing it stops
+  # the cluster, which is realistic — a real worker also cannot index when the
+  # storage tier is gone — but it is a hazard here, not the outage arm.
+  os-storage1:
+    image: opensearchproject/opensearch:${OS_VERSION:-2.17.0}
+    container_name: soak-os-storage1
+    profiles: ["cluster"]
+    environment:
+      cluster.name: ${OS_CLUSTER:-alice-soak}
+      node.name: storage1
+      node.roles: cluster_manager,data,ingest
+      node.attr.role: storage
+      discovery.seed_hosts: os-worker,os-storage2
+      cluster.initial_cluster_manager_nodes: storage1
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms${OS_STORAGE_HEAP:-2g} -Xmx${OS_STORAGE_HEAP:-2g}
+      bootstrap.memory_lock: "true"
+    ulimits:
+      memlock: {soft: -1, hard: -1}
+      nofile: {soft: 65536, hard: 65536}
+    volumes:
+      - osstore1:/usr/share/opensearch/data
+    ports:
+      - "${OS_STORAGE1_PORT:-9204}:9200"
+    mem_limit: ${OS_STORAGE_MEM_MAX:-4g}
+    cpuset: ${OS_STORAGE_CPUSET:-4-7}
+
+  os-storage2:
+    image: opensearchproject/opensearch:${OS_VERSION:-2.17.0}
+    container_name: soak-os-storage2
+    profiles: ["cluster"]
+    environment:
+      cluster.name: ${OS_CLUSTER:-alice-soak}
+      node.name: storage2
+      node.roles: data,ingest
+      node.attr.role: storage
+      discovery.seed_hosts: os-worker,os-storage1
+      cluster.initial_cluster_manager_nodes: storage1
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms${OS_STORAGE_HEAP:-2g} -Xmx${OS_STORAGE_HEAP:-2g}
+      bootstrap.memory_lock: "true"
+    ulimits:
+      memlock: {soft: -1, hard: -1}
+      nofile: {soft: 65536, hard: 65536}
+    volumes:
+      - osstore2:/usr/share/opensearch/data
+    ports:
+      - "${OS_STORAGE2_PORT:-9205}:9200"
+    mem_limit: ${OS_STORAGE_MEM_MAX:-4g}
+    cpuset: ${OS_STORAGE_CPUSET:-4-7}

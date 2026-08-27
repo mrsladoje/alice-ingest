@@ -145,6 +145,27 @@ class NullWriter:
         pass
 
 
+class NullSender:
+    """Selftest counts the InfoLogger family instead of sending it.
+
+    Without this the selftest silently drops six tenths of the mix — the whole
+    `infologger` weight — and reports a 60 % shortfall that is its own doing.
+    The payload is still built, because building it is where the cost is; only
+    the socket write is skipped.
+    """
+
+    def __init__(self):
+        self.failures = 0
+        self.bytes = 0
+
+    def send(self, payload):
+        self.bytes += len(payload)
+        return True
+
+    def close(self):
+        pass
+
+
 class InfoLoggerSender:
     def __init__(self, host, port):
         self.address = (host, port)
@@ -201,8 +222,11 @@ def worker(args, worker_id, hosts, share, result_path):
             args.tail_root, "stdout", hosts, args.max_file_bytes, args.rotate_wait)
 
     sender = None
-    if args.mode != "selftest" and args.il_port > 0 and mix["infologger"] > 0:
-        sender = InfoLoggerSender(args.il_host, args.il_port)
+    if mix["infologger"] > 0:
+        if args.mode == "selftest":
+            sender = NullSender()
+        elif args.il_port > 0:
+            sender = InfoLoggerSender(args.il_host, args.il_port)
 
     dds_pool, stdout_pool, il_pool = (
         fixture["dds"], fixture["stdout"], fixture["infologger"])

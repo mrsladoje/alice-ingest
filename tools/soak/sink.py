@@ -71,7 +71,16 @@ class Handler(BaseHTTPRequestHandler):
 
         length = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(length) if length else b""
-        if self.headers.get("Content-Encoding") == "gzip":
+        # Record what actually arrived on the wire. A `compress` value the
+        # output plugin does not implement is applied silently as "none", and
+        # the only way to tell is to look at the header and the byte count.
+        encoding = (self.headers.get("Content-Encoding") or "none").lower()
+        with LOCK:
+            seen = STATE.setdefault("encodings", {})
+            slot = seen.setdefault(encoding, {"requests": 0, "wire_bytes": 0})
+            slot["requests"] += 1
+            slot["wire_bytes"] += len(body)
+        if encoding == "gzip":
             try:
                 body = gzip.decompress(body)
             except OSError:

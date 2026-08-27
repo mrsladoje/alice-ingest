@@ -33,10 +33,54 @@ of real-shaped records and writes them as fast as it is told to.
 | `logburst.py` | The load generator. Writes DDS and stdout lines into the tail directories and sends InfoLogger JSON to the TCP input. Steady, staircase or burst. |
 | `mkconfig.py` | Renders `deploy/roles/collector/templates/collector.yaml.j2` — the real production template — then patches the knobs under test. The rig therefore cannot drift from production. |
 | `sink.py` | A fake OpenSearch. Counts every document it receives, and can be told to stall, to answer 429, or to be stopped outright. |
-| `soakrec.py` | The recorder. Samples Fluent Bit metrics, storage chunks, cgroup memory and disk use every second. |
+| `soakrec.py` | The recorder. Samples Fluent Bit metrics, storage chunks, and — for **every** container in the rig — processor time, disk traffic and memory, every second. |
+| `vmprobe.py` | Reads the cgroup and `/proc` counters. Docker lives in a Colima machine, so one shell is opened there and held; a whole sample costs about a millisecond. |
+| `archive_rate.py` | Counts real records per node per second in the CERN S3 archive. This is what settles whether a quoted rate is per worker or per farm. |
 | `soak.py` | Runs a whole profile end to end and writes a report. |
 | `plot.py` | Turns a run's CSV files into plain SVG charts. No libraries needed. |
 | `rig/docker-compose.soak.yaml` | Fluent Bit under a memory cap, the fake sink, the generator, and a real OpenSearch when a profile asks for one. |
+
+## Gate zero, before any other number is read
+
+A generator that quietly falls short produces a cell where delivered equals
+ingested, nothing drops and the queue is flat — and the whole thing measured
+14,000 records a second when it asked for 20,000. It passes, and it is a lie.
+
+So every report starts with two checks:
+
+1. **Achieved offer within 2 % of intended offer**, from `logburst.csv`
+2. **The generator's own ceiling measured at this rate**, by
+
+```
+python3 tools/soak/soak.py selftest --rates 1000,20000,50000
+```
+
+which writes `tools/soak/selftest.json`. Every later report reads it.
+
+**A cell that fails gate zero is void, not disqualified: it is rerun, not
+ranked.**
+
+## Pinning, and why throttling proves nothing
+
+Services are pinned with `cpuset`, not capped with a quota. A quota would make
+`nr_throttled` the saturation signal; pinning sets no quota, so `nr_throttled`
+stays at zero whatever happens and "nothing was throttled" means nothing.
+
+**Saturation is read from `usage_usec`** — a service is saturated when its
+processor time approaches its pinned core count times elapsed time.
+
+| Service | Pinned to | Why |
+|---|---|---|
+| Collector, and the worker's OpenSearch node | cores 0–3 | The measured budget |
+| Storage OpenSearch nodes | cores 4–7 | Must never be the bottleneck |
+| Generator | cores 8–9 | Gate zero depends on its headroom |
+| Fake sink and live lane | cores 10–11 | Round 1's five-per-cent artefact came from starving exactly this |
+
+Override with `--fb-cpuset`, `--os-cpuset`, `--sink-cpuset`, `--gun-cpuset`
+and `--lane-cpuset`. `--cpus N` still works and means the first N cores.
+
+**A cell where any unmeasured service passed 80 % of its pinned cores is
+void** — the worker only looked healthy for want of load.
 
 ## Three sinks, because they answer different questions
 
@@ -51,7 +95,9 @@ Without the `null` run, every number is really an OpenSearch number.
 ## Before you start
 
 - Docker running. On a Mac: `colima start` (this repository's work uses the
-  `cern` profile, which sets the CERN resolvers).
+  `cern` profile, which sets the CERN resolvers). Round 2 needs it at twelve
+  processors, because the rig pins four to the worker and the other eight to
+  the harness: `colima start cern --cpu 12 --memory 32 --disk 100`.
 - Python 3 with `pyyaml` and `jinja2`. Both come with the Ansible environment.
 - Images: `fluent/fluent-bit:5.0.8`, `python:3.12-slim`,
   `opensearchproject/opensearch:2.17.0`.
@@ -67,7 +113,9 @@ Each run writes `tools/soak/runs/<timestamp>-<profile>/` containing:
 
 - `report.md` — the table you read first
 - `summary.json` — the same numbers, for a chart
-- `soakrec.csv` — one row a second from the collector
+- `soakrec.csv` — one row a second, for every container in the rig
+- `threads.csv` — the collector's threads, so the main loop and the output
+  workers separate by name
 - `logburst.csv` — one row a second from the generator
 - `conf/collector.yaml` — exactly the configuration that ran
 - `fixture/` — exactly the records that were sent
@@ -167,6 +215,53 @@ python3 tools/soak/soak.py run p6 --mem-max 16m --mem-high 10M
 ```
 
 The last line is the "10 MB" claim, run honestly.
+
+## Running the back half unattended
+
+Stages D through G each need the previous stage's winner, and a person waiting
+between them is what turns the back half into a week. `finish.py` runs stages
+C-extension, D, E, G and F end to end and picks each winner from the runs:
+
+```
+python3 tools/soak/finish.py
+```
+
+**The rules it applies, so that a choice made at four in the morning can be
+argued with at nine:**
+
+| Choice | Rule |
+|---|---|
+| Flush | Lowest mean total core-seconds per million at 20,000 a second, over the cells that passed |
+| Heap | The same rule, the same rate |
+| Core split | The same rule, across the three cpuset arms |
+
+**A cheaper value is only adopted if it wins by more than the measured noise
+floor of 1.9 %.** Inside the floor the more conservative value keeps its place:
+the longer flush, which sends fewer requests, and the value that already
+carries evidence. A cell that voids or is disqualified is dropped from its
+group with a line in the log rather than counted as a zero.
+
+`total` is the collector plus the worker's OpenSearch node plus both storage
+containers — every service the worker's four cores pay for. **The generator is
+left out on purpose:** in production nothing generates the logs, so counting the
+replay against the budget would inflate every figure.
+
+Two things it writes:
+
+- `runs/finish-decisions.json` — every choice, with the group means behind it
+- `runs/finish.log` — the running narrative, one line per stage and per choice
+
+**It rewrites `cells.py` as it goes**, filling the winning flush into stage D,
+the winning flush and heap into E and G, and the whole chosen configuration
+into stage F's second half — the six cells the manifest could not name until C,
+D and E had run. Do not edit `cells.py`, `soak.py`, `mkconfig.py` or
+`soakrec.py` while it is running: a cell measured on a changed instrument is not
+comparable with the cells before it, and that error has already cost this
+project one full stage rerun.
+
+**Stage F alternates control and chosen** — `F1, F7, F3, F9, …` rather than all
+six controls and then all six chosen — so that any drift over the two hours
+falls on both arms equally instead of landing entirely on whichever ran second.
 
 ## Fidelity, stated plainly
 

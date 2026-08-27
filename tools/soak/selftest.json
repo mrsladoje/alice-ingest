@@ -1,0 +1,36 @@
+{
+  "when": "20260827-125132",
+  "cpuset": "8-9",
+  "workers": 2,
+  "runs": [
+    {
+      "asked": 1000.0,
+      "achieved_rate": 999.9,
+      "workers": 2,
+      "seconds": 60.0,
+      "shortfall_pct": -0.01
+    },
+    {
+      "asked": 20000.0,
+      "achieved_rate": 19999.6,
+      "workers": 2,
+      "seconds": 60.0,
+      "shortfall_pct": -0.0
+    },
+    {
+      "asked": 50000.0,
+      "achieved_rate": 49995.7,
+      "workers": 2,
+      "seconds": 60.01,
+      "shortfall_pct": -0.01
+    },
+    {
+      "asked": 400000,
+      "ceiling": true,
+      "achieved_rate": 399991.9,
+      "workers": 2,
+      "seconds": 60.0,
+      "shortfall_pct": -0.0
+    }
+  ]
+}

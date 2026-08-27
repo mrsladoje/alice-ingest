@@ -9,6 +9,8 @@ import time
 import urllib.error
 import urllib.request
 
+import vmprobe
+
 CGROUP_CANDIDATES = [
     "/sys/fs/cgroup/system.slice/docker-%s.scope",
     "/sys/fs/cgroup/docker/%s",
@@ -22,6 +24,10 @@ COLUMNS = [
     "mem_current", "mem_peak", "ev_high", "ev_max", "ev_oom", "storage_bytes",
     "healthy", "sink_docs",
 ]
+PROBE_FIELDS = ["cpu_usec", "user_usec", "sys_usec", "nr_throttled",
+                "throttled_usec", "rbytes", "wbytes", "rios", "wios",
+                "io_stall_usec", "cpu_stall_usec", "mem_current", "ncpus"]
+THREAD_COLUMNS = ["t", "tid", "comm", "user_usec", "sys_usec", "cpu_usec"]
 
 
 def fetch(url, timeout=3):
@@ -213,6 +219,24 @@ def oom_killed(container):
     return code == 0 and out.strip() == "true"
 
 
+def add_counters(first, second):
+    """Two collector processes are still one worker. Their counters add."""
+    if not second:
+        return first
+    for key, value in second.items():
+        first[key] = first.get(key, 0) + value
+    return first
+
+
+def merge_outputs(first, second):
+    """Both processes name their outputs from zero, so the second one's are
+    prefixed rather than silently overwriting the first one's."""
+    merged = dict(first)
+    for name, value in (second or {}).items():
+        merged["proc2:" + name] = value
+    return merged
+
+
 def read_metrics(base):
     doc = fetch_json(base + "/api/v1/metrics")
     result = {"in_records": 0, "in_ingest": 0, "in_emitter": 0,
@@ -272,9 +296,142 @@ def read_storage(base):
     return result
 
 
+def probe_columns(labels):
+    return ["%s_%s" % (label, field)
+            for label in labels for field in PROBE_FIELDS]
+
+
+def sampling_health(walls, interval):
+    """Whether the recorder itself kept up.
+
+    A stalled recorder does not look stalled: the counters are cumulative, so
+    a missed second is silently folded into the next delta and only the
+    per-second peaks look wrong. A cell measured through a stall is not a
+    measurement, so the gaps are reported and the run is marked.
+    """
+    walls = [wall for wall in walls if wall]
+    if len(walls) < 2:
+        return {"samples": len(walls), "checked": False}
+    gaps = [round(later - earlier, 3)
+            for earlier, later in zip(walls, walls[1:])]
+    limit = interval * 1.5
+    late = [gap for gap in gaps if gap > limit]
+    return {
+        "checked": True,
+        "samples": len(walls),
+        "interval": interval,
+        "max_gap_seconds": max(gaps),
+        "late_samples": len(late),
+        "late_pct": round(100.0 * len(late) / len(gaps), 2),
+        "seconds_lost": round(sum(gap - interval for gap in late), 2),
+        "clean": len(late) == 0,
+    }
+
+
+def _first_nonzero(history, label):
+    """A service that starts late reads as zero until it exists. Its window
+    begins at its first real sample, not at the recorder's first tick."""
+    for tick in history:
+        values = tick.get(label) or {}
+        if values.get("cpu_usec"):
+            return values
+    return {}
+
+
+def _last_nonzero(history, label):
+    """The generator exits before the recorder does, and a gone container
+    reads as zero. Its window ends at its last real sample."""
+    for tick in reversed(history):
+        values = tick.get(label) or {}
+        if values.get("cpu_usec"):
+            return values
+    return {}
+
+
+def core_seconds(first, last, field="cpu_usec"):
+    return round(max(0, last.get(field, 0) - first.get(field, 0)) / 1e6, 2)
+
+
+def summarise_targets(probes, history, walls, elapsed):
+    """History is a list of per-tick {label: counters}. Everything reported
+    here is a delta across the measured window, never an absolute."""
+    out = {}
+    if len(history) < 2:
+        return out
+    first, last = history[0], history[-1]
+    for probe in probes:
+        label = probe.label
+        start = _first_nonzero(history, label)
+        end = _last_nonzero(history, label)
+        if not start or not end:
+            continue
+        used = core_seconds(start, end)
+        peak = 0.0
+        steps = [max(0.001, later - earlier)
+                 for earlier, later in zip(walls, walls[1:])] or [1.0]
+        for index, (older, newer) in enumerate(zip(history, history[1:])):
+            a, b = older.get(label, {}), newer.get(label, {})
+            if not a.get("cpu_usec") or not b.get("cpu_usec"):
+                continue
+            step = steps[index] if index < len(steps) else 1.0
+            peak = max(peak, (b["cpu_usec"] - a["cpu_usec"]) / 1e6 / step)
+        cpus = end.get("ncpus", 0) or probe.cpus
+        live = [wall for wall, tick in zip(walls, history)
+                if (tick.get(label) or {}).get("cpu_usec")]
+        window = round(live[-1] - live[0], 1) if len(live) > 1 else 0.0
+        if window <= 0:
+            window = float(elapsed or 1)
+        mean = used / window
+        out[label] = {
+            "container": probe.container,
+            "cgroup": probe.cgroup,
+            "pinned_cpus": cpus,
+            "core_seconds": used,
+            "measured_seconds": window,
+            "mean_cores": round(mean, 3),
+            "peak_cores_1s": round(peak, 3),
+            "saturation_pct": round(100.0 * mean / cpus, 1) if cpus else 0,
+            "user_core_seconds": core_seconds(start, end, "user_usec"),
+            "system_core_seconds": core_seconds(start, end, "sys_usec"),
+            "nr_throttled": end.get("nr_throttled", 0) - start.get("nr_throttled", 0),
+            "throttled_usec": end.get("throttled_usec", 0)
+                              - start.get("throttled_usec", 0),
+            "read_bytes": end.get("rbytes", 0) - start.get("rbytes", 0),
+            "write_bytes": end.get("wbytes", 0) - start.get("wbytes", 0),
+            "read_ios": end.get("rios", 0) - start.get("rios", 0),
+            "write_ios": end.get("wios", 0) - start.get("wios", 0),
+            "io_stall_usec": end.get("io_stall_usec", 0)
+                             - start.get("io_stall_usec", 0),
+            "cpu_stall_usec": end.get("cpu_stall_usec", 0)
+                              - start.get("cpu_stall_usec", 0),
+        }
+    return out
+
+
+def summarise_threads(first, last, elapsed):
+    """Fluent Bit names its threads, so the main loop and the output workers
+    separate by name rather than by thread id."""
+    out = {}
+    for tid, end in (last or {}).items():
+        start = (first or {}).get(tid, {})
+        comm = end.get("comm", "?")
+        used = max(0, end.get("cpu_usec", 0) - start.get("cpu_usec", 0)) / 1e6
+        slot = out.setdefault(comm, {"threads": 0, "core_seconds": 0.0})
+        slot["threads"] += 1
+        slot["core_seconds"] += used
+    for comm, slot in out.items():
+        slot["core_seconds"] = round(slot["core_seconds"], 2)
+        slot["mean_cores"] = round(slot["core_seconds"] / elapsed, 3) if elapsed else 0
+    return out
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--fb-url", default="http://127.0.0.1:2020")
+    parser.add_argument("--fb-url2", default="",
+                        help="the t3 arm runs two collector processes; their "
+                             "counters are summed so the report still says "
+                             "what the worker ingested and delivered")
     parser.add_argument("--container", default="")
     parser.add_argument("--cgroup", default="")
     parser.add_argument("--mem-source", default="auto",
@@ -287,15 +444,41 @@ def main():
     parser.add_argument("--duration", type=float, default=0.0)
     parser.add_argument("--csv", default="")
     parser.add_argument("--summary", default="")
+    parser.add_argument("--watch", action="append", default=[],
+                        help="label=container, repeatable. Every service in "
+                             "the rig, so no unmeasured one can hide.")
+    parser.add_argument("--thread-label", default="fb",
+                        help="which watched service to read per-thread "
+                             "processor time from")
+    parser.add_argument("--threads-csv", default="")
     args = parser.parse_args()
 
     memory = MemorySource(args.container, args.cgroup, args.mem_source)
+
+    shell = vmprobe.Shell()
+    probes = []
+    for spec in args.watch:
+        label, _, container = spec.partition("=")
+        probes.append(vmprobe.Probe(label, container or label, shell))
+    sampler = vmprobe.Sampler(probes, args.thread_label,
+                              vmprobe.clock_ticks(shell)) if probes else None
+    labels = [probe.label for probe in probes]
+    columns = COLUMNS + probe_columns(labels)
+
     handle = open(args.csv, "w") if args.csv else None
     if handle:
-        handle.write(",".join(COLUMNS) + "\n")
+        handle.write(",".join(columns) + "\n")
+    threads_path = args.threads_csv or (
+        os.path.join(os.path.dirname(args.csv), "threads.csv") if args.csv else "")
+    threads_handle = open(threads_path, "w") if threads_path else None
+    if threads_handle:
+        threads_handle.write(",".join(THREAD_COLUMNS) + "\n")
+    probe_history = []
+    probe_walls = []
+    thread_first, thread_last = None, None
 
     start = time.time()
-    peak = {"mem": 0, "chunks": 0, "fs_down": 0, "storage": 0}
+    peak = {"mem": 0, "chunks": 0, "fs_down": 0, "fs_up": 0, "storage": 0}
     last = {}
     storage_size = 0
     storage_cache = {}
@@ -312,8 +495,12 @@ def main():
                 break
 
             row = {"t": round(elapsed, 1), "wall": round(now, 1)}
-            row.update(read_metrics(args.fb_url))
-            row.update(read_storage(args.fb_url))
+            row.update(add_counters(read_metrics(args.fb_url),
+                                    read_metrics(args.fb_url2)
+                                    if args.fb_url2 else None))
+            row.update(add_counters(read_storage(args.fb_url),
+                                    read_storage(args.fb_url2)
+                                    if args.fb_url2 else None))
             row.update(memory.sample())
             if tick % max(1, args.storage_every) == 0:
                 storage_size = storage_bytes(
@@ -321,21 +508,46 @@ def main():
                     storage_cache)
             row["storage_bytes"] = storage_size
             status, _ = fetch(args.fb_url + "/api/v2/health")
-            row["healthy"] = 1 if status == 200 else 0
+            healthy = 1 if status == 200 else 0
+            if args.fb_url2:
+                status2, _ = fetch(args.fb_url2 + "/api/v2/health")
+                healthy = healthy and (1 if status2 == 200 else 0)
+            row["healthy"] = healthy
             row["sink_docs"] = 0
             if args.sink_stats_url:
                 stats = fetch_json(args.sink_stats_url)
                 if isinstance(stats, dict):
                     row["sink_docs"] = stats.get("docs", 0)
 
+            if sampler is not None:
+                if tick % 5 == 0 and any(not probe.cgroup for probe in probes):
+                    sampler.refresh()
+                counters, threads = sampler.sample()
+                probe_history.append(counters)
+                probe_walls.append(row["wall"])
+                for label, values in counters.items():
+                    for field in PROBE_FIELDS:
+                        row["%s_%s" % (label, field)] = values.get(field, 0)
+                if threads:
+                    if thread_first is None:
+                        thread_first = threads
+                    thread_last = threads
+                    if threads_handle:
+                        for tid, value in sorted(threads.items()):
+                            threads_handle.write("%s,%s,%s,%d,%d,%d\n" % (
+                                row["t"], tid, value["comm"], value["user_usec"],
+                                value["sys_usec"], value["cpu_usec"]))
+                        threads_handle.flush()
+
             peak["mem"] = max(peak["mem"], row["mem_current"], row["mem_peak"])
             peak["chunks"] = max(peak["chunks"], row["total_chunks"])
             peak["fs_down"] = max(peak["fs_down"], row["fs_chunks_down"])
+            peak["fs_up"] = max(peak["fs_up"], row["fs_chunks_up"])
             peak["storage"] = max(peak["storage"], row["storage_bytes"])
             last = row
 
             if handle:
-                handle.write(",".join(str(row.get(name, 0)) for name in COLUMNS) + "\n")
+                handle.write(",".join(str(row.get(name, 0)) for name in columns) + "\n")
                 handle.flush()
 
             tick += 1
@@ -347,14 +559,18 @@ def main():
 
     if handle:
         handle.close()
+    if threads_handle:
+        threads_handle.close()
 
+    elapsed = round(time.time() - start, 1)
     summary = {
-        "seconds": round(time.time() - start, 1),
+        "seconds": elapsed,
         "memory_source": memory.source,
         "peak_memory_bytes": peak["mem"],
         "peak_memory_mb": round(peak["mem"] / 1e6, 1),
         "peak_total_chunks": peak["chunks"],
         "peak_fs_chunks_down": peak["fs_down"],
+        "peak_fs_chunks_up": peak["fs_up"],
         "peak_storage_bytes": peak["storage"],
         "peak_storage_mb": round(peak["storage"] / 1e6, 1),
         "input_records": last.get("in_records", 0),
@@ -371,8 +587,16 @@ def main():
         "oom_killed": oom_killed(args.container),
         "sink_docs": last.get("sink_docs", 0),
         "healthy_at_end": last.get("healthy", 0),
-        "outputs": per_output(args.fb_url),
+        "outputs": merge_outputs(per_output(args.fb_url),
+                                 per_output(args.fb_url2)
+                                 if args.fb_url2 else {}),
+        "probe_source": shell.where,
+        "sampling": sampling_health(probe_walls, args.interval),
+        "targets": summarise_targets(probes, probe_history, probe_walls,
+                                     elapsed),
+        "threads": summarise_threads(thread_first, thread_last, elapsed),
     }
+    shell.close()
     if args.summary:
         with open(args.summary, "w") as out:
             json.dump(summary, out, indent=2)
