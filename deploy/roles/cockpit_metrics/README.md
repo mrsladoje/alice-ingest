@@ -86,8 +86,8 @@ site-wide, or in `inventory.yml` for one group or host.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `dashboards_metrics_script` | `/opt/alice-ingest/metrics_poller.py` | Where the poller is installed. The unit's `ExecStart`. |
-| `dashboards_roster_publish_script` | `/opt/alice-ingest/roster_publish.py` | Where the roster publisher is installed. Run once per deploy, not a service. |
+| `cockpit_metrics_script` | `/opt/alice-ingest/metrics_poller.py` | Where the poller is installed. The unit's `ExecStart`. |
+| `cockpit_metrics_roster_publish_script` | `/opt/alice-ingest/roster_publish.py` | Where the roster publisher is installed. Run once per deploy, not a service. |
 | `fleet_collector_node_ids` | `[]` | The `node_id` of every Fluent Bit collector the cluster expects. The playbook supplies it. See couplings. |
 | `roster_assignments` | `[]` | Explicit `origin_host` to `collector_id` rows written into the snapshot. Empty means the roster claims no assignment. `playbooks/roster_discover.yml` prints candidate rows to commit here. |
 | `cockpit_metrics_retention_days` | `7` | `RETENTION_DAYS` on the unit. The poller prunes its own index. |
@@ -103,10 +103,10 @@ defaults, because a second copy is a second place to change one value.
 |---|---|---|
 | `opensearch_http_port` | `group_vars/all.yml` | Every REST call this role makes, always against `localhost`. |
 | `dashboards_internal_port` | `group_vars/all.yml` | `OSD_URL` on the unit. The poller samples the Dashboards status API. |
-| `dashboards_metrics_service_name` | `group_vars/all.yml` | The unit name. `playbooks/status.yml` and the `alice_ops` role read the same name. |
+| `cockpit_metrics_service_name` | `group_vars/all.yml` | The unit name. `playbooks/status.yml` and the `alice_ops` role read the same name. |
 | `cockpit_metrics_unit_path` | this role | Where that unit is written. The handler stats it before restarting, so a notification that arrives before the unit exists is a no-op rather than a failure. |
-| `dashboards_discover_roster_script` | `group_vars/all.yml` | Install path of `discover_roster.py`. `playbooks/roster_discover.yml` runs that path. |
-| `dashboards_bootstrap_verify_script` | `group_vars/all.yml` | The detection verify `post_collector.yml` runs. The file belongs to `anomaly_detection`. See couplings. |
+| `cockpit_metrics_discover_roster_script` | `group_vars/all.yml` | Install path of `discover_roster.py`. `playbooks/roster_discover.yml` runs that path. |
+| `alice_bootstrap_verify_script` | `group_vars/all.yml` | The detection verify `post_collector.yml` runs. The file belongs to `anomaly_detection`. See couplings. |
 | `cockpit_metrics_index` | `group_vars/all.yml` | The index the poller writes and the purge cleans. |
 | `cockpit_metrics_interval_seconds` | `group_vars/all.yml` | `INTERVAL` on the unit. Shared with the `collector` role, which pushes on the same beat. |
 | `fleet_roster_index` | `group_vars/all.yml` | The roster index. |
@@ -115,7 +115,7 @@ defaults, because a second copy is a second place to change one value.
 | `alice_service_memory_high` / `alice_service_memory_max` | `group_vars/all.yml` | `MemoryHigh` and `MemoryMax` on the unit. Shared by all the thin control-host services. |
 | `expected_monitors`, `expected_detectors`, `expected_forecasters` | `group_vars/all.yml` | Counts asserted by the verify in `post_collector.yml`. |
 | `trend_rollup_index`, `signals_index`, `incidents_index`, `notifications_index`, `lane_state_index` | `group_vars/all.yml` | Index names the same verify checks. |
-| `dashboards_bootstrap_signal_catalog` | `group_vars/all.yml` | The classifier catalog the same verify reads. |
+| `alice_bootstrap_signal_catalog` | `group_vars/all.yml` | The classifier catalog the same verify reads. |
 | `alerting_max_actionable_alert_count` | `group_vars/all.yml` | The actionable-alert ceiling the same verify asserts. |
 
 ## Prerequisites
@@ -199,7 +199,7 @@ The post-collector gate is a separate include, later in the same playbook:
   configuration.** The switch is read here and in the `collector` role. Turning
   it off here only skips the wait and relaxes the verify; it does not stop
   anything pushing.
-- **`dashboards_bootstrap_verify_script` names a file `anomaly_detection`
+- **`alice_bootstrap_verify_script` names a file `anomaly_detection`
   owns.** That role stages `verify_detection.py`; this role only runs it, and
   `signal_projector` runs it a third time. All three read one variable, so the
   path moves once. `anomaly_detection` must run before `post_collector.yml`.

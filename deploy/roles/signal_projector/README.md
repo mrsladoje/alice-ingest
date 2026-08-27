@@ -126,9 +126,9 @@ site-wide, or in `inventory.yml` for one group or host.
 | `signal_projector_bulk_documents` | `500` | Documents per bulk write. |
 | `signal_projector_pit_keep_alive` | `10m` | Point-in-time keep-alive for a paged read. |
 | `signal_projector_mass_silence_fraction` | `0.5` | Fraction of the fleet that must go silent before the projector calls it one mass-silence incident instead of many. |
-| `dashboards_signal_projector_script` | `/opt/alice-ingest/signal_projector.py` | Installed path, on both hosts. |
-| `dashboards_notification_ingest_script` | `/opt/alice-ingest/notification_ingest.py` | Installed path, control host. |
-| `dashboards_signal_contract_test` | `/opt/alice-ingest/test_signal_contract.py` | Installed path, control host. |
+| `signal_projector_script` | `/opt/alice-ingest/signal_projector.py` | Installed path, on both hosts. |
+| `signal_projector_notification_ingest_script` | `/opt/alice-ingest/notification_ingest.py` | Installed path, control host. |
+| `signal_projector_contract_test` | `/opt/alice-ingest/test_signal_contract.py` | Installed path, control host. |
 | `projector_gate_retries` | `36` | Attempts to find a successful-cycle heartbeat. |
 | `projector_gate_delay` | `5` | Seconds between those attempts. The two give 3 minutes. |
 | `alertmanager_host_address` | `""` | Address of the host running Alertmanager. **The playbook supplies it.** Replaces the inline `hostvars[groups['control'][0]].ansible_host`. |
@@ -144,8 +144,8 @@ defaults, because a second copy is a second place to change one value.
 
 | Variable | Owner | Used for |
 |---|---|---|
-| `dashboards_signal_projector_service_name` | `group_vars/all.yml` | The unit name. `alice_ops` and `playbooks/status.yml` read the same name. |
-| `dashboards_notification_ingest_service_name` | `group_vars/all.yml` | The unit name. `playbooks/status.yml` reads it too. |
+| `signal_projector_service_name` | `group_vars/all.yml` | The unit name. `alice_ops` and `playbooks/status.yml` read the same name. |
+| `signal_projector_notification_ingest_service_name` | `group_vars/all.yml` | The unit name. `playbooks/status.yml` reads it too. |
 | `opensearch_http_port` | `group_vars/all.yml` | `OS_URL` for both services, and the gate's own searches. |
 | `alertmanager_port` | `group_vars/all.yml` | The readiness probe and `ALERTMANAGER_URL`. |
 | `notification_ingest_port` | `group_vars/all.yml` | The receiver's port. `alertmanager.yml.j2` posts to it. |
@@ -157,9 +157,9 @@ defaults, because a second copy is a second place to change one value.
 | `fleet_roster_index` | `group_vars/all.yml` | The immutable roster the projector reads to derive absence. |
 | `trend_rollup_index` | `group_vars/all.yml` | Read by the verify re-run. |
 | `anomaly_grade_floor` | `group_vars/all.yml` | Lowest anomaly grade the projector turns into a signal. |
-| `dashboards_bootstrap_signal_catalog` | `group_vars/all.yml` | The signal catalog. `alice_runtime` stages the file. |
-| `dashboards_bootstrap_causal_edges` | `group_vars/all.yml` | The causal edges the projector ranks candidate causes from. `alice_runtime` stages the file. |
-| `dashboards_bootstrap_verify_script` | `group_vars/all.yml` | The verify re-run. `anomaly_detection` stages the file. |
+| `alice_bootstrap_signal_catalog` | `group_vars/all.yml` | The signal catalog. `alice_runtime` stages the file. |
+| `alice_bootstrap_causal_edges` | `group_vars/all.yml` | The causal edges the projector ranks candidate causes from. `alice_runtime` stages the file. |
+| `alice_bootstrap_verify_script` | `group_vars/all.yml` | The verify re-run. `anomaly_detection` stages the file. |
 | `expected_monitors`, `expected_detectors`, `expected_forecasters` | `group_vars/all.yml` | Counts asserted by the verify re-run. |
 | `alerting_max_actionable_alert_count` | `group_vars/all.yml` | Ceiling asserted by the verify re-run. |
 | `projector_gate_failed` | `group_vars/all.yml` | Set to `true` by the rescue. `site.yml` reads it in its final play. Declared site-wide so that final play has a value even when this role never ran. |

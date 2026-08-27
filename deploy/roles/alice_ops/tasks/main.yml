@@ -9,7 +9,7 @@
     group: root
     mode: "0755"
   loop:
-    - {src: score_injection.py, dest: "{{ dashboards_score_injection_script }}"}
+    - {src: score_injection.py, dest: "{{ alice_ops_score_injection_script }}"}
   loop_control:
     label: "{{ item.dest }}"
   notify:

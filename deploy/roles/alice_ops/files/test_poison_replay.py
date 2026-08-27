@@ -209,7 +209,7 @@ def test_deploy_wires_mapping_service_make_and_ops_controls():
                   "poison_targets"):
         check(templates.count(f'"{field}"') >= 4,
               f"{field} is not mapped for new and existing log/metrics indices")
-    check("ExecStart=/usr/bin/python3 {{ dashboards_poison_replay_script }}"
+    check("ExecStart=/usr/bin/python3 {{ alice_ops_poison_replay_script }}"
           in unit, "poison systemd unit does not execute the installed script")
     check("poison: poison-replay" in makefile
           and "poison-replay:" in makefile

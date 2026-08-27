@@ -25,10 +25,10 @@ dashboards_basic_auth_password: "{{ vault_dashboards_basic_auth_password }}"
 # Shared with the opensearch_bootstrap role, which writes templates.sh, ism.sh
 # and register_node.sh into the same directory and creates it with the same
 # owner, group and mode.
-dashboards_bootstrap_root: /opt/alice-ingest/init
-dashboards_bootstrap_patterns_script: "{{ dashboards_bootstrap_root }}/patterns.sh"
-dashboards_bootstrap_cockpit_ndjson: "{{ dashboards_bootstrap_root }}/cockpit.ndjson"
-dashboards_bootstrap_hydrate_script: "{{ dashboards_bootstrap_root }}/hydrate_patterns.py"
+alice_bootstrap_root: /opt/alice-ingest/init
+dashboards_bootstrap_patterns_script: "{{ alice_bootstrap_root }}/patterns.sh"
+dashboards_bootstrap_cockpit_ndjson: "{{ alice_bootstrap_root }}/cockpit.ndjson"
+dashboards_bootstrap_hydrate_script: "{{ alice_bootstrap_root }}/hydrate_patterns.py"
 
 dashboards_index_patterns:
   - infologger

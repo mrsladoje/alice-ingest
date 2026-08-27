@@ -1,7 +1,7 @@
 - name: Stage the signal contract test on the control host
   ansible.builtin.copy:
     src: test_signal_contract.py
-    dest: "{{ dashboards_signal_contract_test }}"
+    dest: "{{ signal_projector_contract_test }}"
     owner: root
     group: root
     mode: "0755"
@@ -9,7 +9,7 @@
 - name: Install the notification ingest service script
   ansible.builtin.copy:
     src: notification_ingest.py
-    dest: "{{ dashboards_notification_ingest_script }}"
+    dest: "{{ signal_projector_notification_ingest_script }}"
     owner: root
     group: root
     mode: "0755"
@@ -18,7 +18,7 @@
 - name: Template the alice-notification-ingest systemd unit
   ansible.builtin.template:
     src: alice-notification-ingest.service.j2
-    dest: /etc/systemd/system/{{ dashboards_notification_ingest_service_name }}.service
+    dest: /etc/systemd/system/{{ signal_projector_notification_ingest_service_name }}.service
     owner: root
     group: root
     mode: "0644"
@@ -26,7 +26,7 @@
 
 - name: Enable and start alice-notification-ingest
   ansible.builtin.systemd:
-    name: "{{ dashboards_notification_ingest_service_name }}"
+    name: "{{ signal_projector_notification_ingest_service_name }}"
     enabled: true
     state: started
     daemon_reload: true
@@ -34,7 +34,7 @@
 - name: Stage the signal projector implementation on the control host for its contract test
   ansible.builtin.copy:
     src: signal_projector.py
-    dest: "{{ dashboards_signal_projector_script }}"
+    dest: "{{ signal_projector_script }}"
     owner: root
     group: root
     mode: "0755"

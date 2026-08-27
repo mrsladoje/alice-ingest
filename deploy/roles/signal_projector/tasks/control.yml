@@ -1,6 +1,6 @@
 - name: Assert the notification receiver stayed up (a dead receiver silently drops every notification)
   ansible.builtin.systemd:
-    name: "{{ dashboards_notification_ingest_service_name }}"
+    name: "{{ signal_projector_notification_ingest_service_name }}"
   register: _notify_state
   retries: 6
   delay: 5
@@ -17,15 +17,15 @@
 
 - name: Prove the emitted-signal contract without waiting for a live signal
   ansible.builtin.command:
-    cmd: "python3 {{ dashboards_signal_contract_test }}"
+    cmd: "python3 {{ signal_projector_contract_test }}"
   environment:
-    SIGNAL_CATALOG: "{{ dashboards_bootstrap_signal_catalog }}"
+    SIGNAL_CATALOG: "{{ alice_bootstrap_signal_catalog }}"
     CLUSTER_ID: "{{ cluster_id }}"
   changed_when: false
 
 - name: Re-verify the signal layer now that the projector exists
   ansible.builtin.command:
-    cmd: "python3 {{ dashboards_bootstrap_verify_script }}"
+    cmd: "python3 {{ alice_bootstrap_verify_script }}"
   environment:
     OS_URL: "http://localhost:{{ opensearch_http_port }}"
     EXPECTED_MONITORS: "{{ expected_monitors }}"
@@ -38,7 +38,7 @@
     INCIDENTS_INDEX: "{{ incidents_index }}"
     NOTIFICATIONS_INDEX: "{{ notifications_index }}"
     LANE_STATE_INDEX: "{{ lane_state_index }}"
-    SIGNAL_CATALOG: "{{ dashboards_bootstrap_signal_catalog }}"
+    SIGNAL_CATALOG: "{{ alice_bootstrap_signal_catalog }}"
     ALERTING_MAX_ACTIONABLE_ALERT_COUNT: "{{ alerting_max_actionable_alert_count }}"
     EXPECT_PUSH_HEARTBEATS: "false"
     CHECK_EPISODE_GROUPING: "true"

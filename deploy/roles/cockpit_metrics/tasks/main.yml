@@ -6,8 +6,8 @@
     group: root
     mode: "0755"
   loop:
-    - {src: roster_publish.py, dest: "{{ dashboards_roster_publish_script }}"}
-    - {src: discover_roster.py, dest: "{{ dashboards_discover_roster_script }}"}
+    - {src: roster_publish.py, dest: "{{ cockpit_metrics_roster_publish_script }}"}
+    - {src: discover_roster.py, dest: "{{ cockpit_metrics_discover_roster_script }}"}
   loop_control:
     label: "{{ item.dest }}"
   notify:

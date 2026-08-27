@@ -1,6 +1,6 @@
 - name: Ensure the bootstrap scripts directory exists
   ansible.builtin.file:
-    path: "{{ dashboards_bootstrap_root }}"
+    path: "{{ alice_bootstrap_root }}"
     state: directory
     owner: root
     group: root
@@ -16,7 +16,7 @@
 - name: Stage the signal identity catalog (one explicit per-monitor and per-detector classifier, never inferred from an index name)
   ansible.builtin.copy:
     src: signal_catalog.json
-    dest: "{{ dashboards_bootstrap_signal_catalog }}"
+    dest: "{{ alice_bootstrap_signal_catalog }}"
     owner: root
     group: root
     # alice-signal-projector uses DynamicUser=true, so it cannot join a
@@ -35,13 +35,13 @@
       - --
       - /usr/bin/python3
       - -c
-      - "import json; json.load(open('{{ dashboards_bootstrap_signal_catalog }}'))"
+      - "import json; json.load(open('{{ alice_bootstrap_signal_catalog }}'))"
   changed_when: false
 
 - name: Stage the causal edges (one declaration per edge; proven decides whether it explains or suppresses)
   ansible.builtin.copy:
     src: causal_edges.json
-    dest: "{{ dashboards_bootstrap_causal_edges }}"
+    dest: "{{ alice_bootstrap_causal_edges }}"
     owner: root
     group: root
     mode: "0644"
@@ -54,7 +54,7 @@
       - -c
       - >-
         import json,sys;
-        d=json.load(open('{{ dashboards_bootstrap_causal_edges }}'));
+        d=json.load(open('{{ alice_bootstrap_causal_edges }}'));
         e=d['edges'];
         bad=[x for x in e if not x.get('cause') or not x.get('symptom')
              or not x.get('equal') or 'proven' not in x];
@@ -63,7 +63,7 @@
 
 - name: Ensure the control-node app root exists
   ansible.builtin.file:
-    path: "{{ dashboards_app_root }}"
+    path: "{{ alice_app_root }}"
     state: directory
     owner: root
     group: root
@@ -77,8 +77,8 @@
     group: root
     mode: "0755"
   loop:
-    - {src: os_cursor.py, dest: "{{ dashboards_os_cursor_script }}"}
-    - {src: signal_identity.py, dest: "{{ dashboards_signal_identity_script }}"}
+    - {src: os_cursor.py, dest: "{{ alice_os_cursor_script }}"}
+    - {src: signal_identity.py, dest: "{{ alice_signal_identity_script }}"}
   loop_control:
     label: "{{ item.dest }}"
   register: _projector_remote_modules

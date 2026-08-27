@@ -1,7 +1,7 @@
 - name: Install the metrics poller script
   ansible.builtin.copy:
     src: metrics_poller.py
-    dest: "{{ dashboards_metrics_script }}"
+    dest: "{{ cockpit_metrics_script }}"
     owner: root
     group: root
     mode: "0755"
@@ -18,7 +18,7 @@
 
 - name: Enable and start alice-metrics
   ansible.builtin.systemd:
-    name: "{{ dashboards_metrics_service_name }}"
+    name: "{{ cockpit_metrics_service_name }}"
     enabled: true
     state: started
     daemon_reload: true

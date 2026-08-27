@@ -6,7 +6,7 @@
   tasks:
     - name: Stop poison replay and let it publish a cancelled result
       ansible.builtin.systemd:
-        name: "{{ dashboards_poison_replay_service_name }}"
+        name: "{{ alice_ops_poison_replay_service_name }}"
         state: stopped
 
     - name: Report retention of already-injected evidence

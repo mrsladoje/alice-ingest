@@ -1,4 +1,4 @@
-dashboards_trend_rollup_script: /opt/alice-ingest/trend_rollup.py
+trend_rollup_script: /opt/alice-ingest/trend_rollup.py
 
 trend_rollup_bucket_seconds: 600
 trend_rollup_settle_seconds: 120

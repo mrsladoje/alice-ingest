@@ -1,7 +1,7 @@
 - name: Install the signal projector script on its offload host
   ansible.builtin.copy:
     src: signal_projector.py
-    dest: "{{ dashboards_signal_projector_script }}"
+    dest: "{{ signal_projector_script }}"
     owner: root
     group: root
     mode: "0755"
@@ -10,7 +10,7 @@
 - name: Template the alice-signal-projector systemd unit on its offload host
   ansible.builtin.template:
     src: alice-signal-projector.service.j2
-    dest: /etc/systemd/system/{{ dashboards_signal_projector_service_name }}.service
+    dest: /etc/systemd/system/{{ signal_projector_service_name }}.service
     owner: root
     group: root
     mode: "0644"
@@ -27,7 +27,7 @@
 
 - name: Enable and start the projector on its offload host, restarting only when its inputs changed
   ansible.builtin.systemd:
-    name: "{{ dashboards_signal_projector_service_name }}"
+    name: "{{ signal_projector_service_name }}"
     enabled: true
     state: >-
       {{ 'restarted'
@@ -44,7 +44,7 @@
     argv:
       - /usr/bin/systemctl
       - show
-      - "{{ dashboards_signal_projector_service_name }}"
+      - "{{ signal_projector_service_name }}"
       - --property=MemoryHigh
       - --property=MemoryMax
   register: _projector_memory_bounds
@@ -123,9 +123,9 @@
       ansible.builtin.shell:
         cmd: "{{ item }}"
       loop:
-        - "systemctl status {{ dashboards_signal_projector_service_name }} --no-pager | tail -20"
-        - "systemctl show {{ dashboards_signal_projector_service_name }} --property=Result --property=NRestarts --property=MemoryCurrent --property=MemoryPeak --property=ExecMainStatus"
-        - "journalctl -u {{ dashboards_signal_projector_service_name }} -n 60 --no-pager"
+        - "systemctl status {{ signal_projector_service_name }} --no-pager | tail -20"
+        - "systemctl show {{ signal_projector_service_name }} --property=Result --property=NRestarts --property=MemoryCurrent --property=MemoryPeak --property=ExecMainStatus"
+        - "journalctl -u {{ signal_projector_service_name }} -n 60 --no-pager"
         - "journalctl -k -n 100 --no-pager | grep -Ei 'oom|out of memory|killed process' | tail -20"
         - "free -m"
         - "swapon --show"
@@ -180,7 +180,7 @@
 
 - name: Assert the offloaded projector stayed up
   ansible.builtin.systemd:
-    name: "{{ dashboards_signal_projector_service_name }}"
+    name: "{{ signal_projector_service_name }}"
   register: _projector_state
   retries: 6
   delay: 5

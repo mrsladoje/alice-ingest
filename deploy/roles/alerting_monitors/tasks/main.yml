@@ -1,7 +1,7 @@
 - name: Render the alerting monitors bootstrap script
   ansible.builtin.template:
     src: alerting.sh.j2
-    dest: "{{ dashboards_bootstrap_alerting_script }}"
+    dest: "{{ alerting_monitors_bootstrap_script }}"
     owner: root
     group: root
     mode: "0750"
@@ -9,17 +9,17 @@
 - name: Stage monitor definitions
   ansible.builtin.copy:
     src: monitors/
-    dest: "{{ dashboards_bootstrap_monitors_dir }}/"
+    dest: "{{ alerting_monitors_dir }}/"
     owner: root
     group: root
     mode: "0640"
 
 - name: Upsert alerting monitors (idempotent by name, every run)
   ansible.builtin.command:
-    cmd: "{{ dashboards_bootstrap_alerting_script }}"
+    cmd: "{{ alerting_monitors_bootstrap_script }}"
   environment:
     OS_URL: "http://localhost:{{ opensearch_http_port }}"
-    MONITORS_DIR: "{{ dashboards_bootstrap_monitors_dir }}"
+    MONITORS_DIR: "{{ alerting_monitors_dir }}"
     AD_ANOMALY_GRADE_THRESHOLD: "{{ ad_anomaly_grade_threshold }}"
     AD_ANOMALY_CONFIDENCE_THRESHOLD: "{{ ad_anomaly_confidence_threshold }}"
     TREND_LAG_FLOOR_MS: "{{ trend_lag_floor_ms }}"

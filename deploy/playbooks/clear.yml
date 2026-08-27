@@ -27,7 +27,7 @@
         fail_msg: >-
           alice-ops did not answer on 127.0.0.1:{{ ops_internal_port }}
           ({{ _wipe.msg | default('no response') }}). It owns this action, so
-          check `systemctl status {{ dashboards_ops_service_name }}` on the
+          check `systemctl status {{ alice_ops_service_name }}` on the
           control host first.
 
     - name: Refuse when another ops action is already running

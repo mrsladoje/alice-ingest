@@ -16,15 +16,15 @@ Environment=OS_URL=http://localhost:{{ opensearch_http_port }}
 Environment=OPS_WORKER_TRIGGERS={{ worker_replay_trigger_urls | join(',') }}
 Environment=OPS_WORKER_INFO_NODES={{ fleet_collector_node_ids | join(',') }}
 Environment=OPS_REPLAY_FAMILIES=infologger,dds,stdout
-Environment=OPS_TEMPLATES_SCRIPT={{ dashboards_ops_templates_script }}
-Environment=OPS_RESET_SCRIPT={{ dashboards_reset_derived_script }}
-Environment=OPS_POISON_SERVICE={{ dashboards_poison_replay_service_name }}
-Environment=OPS_POISON_STATUS={{ dashboards_poison_replay_status }}
-Environment=OPS_INJECT_SERVICE={{ dashboards_inject_service_name }}
-Environment=OPS_INJECT_STATUS={{ dashboards_inject_status }}
-Environment=OPS_INJECT_REQUEST={{ dashboards_inject_request }}
+Environment=OPS_TEMPLATES_SCRIPT={{ alice_ops_templates_script }}
+Environment=OPS_RESET_SCRIPT={{ alice_ops_reset_derived_script }}
+Environment=OPS_POISON_SERVICE={{ alice_ops_poison_replay_service_name }}
+Environment=OPS_POISON_STATUS={{ alice_ops_poison_replay_status }}
+Environment=OPS_INJECT_SERVICE={{ alice_ops_inject_service_name }}
+Environment=OPS_INJECT_STATUS={{ alice_ops_inject_status }}
+Environment=OPS_INJECT_REQUEST={{ alice_ops_inject_request }}
 Environment=OPS_INJECT_WORKERS={{ worker_inventory_names | join(',') }}
-Environment=OPS_INJECT_OBSERVE_MINUTES={{ dashboards_inject_default_observe_minutes }}
+Environment=OPS_INJECT_OBSERVE_MINUTES={{ alice_ops_inject_default_observe_minutes }}
 Environment=ROLLUP_INDEX={{ trend_rollup_index }}
 Environment=SIGNALS_INDEX={{ signals_index }}
 Environment=INCIDENTS_INDEX={{ incidents_index }}
@@ -32,7 +32,7 @@ Environment=NOTIFICATIONS_INDEX={{ notifications_index }}
 Environment=LANE_STATE_INDEX={{ lane_state_index }}
 Environment=GRADE_FLOOR={{ anomaly_grade_floor }}
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/usr/bin/python3 {{ dashboards_ops_script }}
+ExecStart=/usr/bin/python3 {{ alice_ops_script }}
 Restart=on-failure
 RestartSec=5s
 

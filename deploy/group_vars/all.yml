@@ -270,38 +270,38 @@ alert_actions_rollover_max_size: "1gb"
 # Shared with the opensearch_bootstrap role, which writes templates.sh, ism.sh
 # and register_node.sh into the same directory and creates it with the same
 # owner, group and mode.
-dashboards_bootstrap_root: /opt/alice-ingest/init
-dashboards_app_root: /opt/alice-ingest
+alice_bootstrap_root: /opt/alice-ingest/init
+alice_app_root: /opt/alice-ingest
 
-dashboards_bootstrap_signal_catalog: "{{ dashboards_bootstrap_root }}/signal_catalog.json"
-dashboards_bootstrap_causal_edges: "{{ dashboards_bootstrap_root }}/causal_edges.json"
-dashboards_bootstrap_verify_script: "{{ dashboards_bootstrap_root }}/verify_detection.py"
+alice_bootstrap_signal_catalog: "{{ alice_bootstrap_root }}/signal_catalog.json"
+alice_bootstrap_causal_edges: "{{ alice_bootstrap_root }}/causal_edges.json"
+alice_bootstrap_verify_script: "{{ alice_bootstrap_root }}/verify_detection.py"
 
-dashboards_os_cursor_script: /opt/alice-ingest/os_cursor.py
-dashboards_signal_identity_script: /opt/alice-ingest/signal_identity.py
-dashboards_discover_roster_script: /opt/alice-ingest/discover_roster.py
-dashboards_backtest_script: /opt/alice-ingest/backtest.py
-dashboards_reset_derived_script: /opt/alice-ingest/reset_derived.py
-dashboards_poison_replay_script: /opt/alice-ingest/poison_replay.py
+alice_os_cursor_script: /opt/alice-ingest/os_cursor.py
+alice_signal_identity_script: /opt/alice-ingest/signal_identity.py
+cockpit_metrics_discover_roster_script: /opt/alice-ingest/discover_roster.py
+anomaly_detection_backtest_script: /opt/alice-ingest/backtest.py
+alice_ops_reset_derived_script: /opt/alice-ingest/reset_derived.py
+alice_ops_poison_replay_script: /opt/alice-ingest/poison_replay.py
 
-dashboards_metrics_service_name: alice-metrics
-dashboards_trend_rollup_service_name: alice-trend-rollup
-dashboards_signal_projector_service_name: alice-signal-projector
-dashboards_notification_ingest_service_name: alice-notification-ingest
-dashboards_ops_service_name: alice-ops
-dashboards_inject_service_name: alice-inject
-dashboards_poison_replay_service_name: alice-poison-replay
+cockpit_metrics_service_name: alice-metrics
+trend_rollup_service_name: alice-trend-rollup
+signal_projector_service_name: alice-signal-projector
+signal_projector_notification_ingest_service_name: alice-notification-ingest
+alice_ops_service_name: alice-ops
+alice_ops_inject_service_name: alice-inject
+alice_ops_poison_replay_service_name: alice-poison-replay
 
 ops_internal_port: 8090
 
 # Literal paths, not references to the alice_ops role's state directories. The
 # playbooks that read them load no role, so a reference would be undefined.
-# They must stay equal to {{ dashboards_inject_state_dir }}/status.json,
-# /request.json and {{ dashboards_poison_replay_state_dir }}/status.json, /runs.
-dashboards_inject_status: /var/lib/alice-inject/status.json
-dashboards_inject_request: /var/lib/alice-inject/request.json
-dashboards_poison_replay_status: /var/lib/alice-poison-replay/status.json
-dashboards_poison_replay_report_dir: /var/lib/alice-poison-replay/runs
+# They must stay equal to {{ alice_ops_inject_state_dir }}/status.json,
+# /request.json and {{ alice_ops_poison_replay_state_dir }}/status.json, /runs.
+alice_ops_inject_status: /var/lib/alice-inject/status.json
+alice_ops_inject_request: /var/lib/alice-inject/request.json
+alice_ops_poison_replay_status: /var/lib/alice-poison-replay/status.json
+alice_ops_poison_replay_report_dir: /var/lib/alice-poison-replay/runs
 
 # The counts verify_detection.py asserts. They are read by the anomaly_detection
 # and signal_projector roles, but they count JSON files owned by the

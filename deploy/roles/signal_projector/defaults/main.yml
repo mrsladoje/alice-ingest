@@ -15,9 +15,9 @@ signal_projector_bulk_documents: 500
 signal_projector_pit_keep_alive: "10m"
 signal_projector_mass_silence_fraction: 0.5
 
-dashboards_signal_projector_script: /opt/alice-ingest/signal_projector.py
-dashboards_notification_ingest_script: /opt/alice-ingest/notification_ingest.py
-dashboards_signal_contract_test: /opt/alice-ingest/test_signal_contract.py
+signal_projector_script: /opt/alice-ingest/signal_projector.py
+signal_projector_notification_ingest_script: /opt/alice-ingest/notification_ingest.py
+signal_projector_contract_test: /opt/alice-ingest/test_signal_contract.py
 
 alertmanager_host_address: ""
 projector_gate_started_utc: ""

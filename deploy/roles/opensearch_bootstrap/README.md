@@ -146,7 +146,7 @@ All from `group_vars/all.yml`, and all read by the two templates.
   `anomaly_detection` only write into it. `alice_runtime` also stages a
   world-readable signal catalog there for the `DynamicUser` services, which is
   why the directory is `0755` and the scripts inside it are `0750`.
-- **`dashboards_ops_templates_script` must match
+- **`alice_ops_templates_script` must match
   `opensearch_bootstrap_templates_script`.** The ops page re-applies the index
   templates through `alice-ops.service`. That unit is written by the `alice_ops`
   role, which holds the path as a literal: a default reading another role's

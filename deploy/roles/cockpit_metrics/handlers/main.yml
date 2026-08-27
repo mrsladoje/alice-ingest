@@ -6,7 +6,7 @@
 
 - name: Restart alice-metrics
   ansible.builtin.systemd:
-    name: "{{ dashboards_metrics_service_name }}"
+    name: "{{ cockpit_metrics_service_name }}"
     state: restarted
     daemon_reload: true
   when: _cockpit_metrics_unit.stat.exists

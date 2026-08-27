@@ -22,8 +22,8 @@ Environment=NOTIFICATIONS_INDEX={{ notifications_index }}
 Environment=METRICS_INDEX={{ cockpit_metrics_index }}
 Environment=ROSTER_INDEX={{ fleet_roster_index }}
 Environment=STATE_INDEX={{ lane_state_index }}
-Environment=SIGNAL_CATALOG={{ dashboards_bootstrap_signal_catalog }}
-Environment=CAUSAL_EDGES={{ dashboards_bootstrap_causal_edges }}
+Environment=SIGNAL_CATALOG={{ alice_bootstrap_signal_catalog }}
+Environment=CAUSAL_EDGES={{ alice_bootstrap_causal_edges }}
 Environment=CLUSTER_ID={{ cluster_id }}
 Environment=INTERVAL={{ signal_projector_interval_seconds }}
 Environment=RESOLVE_TIMEOUT_SECONDS={{ signal_projector_resolve_timeout_seconds }}
@@ -37,7 +37,7 @@ Environment=PIT_KEEP_ALIVE={{ signal_projector_pit_keep_alive }}
 Environment=RETENTION_DAYS={{ signal_projector_retention_days }}
 Environment=MASS_SILENCE_FRACTION={{ signal_projector_mass_silence_fraction }}
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/usr/bin/python3 {{ dashboards_signal_projector_script }}
+ExecStart=/usr/bin/python3 {{ signal_projector_script }}
 Restart=on-failure
 RestartSec=10s
 

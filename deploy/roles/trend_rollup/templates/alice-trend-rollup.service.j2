@@ -24,7 +24,7 @@ Environment=MAX_ENTITIES={{ trend_rollup_max_entities }}
 Environment=RETENTION_DAYS={{ trend_rollup_retention_days }}
 Environment=INTERVAL={{ trend_rollup_bucket_seconds }}
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/usr/bin/python3 {{ dashboards_trend_rollup_script }}
+ExecStart=/usr/bin/python3 {{ trend_rollup_script }}
 Restart=on-failure
 RestartSec=10s
 

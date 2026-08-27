@@ -214,7 +214,7 @@ defaults, because a second copy is a second place to change one value.
 | `live_lane_ingest_path` | `group_vars/all.yml` | `LIVE_INGEST_PATH`. The `collector` role writes the same path into its output. |
 | `live_lane_enabled` | `group_vars/all.yml` | Read by the play that calls this role and by the `collector` role. The role itself never reads it. |
 | `live_lane_host` | `group_vars/all.yml` | Read by the `collector` role only. It names the `livelane` inventory group, so it cannot be a role default. |
-| `dashboards_app_root` | `group_vars/all.yml` | `/opt/alice-ingest`, the parent of the static directory. Shared with every other alice service. |
+| `alice_app_root` | `group_vars/all.yml` | `/opt/alice-ingest`, the parent of the static directory. Shared with every other alice service. |
 
 `live_lane_allowed_client_addresses` replaces an inline
 `groups['workers'] + groups['control']` expression. A role default must not name
@@ -266,8 +266,8 @@ In a playbook, against the live lane host:
   ingest pipeline; the lane bypasses OpenSearch, so `live_lane.py` carries the
   same table. A severity added on one side and not the other shows here as
   `unknown`.
-- **`live_lane_script` and `dashboards_app_root` must stay consistent.** The
-  script path is a literal, not `{{ dashboards_app_root }}/live_lane.py`, so
+- **`live_lane_script` and `alice_app_root` must stay consistent.** The
+  script path is a literal, not `{{ alice_app_root }}/live_lane.py`, so
   moving the app root moves the static directory but not the server file.
 - **The four `register` names and the restart condition change together.**
   Adding a payload task without adding its `register` to the `state:`

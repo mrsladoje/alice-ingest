@@ -133,10 +133,10 @@ site-wide, or in `inventory.yml` for one group or host.
 | `dashboards_nginx_vhost_file` | `/etc/nginx/conf.d/dashboards.conf` | The rendered vhost. |
 | `dashboards_basic_auth_user` | `alice` | The one basic-auth account. |
 | `dashboards_basic_auth_password` | `{{ vault_dashboards_basic_auth_password }}` | Its password. See couplings. |
-| `dashboards_bootstrap_root` | `/opt/alice-ingest/init` | Where the bootstrap scripts are staged. Also declared in `group_vars/all.yml` — see couplings. |
-| `dashboards_bootstrap_patterns_script` | `{{ dashboards_bootstrap_root }}/patterns.sh` | The rendered index-pattern script. |
-| `dashboards_bootstrap_cockpit_ndjson` | `{{ dashboards_bootstrap_root }}/cockpit.ndjson` | The staged saved objects. |
-| `dashboards_bootstrap_hydrate_script` | `{{ dashboards_bootstrap_root }}/hydrate_patterns.py` | The staged field-catalog hydration script. |
+| `alice_bootstrap_root` | `/opt/alice-ingest/init` | Where the bootstrap scripts are staged. Also declared in `group_vars/all.yml` — see couplings. |
+| `dashboards_bootstrap_patterns_script` | `{{ alice_bootstrap_root }}/patterns.sh` | The rendered index-pattern script. |
+| `dashboards_bootstrap_cockpit_ndjson` | `{{ alice_bootstrap_root }}/cockpit.ndjson` | The staged saved objects. |
+| `dashboards_bootstrap_hydrate_script` | `{{ alice_bootstrap_root }}/hydrate_patterns.py` | The staged field-catalog hydration script. |
 | `dashboards_index_patterns` | `infologger`, `application-logs-local-*`, `application-logs-central` | The per-source index patterns. Read by both `patterns.sh` and the hydration step — see couplings. |
 
 ### Variables the role requires but does not own
@@ -200,7 +200,7 @@ Against the control host only:
 - **`opensearch_version` is shared with the `opensearch` role.** OpenSearch and
   OpenSearch Dashboards must run the same version. Change it in
   `group_vars/all.yml`, which both roles read.
-- **`dashboards_bootstrap_root` is declared here and in `group_vars/all.yml`.**
+- **`alice_bootstrap_root` is declared here and in `group_vars/all.yml`.**
   Three of this role's own defaults interpolate it, and a role whose defaults
   reference an undeclared variable cannot run outside this repository. The
   `group_vars` value outranks the default and stays the site source of truth,

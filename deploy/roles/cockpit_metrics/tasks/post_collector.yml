@@ -26,7 +26,7 @@
 
 - name: Verify the complete detection layer after collector cutover
   ansible.builtin.command:
-    cmd: "python3 {{ dashboards_bootstrap_verify_script }}"
+    cmd: "python3 {{ alice_bootstrap_verify_script }}"
   environment:
     OS_URL: "http://localhost:{{ opensearch_http_port }}"
     EXPECTED_MONITORS: "{{ expected_monitors }}"
@@ -39,7 +39,7 @@
     INCIDENTS_INDEX: "{{ incidents_index }}"
     NOTIFICATIONS_INDEX: "{{ notifications_index }}"
     LANE_STATE_INDEX: "{{ lane_state_index }}"
-    SIGNAL_CATALOG: "{{ dashboards_bootstrap_signal_catalog }}"
+    SIGNAL_CATALOG: "{{ alice_bootstrap_signal_catalog }}"
     ALERTING_MAX_ACTIONABLE_ALERT_COUNT: "{{ alerting_max_actionable_alert_count }}"
     EXPECT_PUSH_HEARTBEATS: "{{ collector_health_push_enabled | bool | ternary('true', 'false') }}"
   changed_when: false

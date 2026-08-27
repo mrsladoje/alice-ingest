@@ -11,10 +11,10 @@
   tasks:
     - name: Run the backtest
       ansible.builtin.command:
-        cmd: "python3 {{ dashboards_backtest_script }}"
+        cmd: "python3 {{ anomaly_detection_backtest_script }}"
       environment:
         OS_URL: "http://localhost:{{ opensearch_http_port }}"
-        SIGNAL_CATALOG: "{{ dashboards_bootstrap_signal_catalog }}"
+        SIGNAL_CATALOG: "{{ alice_bootstrap_signal_catalog }}"
         GRADE_FLOOR: "{{ anomaly_grade_floor }}"
         DETECTORS: "{{ backtest_detectors }}"
         TIMEOUT_MINUTES: "{{ backtest_timeout_minutes }}"

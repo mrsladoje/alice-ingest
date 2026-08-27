@@ -19,7 +19,7 @@
 
     - name: Clear everything derived from the log data being wiped (rollup, projector, alerts, anomaly results)
       ansible.builtin.command:
-        cmd: "python3 {{ dashboards_reset_derived_script }}"
+        cmd: "python3 {{ alice_ops_reset_derived_script }}"
       environment:
         OS_URL: "http://localhost:{{ opensearch_http_port }}"
         ROLLUP_INDEX: "{{ trend_rollup_index }}"

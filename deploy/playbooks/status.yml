@@ -4,8 +4,8 @@
   gather_facts: false
   vars:
     background_status_services: >-
-      {{ ([dashboards_trend_rollup_service_name] if 'rollup' in background_services else [])
-         + ([dashboards_signal_projector_service_name]
+      {{ ([trend_rollup_service_name] if 'rollup' in background_services else [])
+         + ([signal_projector_service_name]
             if inventory_hostname in groups['projector'] else []) }}
   tasks:
     - name: Check this node's background services
@@ -52,9 +52,9 @@
   gather_facts: false
   vars:
     cockpit_status_services:
-      - "{{ dashboards_metrics_service_name }}"
-      - "{{ dashboards_notification_ingest_service_name }}"
-      - "{{ dashboards_ops_service_name }}"
+      - "{{ cockpit_metrics_service_name }}"
+      - "{{ signal_projector_notification_ingest_service_name }}"
+      - "{{ alice_ops_service_name }}"
   tasks:
     - name: Check the cockpit services
       ansible.builtin.command:
@@ -117,7 +117,7 @@
 
     - name: Read the last fault-injection run
       ansible.builtin.slurp:
-        src: "{{ dashboards_inject_status }}"
+        src: "{{ alice_ops_inject_status }}"
       register: _inject_state
       changed_when: false
       failed_when: false

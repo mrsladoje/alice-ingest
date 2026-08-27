@@ -9,7 +9,7 @@
         argv:
           - systemctl
           - show
-          - "{{ dashboards_poison_replay_service_name }}"
+          - "{{ alice_ops_poison_replay_service_name }}"
           - --property=ActiveState,SubState,Result,ExecMainStatus
       register: _poison_unit
       changed_when: false
@@ -17,12 +17,12 @@
 
     - name: Check for a published status matrix
       ansible.builtin.stat:
-        path: "{{ dashboards_poison_replay_status }}"
+        path: "{{ alice_ops_poison_replay_status }}"
       register: _poison_status_file
 
     - name: Read the published status matrix
       ansible.builtin.slurp:
-        path: "{{ dashboards_poison_replay_status }}"
+        path: "{{ alice_ops_poison_replay_status }}"
       register: _poison_status
       when: _poison_status_file.stat.isreg | default(false)
 
@@ -31,7 +31,7 @@
         argv:
           - journalctl
           - -u
-          - "{{ dashboards_poison_replay_service_name }}"
+          - "{{ alice_ops_poison_replay_service_name }}"
           - -n
           - "40"
           - --no-pager

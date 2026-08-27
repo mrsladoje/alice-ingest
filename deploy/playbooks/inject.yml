@@ -39,7 +39,7 @@
 
     - name: Check whether a run is already in flight
       ansible.builtin.command:
-        cmd: "systemctl is-active {{ dashboards_inject_service_name }}"
+        cmd: "systemctl is-active {{ alice_ops_inject_service_name }}"
       register: _inject_active
       changed_when: false
       failed_when: false
@@ -49,15 +49,15 @@
         that:
           - _inject_active.stdout.strip() != 'active'
         fail_msg: >-
-          {{ dashboards_inject_service_name }} is already running. Two faults
+          {{ alice_ops_inject_service_name }} is already running. Two faults
           at once make every metric on the scorecard unattributable. Follow
           the running one on the /ops page, or stop it with
-          `systemctl stop {{ dashboards_inject_service_name }}` first.
+          `systemctl stop {{ alice_ops_inject_service_name }}` first.
 
     - name: Write the injection request the engine reads
       ansible.builtin.copy:
         content: "{{ _inject_request | to_nice_json }}\n"
-        dest: "{{ dashboards_inject_request }}"
+        dest: "{{ alice_ops_inject_request }}"
         owner: root
         group: root
         mode: "0640"
@@ -73,7 +73,7 @@
 
     - name: Start the run
       ansible.builtin.systemd:
-        name: "{{ dashboards_inject_service_name }}"
+        name: "{{ alice_ops_inject_service_name }}"
         state: started
         daemon_reload: true
 
@@ -89,7 +89,7 @@
 
     - name: Follow the run until it injects, observes, restores and scores
       ansible.builtin.slurp:
-        src: "{{ dashboards_inject_status }}"
+        src: "{{ alice_ops_inject_status }}"
       register: _inject_status
       until: >-
         (_inject_status.content | b64decode | from_json).state

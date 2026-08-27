@@ -81,7 +81,7 @@ site-wide, or in `inventory.yml` for one group or host.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `dashboards_trend_rollup_script` | `/opt/alice-ingest/trend_rollup.py` | Where the script is installed and what `ExecStart` runs. |
+| `trend_rollup_script` | `/opt/alice-ingest/trend_rollup.py` | Where the script is installed and what `ExecStart` runs. |
 | `trend_rollup_bucket_seconds` | `600` | Width of one aggregate row, in seconds. Also the loop period. See non-obvious settings. |
 | `trend_rollup_settle_seconds` | `120` | How far behind the clock the service stays, so that late-arriving documents land before their bucket is rolled. |
 | `trend_rollup_backfill_buckets` | `3` | How many earlier buckets are re-rolled on each pass, to repair a bucket the service missed while it was down. |
@@ -96,7 +96,7 @@ defaults, because a second copy is a second place to change one value.
 
 | Variable | Owner | Used for |
 |---|---|---|
-| `dashboards_trend_rollup_service_name` | `group_vars/all.yml` | The unit name. `playbooks/status.yml` and the `site.yml` pre-flight both name the same service. |
+| `trend_rollup_service_name` | `group_vars/all.yml` | The unit name. `playbooks/status.yml` and the `site.yml` pre-flight both name the same service. |
 | `trend_rollup_index` | `group_vars/all.yml` | The index written. `opensearch_bootstrap` creates it and its mapping, and `playbooks/replay.yml` wipes it. |
 | `opensearch_http_port` | `group_vars/all.yml` | Builds `OS_URL`. Every service in the tree reads it. |
 | `alice_service_memory_high` | `group_vars/all.yml` | `MemoryHigh` on the unit. Shared by all the thin Python services. |

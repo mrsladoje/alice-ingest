@@ -1,7 +1,7 @@
 - name: Install the trend rollup script
   ansible.builtin.copy:
     src: trend_rollup.py
-    dest: "{{ dashboards_trend_rollup_script }}"
+    dest: "{{ trend_rollup_script }}"
     owner: root
     group: root
     mode: "0755"
@@ -10,7 +10,7 @@
 - name: Template the alice-trend-rollup systemd unit
   ansible.builtin.template:
     src: alice-trend-rollup.service.j2
-    dest: /etc/systemd/system/{{ dashboards_trend_rollup_service_name }}.service
+    dest: /etc/systemd/system/{{ trend_rollup_service_name }}.service
     owner: root
     group: root
     mode: "0644"
@@ -18,7 +18,7 @@
 
 - name: Enable and start alice-trend-rollup
   ansible.builtin.systemd:
-    name: "{{ dashboards_trend_rollup_service_name }}"
+    name: "{{ trend_rollup_service_name }}"
     enabled: true
     state: started
     daemon_reload: true
@@ -28,7 +28,7 @@
 
 - name: Assert alice-trend-rollup stayed up (the whole trend lane depends on it)
   ansible.builtin.systemd:
-    name: "{{ dashboards_trend_rollup_service_name }}"
+    name: "{{ trend_rollup_service_name }}"
   register: _trend_rollup_state
   retries: 6
   delay: 5

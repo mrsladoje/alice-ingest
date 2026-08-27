@@ -87,8 +87,8 @@ site-wide.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `dashboards_bootstrap_alerting_script` | `/opt/alice-ingest/init/alerting.sh` | Where the script is rendered and from where it is run. A literal — see couplings. |
-| `dashboards_bootstrap_monitors_dir` | `/opt/alice-ingest/init/monitors` | Where the 28 definitions are staged. Passed to the script as `MONITORS_DIR`. A literal — see couplings. |
+| `alerting_monitors_bootstrap_script` | `/opt/alice-ingest/init/alerting.sh` | Where the script is rendered and from where it is run. A literal — see couplings. |
+| `alerting_monitors_dir` | `/opt/alice-ingest/init/monitors` | Where the 28 definitions are staged. Passed to the script as `MONITORS_DIR`. A literal — see couplings. |
 | `ad_anomaly_grade_threshold` | `0.7` | `ad-high-grade` fires above this anomaly grade. |
 | `ad_anomaly_confidence_threshold` | `0.7` | `ad-high-grade` fires above this model confidence. |
 | `trend_lag_floor_ms` | `250` | Lag below this is noise. The `trend-*` lag monitors ignore it. |
@@ -110,13 +110,13 @@ defaults, because a second copy is a second place to change one value.
 | `opensearch_http_port` | `group_vars/all.yml` | `OS_URL`, the local REST endpoint the script drives. |
 | `alerting_max_actionable_alert_count` | `group_vars/all.yml` | The persistent cluster setting the script pins. Also read by `anomaly_detection` and `signal_projector`. |
 | `notification_ingest_port` | `group_vars/all.yml` | Builds `BREAKGLASS_SINK_URL` on loopback. Also read by `signal_projector` and `alertmanager`. |
-| `dashboards_bootstrap_root` | `group_vars/all.yml` | Not read by this role. The two path defaults above must stay equal to `{{ dashboards_bootstrap_root }}/alerting.sh` and `.../monitors`. |
+| `alice_bootstrap_root` | `group_vars/all.yml` | Not read by this role. The two path defaults above must stay equal to `{{ alice_bootstrap_root }}/alerting.sh` and `.../monitors`. |
 | `expected_monitors` | `group_vars/all.yml` | Not read by this role. `verify_detection.py`, run by `anomaly_detection` and `signal_projector`, asserts this count against the cluster. |
 
-The two path defaults are literals, not `{{ dashboards_bootstrap_root }}/...`.
+The two path defaults are literals, not `{{ alice_bootstrap_root }}/...`.
 A default that reads a variable another role owns resolves lazily and makes
 this role unrunnable on its own. The `alice_ops` role already does the same
-for `dashboards_ops_templates_script`.
+for `alice_ops_templates_script`.
 
 ## Prerequisites
 
@@ -162,7 +162,7 @@ python3 deploy/roles/alerting_monitors/files/gen_monitors.py
 
 ## Couplings
 
-- **The two path defaults and `dashboards_bootstrap_root` change together.**
+- **The two path defaults and `alice_bootstrap_root` change together.**
   They are written as literals here. Moving the bootstrap directory means
   editing this role's defaults as well.
 - **A new monitor JSON and `expected_monitors` change together.** The count

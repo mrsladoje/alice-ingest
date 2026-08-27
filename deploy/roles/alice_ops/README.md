@@ -68,12 +68,12 @@ OpenSearch Dashboards. Its page is served by the same nginx instance the
   is inherited verbatim from the single five-file staging loop this line came
   out of. Dropping it would change the restart graph. The handler itself lives
   in the `cockpit_metrics` role — see couplings.
-- **The first task creates the app root from `dashboards_ops_script | dirname`.**
+- **The first task creates the app root from `alice_ops_script | dirname`.**
   It derives `/opt/alice-ingest` from the script path instead of naming it. The
   `alice_runtime` role creates the same directory with the same owner, group and
   mode, so the task is redundant once that role has run. It is kept because it
   makes this role runnable on a host `alice_runtime` has not reached.
-- **`dashboards_ops_templates_script` is a literal string, not a reference.**
+- **`alice_ops_templates_script` is a literal string, not a reference.**
   A default that reads another role's variable resolves lazily and makes this
   role unrunnable alone. See couplings.
 
@@ -84,14 +84,14 @@ site-wide, or in `inventory.yml` for one group or host.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `dashboards_ops_script` | `/opt/alice-ingest/ops_server.py` | The installed ops server. The app root is derived from its directory. |
-| `dashboards_ops_templates_script` | `/opt/alice-ingest/init/templates.sh` | The index-template script the page re-applies. A literal — see couplings. |
-| `dashboards_score_injection_script` | `/opt/alice-ingest/score_injection.py` | The scoring module `inject_run.py` calls after a run. |
-| `dashboards_poison_replay_state_dir` | `/var/lib/alice-poison-replay` | Holds the poison status file and the run reports. `0750`. |
-| `dashboards_inject_script` | `/opt/alice-ingest/inject_run.py` | The injection engine, used by `make inject` and by the page button. |
-| `dashboards_inject_state_dir` | `/var/lib/alice-inject` | Holds the injection request, status and reports. `0750`. |
-| `dashboards_inject_report_dir` | `{{ dashboards_inject_state_dir }}/runs` | One report per injection run. |
-| `dashboards_inject_default_observe_minutes` | `45` | How long an injection run watches before it scores, when the request does not say. |
+| `alice_ops_script` | `/opt/alice-ingest/ops_server.py` | The installed ops server. The app root is derived from its directory. |
+| `alice_ops_templates_script` | `/opt/alice-ingest/init/templates.sh` | The index-template script the page re-applies. A literal — see couplings. |
+| `alice_ops_score_injection_script` | `/opt/alice-ingest/score_injection.py` | The scoring module `inject_run.py` calls after a run. |
+| `alice_ops_poison_replay_state_dir` | `/var/lib/alice-poison-replay` | Holds the poison status file and the run reports. `0750`. |
+| `alice_ops_inject_script` | `/opt/alice-ingest/inject_run.py` | The injection engine, used by `make inject` and by the page button. |
+| `alice_ops_inject_state_dir` | `/var/lib/alice-inject` | Holds the injection request, status and reports. `0750`. |
+| `alice_ops_inject_report_dir` | `{{ alice_ops_inject_state_dir }}/runs` | One report per injection run. |
+| `alice_ops_inject_default_observe_minutes` | `45` | How long an injection run watches before it scores, when the request does not say. |
 | `poison_warmup_poll_seconds` | `120` | Seconds between warm-up checks while detectors train. |
 | `poison_observe_seconds` | `330` | Seconds a burst is observed before it is scored. |
 | `poison_observe_poll_seconds` | `30` | Seconds between checks during that observation. |
@@ -124,18 +124,18 @@ defaults, because a second copy is a second place to change one value.
 
 | Variable | Owner | Used for |
 |---|---|---|
-| `dashboards_ops_service_name` | `group_vars/all.yml` | The unit name. `status.yml` and `clear.yml` read it too. |
-| `dashboards_poison_replay_service_name` | `group_vars/all.yml` | Unit name. Three poison playbooks read it. |
-| `dashboards_poison_replay_script` | `group_vars/all.yml` | Installed path. `poison_replay.yml` asserts it exists. |
-| `dashboards_poison_replay_status` | `group_vars/all.yml` | Status file. `poison_status.yml` reads it. |
-| `dashboards_poison_replay_report_dir` | `group_vars/all.yml` | Report directory. `poison_replay.yml` names it. |
-| `dashboards_inject_service_name` | `group_vars/all.yml` | Unit name. `inject.yml` reads it. |
-| `dashboards_inject_status` | `group_vars/all.yml` | Status file. `inject.yml` and `status.yml` read it. |
-| `dashboards_inject_request` | `group_vars/all.yml` | Request file the page and `make inject` both write. |
-| `dashboards_reset_derived_script` | `group_vars/all.yml` | Fresh-replay reset script. `replay.yml` runs it. |
-| `dashboards_bootstrap_causal_edges` | `group_vars/all.yml` | Passed to the injection run as `CAUSAL_EDGES`. The `alice_runtime` role installs the file. |
-| `dashboards_signal_projector_service_name` | `group_vars/all.yml` | The service an injection stops and restarts. |
-| `dashboards_metrics_service_name` | `group_vars/all.yml` | The same, for the metrics poller. Also the poison unit's `After=`. |
+| `alice_ops_service_name` | `group_vars/all.yml` | The unit name. `status.yml` and `clear.yml` read it too. |
+| `alice_ops_poison_replay_service_name` | `group_vars/all.yml` | Unit name. Three poison playbooks read it. |
+| `alice_ops_poison_replay_script` | `group_vars/all.yml` | Installed path. `poison_replay.yml` asserts it exists. |
+| `alice_ops_poison_replay_status` | `group_vars/all.yml` | Status file. `poison_status.yml` reads it. |
+| `alice_ops_poison_replay_report_dir` | `group_vars/all.yml` | Report directory. `poison_replay.yml` names it. |
+| `alice_ops_inject_service_name` | `group_vars/all.yml` | Unit name. `inject.yml` reads it. |
+| `alice_ops_inject_status` | `group_vars/all.yml` | Status file. `inject.yml` and `status.yml` read it. |
+| `alice_ops_inject_request` | `group_vars/all.yml` | Request file the page and `make inject` both write. |
+| `alice_ops_reset_derived_script` | `group_vars/all.yml` | Fresh-replay reset script. `replay.yml` runs it. |
+| `alice_bootstrap_causal_edges` | `group_vars/all.yml` | Passed to the injection run as `CAUSAL_EDGES`. The `alice_runtime` role installs the file. |
+| `signal_projector_service_name` | `group_vars/all.yml` | The service an injection stops and restarts. |
+| `cockpit_metrics_service_name` | `group_vars/all.yml` | The same, for the metrics poller. Also the poison unit's `After=`. |
 | `ops_internal_port` | `group_vars/all.yml` | The loopback port. The nginx vhost in `dashboards` proxies to it. |
 | `opensearch_http_port` | `group_vars/all.yml` | `OS_URL` on all three units. |
 | `replay_http_port` | `group_vars/all.yml` | Only inside the worker URL lists above. Not read by any template here. |
@@ -154,7 +154,7 @@ services it installs do anything useful.
 | Prerequisite | Provided by | What breaks without it |
 |---|---|---|
 | nginx installed, with the `/ops/` proxy in its vhost | `dashboards` role | The page is unreachable. `alice-ops` binds loopback only, so nothing outside the control host can open it. |
-| `templates.sh` present at `dashboards_ops_templates_script` | `opensearch_bootstrap` role | The page's fresh-replay and wipe buttons cannot rebuild the aliases. The unit still starts. |
+| `templates.sh` present at `alice_ops_templates_script` | `opensearch_bootstrap` role | The page's fresh-replay and wipe buttons cannot rebuild the aliases. The unit still starts. |
 | `os_cursor.py` in `/opt/alice-ingest` | `alice_runtime` role | `score_injection.py` fails its import, so an injection run produces no score. |
 | `causal_edges.json` staged | `alice_runtime` role | An injection run cannot explain a symptom by its cause. |
 | Fault agents running on the workers and the projector | `faults` role | An injection has nothing to inject. The `faults` play runs after this one in `site.yml`, which is safe because no run starts at deploy time. |
@@ -185,7 +185,7 @@ In a playbook, against the control host:
 - **`ops_internal_port` is one decision in two roles.** This role puts it in
   `OPS_PORT`; `dashboards.conf.j2` in the `dashboards` role proxies to the same
   number. Change one and the page 502s.
-- **`dashboards_ops_templates_script` must equal
+- **`alice_ops_templates_script` must equal
   `opensearch_bootstrap_templates_script`.** It is written here as a literal on
   purpose. A default that interpolates another role's variable resolves lazily,
   so this role could not run without that role's defaults loaded. The price is
@@ -204,8 +204,8 @@ In a playbook, against the control host:
   playbook, not read by these templates. Changing a port means changing the
   expression in `group_vars/all.yml`, not this role.
 - **The units name three services they stop and start:
-  `dashboards_signal_projector_service_name`,
-  `dashboards_metrics_service_name` and `fluent-bit`.** `fluent-bit` is a
+  `signal_projector_service_name`,
+  `cockpit_metrics_service_name` and `fluent-bit`.** `fluent-bit` is a
   literal in `alice-inject.service.j2`, matching the `collector` role's unit
   name. A variable here would only let one end of the pair move.
 

@@ -6,7 +6,7 @@
     group: root
     mode: "0755"
   loop:
-    - "{{ dashboards_app_root }}"
+    - "{{ alice_app_root }}"
     - "{{ live_lane_static_dir }}"
 
 - name: Install the live lane server

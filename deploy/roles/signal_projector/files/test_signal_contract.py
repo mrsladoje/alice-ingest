@@ -2174,7 +2174,7 @@ def test_projector_runtime_is_off_the_control_host():
           and "hostvars[signal_projector_host].ansible_host" in group_vars,
           "the Alertmanager firewall path is not restricted to the projector "
           "host")
-    check("dashboards_inject_service_name" in inject
+    check("alice_ops_inject_service_name" in inject
           and "delegate_to" not in inject,
           "make inject still reaches into the fleet itself instead of arming "
           "the control-host engine both front doors share")
@@ -2431,8 +2431,8 @@ def test_status_exposes_functional_projector_and_replay_health():
         return
     status = open(status_path).read()
     probe = open(probe_path).read()
-    check("dashboards_signal_projector_service_name" in status
-          and "dashboards_notification_ingest_service_name" in status,
+    check("signal_projector_service_name" in status
+          and "signal_projector_notification_ingest_service_name" in status,
           "make status still omits signal-path systemd services")
     check("/replay-status" in status and "running=" in status and "loop=" in status,
           "make status does not reveal that deploy stopped the replay loop")

@@ -1,5 +1,5 @@
-dashboards_bootstrap_alerting_script: /opt/alice-ingest/init/alerting.sh
-dashboards_bootstrap_monitors_dir: /opt/alice-ingest/init/monitors
+alerting_monitors_bootstrap_script: /opt/alice-ingest/init/alerting.sh
+alerting_monitors_dir: /opt/alice-ingest/init/monitors
 
 ad_anomaly_grade_threshold: 0.7
 ad_anomaly_confidence_threshold: 0.7

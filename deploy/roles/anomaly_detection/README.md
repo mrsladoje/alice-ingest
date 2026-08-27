@@ -100,10 +100,10 @@ site-wide, or in `inventory.yml` for one group or host.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `dashboards_bootstrap_detectors_script` | `/opt/alice-ingest/init/detectors.sh` | Where `detectors.sh.j2` is rendered. A literal — see couplings. |
-| `dashboards_bootstrap_forecasters_script` | `/opt/alice-ingest/init/forecasters.sh` | Where `forecasters.sh.j2` is rendered. A literal — see couplings. |
-| `dashboards_bootstrap_detectors_dir` | `/opt/alice-ingest/init/detectors` | Staged detector definitions. `detectors.sh` reads every `*.json` here. |
-| `dashboards_bootstrap_forecasters_dir` | `/opt/alice-ingest/init/forecasters` | Staged forecaster definitions. Same pattern. |
+| `anomaly_detection_detectors_script` | `/opt/alice-ingest/init/detectors.sh` | Where `detectors.sh.j2` is rendered. A literal — see couplings. |
+| `anomaly_detection_forecasters_script` | `/opt/alice-ingest/init/forecasters.sh` | Where `forecasters.sh.j2` is rendered. A literal — see couplings. |
+| `anomaly_detection_detectors_dir` | `/opt/alice-ingest/init/detectors` | Staged detector definitions. `detectors.sh` reads every `*.json` here. |
+| `anomaly_detection_forecasters_dir` | `/opt/alice-ingest/init/forecasters` | Staged forecaster definitions. Same pattern. |
 | `ad_metrics_window_delay_minutes` | `1` | `window_delay` for the three metric detectors. |
 | `ad_log_window_delay_minutes` | `2` | `window_delay` for the fourteen log detectors. |
 | `forecast_interval_minutes` | `60` | `forecast_interval` of the disk-fill forecaster. |
@@ -121,9 +121,9 @@ defaults, because a second copy is a second place to change one value.
 
 | Variable | Owner | Used for |
 |---|---|---|
-| `dashboards_bootstrap_verify_script` | `group_vars/all.yml` | Where `verify_detection.py` is staged. Two other roles run the same path. |
-| `dashboards_backtest_script` | `group_vars/all.yml` | Where `backtest.py` is staged. `playbooks/backtest.yml` runs the same path. |
-| `dashboards_bootstrap_signal_catalog` | `group_vars/all.yml` | Passed to `verify_detection.py` as `SIGNAL_CATALOG`. Staged by `alice_runtime`. |
+| `alice_bootstrap_verify_script` | `group_vars/all.yml` | Where `verify_detection.py` is staged. Two other roles run the same path. |
+| `anomaly_detection_backtest_script` | `group_vars/all.yml` | Where `backtest.py` is staged. `playbooks/backtest.yml` runs the same path. |
+| `alice_bootstrap_signal_catalog` | `group_vars/all.yml` | Passed to `verify_detection.py` as `SIGNAL_CATALOG`. Staged by `alice_runtime`. |
 | `opensearch_http_port` | `group_vars/all.yml` | The REST port every task in this role calls on `localhost`. |
 | `cockpit_metrics_index` | `group_vars/all.yml` | The index the wait step polls and the metric detectors read. |
 | `trend_rollup_index` | `group_vars/all.yml` | Passed to `verify_detection.py` as `ROLLUP_INDEX`. |
@@ -189,18 +189,18 @@ Pairs of values that must change together.
 - **`expected_monitors` and the `alerting_monitors` role.** This role asserts a
   count of artefacts another role creates. Adding a monitor there fails the gate
   here.
-- **The four `dashboards_bootstrap_*` paths are literals, not references to
-  `dashboards_bootstrap_root`.** A role default that reads another role's
+- **The four `anomaly_detection_*` paths are literals, not references to
+  `alice_bootstrap_root`.** A role default that reads another role's
   variable resolves lazily and makes this role unrunnable alone. They must stay
-  equal to `{{ dashboards_bootstrap_root }}/detectors.sh`, `/forecasters.sh`,
+  equal to `{{ alice_bootstrap_root }}/detectors.sh`, `/forecasters.sh`,
   `/detectors` and `/forecasters`. The `alice_ops` role does the same for
-  `dashboards_ops_templates_script`.
+  `alice_ops_templates_script`.
 - **`verify_detection.py` is staged here and run by three roles.** This role runs
   it at the end of `detection.yml`. `cockpit_metrics` runs the installed copy
   again after the collector cutover, with `EXPECT_PUSH_HEARTBEATS` set from the
   live heartbeat switch. `signal_projector` runs it a third time with
   `CHECK_EPISODE_GROUPING=true`. Only this role copies the file; the other two
-  read `dashboards_bootstrap_verify_script`. Changing the script's environment
+  read `alice_bootstrap_verify_script`. Changing the script's environment
   contract means changing three call sites.
 - **`forecast_history` and `cockpit_metrics_retention_days`.** 168 hourly points
   is exactly the 7 days the metrics index keeps. Shortening the retention
@@ -210,7 +210,7 @@ Pairs of values that must change together.
   forecaster itself has no threshold.
 - **`backtest.py` and `detection_status.py` are staged or run from this role's
   `files/`.** `playbooks/backtest.yml` runs the installed
-  `dashboards_backtest_script`. `playbooks/status.yml` runs
+  `anomaly_detection_backtest_script`. `playbooks/status.yml` runs
   `roles/anomaly_detection/files/detection_status.py` straight out of the
   repository, so its path in that playbook must track this directory.
 

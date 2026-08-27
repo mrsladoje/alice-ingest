@@ -23,7 +23,7 @@ Environment=RETENTION_DAYS={{ cockpit_metrics_retention_days }}
 Environment=HEARTBEAT_GRACE_SECONDS={{ heartbeat_grace_seconds }}
 Environment=EMIT_LEGACY_NODE={{ health_metrics_emit_legacy_node | bool | ternary('true', 'false') }}
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/usr/bin/python3 {{ dashboards_metrics_script }}
+ExecStart=/usr/bin/python3 {{ cockpit_metrics_script }}
 Restart=on-failure
 RestartSec=5s
 

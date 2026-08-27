@@ -1,6 +1,6 @@
 - name: Publish an immutable fleet roster snapshot (content-addressed, append-only)
   ansible.builtin.command:
-    cmd: "python3 {{ dashboards_roster_publish_script }}"
+    cmd: "python3 {{ cockpit_metrics_roster_publish_script }}"
   environment:
     OS_URL: "http://localhost:{{ opensearch_http_port }}"
     ROSTER_INDEX: "{{ fleet_roster_index }}"

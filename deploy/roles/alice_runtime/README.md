@@ -79,13 +79,13 @@ would be a second place to change one value.
 
 | Variable | Owner | Used for |
 |---|---|---|
-| `dashboards_bootstrap_root` | `group_vars/all.yml` | The catalog directory, `/opt/alice-ingest/init`. Shared with `opensearch_bootstrap`. |
-| `dashboards_bootstrap_signal_catalog` | `group_vars/all.yml` | Destination of `signal_catalog.json`. |
-| `dashboards_bootstrap_causal_edges` | `group_vars/all.yml` | Destination of `causal_edges.json`. |
-| `dashboards_app_root` | `group_vars/all.yml` | The application root, `/opt/alice-ingest`. |
-| `dashboards_os_cursor_script` | `group_vars/all.yml` | Destination of `os_cursor.py`. |
-| `dashboards_signal_identity_script` | `group_vars/all.yml` | Destination of `signal_identity.py`. |
-| `dashboards_metrics_service_name` | `group_vars/all.yml` | The unit the `cockpit_metrics` handler restarts. |
+| `alice_bootstrap_root` | `group_vars/all.yml` | The catalog directory, `/opt/alice-ingest/init`. Shared with `opensearch_bootstrap`. |
+| `alice_bootstrap_signal_catalog` | `group_vars/all.yml` | Destination of `signal_catalog.json`. |
+| `alice_bootstrap_causal_edges` | `group_vars/all.yml` | Destination of `causal_edges.json`. |
+| `alice_app_root` | `group_vars/all.yml` | The application root, `/opt/alice-ingest`. |
+| `alice_os_cursor_script` | `group_vars/all.yml` | Destination of `os_cursor.py`. |
+| `alice_signal_identity_script` | `group_vars/all.yml` | Destination of `signal_identity.py`. |
+| `cockpit_metrics_service_name` | `group_vars/all.yml` | The unit the `cockpit_metrics` handler restarts. |
 
 ## Prerequisites
 
