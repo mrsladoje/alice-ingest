@@ -825,6 +825,12 @@ million records, since that cost is paid on every line forever.
 
 ## Round 3 — embeddings, cheapest first
 
+**Results: `docs/EMBEDDING_RESULTS.md`, 27 August 2026.** Measured on the 3,822
+templates round 4 mined. This round's stated premise was wrong: it priced an
+embedding per line, and round 4 showed it is paid per template. There is no
+ceiling to confirm. `potion-base-32M` runs 31 times faster than
+`all-MiniLM-L6-v2` and keeps 93 % of its quality on our own text.
+
 **A plain `knn_vector` field is enough** — the vectors do not need to be produced by
 OpenSearch's own neural query path. That keeps the cheapest option available and
 keeps the cost out of the OpenSearch heap.

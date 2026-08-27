@@ -95,6 +95,7 @@ def run(path, family_filter, sim_threshold, depth, max_children, limit, deciles)
     new_templates = 0
     per_family = Counter()
     per_family_templates = defaultdict(set)
+    cluster_sources = defaultdict(Counter)
     curve = []
     mining_cpu = 0.0
     started = time.process_time()
@@ -115,6 +116,7 @@ def run(path, family_filter, sim_threshold, depth, max_children, limit, deciles)
             lines += 1
             per_family[family] += 1
             per_family_templates[family].add(result["cluster_id"])
+            cluster_sources[result["cluster_id"]]["%s/%s" % (family, source)] += 1
             if result["change_type"] == "cluster_created":
                 new_templates += 1
             if deciles and lines % deciles == 0:
@@ -147,6 +149,12 @@ def run(path, family_filter, sim_threshold, depth, max_children, limit, deciles)
         "per_family_lines": dict(per_family),
         "per_family_templates": {k: len(v) for k, v in per_family_templates.items()},
         "curve": curve,
+        "all_templates": [
+            {"count": c.size, "id": c.cluster_id, "template": c.get_template(),
+             "source": (cluster_sources[c.cluster_id].most_common(1) or [("?", 0)])[0][0],
+             "sources": len(cluster_sources[c.cluster_id])}
+            for c in sorted(tm.drain.clusters, key=lambda c: c.size, reverse=True)
+        ],
         "top_templates": [
             {"count": c.size, "template": c.get_template()}
             for c in sorted(tm.drain.clusters, key=lambda c: c.size, reverse=True)[:25]
@@ -201,6 +209,8 @@ def main():
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--block", type=int, default=100000)
     ap.add_argument("--json", default="")
+    ap.add_argument("--dump-templates", default="",
+                    help="write every mined template, count first, to this path")
     ap.add_argument("--per-source", action="store_true",
                     help="also mine one tree per source and compare")
     ap.add_argument("--split-cost", type=int, default=0,
@@ -227,6 +237,12 @@ def main():
         report["per_source"] = per_source(args.corpus, args.family,
                                           args.sim_threshold, args.depth,
                                           args.max_children, args.limit)
+    if args.dump_templates:
+        with open(args.dump_templates, "w") as fh:
+            for row in report["all_templates"]:
+                fh.write("%d\t%s\t%d\t%s\n" % (
+                    row["count"], row["source"], row["sources"], row["template"]))
+    report.pop("all_templates", None)
     if args.json:
         with open(args.json, "w") as fh:
             json.dump(report, fh, indent=2)
