@@ -3,7 +3,7 @@ set -eu
 
 OSD="${OSD_URL:-http://opensearch-dashboards:5601}"
 OS="${OS_URL:-http://opensearch:9200}"
-PATTERNS="infologger application-logs-local-* application-logs-central"
+PATTERNS="{{ dashboards_index_patterns | join(' ') }}"
 TIME_FIELD="@timestamp"
 
 create_pattern() {

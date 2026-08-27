@@ -29,3 +29,8 @@ dashboards_bootstrap_root: /opt/alice-ingest/init
 dashboards_bootstrap_patterns_script: "{{ dashboards_bootstrap_root }}/patterns.sh"
 dashboards_bootstrap_cockpit_ndjson: "{{ dashboards_bootstrap_root }}/cockpit.ndjson"
 dashboards_bootstrap_hydrate_script: "{{ dashboards_bootstrap_root }}/hydrate_patterns.py"
+
+dashboards_index_patterns:
+  - infologger
+  - application-logs-local-*
+  - application-logs-central

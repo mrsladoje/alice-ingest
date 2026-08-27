@@ -101,9 +101,9 @@ now sits in its own role and can be re-run without touching the web tier.
 - **Four saved objects are deleted by id after the import.** An import can only
   create or overwrite. Objects retired from `cockpit.ndjson` would otherwise
   stay in a cluster that once had them. The task accepts 404 and never fails.
-- **`patterns.sh.j2` is a template with no substitutions.** It stays a template
-  because it is rendered next to the other bootstrap scripts and takes its two
-  URLs from the environment the task sets. Nothing in it is host-specific today.
+- **`patterns.sh.j2` takes its two URLs from the environment, not from Jinja.**
+  The task sets `OSD_URL` and `OS_URL`. The only substitution in the template is
+  the pattern list, so the script stays runnable by hand against any cluster.
 - **`gen_cockpit.py` never reaches a VM.** It is the build-time generator for
   `cockpit.ndjson`. Run it by hand, commit the result, then deploy.
 
@@ -137,6 +137,7 @@ site-wide, or in `inventory.yml` for one group or host.
 | `dashboards_bootstrap_patterns_script` | `{{ dashboards_bootstrap_root }}/patterns.sh` | The rendered index-pattern script. |
 | `dashboards_bootstrap_cockpit_ndjson` | `{{ dashboards_bootstrap_root }}/cockpit.ndjson` | The staged saved objects. |
 | `dashboards_bootstrap_hydrate_script` | `{{ dashboards_bootstrap_root }}/hydrate_patterns.py` | The staged field-catalog hydration script. |
+| `dashboards_index_patterns` | `infologger`, `application-logs-local-*`, `application-logs-central` | The per-source index patterns. Read by both `patterns.sh` and the hydration step — see couplings. |
 
 ### Variables the role requires but does not own
 
@@ -219,6 +220,11 @@ Against the control host only:
   targets owned elsewhere.** The vhost is the seam: `alice_ops`, `alertmanager`
   and `live_lane` bind those ports, this role publishes them. Move a port and
   both ends change.
+- **`dashboards_index_patterns` feeds two consumers that must agree.**
+  `patterns.sh` creates the patterns from it, and the hydration step fills the
+  same list's field catalogs through `EXTRA_PATTERNS`. They were two hardcoded
+  copies of one list until August 2026; a pattern created but not hydrated
+  renders an empty field list in Discover.
 - **`cockpit.ndjson` and `hydrate_patterns.py`'s `REQUIRED` map change
   together.** A saved object that queries a field the hydration script does not
   list will render empty; a field listed but absent from the cluster fails the
