@@ -19,9 +19,10 @@ all:
         workers:
           vars:
             node_tier: worker
-            # m2.medium has 3.75 GB in total, so the farm's 2g worker heap
-            # would take memory Fluent Bit and the replay producer need. Raise
-            # this to opensearch_worker_heap_size on real hardware.
+            # m2.medium has 3.75 GB in total. This matches
+            # opensearch_worker_heap_size, which soak round 2 brought down to
+            # the same 1g: 1, 2 and 3 GB were indistinguishable on a four-core
+            # budget, so the farm takes the smallest of the three.
             opensearch_heap_size: "1g"
           hosts:
             alice-ingest-1:

@@ -41,7 +41,7 @@ control host.
 |---|---|
 | **In scope** | `infologger` and `application-logs-central` — the InfoLogger stream, and every stdout record whose severity is not `Info`. |
 | **Never** | `application-logs-local`. The info tier is the bulk of the volume, and pushing all of it to a browser at farm scale gives a blur nobody can read. The severity split *is* the rate limiter here. |
-| **Latency** | About `fluent_bit_flush_seconds` (5 s). The collector's flush interval is service-level, so it is the lane's latency floor too. "Live" means five seconds, not instant. |
+| **Latency** | About `fluent_bit_flush_seconds` (1 s). The collector's flush interval is service-level, so it is the lane's latency floor too. "Live" means one second, not instant. Soak round 2 cut this from five. |
 | **Delivery** | Best-effort, deliberately. The collector's HTTP output gets a 1 MB buffer and one retry, so a lane that is down or a viewer that is slow can never push back on the OpenSearch path. |
 | **Enrichment** | The lane does its own. Field normalization lives in the `alice-add-ingest-time` ingest pipeline, which only records going to OpenSearch pass through. `live_lane.py` therefore carries its own copy of the severity table and its own `origin_host` fallback. |
 

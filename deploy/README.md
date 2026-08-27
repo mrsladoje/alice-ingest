@@ -1834,15 +1834,17 @@ Lubos requires that the bulk tier never crosses the wire. Only the cost changes.
    adjusts merge input and output against indexing load.
 5. **The worker heap is written down, not inherited.** Every other number here
    derives from it. `opensearch_worker_heap_size` carries the EPN-farm value of
-   2 GB, which holds a handful of small shards without strain and implies
-   roughly 3 to 4 GB resident once the Java runtime and Lucene take memory
-   outside the heap — under one percent of a 512 GB EPN machine.
+   **1 GB**, which soak round 2 brought down from 2. The round swept 1, 2 and 3
+   GB at two rates and over two burst shapes and found no difference the noise
+   floor could see, because the queue that absorbs a burst is Fluent Bit's and
+   sits upstream of this heap entirely. The worker gives the gigabyte back. See
+   `docs/SOAK_RESULTS.md`.
 
-   **The staging workers override it down to 1g in `inventory.yml`.** They are
-   `m2.medium` with 3.75 GB in total, which 2 GB of heap would take from Fluent
-   Bit and the replay producer. Raise the inventory value when the workers get
-   real memory. `opensearch_heap_size` is declared in the `opensearch` role's
-   defaults, which rank below every group variable, so that override wins.
+   **Staging and the farm now carry the same 1g**, so `inventory.yml`'s worker
+   override is a restatement rather than a correction. Staging workers are
+   `m2.medium` with 3.75 GB in total and could not have afforded more anyway.
+   `opensearch_heap_size` is declared in the `opensearch` role's defaults, which
+   rank below every group variable, so the inventory value still wins.
 6. **The smaller levers.** `indices.memory.index_buffer_size` drops from the
    10%-of-heap default to 5%. `bootstrap.memory_lock` stays on, so locked memory
    never swaps and this node can never push physics pages to disk. The `zstd`
@@ -1878,20 +1880,26 @@ Lubos requires that the bulk tier never crosses the wire. Only the cost changes.
    families already run that pipeline as their `default_pipeline`. **The
    collector now runs zero per-record Lua.** `health_deltas` remains and runs
    once per interval, not once per record.
-5. `flush: 5` cuts bulk requests fivefold. `flush` is service-level, so it also
-   delays the live lane by the same five seconds. That is accepted; ten is also
-   acceptable if measurement shows the extra saving is worth it.
+5. `flush: 1`, chosen by soak round 2 and no longer the 5 this section first
+   argued for. Fewer, larger bulk requests do save work, but the saving turns
+   over: measured in processor time across eight values with three runs each,
+   the collector's own cost falls **24.5 %** going from 5 to 1, and its peak
+   memory **28.0 %**. Below 0.5 the cluster pays back more than the collector
+   saves. `flush` is service-level, so the live lane's latency floor drops from
+   five seconds to one with it. See `docs/SOAK_RESULTS.md`.
 
    **Clear the trend baselines when this first deploys.** `ingest_lag_ms` is
    `ingest_time - collector_time`, and `collector_time` is stamped when the
    record enters Fluent Bit — so the buffer wait is inside the measurement, and
-   raising `flush` moves that metric by up to five seconds in one step. Four
-   detectors and two trend monitors watch it. `trend-il-shipping-lag` and
-   `trend-local-shipping-lag` fire at **twice a seven-day baseline**, and
-   `trend_lag_floor_ms` of 250 says normal lag is sub-second, so an unmitigated
-   step would hold both monitors firing fleet-wide until the baseline rolls
-   forward. Run **Clear findings** on the ops page with the change; the RCF
-   detectors re-learn on their own but will flag the step once.
+   any change to `flush` moves that metric by up to four seconds in one step.
+   Going 5 to 1 moves it **down**, which no monitor fires on, but a rollback
+   would move it back up. Four detectors and two trend monitors watch it.
+   `trend-il-shipping-lag` and `trend-local-shipping-lag` fire at **twice a
+   seven-day baseline**, and `trend_lag_floor_ms` of 250 says normal lag is
+   sub-second, so an unmitigated upward step would hold both monitors firing
+   fleet-wide until the baseline rolls forward. Run **Clear findings** on the
+   ops page with any change in either direction; the RCF detectors re-learn on
+   their own but will flag the step once.
 
 One consequence to remember: because the enrichment now happens in OpenSearch,
 anything that bypasses OpenSearch does not get it. The live lane bypasses
@@ -2053,9 +2061,14 @@ its own failure mode.
    about a backtest is time-critical. These are cluster-wide, so storage is
    slowed too. Accepted.
 3. **`model_max_size_percent` is deliberately untouched.** It defaults to ten
-   percent of each node's heap, and because it is a percentage a 2 GB worker
+   percent of each node's heap, and because it is a percentage a 1 GB worker
    already contributes far less model memory than a storage node. Lowering it
    would evict models and force cold starts, which **would** change the output.
+
+   **Soak round 2 halved the worker heap from 2 GB to 1, so it halved this
+   budget with it** — about 102 MB of models per worker rather than 205 MB. The
+   round measured ingest, not anomaly detection, so this consequence is stated
+   rather than tested. Watch for model eviction on the workers after the change.
 4. **Admission control is an emergency valve, not a throttle.** A node whose
    rolling average processor use passes the limit answers HTTP 429 to `_search`
    and `_bulk`, so it sheds load rather than fighting reconstruction. But a

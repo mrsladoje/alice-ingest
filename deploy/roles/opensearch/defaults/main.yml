@@ -53,8 +53,11 @@ opensearch_dir_group: "{{ opensearch_group if opensearch_install_method == 'nati
 opensearch_heap_size: "1g"
 
 # Reference only, read by nobody. The EPN-farm worker value, written down beside
-# the staging value rather than guessed at later.
-opensearch_worker_heap_size: "2g"
+# the staging value rather than guessed at later. Soak round 2 swept 1, 2 and 3
+# GB over two burst shapes and found no difference the noise floor could see:
+# the queue that absorbs a burst is Fluent Bit's, upstream of this heap. 1 GB
+# stands, and the worker gives back the gigabyte. See docs/SOAK_RESULTS.md.
+opensearch_worker_heap_size: "1g"
 
 # A cap, never a floor — opensearch.yml.j2 takes the smaller of this and the
 # processors the machine really has.

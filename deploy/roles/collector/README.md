@@ -92,9 +92,13 @@ Ingest saturates near **53,000 records a second**. Above that, Fluent Bit reads
 its tail files more slowly than they are written and the surplus waits in the
 files themselves — no loss, and the backlog drains once the load stops.
 
-`flush` is the one setting that moves memory. At the same 20,000 /s, `flush: 1`
-peaks at 66 MB against 133 MB for `flush: 5`, because a second of data is in
-flight instead of five. `storage.max_chunks_up` at 32 or at 256 changes nothing
+`flush` is the one setting that moves memory, and soak round 2 moved it from 5
+to 1. At the same 20,000 /s, `flush: 1` peaks at 66 MB against 133 MB for
+`flush: 5`, because a second of data is in flight instead of five. Round 2 then
+priced the same change in processor time over eight values with three runs each:
+the collector's own cost falls **24.5 %** and its peak memory **28.0 %**, and the
+two arms' ranges do not overlap. Below 0.5 the cluster pays back more than the
+collector saves. See `docs/SOAK_RESULTS.md`. `storage.max_chunks_up` at 32 or at 256 changes nothing
 at steady state — the queue never gets deep enough to reach it. It is a ceiling
 for backpressure, not a working-set control.
 
@@ -130,7 +134,7 @@ the buffer cap discards records long before the ten retries are exhausted.
 
 | Setting | Value | Why |
 |---|---|---|
-| `flush` | `5` s | Service-level, so it is also the live lane's latency floor. |
+| `flush` | `1` s | Service-level, so it is also the live lane's latency floor. Soak round 2's choice — see couplings. |
 | `http_listen` | `127.0.0.1` | Push model. The collector sends its own health documents, so nothing scrapes port 2020 from outside. |
 | `hc_errors_count` / `hc_retry_failure_count` / `hc_period` | `1` / `1` / `60` | Deliberately twitchy. `fb_healthy` is a reported signal, not a restart trigger — nothing in this role restarts on it. |
 
@@ -233,7 +237,7 @@ site-wide.
 | `fluent_bit_storage_path` | `/var/log/flb-storage` | Filesystem buffer and tail position databases. |
 | `fluent_bit_http_port` | `2020` | Fluent Bit's own metrics and health endpoint. |
 | `fluent_bit_http_listen` | `127.0.0.1` | Loopback since the push cutover. |
-| `fluent_bit_flush_seconds` | `5` | Output flush interval. Also delays the live lane by 5 seconds. |
+| `fluent_bit_flush_seconds` | `1` | Output flush interval. Also delays the live lane by 1 second. |
 | `fluent_bit_log_buffer_limit` | `256M` | Per-output filesystem buffer for the three log families. |
 | `fluent_bit_log_farm_buffer_limit` | `2G` | Reference only. Read by nobody. The farm figure for the line above. |
 | `fluent_bit_log_retry_limit` | `10` | Output retries for the three log families. |

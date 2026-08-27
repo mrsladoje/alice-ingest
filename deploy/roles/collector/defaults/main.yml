@@ -32,8 +32,10 @@ fluent_bit_storage_path: /var/log/flb-storage
 fluent_bit_http_port: 2020
 fluent_bit_http_listen: 127.0.0.1
 
-# Service-level, so this also delays the live lane by the same 5 seconds.
-fluent_bit_flush_seconds: 5
+# Service-level, so this also delays the live lane by the same 1 second.
+# Chosen by soak round 2: against the shipped 5, the collector's own processor
+# cost falls 24.5 % and its peak memory 28.0 %. See docs/SOAK_RESULTS.md.
+fluent_bit_flush_seconds: 1
 
 fluent_bit_log_buffer_limit: "256M"
 fluent_bit_log_retry_limit: 10

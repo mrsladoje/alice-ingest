@@ -141,7 +141,7 @@ site-wide, or in `inventory.yml` for one group or host.
 | `opensearch_data_path` | `/var/lib/opensearch` | `path.data`. |
 | `opensearch_log_path` | `/var/log/opensearch` | `path.logs`. |
 | `opensearch_heap_size` | `1g` | `-Xms` and `-Xmx`. Declared here on purpose — see couplings. |
-| `opensearch_worker_heap_size` | `2g` | Reference only. Read by nobody. The farm value for the line above. |
+| `opensearch_worker_heap_size` | `1g` | Reference only. Read by nobody. The farm value for the line above. Soak round 2 found 1, 2 and 3 GB indistinguishable. |
 | `opensearch_worker_processors` | `4` | Worker-tier `node.processors` cap. |
 | `opensearch_worker_index_buffer_size` | `5%` | Worker-tier `indices.memory.index_buffer_size`, down from the 10 % default. |
 | `opensearch_limit_nofile` | `65536` | `LimitNOFILE` on the unit. |
