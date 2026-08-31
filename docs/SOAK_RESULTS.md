@@ -40,6 +40,11 @@ absorption, so **1 GB stands**; and the rig sustains about **42,000 records a
 second**, holding 50,000 for two minutes with zero loss. Both are in
 *Round 2 addendum* below.
 
+**One design question is closed on these numbers, not on preference:** a Kafka
+bus between the collector and OpenSearch is rejected. The stack carries 538× the
+busiest worker-second ever recorded, and Fluent Bit's buffer already covers a
+17.4-hour outage. See *Kafka, decided against on this round's numbers*.
+
 **One deployment requirement comes with it:** the stack's four cores must be
 reserved away from the worker's other processes. Every number above assumes
 four exclusive cores. See *The core retraction is about one kind of pinning*
@@ -1843,6 +1848,137 @@ in that window describes the host.
 
 **Before trusting a cell, check that the machine is idle.** The selftest is the
 calibrated instrument, and it now reads 400,000 a second with no shortfall.
+
+## Kafka, decided against on this round's numbers
+
+**The round was not built to answer this, but it answers it.** A message bus
+between the collector and OpenSearch buys nothing this stack needs, and it would
+remove the mechanism that currently makes severity tiering free. The decision is
+recorded here because the evidence that settles it is here.
+
+The reference design in `docs/ARCHITECTURE.md` places Kafka between the local
+collector and everything downstream. That design is not wrong in general. It is
+wrong for the rates this farm carries.
+
+### A bus does two jobs. Both were measured.
+
+Kafka decouples a fast producer from a slow consumer, and it holds records
+durably while the consumer is away. Each job is judged below against a number
+from this round, not against a principle.
+
+### Job one — decoupling. The margin is 538×.
+
+| | records a second |
+|---|---|
+| A real worker, median second of the busiest hour in six months | **23** |
+| A real worker, busiest single second in six months | **78** |
+| The whole farm, busiest single second, 297 workers | **9,781** |
+| **One worker's stack, sustained** | **~42,000** |
+| **One worker's stack, peak, zero loss** | **50,000 for two minutes** |
+
+- **The stack carries 538× the worst worker-second ever recorded.**
+- **One worker's stack carries 4.3× the whole farm's peak second.**
+- The sustained figure was measured on a host running at about **41 % of its
+  normal speed**, so it is a floor on the real hardware, not a ceiling.
+
+🔴 **The archive rates are floors too, and they are floors in the opposite
+direction.** The InfoLogger client library cuts a process off above 1,000
+messages a minute, and several hops downstream can shed. The true worker rate is
+higher than 23 a second by an unmeasured amount. **The conclusion survives it:
+even if the archive under-counts by ten times, the margin is still 54×.**
+
+**A buffer sized 538× larger than the load is not a buffer. It is a service to
+maintain.**
+
+### Job two — durability. Fluent Bit already holds for 17.4 hours.
+
+The buffer arithmetic is in *And the loss itself is an artefact of the test rate*
+above. At 310 bytes a record, the shipped 256 MB `storage.total_limit_size`
+holds **865,674 records**:
+
+| At | The 256 MB buffer covers a storage-tier outage of |
+|---|---|
+| A real worker, 23 /s | **17.4 hours** |
+| The busiest worker-second in six months, 78 /s | **5.1 hours** |
+
+**And the overload behaviour is safe, which is the part that matters.** Pushed
+past the sustainable rate, `SOAK-50k-final` reached 82 % of the buffer cap,
+**dropped nothing**, spilled 103 of 182 chunks to disk, and drained to empty.
+`SOAK-50k-clean` hit the cap and discarded 1.8 % oldest-first — with **no crash,
+no error, and no failed retry**. See *The overload failure mode, which is the
+useful part*.
+
+**If anyone wants a hard guarantee instead of a seventeen-hour cushion, the lever
+is `storage.total_limit_size`, sized from that arithmetic.** That is one number
+in one file, not a broker quorum.
+
+### What adding Kafka would cost, and the routing is the expensive part
+
+🔴 **The tier decision is currently free, and a bus would move it.** Index
+templates carry `require.role: worker` or `require.role: storage`. Fluent Bit
+writes to the node on its own host, and OpenSearch forwards what belongs
+elsewhere. **The collector does not know or care which tier a record lands on.**
+With a bus, that rule must be restated as a topic mapping at produce time, or as
+a routing consumer. The policy then lives in two places instead of one.
+
+🔴 **A bus either deletes the local trash tier or doubles the collector's
+outputs.** Sending high-volume worker-tier records off the host to a broker and
+back is pointless. So trash must bypass Kafka — and the collector then runs two
+outputs with two buffers. Kafka would wrap only the low-volume storage path,
+which is the exact path the seventeen-hour cushion already covers.
+
+The rest of the cost:
+
+- **Brokers need hardware the worker cannot give.** The stack gets four reserved
+  cores per worker, taken from reconstruction work. Brokers cannot live there,
+  so a quorum needs its own allocation.
+- **The collector pays for its own output.** The collector costs **27.7
+  core-seconds per million records** at flush 1, and that figure is the one
+  resource an EPN worker rations. A Kafka output adds to it.
+- **Latency.** The live lane's floor is **1 second**, set by flush 1. A produce
+  step and a consume step add to that floor.
+- **Two more services to deploy, pin, monitor and version** — a broker quorum and
+  a sink connector.
+
+### What Kafka would genuinely buy, stated fairly
+
+- ✅ **A second independent consumer.** Anomaly detection or a columnar cold tier
+  could read the stream without querying OpenSearch. **This is the only strong
+  argument, and it is a future one.**
+- ✅ **Outages longer than the buffer cushion.** That means days, not hours.
+- ⚠️ **Agreement with `docs/ARCHITECTURE.md`.** Matching the reference design
+  lowers the cost of merging with it. That is a real reason. It is not a
+  measurement, and it should not be presented as one.
+
+### The conditions that would reverse this
+
+Any one of these reopens the question:
+
+1. **A sustained per-worker rate above about 1,000 a second** — 13× the busiest
+   worker-second in the archive.
+2. **A second consumer becomes a requirement**, not a possibility.
+3. **Storage-tier outages that routinely exceed the buffer cushion.**
+4. **A measurement of the real per-worker rate that lands within 50× of 42,000 a
+   second.** The archive figures are floors, and this is the one that could move.
+
+🔴 **One thing a bus would not fix.** Three hundred and more OpenSearch nodes in
+a single cluster is a cluster-manager scaling risk. That is a topology problem.
+Fewer nodes or cross-cluster search answers it. A message bus does not.
+
+### What this decision does not rest on
+
+**Stated so that nobody reads more certainty into it than there is:**
+
+- ❌ **The full stack has never run above 5,000 a second in steady state**, nor
+  above a 30,000-a-second burst of 30 seconds. See *Open questions*, item 1.
+- ❌ **Every rate above 5,000 a second in this round came off a degraded host.**
+  The rankings transfer. The absolute numbers do not.
+- ❌ **The archive bounds the worker rate from underneath only.**
+
+**The decision rests on the size of the margin, not on the precision of either
+end of it.** Three orders of magnitude absorb every one of those faults.
+
+---
 
 ## Open questions
 
