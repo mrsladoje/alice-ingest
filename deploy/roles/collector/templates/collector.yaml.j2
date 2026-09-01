@@ -199,6 +199,7 @@ pipeline:
       index: infologger
       suppress_type_name: true
       trace_error: true
+      buffer_size: 'False'
       storage.total_limit_size: {{ fluent_bit_log_buffer_limit }}
       retry_limit: {{ fluent_bit_log_retry_limit }}
 
@@ -209,6 +210,7 @@ pipeline:
       index: application-logs-local-${ALICE_NODE_ID}
       suppress_type_name: true
       trace_error: true
+      buffer_size: 'False'
       storage.total_limit_size: {{ fluent_bit_log_buffer_limit }}
       retry_limit: {{ fluent_bit_log_retry_limit }}
 
@@ -219,6 +221,7 @@ pipeline:
       index: application-logs-central
       suppress_type_name: true
       trace_error: true
+      buffer_size: 'False'
       storage.total_limit_size: {{ fluent_bit_log_buffer_limit }}
       retry_limit: {{ fluent_bit_log_retry_limit }}
 
