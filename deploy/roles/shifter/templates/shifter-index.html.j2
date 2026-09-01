@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ALICE - Shifter View</title>
+<link rel="icon" type="image/svg+xml" href="alice-favicon.svg">
+<link rel="stylesheet" href="shifter.css">
+<script>
+window.SHIFTER_CONFIG = {
+  bufferRows: {{ shifter_buffer_rows }},
+  streamUrl: "stream",
+  queryUrl: "api/query",
+  queryLimit: {{ shifter_query_default_rows }},
+  hiddenGraceSeconds: {{ shifter_hidden_grace_seconds }},
+  cockpitUrl: "{{ shifter_cockpit_url }}"
+};
+</script>
+</head>
+<body>
+<div id="root"></div>
+<script src="preact.umd.js"></script>
+<script src="hooks.umd.js"></script>
+<script src="preact-shim.js"></script>
+<script src="shifter.js"></script>
+</body>
+</html>

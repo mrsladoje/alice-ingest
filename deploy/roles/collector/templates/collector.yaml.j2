@@ -236,15 +236,15 @@ pipeline:
       retry_limit: 5
       workers: 0
 
-{% if live_lane_enabled | bool %}
+{% if shifter_enabled | bool %}
     # The live lane: the second consumer of the stream, and the reason no queue
     # is needed yet. Never the info tier. Best-effort by construction — a small
     # buffer and one retry, so a dead viewer never pushes back on OpenSearch.
     - name: http
       match_regex: ^(infologger|family\.central)$
-      host: {{ live_lane_host }}
-      port: {{ live_lane_port }}
-      uri: {{ live_lane_ingest_path }}
+      host: {{ shifter_host }}
+      port: {{ shifter_port }}
+      uri: {{ shifter_ingest_path }}
       format: json
       json_date_key: '@timestamp'
       json_date_format: iso8601

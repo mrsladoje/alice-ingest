@@ -50,7 +50,7 @@ It runs on all five nodes, as the first play in `site.yml` that touches them.
                                      v
 ┌─ WHAT EVERY LATER ROLE THEN ASSUMES ───────────────────────────────────────┐
 │  firewalld running          --> opensearch, collector, producer, faults,   │
-│                                 alertmanager and dashboards/livelane       │
+│                                 alertmanager and dashboards/shifter       │
 │                                 each add their own rules                   │
 │  vm.max_map_count           --> opensearch passes its bootstrap check      │
 │  swap in place              --> the site.yml pre-flight releases the       │

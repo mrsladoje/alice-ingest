@@ -270,12 +270,12 @@
     - role: trend_rollup
       when: "'rollup' in background_services"
 
-- name: Live lane — the standalone log viewer, off the control host
-  hosts: livelane
+- name: Shifter view — the standalone log console, off the control host
+  hosts: shifter
   become: true
   roles:
-    - role: live_lane
-      when: live_lane_enabled | bool
+    - role: shifter
+      when: shifter_enabled | bool
 
 - name: Fluent Bit collector (worker VMs only)
   hosts: workers

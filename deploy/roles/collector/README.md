@@ -259,7 +259,7 @@ defaults, because a second copy is a second place to change one value.
 | `cockpit_metrics_interval_seconds` | `group_vars/all.yml` | Backs `collector_health_interval_seconds`. |
 | `health_metrics_emit_legacy_node` | `group_vars/all.yml` | Whether the health document also carries a `node` field. |
 | `collector_metrics_scrape_source` | `group_vars/all.yml` | The one address allowed through the firewall to the metrics port. |
-| `live_lane_enabled`, `live_lane_host`, `live_lane_port`, `live_lane_ingest_path` | `group_vars/all.yml` | The second output lane. Disabled removes the output entirely. |
+| `shifter_enabled`, `shifter_host`, `shifter_port`, `shifter_ingest_path` | `group_vars/all.yml` | The second output lane. Disabled removes the output entirely. |
 
 ## Non-obvious settings
 

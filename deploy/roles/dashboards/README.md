@@ -9,7 +9,7 @@ catalogs.
 The role stops at the user interface. It does not create indices, monitors,
 detectors, forecasters or any background service. Those belong to
 `opensearch_bootstrap`, `alerting_monitors`, `anomaly_detection`,
-`cockpit_metrics`, `trend_rollup`, `alice_ops`, `live_lane` and
+`cockpit_metrics`, `trend_rollup`, `alice_ops`, `shifter` and
 `signal_projector`.
 
 ## Why it is a separate role
@@ -153,9 +153,9 @@ defaults, because a second copy is a second place to change one value.
 | `opensearch_http_port` | `group_vars/all.yml` | `OS_URL` for `patterns.sh`. |
 | `ops_internal_port` | `group_vars/all.yml` | The `/ops/` proxy target. Owned with the `alice_ops` role's service. |
 | `alertmanager_port` | `group_vars/all.yml` | The `/alertmanager/` proxy target. |
-| `live_lane_enabled` | `group_vars/all.yml` | Whether the vhost gets a `/live/` location at all. |
-| `live_lane_host` | `group_vars/all.yml` | The `/live/` proxy target. Derived from the `livelane` inventory group. |
-| `live_lane_port` | `group_vars/all.yml` | Its port. |
+| `shifter_enabled` | `group_vars/all.yml` | Whether the vhost gets a `/live/` location at all. |
+| `shifter_host` | `group_vars/all.yml` | The `/live/` proxy target. Derived from the `shifter` inventory group. |
+| `shifter_port` | `group_vars/all.yml` | Its port. |
 | `vault_dashboards_basic_auth_password` | `group_vars/vault.yml` | The basic-auth password. The play loads the vault file. |
 | `ansible_host` | inventory, per host | Certificate common name and subject alternative name. |
 | `inventory_hostname` | inventory, per host | The DNS subject alternative name. |
@@ -218,7 +218,7 @@ Against the control host only:
   certificate reaches the running proxy in the same run.
 - **`ops_internal_port`, `alertmanager_port` and the live-lane trio are proxy
   targets owned elsewhere.** The vhost is the seam: `alice_ops`, `alertmanager`
-  and `live_lane` bind those ports, this role publishes them. Move a port and
+  and `shifter` bind those ports, this role publishes them. Move a port and
   both ends change.
 - **`dashboards_index_patterns` feeds two consumers that must agree.**
   `patterns.sh` creates the patterns from it, and the hydration step fills the

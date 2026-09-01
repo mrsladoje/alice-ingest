@@ -25,7 +25,7 @@ the wiring diagram, the variables it reads and the couplings it carries.
 | `anomaly_detection` | control | Provisions the machine-learning layer: 17 Random Cut Forest detectors, 1 disk-fill forecaster, and the script that proves the detection layer is complete. |
 | `signal_projector` | projector (+ control) | Runs the projector that turns raw alerts, anomaly results and monitor output into named signals, incidents and lane state. Its notification receiver runs on the control host. |
 | `trend_rollup` | background | Runs `alice-trend-rollup`, which turns raw log indices into 10-minute per-entity rows. Twelve monitors read those rows instead of a full day of raw logs. |
-| `live_lane` | livelane | Installs the live log tail: a single-file Python server, a vendored React page, Server-Sent Events to every open browser. Keeps working while the cluster is red. |
+| `shifter` | shifter | Installs the shifter view: a single-file Python server, the query proxy, and a vendored Preact page whose live lane tails logs over Server-Sent Events. Keeps working while the cluster is red. |
 | `collector` | workers | Installs and configures Fluent Bit. Tails the local log tree, accepts InfoLogger over TCP, parses and routes into three log families, writes to this VM's own OpenSearch node. |
 | `producer` | workers | Installs the S3-replay engine under a venv and systemd. Each VM replays only its own `epn_partition` slice; the wrapper narrows the preserved upstream `replay.py` to that slice. |
 | `faults` | workers + projector | Installs the fault-injection agent the control host calls. A node may fault only the service it owns — a worker its Fluent Bit, the projector host its projector. |

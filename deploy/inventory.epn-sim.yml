@@ -62,7 +62,7 @@ all:
         os-node-05:
           background_services: [rollup]
 
-    livelane:
+    shifter:
       hosts:
         os-node-06: {}
 

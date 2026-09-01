@@ -1,0 +1,44 @@
+# {{ ansible_managed }}
+[Unit]
+Description=ALICE shifter log view — the live lane, plus queries proxied to OpenSearch
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+MemoryAccounting=yes
+MemoryHigh={{ shifter_memory_high }}
+MemoryMax={{ shifter_memory_max }}
+DynamicUser=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+Environment=SHIFTER_BIND={{ shifter_bind }}
+Environment=SHIFTER_PORT={{ shifter_port }}
+Environment=SHIFTER_INGEST_PATH={{ shifter_ingest_path }}
+Environment=SHIFTER_STATIC_DIR={{ shifter_static_dir }}
+Environment=SHIFTER_REPLAY_ROWS={{ shifter_replay_rows }}
+Environment=SHIFTER_BUFFER_ROWS={{ shifter_buffer_rows }}
+Environment=SHIFTER_CLIENT_QUEUE_MAX={{ shifter_client_queue_max }}
+{% if shifter_opensearch_url | length > 0 %}
+Environment=SHIFTER_OS_URL={{ shifter_opensearch_url }}
+Environment=SHIFTER_OS_INDICES={{ shifter_opensearch_indices }}
+Environment=SHIFTER_OS_VERIFY={{ shifter_opensearch_verify | lower }}
+Environment=SHIFTER_QUERY_MAX_ROWS={{ shifter_query_max_rows }}
+Environment=SHIFTER_QUERY_PAGE_ROWS={{ shifter_query_page_rows }}
+{% if shifter_opensearch_user | length > 0 %}
+Environment=SHIFTER_OS_USER={{ shifter_opensearch_user }}
+Environment=SHIFTER_OS_PASSWORD={{ shifter_opensearch_password }}
+{% endif %}
+{% endif %}
+{% if shifter_token | length > 0 %}
+Environment=SHIFTER_TOKEN={{ shifter_token }}
+{% endif %}
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 {{ shifter_script }}
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

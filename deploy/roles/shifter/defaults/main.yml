@@ -1,0 +1,49 @@
+shifter_service_name: alice-shifter
+shifter_script: /opt/alice-ingest/shifter.py
+shifter_static_dir: /opt/alice-ingest/live
+shifter_cockpit_url: "/app/dashboards"
+
+shifter_bind: 0.0.0.0
+shifter_token: ""
+
+shifter_buffer_rows: 10000
+
+# Held for a viewer who connects mid-stream, so a fresh page is not blank.
+shifter_replay_rows: 500
+
+# Per viewer. A full queue drops for that viewer; it is never allowed to grow.
+shifter_client_queue_max: 2000
+
+# How long a tab may sit in the background before the page drops its stream.
+# A visible tab is never dropped, so a wall display keeps running. Set 0 to
+# turn the whole behaviour off.
+shifter_hidden_grace_seconds: 120
+
+# The query lane. The shifter view runs its own searches through the lane
+# server rather than from the browser, so OpenSearch keeps one caller, one
+# credential and one origin. Leave shifter_opensearch_url empty and the
+# Query button reports that query mode is not configured; the live stream is
+# unaffected either way.
+shifter_opensearch_url: "http://{{ groups['control'][0] }}:{{ opensearch_http_port }}"
+shifter_opensearch_indices: "infologger,application-logs-central"
+shifter_opensearch_user: ""
+shifter_opensearch_password: ""
+shifter_opensearch_verify: true
+
+# What one Query press returns in total, and the ceiling a viewer may raise it
+# to. The rows do not arrive at once: the page fetches shifter_query_page_rows
+# and then pulls older pages as the shifter scrolls up towards them.
+shifter_query_default_rows: 5000
+shifter_query_max_rows: 20000
+shifter_query_page_rows: 500
+
+# auto  = shrink the page if terser or esbuild is on the control node, ship the
+#         readable source if neither is, so a deploy never depends on a tool.
+# always = fail the deploy when neither is there.
+# never  = always ship the readable source.
+shifter_minify: auto
+
+shifter_memory_high: "192M"
+shifter_memory_max: "384M"
+
+shifter_allowed_client_addresses: []

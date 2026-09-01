@@ -1,0 +1,196 @@
+- name: Ensure the live lane app root and static directory exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ alice_app_root }}"
+    - "{{ shifter_static_dir }}"
+
+- name: Install the live lane server
+  ansible.builtin.copy:
+    src: shifter.py
+    dest: "{{ shifter_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+  register: _shifter_script
+
+- name: Find a minifier on the control node, never on the target
+  ansible.builtin.command:
+    cmd: sh -c "command -v terser || command -v esbuild || true"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  check_mode: false
+  register: _shifter_minifier
+  when: shifter_minify != 'never'
+
+- name: Refuse to deploy unminified when the inventory demanded minifying
+  ansible.builtin.fail:
+    msg: >-
+      shifter_minify is 'always' but neither terser nor esbuild is on this
+      control node. Install one, or set shifter_minify to 'auto' to ship the
+      readable source instead.
+  when:
+    - shifter_minify == 'always'
+    - not (_shifter_minifier.stdout | default('') | trim)
+
+- name: Decide whether the page gets shrunk on the way out
+  ansible.builtin.set_fact:
+    _shifter_minify_with: >-
+      {{ (_shifter_minifier.stdout | default('') | trim | basename)
+         if (shifter_minify != 'never'
+             and (_shifter_minifier.stdout | default('') | trim))
+         else '' }}
+
+- name: Make a build directory on the control node
+  ansible.builtin.tempfile:
+    state: directory
+    suffix: live-lane
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: _shifter_build
+  when: _shifter_minify_with | length > 0
+
+- name: >-
+    Shrink the page and its stylesheet on the control node. terser is preferred
+    over esbuild because it gzips 259 bytes smaller on this page; see the
+    README for the measurement. The vendored libraries are already minified and
+    the logo is not code, so both are copied through untouched.
+  ansible.builtin.command:
+    cmd: >-
+      {{ (_shifter_minify_with == 'terser')
+         | ternary('terser ' ~ role_path ~ '/files/live/' ~ item
+                   ~ ' -c -m -o ' ~ _shifter_build.path ~ '/' ~ item,
+                   'esbuild ' ~ role_path ~ '/files/live/' ~ item
+                   ~ ' --minify --outfile=' ~ _shifter_build.path ~ '/' ~ item) }}
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  loop:
+    - shifter.js
+    - shifter.css
+  when: _shifter_minify_with | length > 0
+
+- name: Measure what the minifier produced
+  ansible.builtin.stat:
+    path: "{{ _shifter_build.path }}/{{ item }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: _shifter_shrunk
+  loop:
+    - shifter.js
+    - shifter.css
+  when: _shifter_minify_with | length > 0
+
+- name: Prove the shrunk page is not empty before it can replace a working one
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.size > 2000
+    fail_msg: >-
+      {{ _shifter_minify_with }} produced nothing usable for
+      {{ item.item }}. Set shifter_minify to 'never' to ship the readable
+      source while you look into it.
+  loop: "{{ _shifter_shrunk.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item | default('') }}"
+  when: _shifter_minify_with | length > 0
+
+- name: >-
+    Install the page and its vendored browser libraries (no network at deploy
+    time — see live/VENDORED.md for what these are)
+  ansible.builtin.copy:
+    src: >-
+      {{ ((_shifter_build.path | default('')) ~ '/' ~ item)
+         if (_shifter_minify_with | length > 0
+             and item in ['shifter.js', 'shifter.css'])
+         else ('live/' ~ item) }}
+    dest: "{{ shifter_static_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - shifter.js
+    - shifter.css
+    - alice-favicon.svg
+    - preact.umd.js
+    - hooks.umd.js
+    - preact-shim.js
+  register: _shifter_assets
+
+- name: Take the build directory away again
+  ansible.builtin.file:
+    path: "{{ _shifter_build.path | default('') }}"
+    state: absent
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  when: _shifter_minify_with | length > 0
+
+- name: Render the page shell, which carries the buffer size and the link back to the cockpit
+  ansible.builtin.template:
+    src: shifter-index.html.j2
+    dest: "{{ shifter_static_dir }}/index.html"
+    owner: root
+    group: root
+    mode: "0644"
+  register: _shifter_index
+
+- name: Open the live lane ingest and stream port to the collectors and the control host
+  ansible.posix.firewalld:
+    rich_rule: >-
+      rule family="ipv4"
+      source address="{{ item }}"
+      port port="{{ shifter_port }}" protocol="tcp"
+      accept
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ shifter_allowed_client_addresses }}"
+
+- name: Install the live lane unit
+  ansible.builtin.template:
+    src: alice-shifter.service.j2
+    dest: /etc/systemd/system/{{ shifter_service_name }}.service
+    owner: root
+    group: root
+    mode: "0644"
+  register: _shifter_unit
+
+- name: Enable and start the live lane, restarting only when its inputs changed
+  ansible.builtin.systemd:
+    name: "{{ shifter_service_name }}"
+    enabled: true
+    state: >-
+      {{ 'restarted'
+         if ((_shifter_script.changed | default(false))
+             or (_shifter_assets.changed | default(false))
+             or (_shifter_index.changed | default(false))
+             or (_shifter_unit.changed | default(false)))
+         else 'started' }}
+    daemon_reload: true
+
+- name: Prove the live lane answers on its own host before the collectors point at it
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ shifter_port }}/healthz"
+    status_code: 200
+  register: _shifter_health
+  until: _shifter_health.status == 200
+  retries: 12
+  delay: 5
+
+- name: Prove the page itself is served, not only the health endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ shifter_port }}/"
+    return_content: true
+    status_code: 200
+  register: _shifter_page
+  failed_when: >-
+    _shifter_page.status != 200
+    or 'shifter.js' not in (_shifter_page.content | default(''))

@@ -22,7 +22,7 @@ role that exists to break it.
   (`playbooks/inject.yml`) runs on the control host and installs nothing.
 - **It owns the port, so it owns the rule.** The rich rule for
   `fault_agent_port` sits next to the service that listens on it, the same
-  convention `alertmanager` and `live_lane` follow.
+  convention `alertmanager` and `shifter` follow.
 
 ## What it does
 
@@ -187,7 +187,7 @@ uses `/cpu-stress`, and the restore pass uses the matching start or stop call.
   group, so moving the projector or adding a worker is a `group_vars` edit.
 - **The firewall rule takes `fault_agent_allowed_client_addresses`, a list.**
   Same convention as `alertmanager_allowed_client_addresses` and
-  `live_lane_allowed_client_addresses`. `group_vars` resolves it to
+  `shifter_allowed_client_addresses`. `group_vars` resolves it to
   `[control_host_address]` — one rule today, and widening it is one line in one
   file rather than an edit inside a task.
 - **The allowlist and the scenario list must agree.** `inject_run.py` names

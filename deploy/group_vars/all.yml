@@ -101,7 +101,7 @@ worker_fault_agent_endpoints: "{{ groups['workers'] |
   map('regex_replace', '^(.*)$', '\\1:' ~ (fault_agent_port | string)) | list }}"
 signal_projector_address: "{{ hostvars[signal_projector_host].ansible_host }}"
 alertmanager_host_address: "{{ hostvars[groups['control'][0]].ansible_host }}"
-live_lane_allowed_client_addresses: "{{ (groups['workers'] + groups['control']) |
+shifter_allowed_client_addresses: "{{ (groups['workers'] + groups['control']) |
   map('extract', hostvars, 'ansible_host') | unique | list }}"
 
 # The control host is the only client of the fault agents and of the replay
@@ -132,10 +132,10 @@ infologger_tcp_port: 5170
 log_root: /var/log/node
 
 # The live lane. README section 9, Item 7.
-live_lane_enabled: true
-live_lane_host: "{{ hostvars[groups['livelane'][0]].ansible_host }}"
-live_lane_port: 8092
-live_lane_ingest_path: /ingest
+shifter_enabled: true
+shifter_host: "{{ hostvars[groups['shifter'][0]].ansible_host }}"
+shifter_port: 8092
+shifter_ingest_path: /ingest
 
 s3_endpoint: "https://s3.cern.ch"
 s3_bucket: epn-backup-logs

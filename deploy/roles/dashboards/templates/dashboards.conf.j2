@@ -31,7 +31,7 @@ server {
         proxy_read_timeout 120s;
     }
 
-{% if live_lane_enabled | bool %}
+{% if shifter_enabled | bool %}
     location = /live {
         return 301 /live/;
     }
@@ -40,7 +40,7 @@ server {
     # until its buffer fills. The long read timeout keeps an idle stream open;
     # the server sends its own keepalive well inside it.
     location /live/ {
-        proxy_pass http://{{ live_lane_host }}:{{ live_lane_port }}/;
+        proxy_pass http://{{ shifter_host }}:{{ shifter_port }}/;
         proxy_http_version 1.1;
         proxy_buffering off;
         proxy_cache off;

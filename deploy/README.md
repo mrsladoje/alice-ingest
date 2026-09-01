@@ -47,7 +47,7 @@ the local dev path (Docker Compose on a single machine — see the root
 │ Dashboards :5602   │   infologger + application-logs-central:
 │ idempotent bootstrap│  3 shards, 2 repl, require.role=storage, balanced across the 3
 │ alice-ops (/ops)   │   + cockpit-metrics: 1 shard, 2 repl, storage-pinned
-│ alice-metrics      │   │ alice-trend-rollup │   │ alice-live-lane     │
+│ alice-metrics      │   │ alice-trend-rollup │   │ alice-shifter       │
 │ alertmanager       │   │ alice-signal-      │   │                    │
 │ notification-ingest│   │ projector          │   │                    │
 │ alice-inject       │   │ alice-fault-agent  │   │                    │
@@ -457,7 +457,7 @@ declares, and each step depends on the one above it.
 | 6 | `projector` | `alice_runtime`, `signal_projector` |
 | 7 | `control` | `signal_projector` (`tasks_from: control.yml`) |
 | 8 | `background` | `alice_runtime`, `trend_rollup` |
-| 9 | `livelane` | `live_lane` |
+| 9 | `shifter` | `shifter` |
 | 10 | `workers` | `collector` |
 | 11 | `control` | `cockpit_metrics` (`tasks_from: post_collector.yml`) |
 | 12 | `workers` | `producer` |
@@ -573,7 +573,7 @@ below ran clean:
 |---|---|
 | `ansible-inventory --graph` on `inventory.yml` | pass — `alice_nodes` resolves to `workers` (2) + `storage` (3); `control` = `alice-ingest-3` (a storage node) |
 | `ansible-playbook --syntax-check` on `playbooks/site.yml`, `playbooks/provision.yml`, `playbooks/teardown.yml` | pass — zero syntax errors |
-| `ansible-playbook playbooks/site.yml --list-hosts` | pass — common/opensearch/gate target all 5; the control-plane roles (`alice_runtime`, `dashboards`, `alice_ops`, `alerting_monitors`, `cockpit_metrics`, `anomaly_detection`) → control; `signal_projector` → projector; `trend_rollup` → background; `live_lane` → livelane; collector + producer → the 2 workers only |
+| `ansible-playbook playbooks/site.yml --list-hosts` | pass — common/opensearch/gate target all 5; the control-plane roles (`alice_runtime`, `dashboards`, `alice_ops`, `alerting_monitors`, `cockpit_metrics`, `anomaly_detection`) → control; `signal_projector` → projector; `trend_rollup` → background; `shifter` → shifter; collector + producer → the 2 workers only |
 | `group_vars/all.yml` derivations (`ansible -m debug`) | pass — `node_count=2` (from `workers`); seeds/initial-managers/Dashboards-hosts = the 3 storage nodes; `opensearch_cluster_hosts` = all 5 (firewall mesh) |
 | `opensearch.yml.j2` render (both tiers) | pass — workers get `node.roles: [data, ingest]` + `node.attr.role: worker` + `node.attr.box: <node_id>`; storage gets `[cluster_manager, data, ingest]` + `node.attr.role: storage` |
 | `opensearch.yml.j2` ingest role | pass — every index sets `default_pipeline: alice-add-ingest-time`, and explicit `node.roles` drops the implicit `ingest` role, so both tiers list `ingest` (`[data, ingest]` / `[cluster_manager, data, ingest]`); workers stay ingest-capable so the local info path needs no cross-node hop for the pipeline |
@@ -1903,7 +1903,7 @@ Lubos requires that the bulk tier never crosses the wire. Only the cost changes.
 
 One consequence to remember: because the enrichment now happens in OpenSearch,
 anything that bypasses OpenSearch does not get it. The live lane bypasses
-OpenSearch by design, so `live_lane.py` carries the same severity table.
+OpenSearch by design, so `shifter.py` carries the same severity table.
 
 **Rejected:** emitting `@timestamp` as epoch milliseconds to speed the Painless
 parse. It is Fluent Bit's record time, set by the parser's `time_format`, and
@@ -2200,7 +2200,7 @@ Browser behaviour, as specified:
   stream.** A *visible* tab is never closed, so a screen that is watched but not
   touched keeps running; only a forgotten tab is dropped. The page then shows a
   *Resume live stream* button and reconnects on that press alone, never by
-  itself. `live_lane_hidden_grace_seconds: 0` turns the behaviour off entirely.
+  itself. `shifter_hidden_grace_seconds: 0` turns the behaviour off entirely.
 - **Records are deduplicated by `_id`, and a real gap is drawn as a row.** Every
   new connection is sent the replay backlog, so a reconnect would otherwise
   repeat rows the buffer already holds. The page ignores any `_id` it has seen.
@@ -2224,7 +2224,7 @@ costs the server a thread and a bounded queue. It costs the *browser* one of the
 six connections it gives an origin over HTTP/1.1 — and nginx serves `/live/`
 from the same origin as Dashboards, so forgotten lane tabs are taken from the
 cockpit's own connection budget. The server-side gain is real but second: the
-thread is reclaimed at its next keepalive write, up to `LIVE_KEEPALIVE_SECONDS`
+thread is reclaimed at its next keepalive write, up to `SHIFTER_KEEPALIVE_SECONDS`
 after the browser closed the socket, not at the moment it closed.
 
 Two limits of the mechanism, both accepted. Browsers throttle timers in
@@ -2253,7 +2253,7 @@ maintains this after us — and that reason stands. But this tree has no Node, n
 npm and no bundler, and adding a JavaScript toolchain to an Ansible deploy is
 the same kind of permanent tax the plan rejected for Dashboards plugins. So
 `react.production.min.js` and `react-dom.production.min.js` are committed under
-`roles/live_lane/files/live/`, and the page calls `React.createElement`
+`roles/shifter/files/live/`, and the page calls `React.createElement`
 directly, which is what JSX compiles into. Nothing builds and nothing fetches at
 deploy time. See `live/VENDORED.md` for versions, hashes and provenance. React
 19 removed UMD builds, which is why the vendored line is 18.

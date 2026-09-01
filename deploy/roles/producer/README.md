@@ -289,7 +289,7 @@ the role reads directly rather than re-declaring.
   and the detectors stop getting their 32 windows.
 - **The firewall rule takes `producer_allowed_client_addresses`, a list.** Same
   convention as `alertmanager_allowed_client_addresses` and
-  `live_lane_allowed_client_addresses`. `group_vars` resolves it to
+  `shifter_allowed_client_addresses`. `group_vars` resolves it to
   `[control_host_address]`, so the role names no inventory group and does not
   require a `control` group to exist. Opening the trigger to a second caller is
   one line in `group_vars`.

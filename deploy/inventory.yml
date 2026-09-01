@@ -68,6 +68,6 @@ all:
 
     # The live lane holds one open connection per viewer, so its cost grows
     # with readers.  Deliberately not the control host.
-    livelane:
+    shifter:
       hosts:
         alice-ingest-5: {}
