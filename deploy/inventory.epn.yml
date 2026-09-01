@@ -1,0 +1,215 @@
+# The real ALICE EPN farm. Never provisioned and never torn down by this repo:
+# the machines exist, root is granted on them, and provision.yml / teardown.yml
+# must not be pointed at this file. There is deliberately no provision_machines
+# key, so a stray `make provision` fails on a missing variable rather than
+# creating VMs.
+#
+# Node roles and sharing come from docs/EPN-ACCESS.md. epn146 and epn323 carry
+# real staging runs beside us; epn228 is drained and is wiped by the CI
+# pipeline, so every role here has to come up from a bare operating system.
+#
+# Addresses came from, on 27 August 2026:
+#
+#   ssh login 'getent hosts epn146.internal epn228.internal \
+#              epn323.internal epn-infra13.internal'
+#
+# Run it with no extra variables:
+#
+#   ansible-playbook -i inventory.epn.yml playbooks/site.yml --ask-vault-pass
+#
+# Surveyed 27 August 2026:
+#
+#   epn146        AlmaLinux 9.5   128 cpu   503 GB (149 free)   650 GB disk
+#   epn228        AlmaLinux 9.5   128 cpu   503 GB (150 free)   709 GB disk
+#   epn323        AlmaLinux 10.2  192 cpu  1007 GB (990 free)   1.7 TB disk
+#   epn-infra13   AlmaLinux 9.5    64 cpu   376 GB (355 free)   691 GB disk
+#
+# epn323 is a major release ahead of the other three. Both the Fluent Bit and
+# the OpenSearch repositories carry EL10, and podman is in AppStream on both,
+# so $releasever resolves — but the two workers do not run identical builds.
+#
+# SELinux is disabled and firewalld is inactive on all four. sudo is granted
+# for /usr/bin and /usr/local/bin only, which does NOT restrict Ansible: become
+# enters through /bin/sh and everything inside that root shell is unrestricted.
+#
+all:
+  vars:
+    ansible_user: masladoj
+
+    # ansible_host has to be the IPv4 address, because group_vars/all.yml
+    # builds the OpenSearch seed list and the Dashboards URLs from it and those
+    # are resolved on the nodes themselves. Those addresses are internal to the
+    # EPN network, so the controller cannot reach them directly and the
+    # `Host epn*` rule in ~/.ssh/config never matches an address. This puts the
+    # jump back. `login` is the alias for alihlt-gw-prod.cern.ch:2020, and from
+    # a controller outside the CERN network it carries its own ProxyJump.
+    ansible_ssh_common_args: '-o ProxyJump=login'
+
+    # Pinned, not discovered. Interpreter discovery picks /usr/bin/python3.12
+    # on AlmaLinux 9, but the distribution ships its Python libraries — the
+    # community.crypto modules need python3-cryptography — only for the
+    # platform interpreter, which is 3.9 there. /usr/bin/python3 is the
+    # platform interpreter on both 9 and 10, so one line covers epn323 too.
+    ansible_python_interpreter: /usr/bin/python3
+
+    # Soak round 2, "The one finding that matters": flush 5 -> 1 cuts the
+    # collector's own processor cost by 24.5 % and its peak memory by 28 %,
+    # and drops the live-lane latency floor from 5 s to 1 s. 0.75 and 1 are
+    # interchangeable; below 0.5 the cluster pays more than the collector
+    # saves. The role default now carries the same 1; this line is kept so the
+    # farm states its own value rather than inheriting one silently.
+    fluent_bit_flush_seconds: 1
+
+    # Soak stage B: InfoLogger lost 66.7 % at the shipped 256M output buffer,
+    # and a filesystem spool did not fix it — the loss is at this cap. 2G is
+    # the farm figure already recorded in the collector role's defaults.
+    fluent_bit_log_buffer_limit: "2G"
+
+    # fluent_bit_version is NOT set here — it differs per worker. Every build
+    # in the vendor repository from 4.0.2 onward needs OpenSSL 3.4.0, and
+    # AlmaLinux 9.5 ships 3.2.2, so epn146 and epn228 can install nothing newer
+    # than 4.0.1. The centos/10 repository epn323 reads starts at 4.0.11, so
+    # the two cannot meet on one version. Each worker carries the closest it
+    # can reach, both inside the 4.0 series.
+
+    # firewalld is inactive on all four nodes and epn146 and epn323 carry real
+    # staging work, so the stack does not start one in front of it. The EPN
+    # network is already closed behind the login gateway.
+    alice_manage_firewalld: false
+
+    # These machines have 376 to 1007 GB and run deliberately without swap.
+    common_manage_swapfile: false
+
+  children:
+
+    alice_nodes:
+      children:
+
+        workers:
+          vars:
+            node_tier: worker
+            # opensearch_worker_heap_size in the role defaults. Soak round 2
+            # swept 1, 2 and 3 GB at two rates and over two burst shapes and
+            # found no difference the noise floor could see, because the queue
+            # that absorbs a burst is Fluent Bit's and sits upstream of this
+            # heap. epn146 and epn323 carry real staging work, so the worker
+            # takes the smallest arm that measured the same.
+            opensearch_heap_size: "1g"
+
+            # A hard bound, required by docs/EPN-ACCESS.md on the shared
+            # nodes. Far above the 1 GB heap so the JVM keeps its direct
+            # buffers and metaspace. The soak measured no ceiling here, so the
+            # headroom is deliberate rather than tuned.
+            opensearch_memory_high: "4G"
+            opensearch_memory_max: "6G"
+
+            # The replay engine reads S3 objects up to
+            # replay_max_object_bytes, which is 150 MB.
+            producer_memory_high: "1G"
+            producer_memory_max: "2G"
+          hosts:
+            # Four physical cores for the stack and two for the replay
+            # engine, taken from the top of NUMA node 0 and naming both
+            # threads of each core. 128 logical processors, sibling n and
+            # n+64, node 0 is 0-31 and 64-95.
+            epn146:
+              ansible_host: 10.162.36.146
+              node_id: node-01
+              epn_partition: 0
+              opensearch_cpuset: "28-31,92-95"
+              fluent_bit_cpuset: "28-31,92-95"
+              producer_cpuset: "26-27,90-91"
+              fluent_bit_version: "4.0.1"
+            epn228:
+              ansible_host: 10.162.36.228
+              node_id: node-02
+              epn_partition: 1
+              opensearch_cpuset: "28-31,92-95"
+              fluent_bit_cpuset: "28-31,92-95"
+              producer_cpuset: "26-27,90-91"
+              fluent_bit_version: "4.0.1"
+            # 192 logical processors, sibling n and n+96, node 0 is 0-47 and
+            # 96-143. Same four cores and two cores, different numbers.
+            epn323:
+              ansible_host: 10.162.38.67
+              node_id: node-03
+              epn_partition: 2
+              opensearch_cpuset: "44-47,140-143"
+              fluent_bit_cpuset: "44-47,140-143"
+              producer_cpuset: "42-43,138-139"
+              fluent_bit_version: "4.0.14"
+
+        # Three OpenSearch nodes as podman containers on epn-infra13, which is
+        # ours alone. The soak rig ran two nodes with one replica and recorded
+        # that as an accepted divergence making every worker-side figure
+        # optimistic; three nodes with two replicas is the shape it was
+        # measuring against.
+        storage:
+          vars:
+            node_tier: storage
+            ansible_host: 10.162.32.11
+            opensearch_install_method: container
+            # Sized from the 27 August 2026 survey: epn-infra13 has 376 GB of
+            # memory with 355 GB available and 64 logical processors, so three
+            # 8 GB heaps in 16 GB containers take 48 GB and leave the machine
+            # largely idle. MemoryMax must stay well above the heap or the
+            # container cannot start — see the heap-ceiling defect in
+            # docs/SOAK_RESULTS.md.
+            opensearch_heap_size: "8g"
+            opensearch_container_memory_max: "16G"
+            # epn-infra13 is ours alone: one socket, 64 logical processors,
+            # sibling n and n+32. Sixteen physical cores for the whole storage
+            # tier, which the three containers share.
+            opensearch_cpuset: "16-31,48-63"
+          hosts:
+            os-node-04:
+              node_id: node-04
+              opensearch_http_port: 9201
+              opensearch_transport_port: 9301
+            os-node-05:
+              node_id: node-05
+              opensearch_http_port: 9202
+              opensearch_transport_port: 9302
+            os-node-06:
+              node_id: node-06
+              opensearch_http_port: 9203
+              opensearch_transport_port: 9303
+
+    # These three live in group_vars/all.yml, which outranks an inventory
+    # file's GROUP vars — but not its HOST vars, which is why they sit on the
+    # hosts that read them rather than under all: vars.
+    #
+    #   alertmanager_port           the default 9093 is taken on epn-infra13 by
+    #                               a service that was there first
+    #   admission_control_mode      group_vars/all.yml says to set this
+    #                               enforced on the farm
+    #   log_primary_shards_storage  one primary per storage node, which the
+    #                               tier can now afford on 8 GB heaps
+    #
+    # admission_control_mode and log_primary_shards_storage are read by the
+    # opensearch_bootstrap role alone, which runs here. alertmanager_port is
+    # also read on the projector host, so it appears twice.
+    control:
+      hosts:
+        os-node-04:
+          alertmanager_port: 9193
+          admission_control_mode: enforced
+          log_primary_shards_storage: 3
+
+    projector:
+      hosts:
+        os-node-05:
+          alertmanager_port: 9193
+
+    background:
+      hosts:
+        os-node-05:
+          background_services: [rollup]
+
+    shifter:
+      hosts:
+        os-node-06: {}
+
+    container_hosts:
+      hosts:
+        os-node-04: {}
