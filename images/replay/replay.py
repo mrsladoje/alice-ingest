@@ -54,7 +54,7 @@ S3_ENDPOINT = os.environ.get("S3_ENDPOINT", "https://s3.cern.ch")
 S3_BUCKET = os.environ.get("S3_BUCKET", "epn-backup-logs")
 S3_REGION = os.environ.get("S3_REGION", "us-east-1")  # Ceph RGW ignores it
 RUN_TAG = os.environ.get("RUN_TAG", "33NXirFsSfT_38917")
-INFOLOGGER_PREFIX = os.environ.get("INFOLOGGER_PREFIX", "infologger-2026/")
+INFOLOGGER_PREFIX = os.environ.get("INFOLOGGER_PREFIX", "infologger-")
 
 IL_PORT = int(os.environ.get("INFOLOGGER_TCP_PORT", "5170"))
 
@@ -92,7 +92,8 @@ IL_RATE = float(os.environ.get("IL_REPLAY_RATE", "500"))
 
 # Cap objects per family; 0 => no cap. DDS is small per node (~10K lines) so the
 # full run (all 31 nodes) is minutes — no cap. InfoLogger dumps are ~250K rows
-# EACH (179 of them), so we bound it by default; set IL_MAX_OBJECTS=0 for the lot.
+# EACH (870 non-empty days across 2024-2026), so we bound it by default; set
+# IL_MAX_OBJECTS=0 for the lot.
 DDS_MAX_OBJECTS = int(os.environ.get("DDS_MAX_OBJECTS", "0"))
 IL_MAX_OBJECTS = int(os.environ.get("IL_MAX_OBJECTS", "3"))
 

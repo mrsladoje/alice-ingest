@@ -142,7 +142,7 @@ s3_bucket: epn-backup-logs
 s3_region: us-east-1
 s3_aws_profile: cern_s3
 run_tag: "33NXirFsSfT_38917"
-infologger_prefix: "infologger-2026/"
+infologger_prefix: "infologger-"
 
 replay_http_port: 8088
 node_count: "{{ groups['workers'] | length }}"
