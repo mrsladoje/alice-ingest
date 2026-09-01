@@ -3,3 +3,12 @@
 [Service]
 LimitMEMLOCK=infinity
 LimitNOFILE={{ opensearch_limit_nofile }}
+{% if opensearch_cpuset %}
+AllowedCPUs={{ opensearch_cpuset }}
+{% endif %}
+{% if opensearch_memory_high %}
+MemoryHigh={{ opensearch_memory_high }}
+{% endif %}
+{% if opensearch_memory_max %}
+MemoryMax={{ opensearch_memory_max }}
+{% endif %}

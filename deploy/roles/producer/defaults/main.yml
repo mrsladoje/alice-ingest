@@ -54,3 +54,15 @@ producer_replay_source: "{{ role_path }}/files/replay.py"
 # stands on its own and one inventory line can switch the whole stack. See
 # roles/common/defaults/main.yml for why the EPN farm sets this false.
 alice_manage_firewalld: true
+
+# The replay engine is not part of the logging stack's four-core budget. In
+# production the logs arrive on their own and nothing like this runs; here it
+# stands in for them, so it gets its own processors and must not take the
+# collector's. docs/SOAK_RESULTS.md pinned the rig's generator to separate
+# cores for exactly this reason and subtracts it from every figure it reports.
+producer_cpuset: ""
+
+# This unit had no memory bound. docs/EPN-ACCESS.md requires a hard MemoryMax
+# on every service placed on epn146 and epn323. Empty leaves it unbounded.
+producer_memory_high: ""
+producer_memory_max: ""

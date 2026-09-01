@@ -58,6 +58,16 @@ Environment=PYTHONUNBUFFERED=1
 
 ExecStart={{ producers_venv_path }}/bin/python3 {{ producers_app_root }}/replay_partition_wrapper.py serve
 
+{% if producer_cpuset %}
+AllowedCPUs={{ producer_cpuset }}
+{% endif %}
+{% if producer_memory_high %}
+MemoryHigh={{ producer_memory_high }}
+{% endif %}
+{% if producer_memory_max %}
+MemoryMax={{ producer_memory_max }}
+{% endif %}
+
 Restart=on-failure
 RestartSec=5s
 

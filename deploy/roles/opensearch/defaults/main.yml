@@ -66,6 +66,27 @@ opensearch_worker_index_buffer_size: "5%"
 
 opensearch_limit_nofile: 65536
 
+# A cpuset, written as systemd writes it: logical processor numbers, both
+# threads of every physical core. Empty means no reservation, which is what the
+# OpenStack rehearsal wants — a 2-processor VM has nothing to reserve away
+# from. docs/SOAK_RESULTS.md requires the real thing on the farm: every
+# core-second it reports assumes the stack holds four cores that no other
+# process can take, and it asks for a reservation rather than a share weight
+# because a weight limits the average and lets a neighbour win the burst.
+#
+# On a worker this holds the collector AND this node together. The soak
+# measured splitting them apart and found no effect, so they share one set.
+opensearch_cpuset: ""
+
+# Native installs had no memory bound at all. docs/EPN-ACCESS.md requires a
+# hard MemoryMax on every service placed on epn146 and epn323, which carry
+# staging work. Empty leaves the unit unbounded, as before. Keep MemoryMax well
+# above the heap: the JVM needs direct buffers and metaspace on top of it, and
+# a container that cannot fit its heap does not start — see the heap-ceiling
+# defect in docs/SOAK_RESULTS.md.
+opensearch_memory_high: ""
+opensearch_memory_max: ""
+
 # The cluster runs without the security plugin, so every port it opens is
 # unauthenticated and firewalld is the only boundary. Turning this off means
 # providing TLS material, an internal user database and a role mapping, none of

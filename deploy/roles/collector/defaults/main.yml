@@ -44,6 +44,10 @@ fluent_bit_log_retry_limit: 10
 # recorded here so the staging figure is never mistaken for the design figure.
 fluent_bit_log_farm_buffer_limit: "2G"
 
+# The same reservation the worker's OpenSearch node holds — see
+# opensearch_cpuset. The two share one set on purpose.
+fluent_bit_cpuset: ""
+
 fluent_bit_memory_high: "384M"
 fluent_bit_memory_max: "768M"
 

@@ -20,6 +20,9 @@ PodmanArgs=--ulimit memlock=-1:-1 --ulimit nofile={{ opensearch_limit_nofile }}:
 
 [Service]
 Restart=always
+{% if opensearch_cpuset %}
+AllowedCPUs={{ opensearch_cpuset }}
+{% endif %}
 TimeoutStartSec={{ opensearch_container_start_timeout_seconds }}
 {% if opensearch_container_memory_max %}
 MemoryMax={{ opensearch_container_memory_max }}

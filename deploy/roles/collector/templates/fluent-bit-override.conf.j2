@@ -17,5 +17,8 @@ TimeoutStartSec={{ collector_start_timeout_seconds }}
 ExecStart=
 ExecStart={{ collector_binary_path }} -c {{ collector_config_dir }}/collector.yaml
 
+{% if fluent_bit_cpuset %}
+AllowedCPUs={{ fluent_bit_cpuset }}
+{% endif %}
 MemoryHigh={{ fluent_bit_memory_high }}
 MemoryMax={{ fluent_bit_memory_max }}
