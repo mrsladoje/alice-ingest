@@ -11,6 +11,7 @@
   ansible.builtin.dnf:
     name: "{{ collector_service_name }}-{{ fluent_bit_version }}"
     state: present
+    allow_downgrade: true
 
 - name: >-
     {{ 'Open' if collector_metrics_scrape_open else 'Close' }} the Fluent Bit
@@ -26,6 +27,7 @@
     permanent: true
     immediate: true
     state: "{{ 'enabled' if collector_metrics_scrape_open else 'disabled' }}"
+  when: alice_manage_firewalld
 
 - name: Ensure the collector app root exists
   ansible.builtin.file:

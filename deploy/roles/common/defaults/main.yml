@@ -13,9 +13,21 @@ common_dnf_timeout: 600
 common_vm_max_map_count: 262144
 common_sysctl_conf_file: /etc/sysctl.d/99-opensearch.conf
 
+# The farm machines carry hundreds of gigabytes and run deliberately without
+# swap, so the inventory turns this off there. It stays on by default because
+# the OpenStack rehearsal VMs have 3.75 GB and genuinely need the file.
+common_manage_swapfile: true
+
 common_swapfile_path: /swapfile
 common_swapfile_size_mb: 2048
 common_swappiness: 60
 
+
+# Repeated in every role that writes a firewalld rule, so each role still
+# stands on its own and one inventory line can switch the whole stack. The EPN
+# farm sets this false: firewalld is inactive on all four nodes, and starting
+# one in front of the staging work already running on epn146 and epn323 is not
+# ours to do.
+alice_manage_firewalld: true
 
 common_open_tcp_ports: []

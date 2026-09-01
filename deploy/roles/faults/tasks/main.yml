@@ -19,6 +19,7 @@
     immediate: true
     state: enabled
   loop: "{{ fault_agent_allowed_client_addresses }}"
+  when: alice_manage_firewalld
 
 - name: Install the fault-injection agent
   ansible.builtin.copy:

@@ -49,3 +49,8 @@ producer_autostart_replay: false
 # docker-compose.yml builds the container from the same file — so
 # group_vars/all.yml overrides this to point there.
 producer_replay_source: "{{ role_path }}/files/replay.py"
+
+# Repeated in every role that writes a firewalld rule, so each role still
+# stands on its own and one inventory line can switch the whole stack. See
+# roles/common/defaults/main.yml for why the EPN farm sets this false.
+alice_manage_firewalld: true

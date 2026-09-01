@@ -49,3 +49,8 @@ fluent_bit_memory_max: "768M"
 
 # false leaves the metrics endpoint loopback-only and removes the firewall rule.
 collector_metrics_scrape_open: false
+
+# Repeated in every role that writes a firewalld rule, so each role still
+# stands on its own and one inventory line can switch the whole stack. See
+# roles/common/defaults/main.yml for why the EPN farm sets this false.
+alice_manage_firewalld: true

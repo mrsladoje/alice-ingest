@@ -9,6 +9,7 @@
     immediate: true
     state: enabled
   loop: "{{ opensearch_cluster_hosts }}"
+  when: alice_manage_firewalld
 
 - name: Open OpenSearch transport ({{ opensearch_transport_port }}/tcp) to every other cluster node
   ansible.posix.firewalld:
@@ -21,6 +22,7 @@
     immediate: true
     state: enabled
   loop: "{{ opensearch_cluster_hosts }}"
+  when: alice_manage_firewalld
 
 - name: Install OpenSearch natively from the vendor RPM
   ansible.builtin.include_tasks: install_native.yml

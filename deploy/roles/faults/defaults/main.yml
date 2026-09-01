@@ -11,3 +11,8 @@ fault_agent_services: []
 # Addresses permitted through the firewall to fault_agent_port. Empty here for
 # the same reason; group_vars resolves it to the control host.
 fault_agent_allowed_client_addresses: []
+
+# Repeated in every role that writes a firewalld rule, so each role still
+# stands on its own and one inventory line can switch the whole stack. See
+# roles/common/defaults/main.yml for why the EPN farm sets this false.
+alice_manage_firewalld: true

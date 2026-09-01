@@ -51,6 +51,7 @@
     immediate: true
     state: enabled
   loop: "{{ producer_allowed_client_addresses }}"
+  when: alice_manage_firewalld
 
 - name: Ensure the app root exists (replay.py + partition wrapper land here)
   ansible.builtin.file:

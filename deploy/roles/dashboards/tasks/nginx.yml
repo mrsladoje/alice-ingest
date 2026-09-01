@@ -27,6 +27,10 @@
     mode: "0644"
   notify: restart nginx
 
+# Both modules below refuse to run where SELinux is disabled rather than
+# treating it as nothing to do, and the EPN farm nodes have it disabled. The
+# guard is the policy, not a workaround: with no policy loaded there is no
+# boolean to set and no port to label, and nginx binds and connects freely.
 - name: Ensure Python SELinux bindings are present (required by ansible.posix.seboolean and community.general.seport)
   ansible.builtin.dnf:
     name:
@@ -34,12 +38,14 @@
       - python3-policycoreutils
       - python3-libsemanage
     state: present
+  when: ansible_selinux.status | default('disabled') != 'disabled'
 
 - name: Allow nginx to reverse-proxy to Dashboards over SELinux (ALMA9 enforcing), on 127.0.0.1:{{ dashboards_internal_port }}
   ansible.posix.seboolean:
     name: httpd_can_network_connect
     state: true
     persistent: true
+  when: ansible_selinux.status | default('disabled') != 'disabled'
 
 - name: Label the Dashboards external port as http_port_t so nginx can bind it under SELinux enforcing, on tcp/{{ dashboards_external_port }}
   community.general.seport:
@@ -47,6 +53,7 @@
     proto: tcp
     setype: http_port_t
     state: present
+  when: ansible_selinux.status | default('disabled') != 'disabled'
 
 - name: Enable and start nginx
   ansible.builtin.systemd:
