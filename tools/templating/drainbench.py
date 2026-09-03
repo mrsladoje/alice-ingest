@@ -15,23 +15,19 @@ is not billed to Drain.
 """
 import argparse
 import json
+import os
+import resource
 import sys
 import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from collections import Counter, defaultdict
 
 from drain3 import TemplateMiner
 from drain3.template_miner_config import TemplateMinerConfig
 
 
-MASKING = [
-    {"regex_pattern": r"((?<=[^A-Za-z0-9])|^)(/[-\w./]+)((?=[^A-Za-z0-9])|$)", "mask_with": "PATH"},
-    {"regex_pattern": r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b", "mask_with": "UUID"},
-    {"regex_pattern": r"\b(\d{1,3}\.){3}\d{1,3}(:\d+)?\b", "mask_with": "IP"},
-    {"regex_pattern": r"\b0[xX][0-9a-fA-F]+\b", "mask_with": "HEX"},
-    {"regex_pattern": r"\b\d{1,3}(,\d{3})+\b", "mask_with": "NUM"},
-    {"regex_pattern": r"((?<=[^A-Za-z0-9])|^)([\-\+]?\d+\.\d+)((?=[^A-Za-z0-9])|$)", "mask_with": "FLOAT"},
-    {"regex_pattern": r"((?<=[^A-Za-z0-9])|^)([\-\+]?\d+)((?=[^A-Za-z0-9])|$)", "mask_with": "NUM"},
-]
+from masking import REFERENCE as MASKING, mask as fast_mask
 
 
 def miner(sim_threshold, depth, max_children):
@@ -48,6 +44,7 @@ def miner(sim_threshold, depth, max_children):
     tm.masker.masking_instructions = [
         MaskingInstruction(m["regex_pattern"], m["mask_with"]) for m in MASKING
     ]
+    tm.masker.mask = fast_mask
     return tm
 
 
@@ -132,6 +129,9 @@ def run(path, family_filter, sim_threshold, depth, max_children, limit, deciles)
 
     total_cpu = time.process_time() - started
     templates = len(tm.drain.clusters)
+    peak_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    if sys.platform != "darwin":
+        peak_rss *= 1024
     return {
         "corpus": path,
         "family_filter": family_filter or "all",
@@ -145,6 +145,7 @@ def run(path, family_filter, sim_threshold, depth, max_children, limit, deciles)
         "loop_core_seconds_per_million": (
             round(1e6 * total_cpu / lines, 2)
             if lines and not family_filter else None),
+        "peak_rss_bytes": peak_rss,
         "read_lines": read_lines,
         "per_family_lines": dict(per_family),
         "per_family_templates": {k: len(v) for k, v in per_family_templates.items()},
