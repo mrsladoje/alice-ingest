@@ -63,14 +63,82 @@ def encode_static(model_name, texts, batch_size):
     model = StaticModel.from_pretrained(model_name)
     t0 = time.process_time()
     vectors = model.encode(texts, batch_size=batch_size, show_progress_bar=False)
-    return np.asarray(vectors, dtype=np.float32), time.process_time() - t0
+    cpu = time.process_time() - t0
+
+    def again(more):
+        return np.asarray(model.encode(more, batch_size=batch_size,
+                                       show_progress_bar=False), dtype=np.float32)
+    return np.asarray(vectors, dtype=np.float32), cpu, again
 
 
-def encode_transformer(model_name, texts, batch_size, max_tokens, quantize):
+def encode_fasttext(model_path, texts, batch_size):
+    """A gensim FastText model, averaged over the tokens of a template.
+
+    FastText produces word vectors, not sentence vectors. The mean is the
+    standard way to get one from the other, and it is what docs/RESEARCH.md's
+    incident-corpus result used. Subword vectors mean an unseen ALICE identifier
+    still gets a vector rather than a zero."""
+    from gensim.models import FastText
+    model = FastText.load(model_path)
+
+    def encode(batch):
+        out = np.zeros((len(batch), model.wv.vector_size), dtype=np.float32)
+        for i, text in enumerate(batch):
+            tokens = text.split()
+            if not tokens:
+                continue
+            out[i] = np.mean([model.wv[t] for t in tokens], axis=0)
+        return out
+
+    t0 = time.process_time()
+    vectors = encode(texts)
+    return vectors, time.process_time() - t0, encode
+
+
+def encode_onnx(model_name, texts, batch_size, max_tokens):
+    """An ONNX Runtime model, pinned to one thread like every other rung.
+
+    Round 3 measured int8 through torch's qnnpack backend and found it 5.4 times
+    slower than fp32, and said plainly that the number might not survive a
+    different backend or a different architecture. This is that different
+    backend. The graph exposes a pooled, normalised sentence_embedding, so no
+    pooling is done here."""
+    import onnxruntime as ort
+    from huggingface_hub import hf_hub_download
+    from transformers import AutoTokenizer
+
+    options = ort.SessionOptions()
+    options.intra_op_num_threads = 1
+    options.inter_op_num_threads = 1
+    path = hf_hub_download(model_name, "onnx/model.onnx")
+    session = ort.InferenceSession(path, sess_options=options,
+                                   providers=["CPUExecutionProvider"])
+    tokeniser = AutoTokenizer.from_pretrained(model_name)
+
+    def encode(batch):
+        pieces = []
+        for start in range(0, len(batch), batch_size):
+            chunk = batch[start:start + batch_size]
+            enc = tokeniser(chunk, padding=True, truncation=True,
+                            max_length=max_tokens, return_tensors="np")
+            pieces.append(session.run(["sentence_embedding"], {
+                "input_ids": enc["input_ids"].astype("int64"),
+                "attention_mask": enc["attention_mask"].astype("int64"),
+            })[0])
+        return np.concatenate(pieces).astype(np.float32)
+
+    t0 = time.process_time()
+    vectors = encode(texts)
+    return vectors, time.process_time() - t0, encode
+
+
+def encode_transformer(model_name, texts, batch_size, max_tokens, quantize,
+                       trust_remote_code=False):
     import torch
     torch.set_num_threads(1)
     from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer(model_name, device="cpu")
+    model = SentenceTransformer(model_name, device="cpu",
+                                trust_remote_code=trust_remote_code)
     model.max_seq_length = max_tokens
     if quantize:
         engines = torch.backends.quantized.supported_engines
@@ -84,7 +152,15 @@ def encode_transformer(model_name, texts, batch_size, max_tokens, quantize):
     with torch.inference_mode():
         vectors = model.encode(texts, batch_size=batch_size,
                                convert_to_numpy=True, show_progress_bar=False)
-    return np.asarray(vectors, dtype=np.float32), time.process_time() - t0
+    cpu = time.process_time() - t0
+
+    def again(more):
+        with torch.inference_mode():
+            return np.asarray(model.encode(more, batch_size=batch_size,
+                                           convert_to_numpy=True,
+                                           show_progress_bar=False),
+                              dtype=np.float32)
+    return np.asarray(vectors, dtype=np.float32), cpu, again
 
 
 def normalise(vectors):
@@ -155,10 +231,66 @@ def agreement(reference, candidate, k):
     return hits / (len(reference) * k)
 
 
+def load_queries(path):
+    with open(path, errors="replace") as fh:
+        return [line.strip() for line in fh if line.strip()]
+
+
+def retrieve(query_vectors, template_vectors, k):
+    sims = normalise(query_vectors) @ normalise(template_vectors).T
+    return np.argsort(-sims, axis=1)[:, :k]
+
+
+def load_judgements(path):
+    """query, 1 or 0, template — one judged pair a line.
+
+    The middle column is the only one a judge edits, and the file is the same
+    shape as the pool this tool writes, so judging is filling in a column."""
+    judged = {}
+    with open(path, errors="replace") as fh:
+        for line in fh:
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) < 3 or parts[1] not in ("0", "1"):
+                continue
+            judged[(parts[0], parts[2])] = parts[1] == "1"
+    return judged
+
+
+def query_precision(order, queries, texts, judged, k):
+    """Precision at k against the hand-judged set.
+
+    An unjudged pair counts as not relevant. That is conservative, and it is
+    conservative in the direction that matters: a post-trained model whose new
+    neighbours nobody pooled is punished, not rewarded. The count of unjudged
+    pairs is reported beside the score so the size of that penalty is visible."""
+    hits = 0
+    unjudged = 0
+    per_query = []
+    for i, query in enumerate(queries):
+        relevant = 0
+        for j in order[i][:k]:
+            key = (query, texts[j])
+            if key not in judged:
+                unjudged += 1
+            elif judged[key]:
+                relevant += 1
+        hits += relevant
+        per_query.append(round(relevant / k, 3))
+    return hits / (len(queries) * k), unjudged, per_query
+
+
+CODE_QUERY_PREFIX = "Represent this query for searching relevant code: "
+
 RUNGS = [
     {"name": "potion-base-8M", "id": "minishlab/potion-base-8M", "kind": "static"},
     {"name": "potion-base-32M", "id": "minishlab/potion-base-32M", "kind": "static"},
     {"name": "potion-retrieval-32M", "id": "minishlab/potion-retrieval-32M", "kind": "static"},
+    {"name": "potion-code-16M", "id": "minishlab/potion-code-16M", "kind": "static"},
+    {"name": "potion-code-16M-v2", "id": "minishlab/potion-code-16M-v2", "kind": "static"},
+    {"name": "CodeRankEmbed", "id": "nomic-ai/CodeRankEmbed", "kind": "transformer",
+     "trust_remote_code": True, "query_prefix": CODE_QUERY_PREFIX},
+    {"name": "CodeRankEmbed-onnx-int8", "id": "mrsladoje/CodeRankEmbed-onnx-int8",
+     "kind": "onnx", "query_prefix": CODE_QUERY_PREFIX},
     {"name": "paraphrase-MiniLM-L3-v2", "id": "sentence-transformers/paraphrase-MiniLM-L3-v2", "kind": "transformer"},
     {"name": "all-MiniLM-L6-v2", "id": "sentence-transformers/all-MiniLM-L6-v2", "kind": "transformer"},
     {"name": "all-MiniLM-L6-v2-int8", "id": "sentence-transformers/all-MiniLM-L6-v2", "kind": "transformer", "quantize": True},
@@ -176,6 +308,13 @@ def main():
     ap.add_argument("--min-templates", type=int, default=10,
                     help="sources with fewer templates are left out of the macro purity")
     ap.add_argument("--only", default="")
+    ap.add_argument("--model", action="append", default=[],
+                    help="name=kind=id for a model outside the ladder; "
+                         "kind is static, transformer or fasttext")
+    ap.add_argument("--queries", default="")
+    ap.add_argument("--judgements", default="")
+    ap.add_argument("--pool-out", default="",
+                    help="write every model's top k per query, for hand judging")
     ap.add_argument("--json", default="")
     args = ap.parse_args()
 
@@ -183,21 +322,38 @@ def main():
     sorted_texts, order = sort_by_length(texts)
     print("templates: %d" % len(texts), flush=True)
 
+    queries = load_queries(args.queries) if args.queries else []
+    judged = load_judgements(args.judgements) if args.judgements else {}
+    pool = {}
+
     wanted = [r for r in RUNGS if not args.only or r["name"] in args.only.split(",")]
+    for spec in args.model:
+        name, kind, ident = spec.split("=", 2)
+        wanted.append({"name": name, "kind": kind, "id": ident})
     results = []
     vectors = {}
+    encoders = {}
+    prefixes = {}
     for rung in wanted:
         try:
             if rung["kind"] == "static":
-                vecs, cpu = encode_static(rung["id"], sorted_texts, args.batch_size)
+                vecs, cpu, again = encode_static(rung["id"], sorted_texts, args.batch_size)
+            elif rung["kind"] == "fasttext":
+                vecs, cpu, again = encode_fasttext(rung["id"], sorted_texts, args.batch_size)
+            elif rung["kind"] == "onnx":
+                vecs, cpu, again = encode_onnx(rung["id"], sorted_texts, args.batch_size,
+                                               args.max_tokens)
             else:
-                vecs, cpu = encode_transformer(rung["id"], sorted_texts, args.batch_size,
-                                               args.max_tokens, rung.get("quantize", False))
+                vecs, cpu, again = encode_transformer(rung["id"], sorted_texts, args.batch_size,
+                                                      args.max_tokens, rung.get("quantize", False),
+                                                      rung.get("trust_remote_code", False))
         except Exception as exc:
             print("%-26s FAILED %s" % (rung["name"], exc), flush=True)
             results.append({"model": rung["name"], "error": str(exc)})
             continue
         vectors[rung["name"]] = unsort(vecs, order)
+        encoders[rung["name"]] = again
+        prefixes[rung["name"]] = rung.get("query_prefix", "")
         rate = len(texts) / cpu if cpu else None
         results.append({
             "model": rung["name"],
@@ -226,6 +382,27 @@ def main():
             row["macro_source_purity"] = round(macro, 3)
             macro_null_value[0] = macro_null
 
+        if queries:
+            prefix = prefixes.get(row["model"], "")
+            hits = retrieve(encoders[row["model"]]([prefix + q for q in queries]),
+                            vectors[row["model"]], args.k)
+            for i, query in enumerate(queries):
+                for j in hits[i]:
+                    pool.setdefault((query, texts[j]), None)
+            if judged:
+                precision, unjudged, per_query = query_precision(
+                    hits, queries, texts, judged, args.k)
+                row["query_precision_at_k"] = round(precision, 3)
+                row["query_pairs_unjudged"] = unjudged
+                row["query_precision_per_query"] = per_query
+
+    if args.pool_out and pool:
+        with open(args.pool_out, "w") as fh:
+            for query, template in sorted(pool):
+                fh.write("%s\t%s\t%s\n" % (
+                    query, "1" if judged.get((query, template)) else "0", template))
+        print("pool: %d pairs to %s" % (len(pool), args.pool_out), flush=True)
+
     report = {
         "templates": len(texts),
         "batch_size": args.batch_size,
@@ -236,6 +413,8 @@ def main():
         "macro_source_purity_null": (round(macro_null_value[0], 3)
                                      if macro_null_value[0] else None),
         "min_templates_per_source": args.min_templates,
+        "queries": len(queries),
+        "judged_pairs": len(judged) or None,
         "rungs": results,
     }
     if args.json:

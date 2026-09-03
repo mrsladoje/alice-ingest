@@ -1,0 +1,20 @@
+memory pressure
+network timeout
+disk full
+process died
+configuration rejected
+run started
+run stopped
+partition not found
+authentication failed
+connection refused
+data lost or frames dropped
+queue backed up or slow consumer
+calibration object missing
+file could not be opened
+topology activation failed
+detector readout error
+incomplete timeframe
+device or GPU error
+service restarted
+permission denied
