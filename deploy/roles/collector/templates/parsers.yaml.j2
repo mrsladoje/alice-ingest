@@ -2,6 +2,15 @@ parsers:
   - name: fb_health_json
     format: json
 
+  # O2 writes [HH:MM:SS][SEVERITY] and stdout_root never knew that form, so
+  # every O2 line fell through to the catch-all with no severity key and the
+  # severity router sent all of stdout to the central tier. The clock is kept as
+  # a string: it carries no date, and a time_key would stamp replayed lines with
+  # today's.
+  - name: stdout_o2
+    format: regex
+    regex: '(?m)^\[(?<log_time>\d{1,2}:\d{2}:\d{2}(?:\.\d+)?)\]\[(?<severity>[A-Z]+)\]\s?(?<message>.*)$'
+
   - name: stdout_root
     format: regex
     regex: '(?m)^(?:(?<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+) )?(?:(?<severity>Info|Warning|Error|Fatal|Sys) in <(?<facility>[^>]*)>: )?(?<message>.*)$'

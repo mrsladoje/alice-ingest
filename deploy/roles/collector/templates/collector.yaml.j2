@@ -172,6 +172,11 @@ pipeline:
     - name: parser
       match: stdout
       key_name: log
+      parser: stdout_o2
+      reserve_data: on
+    - name: parser
+      match: stdout
+      key_name: log
       parser: stdout_root
       reserve_data: on
     - name: record_modifier
@@ -183,7 +188,7 @@ pipeline:
         - file
     - name: rewrite_tag
       match: stdout
-      rule: $severity ^Info$  family.local false
+      rule: $severity ^(Info|INFO)$  family.local false
       rule: $message ^.*$  family.central false
       emitter_name: stdout_router
 
