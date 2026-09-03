@@ -2419,6 +2419,68 @@ the 3,822 templates of the old configuration, where 44.9 % of the InfoLogger one
 carried one real word or none. That is now 7.9 %. **The inputs changed more than
 any rung on that ladder differs from another.**
 
+### Sixteen runs instead of one — the costs hold, and the template count does not
+
+Round 6 mined **one** run tag. The archive holds **86**, and 2,013 dds tarballs.
+This cell takes sixteen of them, spread evenly across the run-number range, and
+mines them with the frozen recipe.
+
+| Family | Lines | Runs | Templates | Core-s /M | Words kept |
+|---|---:|---:|---:|---:|---:|
+| `dds` | 1,192,999 | 16 | **1,570** | 15.98 | 87.6 % |
+| `stdout` | 2,246,331 | 16 | **1,025** | 6.29 | 97.5 % |
+
+**The dds cost holds: 15.98 against 15.12 on the single-run corpus**, a 5.7 %
+difference on a rig whose run-to-run spread is 28.9 %. Same extraction, 27 times
+the lines, sixteen periods. **The saving is a property of the data, not of one
+period.**
+
+🔴 **The stdout cost is not a like-for-like comparison and 6.29 must not be
+quoted against 12.00.** This sample caps each source file at 20,000 lines, so it
+holds many more programs and far fewer lines of each. The line mix changed, so
+the cost changed. Only the dds row answers the question this cell was run to ask.
+
+### Novelty lives at run boundaries, not in volume
+
+**This is the finding.** Templates discovered after each successive run:
+
+```
+dds     +933  +2  +59  +182  +43  +73  +53  +1  +17  +2  +1  +3  +140  +1  +35  +25
+stdout  +205 +66 +246   +23   +4   +1  +25 +136  +0 +42  +3 +123   +2   +0 +133  +16
+```
+
+**Neither family has saturated after sixteen runs.** dds was still adding 25
+templates at run 16 and stdout 16, with spikes of +140 and +133 in the last third.
+
+**Set that against what more lines of the same run buy.** In the single-run
+corpus, stdout added **four templates across its last fourteen million lines**,
+and InfoLogger went six million lines without adding one.
+
+| | Lines | Templates found |
+|---|---:|---:|
+| stdout, **one** run | 19,046,730 | 1,004 |
+| stdout, **sixteen** runs | 2,246,331 | **1,025** |
+
+**Two and a quarter million lines spread over sixteen runs discover as many
+templates as nineteen million lines from one run — about 8.6 times more per
+line.** Volume within a run is nearly exhausted; variety between runs is not.
+
+🔴 **So the 3,011-template figure is a floor, not a total.** It was measured on
+one run of each family. Sixteen runs of two families already produce 2,595
+between them and are still climbing, and 70 run tags remain unsampled.
+**Stage I must treat the template count as open-ended**, and the new-template
+rate as something driven by run boundaries rather than by line volume.
+
+**A run is not a unit of constant size.** Adjacent runs alternate between about
+9,000 and about 130,000 dds lines, a fifteen-fold swing. Round 6 sampled four
+tarballs of one of them. Any per-run sizing figure needs to say which kind.
+
+**InfoLogger was not re-fetched.** It lives in separate MySQL dump objects rather
+than the run tarballs. It is saturated within its period at 1,306 templates, and
+the 42 templates that arrived in its last 1.5 million lines are the same
+boundary effect seen here. **Fetching InfoLogger across partitions is the obvious
+next measurement and it has not been run.**
+
 ### Where the code lives, and why it is not in `deploy/`
 
 **There is no production templating to integrate it into.** `deploy/` and
