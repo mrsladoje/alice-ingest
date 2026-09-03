@@ -52,7 +52,8 @@ what actually runs, and it is not the same sequence:
 | 3 | Round 2 — collector plus OpenSearch | C, D, E, F, G | Flush first, then heap, then the split, then confirmation |
 | 4 | Round 4 — templating | — | Its new-template rate decides whether round 3 is affordable at all |
 | 5 | Round 3 — embeddings | — | Runs last, on the numbers round 4 produces |
-| 6 | Round 5 — storage tier | — | Deferred; needs the storage machines, not the laptop |
+| 6 | Round 6 — a Drain replacement, and post-training | H, I | Re-opens the two questions rounds 4 and 3 left open, on the sets they produced |
+| 7 | Round 5 — storage tier | — | Deferred; needs the storage machines, not the laptop |
 
 ## The budget, now fixed
 
@@ -867,6 +868,321 @@ the `ml_inference` ingest processor and a rerank-by-field pipeline. One vector p
 token makes it the most expensive option per document — wrong for per-line ingest,
 but plausibly affordable over a few thousand templates, where the cost lands on
 search rather than on the worker.
+
+---
+
+## Round 6 — a Drain replacement, and post-training on our own text
+
+**Two questions rounds 3 and 4 left open, both named in their own closing
+sections.** Round 4 asked whether Drain3 is the right miner and never tested an
+alternative. Round 3 named a domain-trained model as "the most interesting
+untested rung" and did not run it.
+
+**Neither round is re-opened by this one.** The chosen configuration stands
+until a cell here beats it on its own numbers.
+
+**Execution order inside the round is fixed and it is not negotiable: stage H
+before stage I.** The parser decides the template set, and the template set is
+stage I's evaluation data. Training against a set that then changes underneath
+would waste the whole stage.
+
+---
+
+### Stage H — PIPLUP against Drain3 · 4 cells
+
+**What PIPLUP is.** A configuration-free, statistic-based log parser, August
+2025, from Polytechnique Montreal. It parses online with dynamic cluster
+updates, uses a tree with dynamic constant-token searching instead of Drain's
+fixed prefix assumption, and **needs no language model**. Against Drain it
+reports **+8.1 % grouping accuracy**, **+38.3 % parsing accuracy**, **+38.7 %
+FGA** and **+60.2 % FTA**, at statistically equal time. Code is released.
+
+**Configuration-free is worth as much as the accuracy here.** Round 4 swept
+`sim_threshold` from 0.3 to 0.7 and moved the template count by three on a
+3,000-line probe. Those knobs do nothing for us and PIPLUP deletes them.
+
+🔴 **Two 2026 parsers are rejected before measuring, and the reason is
+deployment, not accuracy.** SCOPE (March 2026) reports +16.1 % grouping and
++94.8 % parsing accuracy over Drain, at 483 seconds against Drain's 497.6 on
+3.6 million lines. CelerLog (May 2026) is 1.5× faster than Drain and cuts token
+use by 80–94 %. **Both route the hard lines to a large language model at
+runtime.** An EPN worker has four reserved cores and no outbound path for that.
+Recorded here so the choice is a decision rather than an omission.
+
+**The cells**, all on the same 45.6-million-line corpus, in the same Colima
+`cern` VM pinned to four processors, in one sitting:
+
+| Cell | Parser | Family | Why |
+|---|---|---|---|
+| H1 | Drain3, defaults | all three | The control. **Re-run, not quoted from round 4** — the two arms must share a machine state |
+| H2 | PIPLUP | all three | The comparison |
+| H3 | Drain3, defaults | `infologger` | The family production actually pays for |
+| H4 | PIPLUP | `infologger` | The same |
+
+**Per cell, record:** template count, `mining_core_seconds_per_million`,
+steady-state new-template rate over the second half, peak resident memory, and
+**the top twenty templates dumped to the results file**.
+
+**Gates, in order:**
+
+1. 🔴 **Template count alone decides nothing.** Fewer templates can mean better
+   generalisation or it can mean over-merging two messages that a shifter needs
+   apart. **The top twenty templates from each parser go into
+   `docs/SOAK_RESULTS.md` side by side and are read by a person.** That reading
+   is the verdict, not the count
+2. **PIPLUP must stream the whole corpus inside the VM.** If it cannot, the arm
+   ends there, Drain3 stands, and the failure is written down. Research code is
+   allowed to fail this
+3. **Cost must land within 25 % of Drain3's 19.73 core-seconds per million.**
+   Beyond that it loses the budget argument whatever it wins on quality
+4. 🔴 **No accuracy claim from the paper can be verified on our data.** Those
+   numbers come from LogHub benchmarks with ground-truth templates. **ALICE logs
+   have no ground truth.** What we can measure is count, cost, and readability.
+   Say so in the results rather than repeating the paper's percentages as if we
+   had confirmed them
+
+**If PIPLUP wins, `docs/EMBEDDING_RESULTS.md` is stale**, because its 3,822
+templates were mined by Drain3. Stage I then runs against the new set and the
+old embedding table is marked superseded, not deleted.
+
+---
+
+### Stage I — post-training the small potion model on ALICE text · 6 cells
+
+**The question.** Round 3 chose `potion-base-32M` from a shelf. Every rung on
+that shelf was trained on general web text, and none has seen
+`O2DataRegion_TimeFrame`, `partitionId`, `ODC` or `EPN` as anything but subword
+fragments. **Does training on our own 45.6 million lines beat the shelf, and
+does the gain survive contact with a program the model has never seen?**
+
+**Model2Vec offers two routes at very different prices, and the cheap one runs
+first:**
+
+| Route | What it needs | Time | What it fixes |
+|---|---|---|---|
+| **Custom-vocabulary distillation** | A base sentence transformer plus a vocabulary list mined from our corpus. No annotations, no training data, no accelerator | **Minutes, on a processor** | Every ALICE identifier becomes one vector instead of four subword fragments |
+| **`tokenlearn`** | The full corpus, a teacher sentence transformer, and accelerator time. This is how the POTION models were built: run the teacher over the corpus for mean output embeddings, train the static model against those, then re-regularise by token frequency, PCA and SIF weighting | **Hours to a day** | The above, plus semantics learned from our own text |
+
+**Run the cheap route first and gate the expensive one on it.** If custom
+vocabulary alone moves nothing, the vocabulary was never the bottleneck and
+`tokenlearn` is unlikely to rescue it.
+
+**Small, not large.** Round 3 measured `potion-base-8M` at 0.380 macro purity
+against `potion-base-32M`'s 0.387, at half the dimensions. That gap is inside
+the noise, so **model size buys nothing on this text** and the 8M model is the
+post-training base.
+
+#### The three sets, and why the obvious split is wrong
+
+🔴 **Do not split the templates at random.** Two independent reasons:
+
+- **It leaks.** The vocabulary is mined from the whole corpus, so a held-out
+  template's rare tokens are already in the lookup table before evaluation
+  starts. The score would be honest about nothing
+- **It tests the wrong risk.** Templates from the same program are near
+  duplicates of each other. A random split asks whether the model can place a
+  message next to its own siblings, which it can. **The risk that matters is a
+  program that has never appeared before** — a new detector, a new O2 process,
+  a reconstruction workflow that only runs in a different period
+
+| Set | What it is | What it is for | Touched |
+|---|---|---|---|
+| **Train** | Raw lines from the training sources | Vocabulary mining and `tokenlearn` | Freely |
+| **Dev** | Templates from sources held out of training, chosen for tuning | Vocabulary size, PCA dimensions, SIF weighting, training passes | Freely |
+| **Held-out** | Templates from a second, disjoint set of sources | **The transfer answer** | **Once, at the end, after every knob is frozen** |
+
+**The split is by source program**, using the same `source` column
+`drainbench.py` already dumps. Round 3 kept 23 sources with 10 or more
+templates. Hold out **five for dev and five for held-out**, chosen to exclude
+the giant one: `infologger/ODC/ODC` owns 2,180 of 3,822 templates, 57 % of the
+set, and putting it on either side would make that side almost entirely one
+program scoring against itself.
+
+**A second split, complementary and nearly free.** The InfoLogger objects are
+one MySQL partition each and **the partitions are time-ordered**. So train on
+the early partitions and evaluate on the late ones. That answers a different
+question — does a model trained on one period hold on the next — and it costs
+one extra `--il-stride` run.
+
+🔴 **The null moves with the split, and this is the easiest mistake in the
+round.** The macro null of **0.035** is a property of the 23-source set, not of
+the metric. A five-source held-out set has a null near **0.20**. **Report every
+purity against the null of its own set.** A held-out score of 0.34 against a
+null of 0.20 is a better result than a 23-source score of 0.39 against 0.035,
+and a table that puts them in the same column would say the opposite.
+
+#### The metric can be gamed by this exact training, so it does not run alone
+
+🔴 **Macro source purity asks whether a template's neighbours come from the same
+program. Post-training on program-specific text is a direct way to raise that
+score without the embedding becoming more useful.** A model that has merely
+memorised which vocabulary belongs to which program wins the metric and helps
+nobody.
+
+**So a second metric is mandatory in this round, and it is manual:** about
+twenty hand-written queries in plain English — "memory pressure", "network
+timeout", "disk full", "process died", "configuration rejected" — with the top
+ten templates for each judged relevant or not, once, by a person. Roughly an
+hour of work. It is small and it is subjective, and it is the only check in the
+round that post-training cannot quietly optimise against.
+
+**Write the query set and its judgements down before any post-trained model is
+scored**, so the same queries score the shelf models and the trained ones.
+
+#### The cells
+
+| Cell | Arm | Runs against |
+|---|---|---|
+| I1 | `potion-base-8M`, unmodified | Dev, held-out, query set. **The control** |
+| I2 | `potion-base-32M`, unmodified | The same. Round 3's pick, re-scored on the new splits |
+| I3 | `potion-code-16M` and `potion-code-16M-v2` | The same. Code-distilled, 256 dimensions |
+| I4 | Custom-vocabulary distillation, ALICE vocabulary | Dev first, held-out once |
+| I5 | `tokenlearn` over the training lines | Dev first, held-out once. **Runs only if I4 moved the dev number** |
+| I6 | FastText trained on the training lines | The same. Round 3's named untested rung |
+
+**On the code models.** Log text is closer to code than to prose: identifiers,
+paths, camelCase, `RegionAllocatorResource`. The worry that a code model lacks
+physics vocabulary is smaller than it looks, because the physics content in
+these logs is acronyms — `PHS`, `CPV`, `TPC`, `MFT`, `CTF` — and those are
+out-of-vocabulary in every rung on the ladder, `potion-base-32M` included.
+**One real risk, stated so it is not confused with a result:**
+`potion-code-16M-v2` was contrastively finetuned for code *search*, meaning
+natural-language query against code, which is asymmetric. Ours is symmetric,
+template against template. **Run both versions;** the finetuning may work
+against us.
+
+**Throughput is not the question in this stage.** Round 3 settled it: at one new
+template a second, every static rung costs about 0.006 % of a core. Record
+throughput anyway, and rank on quality.
+
+#### Revised by stage H — what changed under this stage's feet
+
+**Stage H did not only pick a parser. It changed the templates this stage is
+about, so three things below are superseded and one new cell runs first.**
+
+**The template set is smaller and much cleaner than the one round 3 embedded.**
+The frozen recipe, run over all 45,596,613 lines:
+
+| Family | Lines | Templates | Core-s /M | Words kept | Contentless templates |
+|---|---:|---:|---:|---:|---:|
+| `infologger` | 26,505,911 | 1,306 | 10.59 | 90.2 % | 7.9 % |
+| `stdout` | 19,046,730 | 1,004 | 12.00 | **99.6 %** | 7.1 % |
+| `dds` | 43,972 | 701 | 15.12 | 92.0 % | 0.0 % |
+| **Whole corpus** | **45,596,613** | **3,011** | **11.18** | | |
+
+**3,011 templates, against 3,822 under the configuration round 3 embedded, and
+44 % cheaper to mine.** Fewer templates *and* better ones, because the win came
+from keeping words rather than from splitting clusters.
+
+🔴 **So round 3's ladder was measured on inputs that no longer exist.** It
+embedded templates of which **44.9 % of the InfoLogger ones carried one real word
+or none**. The recipe puts that at **7.9 %**, and stdout word retention at
+**99.6 %** against 94.2 %. **The inputs changed more than any model swap on the
+ladder would.** That plausibly reorders the ladder itself: a static lookup table
+is punished most by fragmented, contentless text, and a transformer's advantage
+is context, which is worth most exactly where the words are missing.
+
+**I2 is therefore not a re-score on new splits. The whole ladder re-runs on the
+new template set, and until it does, no rung's ranking is load-bearing.**
+
+#### I0 — the noise floor, and it runs before everything
+
+🔴 **Round 3 ran one pass per model, reported a ladder spanning 0.037 macro
+purity, and never measured what that metric's own spread is.** The gap it decided
+on — `potion-base-32M` against `all-MiniLM-L6-v2`, 0.387 against 0.414 — is
+**0.027**. Nobody knows whether 0.027 is a result.
+
+Stage H is the reason to insist. Drain3 read **17.32 and 22.33** core-seconds per
+million on identical work, a **28.9 % spread**, and four arms of one sweep had to
+be discarded because a contaminated reading looked plausible on its own. **If the
+cost metric is that noisy, the quality metric's noise has simply never been
+asked.**
+
+**I0: bootstrap macro purity over resampled template sets and report a
+confidence interval.** No re-encoding — resample and recompute from cached
+neighbours. **If the interval is wider than 0.03, the ladder is one measurement,
+every ranking in `docs/EMBEDDING_RESULTS.md` is unsupported, and most of the
+cells below cannot answer anything.** Half a day, and it can cancel the rest.
+
+#### Three corrections to the cost reasoning, now that stage H has run
+
+**Cost has stopped being a variable, and stage H widened the margin.** Mining now
+costs 11.18 core-seconds per million lines. Embedding is paid once per template,
+not per line: `potion-base-32M` at 18,037 templates a core-second embeds all
+3,011 in **0.17 core-seconds**; `all-MiniLM-L6-v2` at 581 takes **5.2**. Against
+roughly **510 core-seconds** to mine the corpus, **the dearest rung on the ladder
+is 1 % of one extraction pass.** Rank on quality alone.
+
+🔴 **"A transformer means shipping torch" is false.** ONNX Runtime runs the same
+models at a fraction of torch's install weight, and `tools/embed/embedbench.py`
+already carries an `onnx` rung for exactly this. The deployment-weight argument
+for a static table is real but it is not binary, and it should be measured as
+resident bytes rather than asserted.
+
+🔴 **If a transformer wins, take `all-MiniLM-L6-v2`, not `paraphrase-MiniLM-L3-v2`.**
+L3's only advantage is being 1.9× faster on an axis that no longer binds, and it
+gives up macro purity 0.414 to 0.404 to get it. The one argument for L3 is that
+it is built into OpenSearch — **and that claim is this project citing itself. It
+has never been checked against OpenSearch's actual pretrained model list, and it
+is ten minutes of work.** If `all-MiniLM-L6-v2` is also on that list, the
+argument disappears entirely.
+
+**Placement decides the model; the model does not decide placement.** Embedding
+happens once per new template, on the cold path, and the template index is meant
+to be shared across the farm. None of that is worker-local work. On
+`epn-infra13` — 64 processors, 355 GB, already running the storage tier — worker
+cost is zero whatever the model, the memory question disappears, and the choice
+is free. **Settle placement before ranking rungs.**
+
+#### One thing stage H makes less likely, stated before it is tested
+
+**The case for domain adaptation may have weakened, not strengthened.** The
+motivating defect is real and survives: `RegionAllocatorResource` still shatters
+into seven subword fragments, and custom-vocabulary distillation still fixes it.
+**But the templates are now largely ordinary English** — `Done processing
+timeslice:<NUM>, tfCounter:<NUM>` and `- Tracklet selection: selected <NUM>
+tracklets in <FLOAT> ms` — which is what a general model is already good at.
+Round 3's templates were far more fragmented, and fragmentation is the condition
+under which adaptation helps most.
+
+**This does not cancel I4 or I5. It changes what a null result there would mean:**
+not "adaptation cannot work on log text", but "the parser already did the work
+adaptation was supposed to do". Record it that way.
+
+#### Exit criteria — stage I is done when all five hold
+
+1. The source split is written down, both lists, with each set's template count
+   and **its own null**
+2. The query set and its relevance judgements exist as a file, written before
+   any post-trained model was scored
+3. Every cell has a dev number; **only the cells that earned it have a held-out
+   number**, and each held-out set was scored once
+4. The recommendation names one model and states the margin over
+   `potion-base-32M` **against the same split**, not against round 3's figures
+5. If nothing beats the shelf, that is written as the finding and
+   `potion-base-32M` stands. **A negative result here is worth as much as a
+   positive one** and costs the round nothing to state
+
+---
+
+### What round 6 does not measure
+
+**Stated rather than hidden**, as rounds 2 and 4 require:
+
+1. **Transport is still unpriced.** Round 4 said this and it is still true. A
+   sidecar pays for the Fluent Bit output that feeds it and the write back to
+   the local OpenSearch node. **This round adds no transport measurement, so
+   the whole-sidecar figure remains unknown.** It is the largest open number in
+   the templating work
+2. **The corpus is still October 2022 and still MFT.** A model trained on it has
+   seen one period and one detector family. The time split above probes this
+   inside the archive; it cannot probe outside it
+3. **PIPLUP's published accuracy is not verified**, for want of ground truth.
+   See gate 4 of stage H
+4. **The query set is 20 queries judged by one person.** It is a check against
+   gaming the purity metric, not a retrieval benchmark
+5. **Nothing here runs on `epn228`.** Rankings transfer, absolute costs do not,
+   per this plan's standing warning
 
 ---
 

@@ -1980,6 +1980,519 @@ end of it.** Three orders of magnitude absorb every one of those faults.
 
 ---
 
+## Round 6, stage H — the parser, and the configuration we run it with
+
+**Drain3 stays. Its configuration does not.** PIPLUP was measured against Drain3
+over the same 45,596,613 lines and lost on cost. Ten more parsers were screened
+off the shelf, two of which returned nothing in ten minutes,
+and every one of them lost on cost, on streaming, or on both. The round's real
+result is not the parser choice. It is two things about the parser we already
+ship. **A per-family configuration overtakes the readability PIPLUP was winning
+on, at no extra cost. And rewriting the masking regexes — same output, byte for
+byte — makes the whole corpus 1.8 times cheaper to mine, on fewer templates.**
+
+| | Templates | Core-s /M | Peak RSS |
+|---|---:|---:|---:|
+| **H1b** Drain3, whole corpus | 3,822 | **19.91** | 26.3 MB |
+| **H2** PIPLUP, whole corpus | 2,444 | 50.87 | 206.5 MB |
+| **H3b** Drain3, InfoLogger only | 2,853 | **17.32** | 23.1 MB |
+| **H4** PIPLUP, InfoLogger only | 1,337 | 38.80 | 106.1 MB |
+
+H1 and H3 are the same cells before a rig fault was found; they read 21.80 and
+22.33. Both readings are kept below, because the spread between them is itself a
+result.
+
+### Gate 3 — cost. PIPLUP costs 2.3 to 2.6 times Drain3, and the gate was ±25 %
+
+**2.56× on the whole corpus, 2.24× on InfoLogger.** The gate allowed a quarter.
+PIPLUP also holds **7.8× the memory**, 206 MB against 26 MB, because it keeps a
+token-frequency map that grows with the vocabulary.
+
+🔴 **The gate is barely wider than Drain3's own noise, and that is a weakness of
+the gate.** Drain3 on InfoLogger read 17.32 and 22.33 core-seconds per million on
+two runs of identical work — a spread of **28.9 %**. Every cost figure in this
+round carries that. A parser that came in 20 % cheaper would not have been
+believed, and should not have been.
+
+### Gate 2 — PIPLUP streams, once its file handling is replaced
+
+The released code builds a pandas frame of every line and accumulates a line-id
+list per cluster. Neither survives 45.6 million lines. `piplupbench.py` drives
+the online clustering directly and counts hits instead of storing identifiers.
+**The algorithm streams. The distribution does not.** That is a fair result for
+the algorithm and an unfair one for anybody who wants to use it as shipped.
+
+### Gate 1 — PIPLUP produces more readable templates, and it does not matter
+
+PIPLUP returned **2,444 distinct template strings against Drain3's 3,822**, and
+its templates carry more literal words. On the twenty most common templates from
+each parser, side by side, PIPLUP reads better. **Gate 1 favours PIPLUP — against
+the configuration we shipped when the gate was written.**
+
+🔴 **It no longer favours PIPLUP against the recipe.** On InfoLogger:
+
+| | Median real words | Contentless templates |
+|---|---:|---:|
+| Drain3, as shipped | 3 | 44.9 % |
+| **PIPLUP** | 5 | 28.4 % |
+| **Drain3 with the recipe** | **6** | **10.4 %** |
+
+**The configuration change closed the gap and passed it, at no cost.** Every
+advantage PIPLUP held — more literal words, fewer contentless templates, a whole
+clock masked as one token, `partition(s)` surviving — the recipe now delivers on
+the parser we already run. PIPLUP still keeps its one genuine edge and it is not
+readability: it needs no per-family configuration at all.
+
+Against that, PIPLUP emits **exactly one placeholder type**. All of `<IP>`,
+`<UUID>`, `<HEX>` and `<NUM>` collapse into one symbol, so a shifter loses the
+"lines containing an address" search they have today.
+
+Two limits on the gate-1 reading itself:
+
+- **The dump is incomplete.** PIPLUP allows one cluster to hold several templates.
+  `piplupbench.py` writes only the first, so 264 of the 2,444 strings are absent
+  from the file — 407 clusters held a second template. The comparison was read on
+  what was written.
+- **Everything PIPLUP won here, Drain3 later won by configuration and for free.**
+  See *Where it landed*. That is what makes gate 1 not decide the stage.
+
+### Gate 4 — no accuracy claim is verifiable, and this is not a hedge
+
+Log-parsing papers score against **ground truth**: a hand-written answer key
+mapping each raw line to its correct template. LogHub-2.0 publishes one for 14
+systems. **ALICE has none.** The true template for an O2 line is the `printf`
+format string in the O2 source, and nobody has extracted them.
+
+So every published accuracy figure for every parser in this stage — PIPLUP's,
+LogLSHD's, KELP's — is a figure on somebody else's logs. **None of them was
+reproduced here, and none of them can be.** Gate 4 is answered "unknowable", and
+the stage was decided on cost, memory and readability alone.
+
+### The other parsers, all rejected, with the reason
+
+🔴 **One baseline for the whole table.** Every parser below, including the
+control, is a `logparser` reference implementation run through one harness on one
+100,000-line InfoLogger slice. **The control is that repository's own Drain at
+96.21 core-seconds per million.** Ratios are against it. The `drain3` we ship is a
+different, faster implementation at 15 to 22 on the same family, so **none of
+these numbers may be divided by ours** — an earlier version of this section did
+exactly that and made SHISO look 86× worse and IPLoM 4× worse than the table
+supports.
+
+| Parser | Cost /M | × the control | Rejected because |
+|---|---:|---:|---|
+| **LFA** | 33.32 | 0.35 | 78.3 % of templates hold ≤1 literal word |
+| **AEL** | 43.55 | 0.45 | batch; no advantage over Drain on any axis |
+| **IPLoM** | 55.60 | 0.58 | four-pass batch; cannot stream |
+| **Drain** (the repo's own) | 96.21 | 1.00 | the control for this table only |
+| **LogLSHD** | 104.64 | 1.09 | **slower than the Drain it claims to beat by 73 %** |
+| **Logram** | 466.10 | 4.8 | cost |
+| **LenMa** | 691.29 | 7.2 | cost |
+| **SHISO** | 1,284.40 | 13.3 | best readability on the shelf, at 13× the control |
+| **Spell** | — | — | no result in 600 s |
+| **LogMine** | — | — | no result in 600 s |
+| **EFParser** | — | — | calls a language model per line at runtime |
+
+**LogLSHD is the one worth naming.** Its paper claims 73 % faster than Drain. On
+our data it was **9 % slower than the Drain implementation shipped in its own
+repository**. It also needs a Jaccard similarity threshold tuned per dataset —
+the paper uses 0.60 to 1.00 across systems — and without ground truth we cannot
+pick it.
+
+**KELP took three source patches to survive real data**, and then still lost:
+
+1. `kelp-core/src/lib.rs:884` — `get_freq(...).unwrap()` returned `None` after
+   25,011 lines.
+2. `lib.rs:766` — the same call in `valid_root`.
+3. `lib.rs:178` — `read_template_for_line` panicked on a token it had not seen.
+
+It also ships no masking, so 200,000 lines produced 15,971 templates until
+Drain3's masking was bolted on in front. Patched and masked: **1,347 templates at
+43.36 core-seconds per million, 29.9 % of them contentless.** A free configuration
+change to Drain3 beat it on every column at a third of the cost.
+
+### Everything tried on Drain3 itself, including what failed
+
+**Failed, and each one is a real negative result:**
+
+- **PIPLUP's preprocessing bolted onto Drain3.** The hypothesis was that PIPLUP's
+  readability came from its regexes. It did not. Templates went 1,145 → 1,549,
+  contentless templates 49.7 % → 65.4 %, cost 14.23 → 41.43. **Wrong by a wide
+  margin, in the direction opposite to the prediction.**
+- **Hand-written ALICE semantic masking rules.** 801 → 820 templates for +19 %
+  cost. Nothing gained.
+- **`parametrize_numeric_tokens` — the arm that never ran.** 🔴 The knob defaults
+  to `True` in `drain3`. The arm that was supposed to test it set `True` on top of
+  `True`, which is why the templates barely moved and why an earlier version of
+  this section wrongly reported "doubles the cost, 33.35 against 14.93". **That
+  33.35 came from the contaminated block, and the knob had never been measured.**
+  Measured properly, with the recipe, it is free in processor time and it buys
+  readability by making many more templates:
+
+  | Family | Parametrised (the default) | Kept as routing keys |
+  |---|---|---|
+  | `infologger` | 675 templates, 18.13, 94.5 % words | 899, 17.96, **95.0 %** |
+  | `stdout` | 936 templates, 16.70, 99.7 % words | 1,264, 16.90, 99.7 % |
+  | `dds` | 224 templates, 51.16, 88.1 % words | 701, 51.14, **92.0 %** |
+
+  **Keep the default on for InfoLogger and stdout** — half a point of words is not
+  worth 34 % more templates. **Turn it off for dds**, where it is the largest
+  readability gain still available, 88.1 % to 92.0 %, and 477 extra templates in
+  absolute terms is nothing.
+- **Dropping a masking rule to save time.** Removing PATH or FLOAT did not make
+  mining cheaper. The tree grows instead.
+- **`drain_max_children`.** On InfoLogger, 25, 100 and 500 produce 914, 915 and
+  915 templates — inert. 🔴 **It is not inert on stdout**, where the same three
+  settings give 688, 766 and 890 templates, and 500 cost **46.41 against 21.48**.
+  An earlier version of this section called the knob useless on this data. It is
+  useless on one family and harmful on another. Leave it at 100.
+- **Per-family trees, on the first attempt.** Three tuned trees gave 1,186
+  templates at 19.94 core-seconds per million; one global tree gave 1,058 at
+  19.81. **That result is withdrawn** — the three trees had been tuned on a
+  conclusion that later proved wrong. See below.
+- **Deleting separators with `drain_extra_delimiters`.** This looked like the
+  winner for two days. Per-line over the whole corpus it improved 22.3 % of
+  stdout lines and **made 72.5 % of them worse**, because deleting a character is
+  not the same as splitting on it. Found only when a human read forty samples.
+- **A severity mask.** Same 645 templates, and words kept fell from 95.3 % to
+  84.4 %. It would also merge an ERROR line with its INFO twin.
+- **A blanket "the value after `=` is a variable" rule.** It replaces the
+  informative `<NUM>` with a bare `<VAL>` and it eats closing brackets. On stdout
+  it cost 4.5 % more for 8 % fewer templates. **The tree already does this job:**
+  Drain replaces a token with `<*>` the moment it sees a second value there.
+- **A flag-name mask, `--id` → `--<*>`.** On dds, where the flags live, it gave
+  the same 178 templates and cut median literal words per template from 287 to
+  221. Pure loss.
+- **Hash and mixed-case identifier masks.** +56 % masking time on InfoLogger, and
+  they *added* templates on stdout.
+
+**Worked, and the reason each one works:**
+
+- **Padded separators.** Mask first, then `re.sub(r"([=;:])", r" \1 ", masked)`,
+  with the miner's own masking disabled. This gets the tokenisation benefit of a
+  delimiter **and keeps the character**. The idea came out of the human audit.
+- **The clock out of the message, and depth — in that order of discovery, the
+  reverse order of credit.** Drain's tree is a prefix tree: level one is the token
+  count, level two is the first token, then `depth − 2` more levels. Every O2
+  stdout line begins with `[12:20:44][INFO]`, one token, identical after masking,
+  so level two did no work on 19 million lines.
+
+  🔴 **The readability gain belongs to the depth, not to the prefix.** Measured on
+  three million stdout lines with the clock left in place: 94.2 % words at depth
+  4, 97.6 % at depth 6, **99.7 % at depth 8**. Removing the prefix at depth 4
+  gains 0.1 points on its own. An earlier version of this section credited the
+  prefix with the whole jump.
+
+  **The prefix fix earns its place on two other grounds.** It cuts stdout mining
+  from 21.48 to 16.70 core-seconds per million, and — found while auditing the
+  collector for this round — it is the only way the severity router can work at
+  all. See *What must change before this ships*.
+- **Depth 8.** From depth 4 to depth 12 the stdout cost moved 0.6 %, from 17.07 to
+  17.18 core-seconds per million, and peak RSS moved 2.6 MB. **There is no
+  processor argument and no memory argument against depth.** The accuracy gain
+  has a knee at 6, which is where the tree first sees past the clock; contentless
+  templates keep falling to depth 12.
+- **Similarity 0.5 on dds, and only on dds.** Depth cannot help dds: its lines are
+  300-token shell command lines whose distinguishing word sits past token 50, and
+  depth is a prefix budget. Similarity reads the whole line. 88.1 % words, the
+  best dds arm, at the lowest dds cost.
+- **`<FLOAT>` and `<NUM>` kept apart, merged only where a slot holds both.** Four
+  lines patched into `Drain.create_template`. Without it, keeping the two masks
+  apart puts **6.3 %** of stdout lines onto a template containing `<*>`; with it,
+  **1.0 %**, while 258 templates still show a real `<FLOAT>`. All three figures
+  are from the same three-million-line run. 🔴 An earlier version of this section
+  put a 400,000-line figure and a three-million-line figure in one table.
+
+### The mistake that mattered, and a human caught it
+
+**The readability metric was wrong, and it was wrong in the direction that
+flattered the change being tested.** Literal-token count counted any token with no
+`<*>` in it. A bare `:` and a bare `=` passed. Padding adds hundreds of those, so
+**padding scored well by construction.**
+
+The metric said 88.8 % of stdout lines improved. The user read forty samples and
+said the opposite. **The user was right.** On the biggest stdout templates the
+padded configuration destroyed words the shipped configuration kept.
+
+Two metrics replaced it and are used everywhere above:
+
+- **literal tokens, punctuation-only tokens excluded**
+- **words kept** — the share of real words in the raw line that survive into its
+  template, line-weighted
+
+🔴 **`degenerate_templates_pct` was also used as a headline and it inflated the
+case against Drain3.** Line-weighted, only **1.4 %** of InfoLogger lines land on a
+contentless template, not the 44 % the template-weighted figure suggests. Both
+are reported above; the line-weighted one is the one a shifter feels.
+
+### Two rig faults, both self-inflicted
+
+- **Two containers were run at once on disjoint `--cpuset-cpus`.** Cost inflated
+  from 14.93 to 41.77 core-seconds per million, **2.8×**, through memory and cache
+  contention. The batch was discarded and re-run sequentially. **The same mistake
+  was then repeated once**, launching a pairing job beside a sweep.
+- **A masking probe was run over the first 5,000,000 lines, which are all
+  InfoLogger.** The `[HH:MM:SS]` rules it was testing never fired, and both arms
+  came back byte-identical.
+
+Four arms in the depth sweep and four in the mask sweep read 33 to 101
+core-seconds per million against neighbours at 18 to 24. **Those cost figures are
+discarded.** Template counts and word counts from the same arms are deterministic
+and are kept. The final recipe was re-timed alone, and those are the numbers in
+the next table.
+
+### Where it landed — one recipe per family
+
+| Family | Clock and severity | Padded separators | Depth | Similarity | Numeric tokens |
+|---|---|---|---:|---:|---|
+| `infologger` | already fields | `= ; :` | 8 | 0.4 | parametrised |
+| `stdout` | **needs a collector rule** | `= ;` | 8 | 0.4 | parametrised |
+| `dds` | already fields | `=` | 8 | 0.5 | **kept** |
+
+Masking is otherwise unchanged from what ships. `<FLOAT>` and `<NUM>` stay
+separate, with the four-line merge patch.
+
+**The three families want three different answers to the same knob, and that is
+what justifies splitting the configuration:**
+
+| Padded separators | stdout, words kept | infologger | dds |
+|---|---:|---:|---:|
+| `=` | — | — | **75.5 %** |
+| `= ;` | **88.3 %** | 72.4 % | 75.3 % |
+| `= ; :` | 87.7 % | **78.6 %** | 72.5 % |
+
+InfoLogger is full of `key: value` and wants the colon. stdout is hurt by it. dds
+wants neither colon nor semicolon, because in a shell command line `;` separates
+real commands.
+
+### What the recipe costs — one clean run, six arms, nothing else on the machine
+
+| Family | Templates now | Core-s /M now | Words now | Templates, recipe | Core-s /M, recipe | Words, recipe |
+|---|---:|---:|---:|---:|---:|---:|
+| `infologger` | 908 | 14.84 | 90.7 % | 675 | 18.13 | **94.5 %** |
+| `stdout` | 766 | 21.48 | 94.2 % | 936 | **16.70** | **99.7 %** |
+| `dds` | 183 | 52.70 | 72.9 % | 224 | **51.16** | **88.1 %** |
+| **Weighted, whole corpus** | | **17.65** | | | **17.57** | |
+
+**The recipe is cost-neutral, and it is much more readable.** InfoLogger pays
+22 % more, stdout pays 22 % less, dds pays 3 % less, and the corpus-weighted
+total moves by half a percent.
+
+🔴 **An earlier version of this section claimed 21.7 % cheaper.** That rested on
+an InfoLogger control reading of 22.39 core-seconds per million. Five other clean
+runs of the same cell read 14.68, 14.84, 14.92, 15.06 and 15.10. **The 22.39 was
+the outlier and the saving was not real.** The gain this recipe delivers is
+readability at the same price, not speed.
+
+Contentless templates fall from **44.9 % to 10.4 %** on InfoLogger and from
+**26.4 % to 7.4 %** on stdout. Words kept rises on every family.
+
+3,000,000 lines per family for InfoLogger and stdout; all 43,972 for dds.
+Weights are this corpus: InfoLogger 58.1 %, stdout 41.8 %, dds 0.1 %.
+
+🔴 **The dds weight is wrong for production.** Operations report dds is the
+highest-volume family during data-taking. This corpus holds 43,972 dds lines;
+round 4's held 267,607. **Every dds figure here is measured on a family that this
+corpus under-samples, and dds is also the most expensive per line by far.**
+
+### The template count rose, and that is affordable
+
+Round 3 measured `potion-base-32M` at **18,037 templates a core-second**.
+Embedding 10,000 templates costs **0.55 core-seconds, once**, against roughly 780
+core-seconds to mine the corpus. Even a full transformer, at 581 templates a
+core-second, costs 17 core-seconds. **The embedding bill is 0.07 % of one mining
+pass and it is not a reason to keep the tree shallow.**
+
+The real cost of more templates is statistical, not computational: each split
+makes two thinner count series out of one. It was measured. Going from depth 6 to
+depth 8 on stdout took the templates covering 99 % of lines from **155 to 157**.
+The other 50 templates all landed in the tail, holding fewer than 100 lines each.
+**The busy series the detectors will use are untouched.**
+
+### The masker rewritten — 86 % off the most expensive step
+
+**Masking was 74 to 87 % of the mining cost. Seven rewritten regexes take 85 to
+87 % off it, and the templates do not change by one line.** This work was done by
+a separate agent against a fixed acceptance harness, then verified here.
+
+| Masking alone, core-s /M | Reference | Rewritten | Change |
+|---|---:|---:|---:|
+| `infologger`, 3,000,000 lines | 11.93 | **1.82** | **−84.7 %** |
+| `stdout`, 3,000,000 lines | 12.24 | **1.73** | **−85.8 %** |
+| `dds`, 43,972 lines | 40.22 | **5.09** | **−87.3 %** |
+
+**The mechanism is a position, not an algorithm.** Python's `re` uses its
+character-skip loop only when a pattern's first opcode is a literal or a class.
+Every shipped rule opens with a word boundary or a lookbehind, so the engine ran
+the full matcher at every character of every line. Moving the first literal in
+front of the assertion fixes that and keeps the match set:
+
+```
+before  ((?<=[^A-Za-z0-9])|^)(/[-\w./]+)((?=[^A-Za-z0-9])|$)
+after   /(?<![A-Za-z0-9]/)[-A-Za-z0-9_./]+(?![A-Za-z0-9])
+```
+
+Four mechanisms stack on top: a `str.__contains__` gate in front of each rule, an
+ASCII fast path so the digit and word classes become bitmap tests instead of
+Unicode category lookups, FLOAT and NUM folded into one scan without a per-match
+callback, and no capturing groups.
+
+🔴 **The hypothesis this round put first was wrong, and the agent falsified it.**
+Replacing the word boundary with a plain negative lookbehind, without moving a
+literal to the front, made `UUID`, `IP`, `HEX` and comma-`NUM` **40 to 75 %
+slower** on dds. The alternation was never the problem. The position was.
+
+**The fold reproduces a quirk rather than fixing it, and that is the point.** The
+reference runs FLOAT and then NUM as two passes, so in `1.5-3` the second pass
+swallows the sign and the result is `<FLOAT><NUM>`, not `<FLOAT>-<NUM>`. A naive
+one-pass fold differs, and the first line it broke was
+`Loading O2PDPSuite/epn-20260615-DDv1.6.11-QCv1.193.0-flp-suite-v1.82.0-2`. The
+kept implementation carries a flag that reproduces the two-pass behaviour
+exactly.
+
+### Verifying it, three ways the acceptance harness could not
+
+The harness compared one million lines per family. Three gaps were closed here.
+
+| Check | Result |
+|---|---|
+| **All 3,000,000 lines per family**, not the first million | **0 differences** |
+| **The input the pipeline really gives the masker** — the line after the clock is stripped, which starts at a different character | **0 differences** |
+| **The templates themselves**: full set *and* each template's line count | **identical** — 675, 936 and 701 clusters, same strings, same sizes |
+
+A differential fuzz over 3,000,000 random strings on a hostile alphabet —
+Arabic-Indic digits, combining accents, U+FFFD — also found no difference. Two
+rejected candidates are worth recording: **the `regex` module is not
+byte-identical**, because its word class treats the combining accent U+0301 as a
+word character and a `<PATH>` therefore ends elsewhere; and a digit pre-check
+cannot pay, because 89 to 100 % of lines per family contain a digit.
+
+### What the whole pipeline costs with both changes
+
+Four arms per family, one run, consecutive, nothing else on the machine.
+
+| Family | Shipped | Shipped + fast masker | Recipe | **Recipe + fast masker** |
+|---|---:|---:|---:|---:|
+| `infologger` | 15.11 | 4.82 | 19.00 | **8.85** |
+| `stdout` | 24.69 | 10.36 | 19.33 | **7.23** |
+| `dds` | 60.95 | 15.71 | 59.39 | **17.56** |
+| **Weighted** | **19.16** | | | **8.18** |
+
+**2.3× cheaper than what we ship in this run, and far more readable.** stdout
+and dds each fall by 71 %. 🔴 **This ratio is from three-million-line samples and
+it flatters the change.** The figure of record is the whole-corpus cell below,
+**19.91 to 11.18, or 1.8×**, because a larger tree costs more per line and a
+sample cannot show that. Template counts are unchanged between the two masker columns —
+908 against 908, 675 against 675, 936 against 936, 183 against 183, 701 against
+701 — which is the equivalence check again, end to end.
+
+🔴 **This run reads high against its neighbours** — the shipped stdout control at
+24.69 where five other clean runs gave 21.4 to 23.2. **Read the ratios inside the
+run, not the absolute values across runs.** Every arm above was measured
+consecutively in one container.
+
+### The recipe over the whole corpus — fewer templates and 44 % cheaper
+
+Every figure above is 3,000,000 lines per family. This is all 45,596,613, with
+the recipe and the fast masker together.
+
+| Family | Lines | Templates | Core-s /M | Words kept | Contentless templates |
+|---|---:|---:|---:|---:|---:|
+| `infologger` | 26,505,911 | 1,306 | 10.59 | 90.2 % | 7.9 % |
+| `stdout` | 19,046,730 | 1,004 | 12.00 | **99.6 %** | 7.1 % |
+| `dds` | 43,972 | 701 | 15.12 | 92.0 % | 0.0 % |
+| **Whole corpus** | **45,596,613** | **3,011** | **11.18** | | |
+
+**3,011 templates against H1b's 3,822 on the same lines, at 11.18 core-seconds
+per million against 19.91.** Fewer templates *and* better ones *and* 44 %
+cheaper. The template count falls because the win came from keeping words, not
+from splitting clusters — the opposite of what a deeper tree normally does.
+
+**Two scale effects worth recording.** InfoLogger word retention drops from
+94.5 % on three million lines to **90.2 %** on all 26.5 million: more variety
+arrives, and some of it wildcards. And mining costs more at scale — 10.59 against
+8.85 — because the trees are larger. **Neither is visible on a three-million-line
+sample, which is why this cell exists.**
+
+**This is the template set stage I must embed.** Round 3's ladder was measured on
+the 3,822 templates of the old configuration, where 44.9 % of the InfoLogger ones
+carried one real word or none. That is now 7.9 %. **The inputs changed more than
+any rung on that ladder differs from another.**
+
+### Where the code lives, and why it is not in `deploy/`
+
+**There is no production templating to integrate it into.** `deploy/` and
+`images/` were searched for `drain3`, `TemplateMiner` and `templating`; the only
+two hits are about Jinja. No role, no service and no image mines log templates.
+Templating is still a bench, as round 4 left it.
+
+**So it lives in `tools/templating/masking.py`,** beside the one consumer in the
+repository. That module holds `REFERENCE`, the seven rules as `drain3` consumes
+them and the definition of correct; `reference_mask`, which runs them the way
+`drain3` does so a future candidate can be checked without reconstructing
+anything; and `mask`, the rewrite. `drainbench.py` binds the fast path onto the
+miner and keeps the instruction list in place for parameter extraction.
+
+**The fold cannot ever be configuration.** It is Python, not a `drain3`
+`MaskingInstruction`, so it has to live in our own code wherever templating
+eventually runs.
+
+Verified again after the move, against the landed file rather than the scratch
+copy: **0 differences on all 3,000,000 lines of each family, 0 on the stripped
+input, and identical template sets and per-template line counts.**
+
+### What must change before this ships
+
+**One collector rule, and it closes two defects at once.** `stdout_root` knows
+only the ROOT form, `2026-06-20 12:15:19.123 Info in <Facility>: message`. Every
+O2 line — 99 % of stdout — matched only the catch-all, so the record carried a
+`message` and **no `severity` key at all**.
+
+Measured: **345 stdout lines in 3,000,000 captured a severity.** One in ten
+thousand.
+
+🔴 **That silently disabled severity tiering for the largest family.** The router
+reads `$severity ^Info$ family.local` first and `$message ^.*$ family.central`
+second. With no `severity` key the first rule cannot fire, so **every stdout line
+went to the replicated storage tier** — 42 % of all lines, onto the tier
+`deploy/README.md` sizes as low-volume.
+
+The fix is a `stdout_o2` parser running before `stdout_root`, and a router rule
+that accepts the uppercase form. Measured severity distribution on stdout: `INFO`
+96.9 %, `WARN` 3.0 %, `STATE` 0.1 %, `ALARM` 0.0006 %. So central's share of
+stdout falls roughly **32-fold**.
+
+**The clock is captured as a string, not as `time_key`, on purpose.** It carries
+no date, and a `time_key` would stamp replayed June-2026 lines with today's.
+
+🔴 **One consequence to decide separately.** The live shifter lane matches
+`^(infologger|family\.central)$` and deliberately excludes the trash tier. Today
+it sees all of stdout only because all of stdout is central. After the fix it
+will not see stdout `INFO` at all.
+
+**dds and InfoLogger need no collector change.** `dds_text` already captures
+time, severity, source and thread on **43,960 of 43,972 lines**, and InfoLogger
+arrives as JSON with the fields already apart.
+
+**One divergence between the benchmark and production, declared.** Production
+joins indented continuation lines into the preceding record. The corpus builder
+read raw file lines and did not. That is **7,912 lines in 3,000,000** on stdout
+and **12 in 43,972** on dds — the module-load banner and the FairRoot start-up
+art. Too small to move any figure above, but those banner templates will differ
+in production.
+
+### Limits of this stage
+
+- **The corpus holds 43,972 dds lines. Round 4's held 267,607.** The rebuild used
+  identical flags and reproduced the total line count exactly, 45,596,613, so the
+  difference is in which objects the run tags cover. Every dds figure here rests
+  on the smaller set.
+- **No ground truth, so no accuracy number** for any parser, ours included.
+- **No journald anywhere in the corpus.** The claim that Drain handles multiline
+  kernel traces badly — a varying *leading* token is its blind spot — is reasoning,
+  not a measurement.
+- The whole stage ran in one Colima VM pinned to four processors, on a laptop.
+
 ## Open questions
 
 ### 1. The burst gap, and it is the largest number in this document
