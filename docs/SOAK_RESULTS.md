@@ -2481,6 +2481,57 @@ the 42 templates that arrived in its last 1.5 million lines are the same
 boundary effect seen here. **Fetching InfoLogger across partitions is the obvious
 next measurement and it has not been run.**
 
+### Forty InfoLogger partitions round 6 never saw
+
+The archive holds **179 InfoLogger objects**, partitions 13 to 193. Round 6 mined
+**40**. This cell rebuilds its tree over exactly those same 26.5 million lines,
+then feeds the same tree **40 of the 139 partitions it had never seen**, capped at
+200,000 lines each so the sample spans periods instead of exhausting a few.
+
+| Phase | Lines | Templates | Core-s /M |
+|---|---:|---:|---:|
+| **1** — round 6's 40 partitions | 26,505,911 | 1,306 | 9.18 |
+| **2** — 40 unseen partitions | 6,927,107 | **1,497** | **10.24** |
+
+**The cost holds on data the tree has never seen: 10.24 against the 10.59 measured
+on the whole corpus.** No drift.
+
+**A saturated tree gains 191 templates, 14.6 %, from forty new periods** — after
+going six million lines without gaining one inside its own. Per partition the
+gains are small and steady: `+8 +0 +0 +15 +10 +4 +0 +1 +0 +17` and on to `+20 +10
++11 +0 +0 +9 +0 +1 +0 +6`.
+
+**But InfoLogger is much closer to done than the tarball families.** Against
+stdout going from 205 to 1,025 templates across sixteen runs, InfoLogger adds
+14.6 % across forty partitions. **Novelty at period boundaries is real in every
+family and it is an order of magnitude weaker here.**
+
+🔴 **A signal worth naming, not yet a conclusion.** Word retention falls from
+81.5 % in phase one to **74.0 %** in phase two, on the same measure. Either a tree
+built on one period templates a later period less well, which is the question
+`docs/SOAK_PLAN.md` raises about time-ordered splits, or the phase-two templates
+are simply younger and less settled. **The cell cannot separate the two.**
+
+🔴 **Those two retention figures are on a different denominator from every other
+one in this document and must not be compared with them.** This script measured
+retention against the raw line; every other cell measures it against the masked
+and padded line the miner actually receives. Phase one against phase two is
+sound. Phase one against the 90.2 % elsewhere is not.
+
+### The template count is a curve, not a number
+
+| Family | Round 6 | With more periods | Unsampled |
+|---|---:|---:|---|
+| `infologger` | 1,306 — 40 partitions | **1,497** — 80 partitions | 99 partitions |
+| `dds` | 701 — 1 run | **1,570** — 16 runs | 70 runs |
+| `stdout` | 1,004 — 1 run, 19.0 M lines | **1,025** — 16 runs, 2.2 M lines | 70 runs |
+| **Total** | **3,011** | **4,092** | |
+
+**4,092 already, 36 % above the whole-corpus figure, on a fraction of the archive,
+and every family still climbing.** The number stage I must plan for is not 3,011
+and it is not 4,092 either. **It is whatever the archive holds, and the driver is
+how many runs and partitions are sampled, not how many lines.**
+
 ### Where the code lives, and why it is not in `deploy/`
 
 **There is no production templating to integrate it into.** `deploy/` and
