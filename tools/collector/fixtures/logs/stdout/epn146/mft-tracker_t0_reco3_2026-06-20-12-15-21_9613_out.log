@@ -1,0 +1,11 @@
+2026-06-20 12:15:25.000001 [12:15:25][STATE] Starting FairMQ state machine --> IDLE
+2026-06-20 12:16:14.000002 [12:16:14][STATE] IDLE ---> INITIALIZING DEVICE
+2026-06-20 12:20:34.000003 [12:20:34][INFO] New error registered at bc/orbit 594/29108583 on the FEEID:0x51 chip#650: DColumns non-increasing
+2026-06-20 12:20:35.000004 [12:20:35][WARN] FEC 12: 0x3bd (DDL 7) has low gain but no high-gain
+2026-06-20 12:20:36.000005 [12:20:36][ALARM] FEEId: 2  board not found: Crate ID:  4  Loc ID: 14  status: 0xc0  trig: 0xca
+2026-06-20 12:20:37.000006 [12:20:37][INFO] Processing timeslice:196, tfCounter:12, firstTForbit:0, runNumber:552154, creation:1750414837, action:0
+2026-06-20 12:20:38.000007 Loading O2PDPSuite/epn-20260615-DDv1.6.11-QCv1.193.0-flp-suite-v1.82.0-2
+  Loading requirement: BASE/1.0 libffi/v3.2.1-alice1-13 lz4/v1.10.0-4
+    zlib/v1.3.1-9 FreeType/v2.10.1-28 GCC-Toolchain/v14.2.0-alice2-2
+2026-06-20 12:20:39.000008 [INFO] Core limit: 0 0
+2026-06-20 12:20:40.000009 Info in <TGeoGlobalMagField::SetField>: Global magnetic field set to <MagneticFieldMap>

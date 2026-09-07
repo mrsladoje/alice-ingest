@@ -1,0 +1,7 @@
+Jun 20 12:22:01 epn146 kernel: WARNING: CPU: 12 PID: 3140 at drivers/iommu/dma-iommu.c:1203 iommu_dma_unmap_page+0xd8/0x100
+Jun 20 12:22:01 epn146 kernel: CPU: 12 PID: 3140 Comm: TfBuilder Kdump: loaded Tainted: G  W  OE
+Jun 20 12:22:01 epn146 kernel: Hardware name: Supermicro AS -4125GS-TNRT-CE1/H13DSG-O-CPU
+Jun 20 12:22:01 epn146 kernel: Call Trace:
+Jun 20 12:22:01 epn146 kernel:  ? iommu_dma_unmap_page+0xd8/0x100
+Jun 20 12:22:01 epn146 kernel:  ? do_syscall_64+0x5c/0x90
+Jun 20 12:22:05 epn146 systemd[1]: Started Session 42 of user masladoj.

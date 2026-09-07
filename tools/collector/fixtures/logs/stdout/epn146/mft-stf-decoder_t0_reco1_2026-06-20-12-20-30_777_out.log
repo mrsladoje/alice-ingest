@@ -1,0 +1,3 @@
+2026-06-20 12:20:34.000001 [12:20:34][INFO] MFTDecoder registered new link link cruID:0x0/lID3 feeID:0x2001 RUSW=5
+2026-06-20 12:20:35.000002 [12:20:35][INFO] TF#3 {Run:552154 TF:3 Orbit:0 CteationTime:0 Detectors: } CTF writing is disabled, size was 74381 bytes
+2026-06-20 12:20:36.000003 [12:20:36][INFO] CTF 43 size report: ITS:2331,1094,68 TPC:N/A MFT:2331,1094,68 MCH:N/A

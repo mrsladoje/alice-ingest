@@ -1,0 +1,16 @@
+2026-01-20 00:00:00.567684 inf  odc-grpc-server     1091836                      Status request for ODC 0.87.0 (DDS 3.16) from [ipv4:10.161.69.84:50484] user-agent:grpc-go/1.62.1: runnning: true
+2026-01-20 00:00:00.568040 inf  odc-grpc-server     1091836                      Status: found 1 partition(s):
+2026-01-20 00:00:00.568723 dbg  odc-grpc-server     1091836 2zQku2CTFXt:0        GetState request for ODC 0.87.0 (DDS 3.16) from [ipv4:10.161.69.84:50484] user-agent:grpc-go/1.62.1: partitionId: 2zQku2CTFXt; runnr: 0; timeout: 0
+2026-01-20 00:00:00.568734 dbg  odc-grpc-server     1091836 2zQku2CTFXt:0        GetState request detailed: true; path: ""
+2026-01-20 08:56:29.044895 err  odc-grpc-server     1091836 2zRVEg9xZRp:2304     Collection 'main/wf10_0' (id: 3340879470082071756) has no nMin defined. Cannot be ignored.
+2026-01-20 08:56:29.044986 err  odc-grpc-server     1091836 2zRVEg9xZRp:2304     Collection 'main/wf4_0' (id: 3967506866430626198) has no nMin defined. Cannot be ignored.
+2026-01-20 08:56:29.045314 fat  odc-grpc-server     1091836 2zRVEg9xZRp:2304     Timed out waiting for STOP transition
+2026-01-20 10:00:22.700541 fat  odc-grpc-server     1091836 2zRXGkN34rJ:2305     Timed out waiting for STOP transition
+2026-09-06 00:00:02.775719 inf  odc-grpc-server     3287212                      Status request for ODC v0.87.2.0.gf4233f6 (DDS 3.16.7.g39e3365) from [ipv4:10.161.69.84:33550] user-agent:grpc-go/1.62.1: runnning: true
+2026-09-06 00:00:02.775909 inf  odc-grpc-server     3287212                      Status: found 0 partition(s)
+2025-04-01 11:05:35.653260 wrn  odc-grpc-server     910890 2tgn7FGRCuL:0        , stderr:
+2026-01-20 08:35:39.457461 inf  odc-grpc-server     1091836 2zRVEg9xZRp:0        Topology generation script successfull. stderr: "Running topology generation to temporary file /var/tmp/gen_topo/1_1/output.xml
+Loading O2PDPSuite/epn-20251017.8-DDv1.6.9-QCv1.184.5-flp-suite-v1.72.0-1
+  Loading requirement: BASE/1.0 libffi/v3.2.1-alice1-8 lz4/v1.9.3-24
+    zlib/v1.3.1-5 FreeType/v2.10.1-24 GCC-Toolchain/v14.2.0-alice2-2
+    hdf5/1.14.6-5 AliEn-Runtime/v2-19-le-23 sqlite/v3.47.2-8 libpng/v1.6.47-5

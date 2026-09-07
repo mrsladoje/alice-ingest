@@ -1,0 +1,5 @@
+2026-06-20 12:15:23.825000 [2026-06-20 12:15:23.825][I] [STATE][FMQ] Starting FairMQ state machine --> IDLE
+2026-06-20 12:15:23.826000 [2026-06-20 12:15:23.826][D] NEW RUN NUMBER. run_number=552154
+2026-06-20 12:15:23.827000 [2026-06-20 12:15:23.827][I] (Sub)TimeFrame Sink created.
+2026-06-20 12:15:24.100000 [2026-06-20 12:15:24.100][W] TfBuilder: dropping a TimeFrame, buffer is full
+2026-06-20 12:15:24.200000 [2026-06-20 12:15:24.200][E] TfBuilder: failed to allocate a region of 4294967296 bytes

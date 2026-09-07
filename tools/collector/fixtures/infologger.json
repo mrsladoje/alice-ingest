@@ -1,0 +1,5 @@
+[
+  {"severity":"I","level":11,"timestamp":1750414525.331,"hostname":"epn146","rolename":"epn","pid":1512832,"username":"epn","system":"DPL","facility":"ctf-writer","detector":"MFT","partition":"phys_1","run":552154,"errcode":0,"errline":0,"errsource":"","message":"CTF writer started"},
+  {"severity":"E","level":11,"timestamp":1750414526.100,"hostname":"epn146","rolename":"epn","pid":1512832,"username":"epn","system":"DPL","facility":"ctf-writer","detector":"MFT","partition":"phys_1","run":552154,"errcode":2001,"errline":128,"errsource":"CTFWriter.cxx","message":"Failed to open output file"},
+  {"severity":"W","level":11,"timestamp":1750414527.500,"hostname":"epn146","rolename":"epn","pid":1512999,"username":"epn","system":"ODC","facility":"ODC","detector":"","partition":"phys_1","run":552154,"errcode":0,"errline":0,"errsource":"","message":"Status: found 1 partition(s):"}
+]

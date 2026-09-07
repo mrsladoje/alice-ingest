@@ -1,0 +1,294 @@
+# Fixed parser tests. Every line in logs/ is real EPN output, and every case
+# below is a shape that failed silently at least once, or a field a dashboard or
+# a routing rule depends on.
+#
+# Which file a record appears in IS the routing assertion: the file sink writes
+# one file per output match.
+
+counts:
+  # +7 local and +5 durable from the orchestrator fixture: 16 lines folding to
+  # 12 records, of which 5 inf and 2 dbg stay local and 2 err, 2 fat and 1 wrn
+  # are durable.
+  family_local.jsonl: 22
+  family_central.jsonl: 15
+  ildaemon.jsonl: 3
+  infologger.jsonl: 3
+
+# `message` is not required here. A line no parser claimed keeps its text in
+# `log`, and the collector is right to ship it rather than invent a field; the
+# ingest pipeline renames it, because the index mapping is not dynamic and an
+# unmapped field is stored without ever being searchable.
+#
+# `doc_id` is on every record because the OpenSearch outputs write each record
+# under it. Without one, a bulk request that was applied but whose success
+# response was lost is retried into a SECOND document. It is asserted here so a
+# change that drops it fails on the fixtures rather than only under
+# tools/collector/retrycheck.py, which needs a cluster to run at all.
+required_keys:
+  family_local.jsonl: [log_source, node, collector_time, doc_id]
+  family_central.jsonl: [log_source, node, collector_time, doc_id]
+  ildaemon.jsonl: [message, log_source, node, collector_time, doc_id]
+  infologger.jsonl: [message, log_source, node, collector_time, doc_id]
+
+cases:
+  # --- DPL / FairMQ ------------------------------------------------------
+  - name: dpl info line keeps its program and goes to the local tier
+    file: family_local.jsonl
+    message_contains: "Processing timeslice:196"
+    expect:
+      severity: INFO
+      program: mft-tracker
+      host: epn146
+      log_source: stdout
+      log_time: "12:20:37"
+      __time__: 1781958037.000006
+    absent: [log]
+
+  - name: dpl warning goes to durable storage
+    file: family_central.jsonl
+    message_contains: "has low gain but no high-gain"
+    expect: {severity: WARN, program: mft-tracker, log_source: stdout}
+
+  - name: dpl alarm goes to durable storage
+    file: family_central.jsonl
+    message_contains: "board not found"
+    expect: {severity: ALARM, program: mft-tracker}
+
+  # A FairMQ transition is 0.8 % of the tree and it is what an operator asks for
+  # first when a run will not start, so it is deliberately not local.
+  - name: FairMQ state transitions go to durable storage
+    file: family_central.jsonl
+    message_contains: "IDLE ---> INITIALIZING DEVICE"
+    expect: {severity: STATE, program: mft-tracker}
+
+  - name: a DPL line with a severity but no clock still gets a severity
+    file: family_local.jsonl
+    message_contains: "Core limit"
+    expect: {severity: INFO, program: mft-tracker}
+    absent: [log, log_time]
+
+  # --- the coloured one --------------------------------------------------
+  #
+  # Same format, written by a process that never noticed it was writing to a
+  # file. Before the tolerance these arrived with no time and no severity, and
+  # nothing said so.
+  - name: ANSI escapes do not hide the severity
+    file: family_central.jsonl
+    message_contains: "ErrorMonitor: link 3 down"
+    expect:
+      severity: ERROR
+      program: ErrorMonitorTask
+      log_time: "16:31:32"
+
+  - name: an ANSI info line still routes local
+    file: family_local.jsonl
+    message_contains: "IDLE ---> INITIALIZING DEVICE"
+    expect: {severity: INFO, program: ErrorMonitorTask}
+
+  # --- DataDistribution --------------------------------------------------
+  - name: TfBuilderTask debug carries the run number and stays local
+    file: family_local.jsonl
+    message_contains: "NEW RUN NUMBER"
+    expect:
+      severity: D
+      program: TfBuilderTask
+      log_source: stdout
+      __time__: 1781957723.826
+
+  - name: TfBuilderTask single-letter warning goes to durable storage
+    file: family_central.jsonl
+    message_contains: "dropping a TimeFrame"
+    expect: {severity: W, program: TfBuilderTask}
+
+  - name: TfBuilderTask single-letter error goes to durable storage
+    file: family_central.jsonl
+    message_contains: "failed to allocate a region"
+    expect: {severity: E, program: TfBuilderTask}
+
+  # --- the lines the survey said nothing covered -------------------------
+  # A per-component fault signal. Stored as prose it can only be read; typed it
+  # can be charted per front-end identifier and alerted on per chip.
+  - name: the decoder error is broken into fields, not left as prose
+    file: family_local.jsonl
+    message_contains: "New error registered at bc/orbit"
+    expect:
+      severity: INFO
+      program: mft-tracker
+      bc: 594
+      orbit: 29108583
+      feeid: "0x51"
+      chip: 650
+      decoder_error: "DColumns non-increasing"
+
+  # No parser for the link-registration line either: it matched zero of
+  # 21,200,248 process-tree lines in the 2026 archive. The line is kept in the
+  # fixture so the day it comes back, this case fails and says so.
+  - name: link registration arrives intact even though nothing extracts it
+    file: family_local.jsonl
+    message_contains: "registered new link"
+    expect: {program: mft-stf-decoder, severity: INFO}
+    absent: [cru_id, link_id, rusw]
+
+  # No parser here: Onigmo cannot return a repeated capture, so the per-detector
+  # sizes cannot come out of one regex, and the collector runs no per-record Lua
+  # by design. This belongs in the ingest pipeline. What is asserted is that the
+  # line arrives intact with its program, so the pipeline has something to work
+  # on.
+  - name: the CTF size report keeps its program
+    file: family_local.jsonl
+    message_contains: "CTF 43 size report"
+    expect: {severity: INFO, program: mft-stf-decoder}
+
+  # The O2 build writes CteationTime, not CreationTime. A parser that requires
+  # the correct spelling misses even a healthy run.
+  - name: the CTF writing line survives the typo in the O2 source
+    file: family_local.jsonl
+    message_contains: "CteationTime"
+    expect: {severity: INFO, program: mft-stf-decoder}
+
+  # --- ROOT --------------------------------------------------------------
+  - name: the ROOT form still parses
+    file: family_local.jsonl
+    message_contains: "Global magnetic field set to"
+    expect:
+      severity: Info
+      facility: "TGeoGlobalMagField::SetField"
+      program: mft-tracker
+
+  # --- the module-load banner --------------------------------------------
+  #
+  # No severity anywhere in it, so it must reach durable storage: a line whose
+  # severity nothing recovered is never assumed to be informational.
+  - name: the indented module block folds into one record and is not assumed safe
+    file: family_central.jsonl
+    message_contains: "Loading requirement: BASE/1.0"
+    expect: {program: mft-tracker, log_source: stdout}
+    absent: [log, severity]
+
+  # --- DDS ---------------------------------------------------------------
+  - name: dds informational stays local and keeps the slot it assigned
+    file: family_local.jsonl
+    message_contains: "Received a ADD SLOT request"
+    expect:
+      severity: inf
+      program: dds-agent
+      host: epn146
+      log_source: dds
+      slot_id: 4
+    absent: [log, source]
+
+  # The binary only. The arguments stay in `message`, where they already were;
+  # copying them into a second field cost 22 % of the whole DDS family.
+  - name: the launched binary is extracted, not left as prose
+    file: family_local.jsonl
+    message_contains: "Executing user task"
+    expect: {task: "mft-stf-decoder", program: dds-agent}
+
+  - name: the wired channel is extracted
+    file: family_local.jsonl
+    message_contains: "Added shared memory channel"
+    expect: {channel_id: 7, channel: "fmqchan_from_mft-stf-decoder"}
+
+  # DDS prints a version banner and a bug-report address at startup. The
+  # envelope parser cannot claim them, and before the third routing rule they
+  # matched nothing and were dropped without a word.
+  - name: a dds line no parser claims still reaches durable storage
+    file: family_central.jsonl
+    log_key: "DDS configuration"
+    expect: {log_source: dds}
+
+  - name: dds failure goes to durable storage and names the workflow
+    file: family_central.jsonl
+    message_contains: "Failed to start user task"
+    expect: {severity: err, log_source: dds, program: o2-mid-reco-workflow}
+
+  # --- the InfoLogger daemon ---------------------------------------------
+  #
+  # 557 against the 2048 in infoLoggerD.cfg. Nothing else on the node says how
+  # close the farm is to running out of log sockets, so it is typed, not prose.
+  - name: the daemon client count is extracted as numbers
+    file: ildaemon.jsonl
+    message_contains: "New client: 557/2048"
+    expect:
+      clients: 557
+      client_limit: 2048
+      log_source: ildaemon
+      program: o2-infologger-daemon
+    absent: [log]
+
+  # The second of the file's two shapes. An earlier extractor anchored on the
+  # word "client" and missed every line of this form — 36 % of the real file.
+  - name: a disconnect carries the count too
+    file: ildaemon.jsonl
+    message_contains: "clients disconnected"
+    expect: {clients: 554, client_limit: 2048}
+
+  # --- the run orchestrator ----------------------------------------------
+  #
+  # partition and run are the reason this source is collected: they are the two
+  # values InfoLogger also carries, so an orchestration failure and the detector
+  # messages from the same run join on them.
+  - name: an orchestrator fatal carries the partition and the run number
+    file: family_central.jsonl
+    message_contains: "Timed out waiting for STOP transition"
+    expect:
+      severity: fat
+      program: odc-grpc-server
+      partition: "2zRVEg9xZRp"
+      run: 2304
+      pid: 1091836
+      log_source: odc
+    absent: [log]
+
+  - name: an orchestrator error names the collection that failed
+    file: family_central.jsonl
+    message_contains: "has no nMin defined"
+    expect: {severity: err, log_source: odc, run: 2304}
+
+  - name: an orchestrator warning is durable
+    file: family_central.jsonl
+    message_contains: ", stderr:"
+    expect: {severity: wrn, log_source: odc, partition: "2tgn7FGRCuL"}
+
+  # Idle, the file is a three-second status poll with no partition at all. The
+  # optional group has to stay optional or the whole line stops parsing.
+  - name: an idle status poll parses with no partition and stays local
+    file: family_local.jsonl
+    message_contains: "Status: found 0 partition"
+    expect:
+      severity: inf
+      program: odc-grpc-server
+      pid: 3287212
+      log_source: odc
+    absent: [log, partition, run]
+
+  - name: an orchestrator debug line stays local and keeps its partition
+    file: family_local.jsonl
+    message_contains: "GetState request detailed"
+    expect: {severity: dbg, partition: "2zQku2CTFXt", run: 0}
+
+  # The orchestrator embeds the topology script's stderr. Split, each module
+  # line is a record that means nothing; folded, the whole failure is one.
+  - name: the embedded topology-script output is folded into one record
+    file: family_local.jsonl
+    message_contains: "Topology generation script successfull"
+    expect: {severity: inf, log_source: odc}
+    message_also_contains: "Loading requirement"
+
+  # --- InfoLogger --------------------------------------------------------
+  - name: InfoLogger keeps its named fields and is durable at every severity
+    file: infologger.jsonl
+    message_contains: "Failed to open output file"
+    expect:
+      severity: E
+      facility: ctf-writer
+      detector: MFT
+      run: 552154
+      errsource: CTFWriter.cxx
+      log_source: infologger
+      __time__: 1750414526.1
+
+  - name: an informational InfoLogger record is durable, not local
+    file: infologger.jsonl
+    message_contains: "CTF writer started"
+    expect: {severity: I, log_source: infologger}

@@ -1,0 +1,6 @@
+DDS configuration v3.16
+2026-06-20 12:15:12.942587   inf    dds-agent            <0x001f6455:0x000014ffab8a1780>    Log engine is initialized with severety "inf"
+2026-06-20 12:15:13.104000   inf    dds-agent            <0x001f6455:0x000014ffab8a1780>    Received a ADD SLOT request, id = 4
+2026-06-20 12:15:13.204000   inf    dds-agent            <0x001f6455:0x000014ffab8a1780>    Executing user task: mft-stf-decoder --session default
+2026-06-20 12:15:13.304000   inf    dds-agent            <0x001f6455:0x000014ffab8a1780>    Added shared memory channel output with ID: 7 name: fmqchan_from_mft-stf-decoder
+2026-06-20 12:15:14.000000   err    o2-mid-reco-workflow <0x001f6455:0x000014ffab8a1780>    Failed to start user task, exit code 1
