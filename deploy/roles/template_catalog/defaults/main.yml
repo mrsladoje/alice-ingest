@@ -1,0 +1,59 @@
+# roles/template_catalog — carries template identity off a worker without
+# carrying its informational logs.
+
+template_catalog_app_root: /opt/alice-ingest
+template_catalog_script: "{{ template_catalog_app_root }}/template_catalog.py"
+
+# The frozen mining recipe, shipped from tools/templating so a template mined on
+# a worker and the same template mined from the archive come out identical. The
+# service imports these; it does not carry a second copy of the rules.
+template_catalog_templating_dir: "{{ template_catalog_app_root }}/templating"
+
+template_catalog_service_name: alice-template-catalog
+template_catalog_index: template-catalog
+
+# Every ten minutes. The catalog is a cold path: a template is embedded once and
+# a new one appearing ten minutes late costs nothing, while a tighter timer
+# would put a search against the local index in the way of ingest.
+template_catalog_interval: "10min"
+
+# A ceiling on one pass, so a worker that has been offline does not try to mine
+# a week of backlog in one go and hold memory while it does. It is spent per
+# SHARD rather than shared across an index's shards: one shared budget always
+# starting at shard 0 means a shard busy enough to fill it on its own is read
+# every pass and the shards behind it are never read at all.
+template_catalog_max_lines: 200000
+template_catalog_page: 5000
+
+# A ceiling on how many distinct templates one worker learns, across every
+# family. This is the memory bound, and it is not the same thing as the recipe's
+# depth and max_children: those bound the shape of the tree, neither caps how
+# many clusters it holds.
+#
+# Measured against the unit's MemoryMax=512M: 20,000 clusters hold 61 MB, and
+# serialising them peaks at 208 MB because jsonpickle builds the whole string in
+# memory. 50,000 would peak at 437 MB. For scale, the whole 55,963,050-line
+# archive pass mined 4,221 templates, so this is 4.7 times the measured need.
+#
+# At the ceiling the worker stops LEARNING and keeps COUNTING. drain3's own
+# max_clusters is an LRU that evicts, and eviction cannot be used here: the
+# count published for a template is the cluster's absolute size in this tree, so
+# an evicted cluster later rebuilt would report a size of one and SET the
+# catalog count back to one. Lines that match no existing template are reported
+# as `unlearned` in the pass summary, so reaching the ceiling is visible.
+template_catalog_max_templates: 20000
+
+# The venv the producer role already builds carries drain3 for this service.
+template_catalog_venv: /opt/alice-ingest/catalog-venv
+
+# Where the drain tree lives between timer runs. systemd creates it through
+# StateDirectory=, so this must stay under /var/lib and match the unit.
+template_catalog_state_dir: /var/lib/alice-template-catalog
+
+# The two indices more than one worker writes to. Each node reads them scoped to
+# the records it wrote itself, so the counts add up to the truth rather than to
+# three times it. Reading only the node-local index left the catalog with no
+# InfoLogger templates at all and none of the warnings and errors, because the
+# routing sends those straight to the durable tier and never writes them locally.
+template_catalog_central_index: application-logs-central
+template_catalog_infologger_index: infologger
