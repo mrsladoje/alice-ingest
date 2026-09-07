@@ -1,3 +1,9 @@
+# The local Compose dev stack only. deploy/roles/collector/templates/ is the
+# production configuration and the source of truth; this file has drifted from
+# it and is not kept in step. As of 4 September 2026 it lacks the DPL and
+# DataDistribution parsers, program identity, the InfoLogger daemon input and
+# the journal, and it still enriches with Lua that production moved into the
+# OpenSearch ingest pipeline.
 service:
   flush: 1
   log_level: info
@@ -43,7 +49,7 @@ pipeline:
       db: /var/log/flb-storage/dds.db
 
     - name: tail
-      path: /var/log/node/stdout.log,/var/log/node/stdout/*.log
+      path: /var/log/node/stdout.log,/var/log/node/stdout/*/*.log
       path_key: file
       tag: stdout
       multiline.parser: stdout_multiline
@@ -130,7 +136,7 @@ pipeline:
         function set_host(tag, ts, record)
           local f = record['file']
           if f ~= nil then
-            local h = string.match(f, 'stdout/(epn%d+)%.log$')
+            local h = string.match(f, 'stdout/(epn%d+)/')
             if h ~= nil then record['host'] = h end
           end
           return 1, ts, record

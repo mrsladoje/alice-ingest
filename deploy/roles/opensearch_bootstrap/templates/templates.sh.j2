@@ -215,16 +215,40 @@ APPLICATION_MAPPINGS=$(cat <<'JSON'
         "poison_targets": { "type": "keyword" },
         "host":       { "type": "keyword" },
         "source_file": { "type": "keyword" },
-        "source":     { "type": "keyword" },
         "tid":        { "type": "keyword" },
         "facility":   { "type": "keyword" },
+        "program":    { "type": "keyword" },
+        "log_time":   { "type": "keyword" },
+        "clients":       { "type": "integer" },
+        "client_limit":  { "type": "integer" },
+        "slot_id":       { "type": "integer" },
+        "channel_id":    { "type": "integer" },
+        "channel":       { "type": "keyword" },
+        "task":          { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 1024 } } },
+        "bc":            { "type": "integer" },
+        "orbit":         { "type": "long" },
+        "feeid":         { "type": "keyword" },
+        "chip":          { "type": "integer" },
+        "decoder_error": { "type": "keyword" },
+        "comm":       { "type": "keyword" },
+        "pid":           { "type": "integer" },
+        "partition":     { "type": "keyword" },
+        "run":           { "type": "long" },
+        "PRIORITY":   { "type": "keyword" },
+        "TRANSPORT":  { "type": "keyword" },
+        "SYSTEMD_UNIT": { "type": "keyword" },
+        "HOSTNAME":   { "type": "keyword" },
+        "PID":        { "type": "integer" },
+        "COMM":       { "type": "keyword" },
+        "doc_id":     { "type": "keyword" },
         "message":    { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 1024 } } }
       }
     }
   },
   "_meta": {
     "family": "application-logs",
-    "sources": ["dds", "stdout"]
+    "sources": ["dds", "stdout", "ildaemon", "journald", "odc"],
+    "note": "Numbers are typed so they can be charted and alerted on; stored as text they can only be read. slot_id, channel_id, channel and task come from DDS and say what was supposed to be running. bc, orbit, feeid, chip and decoder_error are the per-component fault signal; program is the process that wrote the line, on every source that has one. log_time is O2's own clock, kept as a keyword because it carries no date and must never be read as one. clients/client_limit are the InfoLogger daemon's connection count against its ceiling. comm is the process named inside a kernel trace, and it is the join key from a fault back to the O2 logs. partition and run come from the run orchestrator and carry the same two values InfoLogger does, so an orchestration failure and the detector messages from the same run join on them; pid is the orchestrator's own process. doc_id is the identifier the collector writes each record under, so a bulk request that was applied but whose success response was lost is retried as an overwrite instead of a second document; it is mapped because the output leaves it in the body, and it is the only field here that is also the document _id."
   }
 }
 JSON
@@ -264,12 +288,15 @@ INFOLOGGER_MAPPINGS=$(cat <<'JSON'
         "errcode":    { "type": "long" },
         "errline":    { "type": "integer" },
         "errsource":  { "type": "keyword" },
+        "program":    { "type": "keyword" },
+        "doc_id":     { "type": "keyword" },
         "message":    { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 1024 } } }
       }
     }
   },
   "_meta": {
-    "family": "infologger"
+    "family": "infologger",
+    "note": "dynamic is strict here, so a field the ingest pipeline sets and this mapping does not name gets the whole document REJECTED, not just left unindexed. program is set from facility for every InfoLogger record; anything else added to the pipeline has to be added here in the same change. doc_id is the collector-assigned document identifier that makes a retried bulk chunk an overwrite; under a strict mapping it is not optional, because the output leaves it in the body and an unmapped field rejects the whole record."
   }
 }
 JSON
@@ -821,6 +848,48 @@ DETECTION_COST_SETTINGS=$(cat <<'JSON'
 JSON
 )
 
+TEMPLATE_CATALOG_TPL=$(cat <<'JSON'
+{
+  "index_patterns": ["{{ template_catalog_index }}"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 2,
+      "codec": "zstd",
+      "refresh_interval": "30s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "kind":            { "type": "keyword" },
+        "family":          { "type": "keyword" },
+        "template":        { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 2048 } } },
+        "programs":        { "type": "keyword" },
+        "nodes":           { "type": "keyword" },
+        "count":           { "type": "long" },
+        "superseded_by":   { "type": "keyword" },
+        "counts_by_node":  { "type": "object", "enabled": false },
+        "last_pass":       { "type": "object", "enabled": false },
+        "first_seen":      { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "last_seen":       { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "last_seen_node":  { "type": "keyword" },
+        "index":           { "type": "keyword" },
+        "node":            { "type": "keyword" },
+        "collector_time":  { "type": "date", "format": "strict_date_optional_time||epoch_millis" }
+      }
+    }
+  },
+  "_meta": {
+    "family": "template-catalog",
+    "written_by": "alice-template-catalog",
+    "note": "One document per canonical template per family. Progress lives in the worker's own state file, not here, because it has to become durable at the same instant as that worker's mining tree. This is how template identity leaves a worker when the raw informational lines do not: the collector keeps 96.9 percent of the process tree node-local by severity, and a catalog built from the durable tier alone would never see those templates. Nothing here is a log line; `template` is the masked, mined form. Not time-partitioned: a catalog is a set, not a stream, and it is updated in place."
+  }
+}
+JSON
+)
+
 INGEST_PIPELINE=$(cat <<'JSON'
 {
   "description": "Stamp ingest_time; ingest_lag_ms = ingest_time - collector_time; enter_system_lag_ms = collector_time - @timestamp; severity_norm and origin_host, moved off the collector by Item 5.4.",
@@ -830,8 +899,8 @@ INGEST_PIPELINE=$(cat <<'JSON'
       "script": {
         "lang": "painless",
         "ignore_failure": true,
-        "description": "severity_norm and origin_host. This is a literal port of the collector's normalize_fields Lua filter, which Item 5.4 deleted so the collector runs no per-record Lua at all. All three log families run this pipeline as their default_pipeline, so every document that used to be enriched still is.",
-        "source": "{% raw %}Map m = ['I':'info','W':'warning','E':'error','F':'fatal','D':'debug','Info':'info','Warning':'warning','Error':'error','Fatal':'fatal','Sys':'system','inf':'info','err':'error','cout':'info']; def s = ctx.severity; def n = s == null ? null : m.get(s.toString()); ctx.severity_norm = n == null ? 'unknown' : n; def h = ctx.hostname == null ? ctx.host : ctx.hostname; if (h != null) { ctx.origin_host = h; }{% endraw %}"
+        "description": "severity_norm, origin_host and program. Ported from the collector's normalize_fields Lua filter, which Item 5.4 deleted so the collector runs no per-record Lua at all. The map carries every severity spelling the five sources produce: DPL words, DataDistribution and InfoLogger single letters, DDS three-letter codes, ROOT words, and the journal's numeric priorities. STATE gets its own normalised name rather than being flattened into info, because a FairMQ transition is what an operator asks for first when a run will not start. ALARM normalises to error, because a front-end alarm IS a fault and every consumer that already filters on error should see it without being changed. program is filled in from facility for InfoLogger and from COMM for a kernel record, so one field names the process on every source. A line no collector parser claimed arrives with its text in `log`; that becomes `message` here, because the mapping is not dynamic and a field nobody mapped is stored but never searchable.",
+        "source": "{% raw %}Map m = ['I':'info','W':'warning','E':'error','F':'fatal','D':'debug','T':'trace','Info':'info','Warning':'warning','Error':'error','Fatal':'fatal','Sys':'system','Break':'error','inf':'info','wrn':'warning','err':'error','fat':'fatal','dbg':'debug','cout':'info','INFO':'info','WARN':'warning','ERROR':'error','FATAL':'fatal','DEBUG':'debug','TRACE':'trace','STATE':'state','ALARM':'error','0':'fatal','1':'fatal','2':'fatal','3':'error','4':'warning','5':'info','6':'info','7':'debug']; def s = ctx.severity; def n = s == null ? null : m.get(s.toString()); ctx.severity_norm = n == null ? 'unknown' : n; def h = ctx.hostname == null ? ctx.host : ctx.hostname; if (h != null) { ctx.origin_host = h; } if (ctx.program == null && ctx.facility != null) { ctx.program = ctx.facility; } if (ctx.program == null && ctx.COMM != null) { ctx.program = ctx.COMM; } if (ctx.message == null && ctx.log != null) { ctx.message = ctx.log; ctx.remove('log'); }{% endraw %}"
       }
     },
     {
@@ -944,6 +1013,7 @@ put "/_index_template/alice-logs-application-central" "$APPLICATION_CENTRAL_TPL"
 put "/_index_template/alice-logs-infologger"    "$INFOLOGGER_INDEX_TPL" "index template alice-logs-infologger"
 put "/_index_template/alice-cockpit-metrics"    "$COCKPIT_METRICS_TPL"  "index template alice-cockpit-metrics"
 put "/_index_template/alice-trend-rollup"       "$TREND_ROLLUP_TPL"     "index template alice-trend-rollup"
+put "/_index_template/alice-template-catalog"   "$TEMPLATE_CATALOG_TPL" "index template alice-template-catalog"
 put "/_index_template/alice-fleet-roster"       "$FLEET_ROSTER_TPL"     "index template alice-fleet-roster"
 put "/_index_template/alice-lane-state"         "$LANE_STATE_TPL"       "index template alice-lane-state"
 put "/_index_template/alice-signals"            "$SIGNALS_TPL"          "index template alice-signals"
@@ -972,6 +1042,7 @@ ensure_rollover_index "application-logs-central" ""
 ensure_alert_actions_alias
 ensure_index "{{ cockpit_metrics_index }}" '{}'
 ensure_index "{{ trend_rollup_index }}" '{}'
+ensure_index "{{ template_catalog_index }}" '{}'
 ensure_index "{{ fleet_roster_index }}" '{}'
 ensure_index "{{ lane_state_index }}" '{}'
 ensure_index "{{ signals_index }}" '{}'

@@ -7,6 +7,23 @@
     gpgkey: "{{ collector_repo_gpgkey }}"
     enabled: true
 
+# Before the install, not after. A version that loses data at rotation must not
+# be reachable by forgetting to set a variable.
+- name: Refuse a Fluent Bit version known to lose data at rotation
+  ansible.builtin.assert:
+    that:
+      - collector_allow_blocked_version | bool
+        or not (fluent_bit_version is match('^(' ~ (collector_blocked_version_prefixes | map('regex_escape') | join('|')) ~ ')'))
+    fail_msg: >-
+      fluent_bit_version is {{ fluent_bit_version }}, which this repository
+      refuses to install. 5.x loses bytes appended to a file after logrotate
+      renames it away — see docs/SOAK_RESULTS.md round 10, where it is
+      reproduced against 3.2.8, 4.0.1 and 4.0.14, none of which lose them.
+      Pin a 4.x version, or set collector_allow_blocked_version to true if you
+      have re-tested rotation on this build.
+    quiet: true
+  when: collector_blocked_version_prefixes | length > 0
+
 - name: Install fluent-bit RPM (pinned to fluent_bit_version, matches images/node/Dockerfile)
   ansible.builtin.dnf:
     name: "{{ collector_service_name }}-{{ fluent_bit_version }}"
@@ -86,6 +103,8 @@
   loop:
     - "{{ log_root }}"
     - "{{ log_root }}/dds"
+    # The replay engine creates <host>/ under here itself, one directory per
+    # EPN, one file per process. That is what carries the program name.
     - "{{ log_root }}/stdout"
 
 - name: Create Fluent Bit storage/buffer path (native equivalent of the container's /var/log/flb-storage)
@@ -95,6 +114,32 @@
     owner: root
     group: root
     mode: "0755"
+
+# The systemd input is a compile-time option. A configuration naming an input
+# the binary does not have aborts the whole service, so this is checked before
+# the template is written rather than discovered by a dead collector.
+- name: Ask this Fluent Bit build whether it has the systemd input
+  ansible.builtin.command:
+    cmd: "{{ collector_binary_path }} --help"
+  register: collector_plugin_help
+  changed_when: false
+  failed_when: false
+
+# This can only turn the journal OFF. collector_journald_enabled says whether we
+# want the source; this says whether the binary in front of us can provide it.
+- name: Turn the journal off when the packaged build cannot read it
+  ansible.builtin.set_fact:
+    collector_journald_enabled: "{{ collector_journald_enabled | bool
+      and 'systemd' in (collector_plugin_help.stdout | default('')) }}"
+
+- name: Say so, rather than leaving a silently missing source
+  ansible.builtin.debug:
+    msg: >-
+      The journal is not collected on this host: fluent-bit
+      {{ fluent_bit_version }} was built without the systemd input. Kernel
+      faults and unit failures will be absent from OpenSearch until the build
+      is replaced.
+  when: not (collector_journald_enabled | bool)
 
 - name: Port parsers.yaml (verbatim from images/node/fluent-bit/parsers.yaml)
   ansible.builtin.template:

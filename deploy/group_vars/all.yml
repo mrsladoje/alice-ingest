@@ -131,6 +131,23 @@ common_open_tcp_ports: "{{ [dashboards_external_port] if inventory_hostname in g
 infologger_tcp_port: 5170
 log_root: /var/log/node
 
+# --- the two farm-captured families -----------------------------------------
+#
+# InfoLogger, DDS and the process tree come out of the S3 archive. The
+# InfoLogger daemon log and the journal do not: they are written on a live EPN
+# and nothing backs them up. A bundle captured with tools/epnsurvey/mkbundle.sh
+# is the only way a staging VM can carry either.
+#
+# Both roles read these. The producer ships the bundle and paces the daemon log
+# into the path the collector tails; the collector points its systemd input at
+# the shipped journal. A role default would be invisible to the other role and
+# the two would silently disagree about whether a bundle exists.
+#
+# Empty means no bundle, which is the ordinary case: the replay engine skips
+# both families and says so rather than failing.
+replay_bundle_src: "{{ lookup('env', 'REPLAY_BUNDLE_SRC') | default('', true) }}"
+replay_bundle_root: /var/lib/alice-ingest/bundle
+
 # The live lane. README section 9, Item 7.
 shifter_enabled: true
 shifter_host: "{{ hostvars[groups['shifter'][0]].ansible_host }}"
@@ -180,6 +197,13 @@ cockpit_metrics_interval_seconds: 30
 replay_clock: preserved
 
 trend_rollup_index: trend-rollup
+
+# One document per canonical template per family. This is how template identity
+# leaves a worker when the raw informational lines do not — the collector keeps
+# 96.9 % of the process tree node-local by severity, and a catalog built from
+# the durable tier alone would never see those templates. Written by
+# roles/template_catalog on each worker; read by the semantic retrieval work.
+template_catalog_index: template-catalog
 
 anomaly_grade_floor: 0.5
 

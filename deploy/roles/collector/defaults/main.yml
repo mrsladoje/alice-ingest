@@ -1,7 +1,24 @@
 collector_repo_baseurl: "https://packages.fluentbit.io/centos/$releasever/"
 collector_repo_gpgkey: "https://packages.fluentbit.io/fluentbit.key"
 
-fluent_bit_version: "5.0.8"
+# Pinned to a version this repository has actually tested end to end.
+#
+# It was 5.0.8. Round 10 in docs/SOAK_RESULTS.md isolated a data loss there:
+# 5.0.8 loses bytes appended to a file after logrotate renames it away, which
+# is what a long-running writer that keeps its own descriptor produces every
+# night. 3.2.8, 4.0.1 and 4.0.14 all keep them. The farm workers pin 4.x in the
+# inventory, but epn-infra13 does not — and that is the node that would collect
+# the one source which rotates daily, so the default is what would have been
+# used there.
+fluent_bit_version: "4.0.14"
+
+# Versions this deployment refuses to install, by prefix. Not advice in a
+# comment: a version that loses data at rotation should not be reachable by
+# forgetting to set a variable. Set collector_allow_blocked_version to override
+# deliberately.
+collector_blocked_version_prefixes:
+  - "5."
+collector_allow_blocked_version: false
 
 collector_service_name: fluent-bit
 collector_binary_path: /opt/fluent-bit/bin/fluent-bit
@@ -36,6 +53,92 @@ fluent_bit_http_listen: 127.0.0.1
 # Chosen by soak round 2: against the shipped 5, the collector's own processor
 # cost falls 24.5 % and its peak memory 28.0 %. See docs/SOAK_RESULTS.md.
 fluent_bit_flush_seconds: 1
+
+# NFS gives the tail no inotify, so this poll is the only thing that finds a
+# process log that appeared since the last sweep. It is not a tuning detail.
+collector_stdout_refresh_interval: 5
+
+# One explicit file. Never a wildcard over /var/log: /var/log/messages is
+# already in the journal and tailing it would double-count every line.
+infologger_daemon_log_path: /var/log/o2-infologger-daemon.log
+
+# The journal needs the systemd input compiled into the packaged build. The
+# role probes for it and overrides this fact, so the shipped default is what a
+# build without the plugin should do.
+# Slot, channel and launched-task extraction on the DDS message. Each runs
+# unanchored over `message` only, so the envelope is parsed once. Set to an
+# empty list to drop them; see docs/SOAK_RESULTS.md for what they cost.
+collector_dds_extractors:
+  - dds_slot
+  - dds_channel
+  - dds_task
+
+# Numeric extraction on the process-tree message. Each runs unanchored over
+# `message` only. The tree is the largest family by a long way, so this list is
+# priced in docs/SOAK_RESULTS.md before anything is added to it.
+collector_dpl_extractors:
+  - mft_decoder_error
+
+# Whether we WANT the journal, not whether this machine can give it. The role
+# probes the binary and can only turn this OFF, never on, so a default of false
+# meant the probe computed `false and <probe>` and the journal could never be
+# collected at all. The 5 September 2026 census confirmed all four deployed
+# Fluent Bit builds — 3.2.8, 4.0.1, 4.0.14 and 5.0.8 — carry the systemd input,
+# so wanting it is the right default and the probe is the safety net.
+collector_journald_enabled: true
+
+# Journal matches, OR-ed. EMPTY means every unit, which is what ships: Lubos
+# asked for all system logs, and the 5 September 2026 census priced it. A worker
+# writes 2,500 to 10,500 journal entries a day, against millions of lines from
+# the process tree, so collecting all of it is free and an allow-list only
+# creates blind spots.
+#
+# It would have created two. The list this replaced named slurmd, crond,
+# fluent-bit, opensearch and alice-replay. On epn323 that would have dropped
+# NetworkManager, which is 172,935 of its entries; on epn-infra13 it would have
+# dropped slurmctld, which is nearly all of that node's 13 million. Neither was
+# guessed wrong out of carelessness — neither was measurable before the census.
+#
+# Volume is bounded by the priority routing, not by this list: informational
+# entries stay on the node and only warnings and worse cross the network.
+collector_journald_filters: []
+
+# Empty means this machine's own journal, which is what a real EPN wants. On a
+# staging VM there is nothing interesting in the local journal and the EPN
+# journal is the point, so this is set to the shipped bundle when one exists.
+# `replay_bundle_src` is the producer role's variable; it is read rather than
+# duplicated so the two cannot disagree about whether a bundle is present.
+collector_journald_path: "{{ (replay_bundle_src | default('') | length > 0)
+  | ternary(replay_bundle_root ~ '/journal', '') }}"
+
+# --- the run orchestrator ---------------------------------------------------
+#
+# odc-grpc-server writes /var/log/odc/staging/odc_<date>.<n>.log on the storage
+# node. An off switch, not a probe: the tail reads one directory through a glob
+# and a glob that matches nothing costs a directory scan every ten seconds. The
+# daemon log input already works this way — it is absent on epn323 and that
+# input is unconditional — so this is the established shape rather than a new
+# one.
+#
+# The 6 September 2026 census read the real files. 560 of them are retained,
+# back to March 2025, 11.5 MB a day. Idle it is a three-second status poll; on
+# 20 January 2026 the same file carried run numbers 2304 and 2305, two `fat`
+# lines for a STOP transition that timed out, and 36 `err` lines naming the
+# collections that failed. That is the orchestration signal, and nothing else
+# on the farm carries it.
+collector_odc_enabled: true
+
+# A glob, because the file is dated and rolls at midnight. The tail follows the
+# new one on its next refresh; nothing here has to know the date.
+#
+# The real path, on the farm and under replay alike. The replay engine writes
+# the captured files into this same directory at a paced rate, keeping their own
+# names, exactly as the daemon log replay writes to
+# infologger_daemon_log_path. Pointing the tail at the shipped bundle instead
+# would read a file that is complete from the first second, which is not a
+# replay of anything.
+collector_odc_log_path: /var/log/odc/staging/*.log
+
 
 fluent_bit_log_buffer_limit: "256M"
 fluent_bit_log_retry_limit: 10

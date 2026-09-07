@@ -88,6 +88,12 @@ not co-located with that UI stack: `alice-signal-projector` runs on
   the Compose-based local dev stack: on real CERN VMs we want systemd-managed
   services with normal `systemctl`/journald operational ergonomics, not a
   second container runtime to operate on top of OpenStack.
+- **Five sources, one severity rule.** The collector reads InfoLogger, DDS,
+  the O2 process-log tree, the InfoLogger daemon's own log, and the journal.
+  The tree holds two line formats — DPL/FairMQ and DataDistribution — under one
+  tail input and one tag, because a program that appears tomorrow must be
+  collected the day it appears without a configuration change. Every source has
+  a written routing record in `docs/LOG_TYPES.md`.
 - **Tier by severity, not by source.** The collector already routes by
   severity (`rewrite_tag` → `family.local` / `family.central`), so dds and stdout
   stay merged. `info` is simultaneously the bulk and the trash → kept local and
@@ -99,6 +105,25 @@ not co-located with that UI stack: `alice-signal-projector` runs on
   the `family.local` output index name (`application-logs-local` →
   `application-logs-local-<node_id>`); the `family.central` and `infologger` outputs are
   byte-for-byte unchanged and now land on the storage tier via one network hop.
+
+  Two rules follow from that and both were learned the hard way. A severity
+  nothing recovered routes to durable storage, never local: silence is not the
+  safe direction. And every router carries a rule keyed on `log`, the key a
+  record still has precisely when no parser claimed it — without it a
+  `rewrite_tag` rule can match nothing at all and the record is dropped without
+  a word, which is what was happening to every DDS startup banner.
+- **The program name survives.** `deploy/roles/producer` deploys
+  `images/replay/replay.py`, which used to flatten every process log of a node
+  into one file and destroy the program name before Fluent Bit read a line. It
+  now writes one file per process under `stdout/<host>/`, keeping the name the
+  farm gives it, and the collector recovers `program` from that name. The same
+  tail pattern and the same parser serve a live EPN, whose job logs have the
+  same shape.
+- **The journal is folded by a filter, not by the input.** Fluent Bit 4.0.1 and
+  4.0.14 accept `multiline.parser` as a property of the `systemd` input; 5.0.8
+  rejects it and refuses to start. The `multiline` filter form works on all
+  three. The farm does not run one version, so a configuration is only correct
+  when every deployed version accepts it.
 - **Fluent Bit → its own LOCAL OpenSearch node only.** Each worker's collector
   writes to `http://localhost:9200`; there is no cross-VM write hop from the
   collector. The `application-logs-local-<node_id>` index is pinned to that same VM
@@ -111,8 +136,8 @@ not co-located with that UI stack: `alice-signal-projector` runs on
   node answers cluster-wide API calls). It lives on `alice-ingest-3`, the first
   storage node — deliberately a storage node so the UI/bootstrap host is one that
   never runs the ingest firehose. Nothing else about it is special.
-- **`epn_num % 2` slicing (was `% 3`).** `images/replay/replay.py` (preserved,
-  unmodified) partitions EPN hosts across `NODE_COUNT` collectors by
+- **`epn_num % 2` slicing (was `% 3`).** `images/replay/replay.py`
+  partitions EPN hosts across `NODE_COUNT` collectors by
   `epn_num % NODE_COUNT`. `NODE_COUNT` now derives from the **`workers`** group
   (→ 2), so each worker's `epn_partition` (0 or 1 — set once in `inventory.yml`,
   pinned to `node-01`/`node-02`) selects exactly its slice. Dropping from 3

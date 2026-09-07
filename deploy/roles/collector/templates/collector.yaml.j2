@@ -33,6 +33,40 @@ multiline_parsers:
       - state: cont
         regex: '/^\s/'
         next_state: cont
+{% if collector_odc_enabled | bool %}
+  # The orchestrator embeds the stderr of the topology-generation script in one
+  # record. 199 of 153,400 lines on a busy day are those continuations, and each
+  # one is a module-load line that means nothing on its own. Same shape of rule
+  # as DDS: a record starts at a date and anything else continues it.
+  - name: odc_multiline
+    type: regex
+    flush_timeout: 1000
+    rules:
+      - state: start_state
+        regex: '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+\s/'
+        next_state: cont
+      - state: cont
+        regex: '/^(?!\d{4}-\d{2}-\d{2})/'
+        next_state: cont
+{% endif %}
+{% if collector_journald_enabled | bool %}
+  # One kernel trace is a WARNING or Oops line followed by the register dump,
+  # the hardware name and the call trace — roughly twenty journal entries that
+  # are one event. Split, the entry naming the process and the entry naming the
+  # fault land in different records and the join is lost. The continuation is
+  # recognised by the shapes the kernel actually prints, because a journal entry
+  # carries no leading whitespace to key on.
+  - name: kernel_trace
+    type: regex
+    flush_timeout: 2000
+    rules:
+      - state: start_state
+        regex: '/^(?:WARNING|BUG|Oops|kernel BUG|general protection fault|Unable to handle)/'
+        next_state: cont
+      - state: cont
+        regex: '/^(?:CPU:|Hardware name:|Workqueue:|Call Trace:|RIP:|Code:|RSP:|RAX:|RBX:|RDX:|RBP:|R1[0-5]:|FS:|CS:|CR2:|Modules linked in:|Tainted:|---\[|\s|\?|<)/'
+        next_state: cont
+{% endif %}
 
 pipeline:
   inputs:
@@ -46,15 +80,92 @@ pipeline:
       storage.type: filesystem
       db: ${ALICE_FB_STORAGE_PATH}/dds.db
 
+    # One input for the whole process-log tree, not one per program. The tree is
+    # <host>/<program>_..._{out,err}.log, so path_key carries the program name
+    # and a program that appears tomorrow is collected the day it appears. The
+    # pattern ends in *.log because the run directory also holds shared
+    # libraries, topology.xml, DDS.cfg and a worker tarball.
+    #
+    # On a real node this reads only THIS node's directory. /scratch is one NFS
+    # export mounted on every worker and every worker sees every other worker's
+    # files, so a pattern one level wider would ingest each line once per node
+    # and would be cross-worker log shipping under another name.
+    #
+    # NFS has no inotify, so refresh_interval is load-bearing here rather than a
+    # tuning detail: it is the only thing that finds a new process log.
     - name: tail
-      path: ${ALICE_LOG_ROOT}/stdout.log,${ALICE_LOG_ROOT}/stdout/*.log
+      path: ${ALICE_LOG_ROOT}/stdout.log,${ALICE_LOG_ROOT}/stdout/*/*.log
       path_key: file
       tag: stdout
       multiline.parser: stdout_multiline
       read_from_head: true
-      refresh_interval: 5
+      refresh_interval: {{ collector_stdout_refresh_interval }}
       storage.type: filesystem
       db: ${ALICE_FB_STORAGE_PATH}/stdout.db
+
+    # One explicit file, never a wildcard over /var/log. /var/log/messages is
+    # 71 % slurmd and 28 % systemd, both already in the journal, so tailing it
+    # would double-count. This file is not in the journal and nothing else
+    # reports how close the InfoLogger daemon is to its connection ceiling.
+    - name: tail
+      path: {{ infologger_daemon_log_path }}
+      tag: ildaemon
+      read_from_head: true
+      refresh_interval: 30
+      storage.type: filesystem
+      db: ${ALICE_FB_STORAGE_PATH}/ildaemon.db
+{% if collector_journald_enabled | bool %}
+
+    # The journal is the one source that needs no replay: it is being written
+    # right now on every machine we own. Every unit by default, because a worker
+    # writes only 2,500 to 10,500 entries a day and an allow-list only creates
+    # blind spots — see collector_journald_filters. Volume is held down by the
+    # priority routing below, not by refusing to read.
+    #
+    # The kernel matters for its own sake: an IOMMU fault naming an O2 process
+    # is the correlation that adding system logs is for, and no OpenStack test
+    # machine can produce one. epn146 logged 986 kernel entries in 30 days.
+    - name: systemd
+      tag: journald
+      read_from_tail: false
+      strip_underscores: on
+{% if collector_journald_path %}
+      # Reading a named directory instead of this machine's own journal. Unset
+      # in production. Set it to a captured journal and the same input, the same
+      # filters and the same routing can be exercised off the farm, which is the
+      # only way this source gets tested before it is deployed.
+      path: {{ collector_journald_path }}
+{% endif %}
+      storage.type: filesystem
+      db: ${ALICE_FB_STORAGE_PATH}/journald.db
+{% for match in collector_journald_filters %}
+      systemd_filter: {{ match }}
+{% endfor %}
+      systemd_filter_type: or
+{% endif %}
+
+{% if collector_odc_enabled | bool %}
+
+    # The run orchestrator. It lives on the storage node, which is the only
+    # machine on the farm running an O2 process that writes a log continuously.
+    # On a worker this glob matches nothing and the tail does nothing, the same
+    # way the daemon-log input finds nothing on epn323.
+    #
+    # 11.5 MB a day. Idle it is a three-second status poll and its reply; during
+    # a run it is the component that starts and stops the DDS sessions, and its
+    # `err` and `fat` lines name the collection, the task, the exit code and the
+    # host. Those are 0.02 % of the file, so the severity routing below sends
+    # almost nothing across the network and keeps the part an operator needs.
+    - name: tail
+      path: {{ collector_odc_log_path }}
+      path_key: file
+      tag: odc
+      multiline.parser: odc_multiline
+      read_from_head: true
+      refresh_interval: 10
+      storage.type: filesystem
+      db: ${ALICE_FB_STORAGE_PATH}/odc.db
+{% endif %}
 
     - name: tcp
       listen: 0.0.0.0
@@ -98,16 +209,68 @@ pipeline:
         end
     # The family tags are gone from this match: a re-injected record already
     # carries collector_time, so the second pass only ever ran the guard.
+    #
+    # This also gives every record the document identifier the OpenSearch
+    # outputs write it under. Without one, OpenSearch generates an identifier
+    # per bulk operation, and a retry is a new operation: when a bulk request
+    # is delivered and applied but its SUCCESS RESPONSE is lost — a reset
+    # connection, a timeout on a loaded cluster — Fluent Bit retries the same
+    # chunk and every record in it is indexed a second time, under a second
+    # identifier. Nothing downstream can tell the two documents apart.
+    #
+    # The identifier is assigned HERE, in a filter, and not by the output.
+    # Filters run once, before the record reaches the buffer, so the retried
+    # chunk carries the identifier the first attempt already used and the second
+    # write is an overwrite of the same document rather than a new one. The same
+    # holds across a restart: a chunk recovered from the filesystem buffer was
+    # filtered before it was written there.
+    #
+    # It is a counter and not a hash of the record. Hashing the content would
+    # collapse two genuinely distinct lines that happen to be identical — which,
+    # in a log that repeats a message every second, is most of them.
+    #
+    # The three parts are the node, the process and the record. The node makes
+    # it unique across the workers sharing the durable index; the process makes
+    # it unique across restarts, and it is a kernel UUID rather than a clock
+    # because two starts inside one second are exactly what a crash loop does;
+    # the counter makes it unique within the process.
+    #
+    # The output writes with `create`, so the second attempt at an identifier
+    # the cluster already holds comes back 409 and is refused rather than
+    # overwritten. Either answer would deduplicate; measured under
+    # tools/collector/retrycheck.py, this is the one that happens, and it is
+    # the stricter of the two because it can never replace a document that is
+    # already correct.
     - name: lua
-      match_regex: ^(dds|stdout|infologger)$
+      match_regex: ^(dds|stdout|infologger|ildaemon|journald|odc)$
       call: stamp_collector_time
       time_as_table: true
       type_int_key: collector_time
       code: |
+        local node = os.getenv('ALICE_NODE_ID') or 'unknown'
+        local run = nil
+        local seq = 0
+        function boot_id()
+          local handle = io.open('/proc/sys/kernel/random/uuid')
+          if handle then
+            local uuid = handle:read('*l')
+            handle:close()
+            if uuid and #uuid > 0 then
+              return (string.gsub(uuid, '-', ''))
+            end
+          end
+          math.randomseed(os.time())
+          return string.format('%08x%08x', os.time(), math.random(0, 2147483647))
+        end
         function stamp_collector_time(tag, ts, record)
           if record['collector_time'] ~= nil then
             return 0, ts, record
           end
+          if run == nil then
+            run = boot_id()
+          end
+          seq = seq + 1
+          record['doc_id'] = node .. '-' .. run .. '-' .. seq
           if type(ts) == 'table' then
             record['collector_time'] = ts['sec'] * 1000 + math.floor(ts['nsec'] / 1000000)
           else
@@ -117,10 +280,20 @@ pipeline:
         end
     # Replaces both set_host Lua filters and keeps the filename as source_file.
     # Safe before the body parsers: this reads `file`, they read `log`.
+    #
+    # Two parsers, not one: dds is one firehose per node named after the node,
+    # while the process tree puts the host in the directory and the program in
+    # the file name. Each tag runs exactly one of them, so this costs the same
+    # as the single parser it replaces.
     - name: parser
-      match_regex: ^(dds|stdout)$
+      match: dds
       key_name: file
-      parser: source_path
+      parser: dds_path
+      reserve_data: on
+    - name: parser
+      match: stdout
+      key_name: file
+      parser: stdout_path
       reserve_data: on
     - name: lua
       match: infologger
@@ -156,7 +329,15 @@ pipeline:
       key_name: log
       parser: dds_text
       reserve_data: on
-    # remove_key file is a backstop: source_path consumes it when it matches.
+{% for extractor in collector_dds_extractors %}
+    - name: parser
+      match: dds
+      key_name: message
+      parser: {{ extractor }}
+      reserve_data: on
+      preserve_key: on
+{% endfor %}
+    # remove_key file is a backstop: dds_path consumes it when it matches.
     - name: record_modifier
       match: dds
       record:
@@ -164,21 +345,51 @@ pipeline:
         - node ${ALICE_NODE_ID}
       remove_key:
         - file
+    # Three rules, not two. A rewrite_tag rule can only fire on a key that
+    # exists, so when dds_text does not claim a line there is no `message` and
+    # the record used to match no rule at all and be dropped without a word.
+    # DDS prints its version banner and a bug-report address at startup and
+    # every one of those was going missing. The last rule reads `log`, which is
+    # the key a record still has precisely when nothing parsed it.
     - name: rewrite_tag
       match: dds
-      rule: $severity ^inf$  family.local false
-      rule: $severity ^.*$  family.central false
+      rule: $severity ^(?:inf|dbg)$  family.local false
+      rule: $message ^.*$  family.central false
+      rule: $log ^.*$  family.central false
       emitter_name: dds_router
+    # The cascade. Each parser consumes `log` when it matches, so the next one
+    # sees nothing and does no work; a line no parser claims keeps `log` and is
+    # counted by the unmatched check in tools/collector/replaycheck.py. The
+    # order is by measured share, except that datadist goes first because its
+    # bracket holds a full date and must not be offered to a clock-only regex.
     - name: parser
       match: stdout
       key_name: log
-      parser: stdout_o2
+      parser: datadist
+      reserve_data: on
+    - name: parser
+      match: stdout
+      key_name: log
+      parser: dpl
+      reserve_data: on
+    - name: parser
+      match: stdout
+      key_name: log
+      parser: dpl_noclock
       reserve_data: on
     - name: parser
       match: stdout
       key_name: log
       parser: stdout_root
       reserve_data: on
+{% for extractor in collector_dpl_extractors %}
+    - name: parser
+      match: stdout
+      key_name: message
+      parser: {{ extractor }}
+      reserve_data: on
+      preserve_key: on
+{% endfor %}
     - name: record_modifier
       match: stdout
       record:
@@ -186,11 +397,170 @@ pipeline:
         - node ${ALICE_NODE_ID}
       remove_key:
         - file
+
+    # --- the severity split ------------------------------------------------
+    #
+    # Routing keys on severity, not on source, so a program that appears
+    # tomorrow needs no configuration change and bulk informational output never
+    # crosses the network. One alternation carries every spelling the tree
+    # produces: DPL words, DataDistribution single letters, ROOT's `Info`.
+    #
+    # STATE is deliberately NOT local. FairMQ transitions are 0.8 % of the tree
+    # and they are the join between DDS launching a task and the task actually
+    # reaching RUNNING, which is what an operator asks for first when a run will
+    # not start.
+    #
+    # The second rule matches everything, so a line whose severity no parser
+    # recovered goes to durable storage. Silence is never the safe direction.
     - name: rewrite_tag
       match: stdout
-      rule: $severity ^(Info|INFO)$  family.local false
+      rule: $severity ^(?:INFO|DEBUG|TRACE|Info|I|D|T)$  family.local false
       rule: $message ^.*$  family.central false
+      rule: $log ^.*$  family.central false
       emitter_name: stdout_router
+
+    # --- the InfoLogger daemon's own log -----------------------------------
+    # No path_key on this input and so no path parser: the path is a constant
+    # in the configuration, and `program` below already says which file it is.
+    - name: parser
+      match: ildaemon
+      key_name: log
+      parser: ildaemon
+      reserve_data: on
+    - name: parser
+      match: ildaemon
+      key_name: message
+      parser: ildaemon_clients
+      reserve_data: on
+      preserve_key: on
+    - name: record_modifier
+      match: ildaemon
+      record:
+        - log_source ildaemon
+        - program o2-infologger-daemon
+        - node ${ALICE_NODE_ID}
+{% if collector_odc_enabled | bool %}
+
+    # --- the run orchestrator -----------------------------------------------
+    #
+    # One parser, no cascade: the file has exactly one shape and one program.
+    # 2,612,951 sampled lines carry `odc-grpc-server` and nothing else, so the
+    # program name is captured from the line rather than asserted here, which
+    # keeps it honest if a second component ever writes to the same file.
+    - name: parser
+      match: odc
+      key_name: log
+      parser: odc
+      reserve_data: on
+    - name: record_modifier
+      match: odc
+      record:
+        - log_source odc
+        - node ${ALICE_NODE_ID}
+      remove_key:
+        - file
+
+    # The same three-letter severities DDS uses, and the same split. Measured
+    # over 2,612,951 lines: 1,650,555 inf and 961,933 dbg stay on the node,
+    # against 312 wrn, 153 err and 8 fat that go to durable storage. The third
+    # rule catches a line the parser did not claim, so a continuation block that
+    # arrived on its own still reaches storage rather than disappearing.
+    - name: rewrite_tag
+      match: odc
+      rule: $severity ^(?:inf|dbg)$  family.local false
+      rule: $message ^.*$  family.central false
+      rule: $log ^.*$  family.central false
+      emitter_name: odc_router
+{% endif %}
+{% if collector_journald_enabled | bool %}
+
+    # --- the journal --------------------------------------------------------
+    #
+    # Order matters here and it was wrong once. The trace is folded FIRST, so
+    # `Comm:` is extracted from a whole reconstructed fault rather than from
+    # whichever single entry happened to carry it; then the journal's own field
+    # names are renamed; then the record is trimmed.
+    #
+    # The fold is a filter and not a property of the input. 4.0.1 and 4.0.14
+    # accept multiline.parser on the systemd input and 5.0.8 rejects it and
+    # refuses to start, so a configuration that puts it there works on two of
+    # the three deployed versions.
+    - name: multiline
+      match: journald
+      multiline.parser: kernel_trace
+      multiline.key_content: MESSAGE
+      buffer: on
+      flush_ms: 2000
+
+    # `Comm:` is the process the kernel blames, and it is the only join from a
+    # fault back to the O2 logs. epn146's journal carries ten of them and they
+    # name TfBuilder. preserve_key keeps the trace text; without it the parser
+    # would trade the whole record for one field.
+    - name: parser
+      match: journald
+      key_name: MESSAGE
+      parser: kernel_comm
+      reserve_data: on
+      preserve_key: on
+
+    # The journal names its own fields. Renaming two of them here is what lets
+    # every downstream reader — the routing rule below, the cockpit, the live
+    # view — treat a journal record like any other record.
+    - name: modify
+      match: journald
+      rename: MESSAGE message
+      copy: PRIORITY severity
+
+    # A journal entry arrives with about twenty-five fields and the corpus holds
+    # 234 distinct ones. The index mapping is not dynamic, so every field nobody
+    # named is stored in _source and never searchable — paid for on the durable
+    # tier and useless in Discover. This keeps the ones an operator or a
+    # detector reads and drops the rest, including the capability bitmask, the
+    # cgroup path, the boot and machine identifiers, and the audit session.
+    #
+    # `doc_id` is on this list because an allowlist is a DENY list for
+    # everything unnamed, and the document identifier is not a field an operator
+    # reads -- so it is exactly the kind of thing that gets left off. Without it
+    # here the journal is the one source whose records reach OpenSearch with no
+    # identifier, and a retried chunk writes every one of them twice. That is
+    # the failure this list caused once already.
+    - name: record_modifier
+      match: journald
+      allowlist_key:
+        - message
+        - severity
+        - comm
+        - collector_time
+        - doc_id
+        - PRIORITY
+        - SYSTEMD_UNIT
+        - SYSLOG_IDENTIFIER
+        - COMM
+        - PID
+        - HOSTNAME
+        - TRANSPORT
+        - CODE_FILE
+        - CODE_LINE
+        - MESSAGE_ID
+
+    - name: record_modifier
+      match: journald
+      record:
+        - log_source journald
+        - node ${ALICE_NODE_ID}
+
+    # PRIORITY is the journal's own severity, 0 (emerg) to 7 (debug). Kernel
+    # warnings and failures are 4 and below and go to durable storage. A worker
+    # writes 2,500 to 10,500 entries a day and roughly 2 % of them are 4 or
+    # below, so the durable share is small and the informational bulk stays on
+    # the node. Measured on epn146's own journal: 74,038 local, 1,230 durable.
+    - name: rewrite_tag
+      match: journald
+      rule: $severity ^[0-4]$  family.central false
+      rule: $severity ^.*$  family.local false
+      rule: $message ^.*$  family.central false
+      emitter_name: journald_router
+{% endif %}
 
   # normalize_fields moved into the alice-add-ingest-time ingest pipeline, so
   # there is no per-record Lua left here. Anything bypassing OpenSearch — the
@@ -204,6 +574,7 @@ pipeline:
       index: infologger
       suppress_type_name: true
       trace_error: true
+      id_key: doc_id
       buffer_size: 'False'
       storage.total_limit_size: {{ fluent_bit_log_buffer_limit }}
       retry_limit: {{ fluent_bit_log_retry_limit }}
@@ -215,6 +586,7 @@ pipeline:
       index: application-logs-local-${ALICE_NODE_ID}
       suppress_type_name: true
       trace_error: true
+      id_key: doc_id
       buffer_size: 'False'
       storage.total_limit_size: {{ fluent_bit_log_buffer_limit }}
       retry_limit: {{ fluent_bit_log_retry_limit }}
@@ -226,6 +598,22 @@ pipeline:
       index: application-logs-central
       suppress_type_name: true
       trace_error: true
+      id_key: doc_id
+      buffer_size: 'False'
+      storage.total_limit_size: {{ fluent_bit_log_buffer_limit }}
+      retry_limit: {{ fluent_bit_log_retry_limit }}
+
+    # The daemon's own log is durable whatever its severity. It is a handful of
+    # lines a day, and the one number on it — connected clients against the
+    # ceiling — is only useful as a series that survives the node.
+    - name: opensearch
+      match: ildaemon
+      host: localhost
+      port: ${ALICE_OS_HTTP_PORT}
+      index: application-logs-central
+      suppress_type_name: true
+      trace_error: true
+      id_key: doc_id
       buffer_size: 'False'
       storage.total_limit_size: {{ fluent_bit_log_buffer_limit }}
       retry_limit: {{ fluent_bit_log_retry_limit }}
@@ -246,7 +634,7 @@ pipeline:
     # is needed yet. Never the info tier. Best-effort by construction — a small
     # buffer and one retry, so a dead viewer never pushes back on OpenSearch.
     - name: http
-      match_regex: ^(infologger|family\.central)$
+      match_regex: ^(infologger|ildaemon|family\.central)$
       host: {{ shifter_host }}
       port: {{ shifter_port }}
       uri: {{ shifter_ingest_path }}

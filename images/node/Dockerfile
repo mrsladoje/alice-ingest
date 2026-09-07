@@ -7,12 +7,16 @@ ENV PYTHONUNBUFFERED=1
 RUN pip install --no-cache-dir supervisor
 
 # 2. Fluent Bit
+# Pinned to 4.0.14, and it must stay on 4.x. 5.0.8 loses bytes appended to a
+# file after logrotate renames it away — docs/SOAK_RESULTS.md round 10. The
+# collector role refuses to install 5.x for the same reason; this file is the
+# other place the version is chosen and the two must not drift.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl gnupg ca-certificates \
  && curl -fsSL https://packages.fluentbit.io/fluentbit.key | gpg --dearmor -o /usr/share/keyrings/fluentbit.gpg \
  && echo "deb [signed-by=/usr/share/keyrings/fluentbit.gpg] https://packages.fluentbit.io/debian/bookworm bookworm main" > /etc/apt/sources.list.d/fluentbit.list \
  && apt-get update \
- && apt-get install -y --no-install-recommends fluent-bit=5.0.8 \
+ && apt-get install -y --no-install-recommends fluent-bit=4.0.14 \
  && rm -rf /var/lib/apt/lists/*
 
 # 3. producers and configs

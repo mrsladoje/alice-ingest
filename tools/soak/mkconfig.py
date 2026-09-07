@@ -14,10 +14,10 @@ TEMPLATE = os.path.join(
 PARSERS = os.path.join(
     REPO, "deploy", "roles", "collector", "templates", "parsers.yaml.j2")
 
-LOG_MATCHES = {"infologger", "family.local", "family.central"}
+LOG_MATCHES = {"infologger", "ildaemon", "family.local", "family.central"}
 
 # Which tag each input carries, so a filter can be matched back to its input.
-INPUT_TAGS = {"dds", "stdout", "infologger"}
+INPUT_TAGS = {"dds", "stdout", "infologger", "ildaemon", "journald", "odc"}
 
 
 def ternary(value, when_true, when_false):
@@ -31,7 +31,12 @@ def to_bool(value):
 
 
 def render(live_lane, flush, buffer_limit, retry_limit,
-           lane_host="sink", lane_port=9200, lane_path="/ingest"):
+           lane_host="sink", lane_port=9200, lane_path="/ingest",
+           journald=False, ildaemon_path="/var/log/o2-infologger-daemon.log",
+           journald_path="",
+           dds_extractors=("dds_slot", "dds_channel", "dds_task"),
+           dpl_extractors=("mft_decoder_error",),
+           odc=False, odc_path="/var/log/odc/staging/*.log"):
     with open(TEMPLATE, "r") as handle:
         source = handle.read()
     env = Environment(undefined=StrictUndefined, keep_trailing_newline=True)
@@ -47,10 +52,19 @@ def render(live_lane, flush, buffer_limit, retry_limit,
         fluent_bit_log_buffer_limit=buffer_limit,
         fluent_bit_log_retry_limit=retry_limit,
         health_metrics_emit_legacy_node=False,
-        live_lane_enabled=live_lane,
-        live_lane_host=lane_host,
-        live_lane_port=lane_port,
-        live_lane_ingest_path=lane_path,
+        collector_stdout_refresh_interval=5,
+        infologger_daemon_log_path=ildaemon_path,
+        collector_dds_extractors=dds_extractors,
+        collector_dpl_extractors=dpl_extractors,
+        collector_journald_enabled=journald,
+        collector_journald_filters=[],
+        collector_journald_path=journald_path,
+        collector_odc_enabled=odc,
+        collector_odc_log_path=odc_path,
+        shifter_enabled=live_lane,
+        shifter_host=lane_host,
+        shifter_port=lane_port,
+        shifter_ingest_path=lane_path,
     )
 
 
@@ -177,7 +191,7 @@ def lane_on_its_own_tag(config, lane_match):
     return router
 
 
-TAILED = {"dds", "stdout", "family.local", "family.central"}
+TAILED = {"dds", "stdout", "ildaemon", "journald", "odc", "family.local", "family.central"}
 
 
 def keep_families(config, families):
@@ -267,7 +281,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", required=True)
     parser.add_argument("--sink", default="null",
-                        choices=["null", "http", "opensearch"])
+                        choices=["null", "http", "opensearch", "file"])
+    parser.add_argument("--sink-dir", default="/out",
+                        help="where the file sink writes. One file per output "
+                             "match, so which file a record lands in IS the "
+                             "routing assertion.")
     parser.add_argument("--sink-host", default="sink")
     parser.add_argument("--sink-port", type=int, default=9200)
     parser.add_argument("--sink-uri", default="/_bulk")
@@ -302,6 +320,30 @@ def main():
                              "the plugin default, which truncates a large "
                              "bulk response and makes the output retry a "
                              "write OpenSearch already applied.")
+    # On, because production is on: the collector role wants the journal and
+    # only turns it off when the packaged binary lacks the input. A rig default
+    # of off would mean the rig validated a configuration production never runs.
+    # With no journal present the input simply yields nothing.
+    parser.add_argument("--journald", default="on", choices=["on", "off"],
+                        help="include the systemd input. Needs a build with "
+                             "the plugin compiled in and a readable journal.")
+    parser.add_argument("--odc", default="off", choices=["on", "off"],
+                        help="collect the run orchestrator's log; on the farm "
+                             "the role probes for the file instead")
+    parser.add_argument("--odc-path", default="/var/log/odc/staging/*.log",
+                        help="where the orchestrator's log is, or a fixture "
+                             "directory when it is being exercised off the farm")
+    parser.add_argument("--journald-path", default="",
+                        help="read a captured journal directory instead of "
+                             "this machine's own journal")
+    parser.add_argument("--dds-extractors",
+                        default="dds_slot,dds_channel,dds_task",
+                        help="comma separated; empty string removes them")
+    parser.add_argument("--dpl-extractors",
+                        default="mft_decoder_error",
+                        help="comma separated; empty string removes them")
+    parser.add_argument("--ildaemon-path",
+                        default="/var/log/o2-infologger-daemon.log")
     parser.add_argument("--parsers-out", default="")
     parser.add_argument("--arm", default="t0",
                         choices=["t0", "t1", "t2"],
@@ -325,7 +367,12 @@ def main():
 
     text = render(args.live_lane == "on", args.flush,
                   args.total_limit_size, args.retry_limit,
-                  args.live_lane_host, args.live_lane_port, args.live_lane_path)
+                  args.live_lane_host, args.live_lane_port, args.live_lane_path,
+                  args.journald == "on", args.ildaemon_path,
+                  args.journald_path,
+                  [e for e in args.dds_extractors.split(",") if e],
+                  [e for e in args.dpl_extractors.split(",") if e],
+                  args.odc == "on", args.odc_path)
     config = yaml.load(text, Loader=DupKeyLoader)
 
     service = config["service"]
@@ -372,7 +419,7 @@ def main():
         if item.get("match") == "health":
             if args.health == "off":
                 continue
-            if args.sink != "opensearch":
+            if args.sink not in ("opensearch", "file"):
                 item["host"] = args.sink_host
                 item["port"] = args.sink_port
             outputs.append(item)
@@ -398,6 +445,15 @@ def main():
                 "header": "Content-Type application/json",
                 "net.keepalive": "on",
             })
+        elif args.sink == "file":
+            new.update({
+                "path": args.sink_dir,
+                "file": re.sub(r"[^A-Za-z0-9]+", "_", match or "unmatched") + ".jsonl",
+                # The file plugin has no json_lines; its default writes
+                # "<tag>: [<time>, {<record>}]", which keeps the tag and the
+                # event time the routing and timestamp assertions need.
+                "format": "out_file",
+            })
         elif args.sink == "opensearch":
             new.update({
                 "host": args.sink_host,
@@ -406,6 +462,12 @@ def main():
                 "suppress_type_name": True,
                 "trace_error": True,
             })
+            # Carried over from the production output rather than restated.
+            # It is what makes a retried bulk chunk an overwrite instead of a
+            # second document, so a rig that drops it is not measuring the
+            # shipped configuration.
+            if item.get("id_key"):
+                new["id_key"] = item["id_key"]
             if args.os_buffer_size:
                 new["buffer_size"] = args.os_buffer_size
         if args.sink != "null":
@@ -439,6 +501,13 @@ def main():
     if args.parsers_out:
         with open(PARSERS, "r") as handle:
             parsers = handle.read()
+        # The parser library is copied, not rendered. If a variable ever appears
+        # in it, the rig would ship a configuration containing "{{ ... }}" and
+        # Fluent Bit would take it as a literal regex.
+        if "{{" in parsers or "{%" in parsers:
+            raise SystemExit(
+                "%s now contains Jinja; render it here instead of copying it"
+                % PARSERS)
         with open(args.parsers_out, "w") as handle:
             handle.write(parsers)
 

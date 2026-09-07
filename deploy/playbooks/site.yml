@@ -283,6 +283,15 @@
   roles:
     - collector
 
+# Runs after the collector, because the index it reads is the one the collector
+# fills, and before the producers, because a worker with no replay running still
+# has a local index worth mining.
+- name: Template catalog (worker VMs only)
+  hosts: workers
+  become: true
+  roles:
+    - template_catalog
+
 - name: Post-collector detection gate (control host only)
   hosts: control
   become: true

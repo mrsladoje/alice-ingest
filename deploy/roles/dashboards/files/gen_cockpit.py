@@ -55,7 +55,12 @@ LIVE_LANE_STYLE = [
 
 INDEX_REF_NAME = "kibanaSavedObjectMeta.searchSourceJSON.index"
 
-DEFAULT_COLUMNS = ["log_source", "severity_norm", "origin_host", "message"]
+# `program` names the process that wrote the line, on every source that has one:
+# the file name for the process tree, the third column for DDS, `facility` for
+# InfoLogger, `COMM` for a kernel record. Without it a shifter reads "an error on
+# epn146" and cannot tell a GPU reconstruction fault from a tracker one.
+DEFAULT_COLUMNS = ["log_source", "severity_norm", "origin_host", "program",
+                   "message"]
 
 
 def dql(q):
@@ -1448,6 +1453,28 @@ def build():
             "alice-search-stdout", "stdout crashes",
             "Error/Fatal lines from the O2 process stdout family.",
             "log_source:stdout and severity_norm:(error or fatal)"),
+        saved_search(
+            "alice-search-states", "Device state transitions",
+            "FairMQ transitions across the whole farm, newest first. This is "
+            "what to open first when a run will not start: it shows which "
+            "device reached RUNNING and which one stopped short.",
+            "severity_norm:state",
+            columns=["origin_host", "program", "message"]),
+        saved_search(
+            "alice-search-kernel", "Kernel faults, and who caused them",
+            "Kernel warnings and traces from the journal. `comm` is the "
+            "process the kernel blamed, which is the join back to the O2 "
+            "logs — an IOMMU fault naming TfBuilder is why system logs are "
+            "collected at all.",
+            "log_source:journald and severity_norm:(warning or error or fatal)",
+            columns=["origin_host", "comm", "SYSTEMD_UNIT", "message"]),
+        saved_search(
+            "alice-search-ildaemon", "InfoLogger daemon saturation",
+            "Connected clients against the ceiling in infoLoggerD.cfg. "
+            "Nothing else on a node reports how close the farm is to running "
+            "out of log sockets; epn146 has been seen at 1025 of 2048.",
+            "log_source:ildaemon",
+            columns=["origin_host", "clients", "client_limit", "message"]),
         saved_search(
             "alice-search-active-alerts", "Active alerts — what fired",
             "Every alert currently open, newest first: which rule fired, "

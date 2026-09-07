@@ -22,10 +22,15 @@ import random
 
 from common import NODE_ID, pick_host, sleep_for_rate
 
-# One file PER EPN (stdout/<host>.log), mirroring the real per-process layout and
-# the replay stack. The collector's `set_host` Lua reads the host from this path,
-# so per-host files are what give mock stdout records a `host` at all.
+# One directory per EPN and one file per process (stdout/<host>/<program>_...log),
+# which is the layout the farm writes and the layout the replay stack now
+# reproduces. The collector reads the host from the directory and the program
+# from the file name, so this path IS what gives a mock record its identity.
 STDOUT_DIR = os.environ.get("STDOUT_LOG_DIR", "/var/log/node/stdout")
+# Real program names from the farm, so the mock exercises the same file-name
+# shape the collector recovers `program` from.
+PROGRAMS = ["mft-tracker", "gpu-reconstruction", "its-stf-decoder", "ctf-writer"]
+
 BASE_RATE = float(os.environ.get("STDOUT_RATE", "15"))         # msgs/sec/node
 BURST_MULTIPLIER = float(os.environ.get("STDOUT_BURST_MULTIPLIER", "1"))
 
@@ -102,7 +107,7 @@ def write_loading_block(f) -> None:
 
 
 def main() -> None:
-    print(f"[stdout] starting on {NODE_ID} -> {STDOUT_DIR}/epn*.log @ {BASE_RATE}/s",
+    print(f"[stdout] starting on {NODE_ID} -> {STDOUT_DIR}/epn*/*.log @ {BASE_RATE}/s",
           flush=True)
     os.makedirs(STDOUT_DIR, exist_ok=True)
 
@@ -113,7 +118,11 @@ def main() -> None:
     def handle(host: str):
         f = handles.get(host)
         if f is None:
-            f = open(os.path.join(STDOUT_DIR, f"{host}.log"), "a", buffering=1)
+            host_dir = os.path.join(STDOUT_DIR, host)
+            os.makedirs(host_dir, exist_ok=True)
+            program = PROGRAMS[sum(ord(c) for c in host) % len(PROGRAMS)]
+            name = f"{program}_t0_reco1_2026-06-20-12-15-21_1000_out.log"
+            f = open(os.path.join(host_dir, name), "a", buffering=1)
             write_loading_block(f)
             handles[host] = f
         return f

@@ -2,35 +2,198 @@ parsers:
   - name: fb_health_json
     format: json
 
-  # O2 writes [HH:MM:SS][SEVERITY] and stdout_root never knew that form, so
-  # every O2 line fell through to the catch-all with no severity key and the
-  # severity router sent all of stdout to the central tier. The clock is kept as
-  # a string: it carries no date, and a time_key would stamp replayed lines with
-  # today's.
-  - name: stdout_o2
+  # --- the O2 process-log tree ------------------------------------------
+  #
+  # Three line forms share one tail input, so they are tried in order and the
+  # first match consumes `log`. Order is by measured share of the tree: dpl
+  # 95.5 %, datadist 0.7 %, ROOT 0.02 % (3,004,364 sampled lines, 186 programs).
+  #
+  # Every form accepts an optional leading full event time. The replay engine
+  # writes it in front of a record-start line because O2 prints a clock with no
+  # date; a live EPN tail has no such prefix and those records take ingest time,
+  # keeping O2's own clock in `log_time`.
+  #
+  # DataDistribution is the exception: its own bracket already holds a full date
+  # with milliseconds, so that is the event time in both cases and the replay
+  # prefix in front of it is skipped rather than captured.
+  #
+  # ANSI: ErrorMonitorTask writes to its file as though it were a terminal, so
+  # the colour escapes are stored verbatim. A regex anchored on `^\[(\d` fails
+  # on the escape byte, and it fails SILENTLY — the line is not dropped, it just
+  # arrives with no time and no severity. The tolerance is in the regex because
+  # Fluent Bit has no strip-ANSI filter.
+
+  - name: datadist
     format: regex
-    regex: '(?m)^\[(?<log_time>\d{1,2}:\d{2}:\d{2}(?:\.\d+)?)\]\[(?<severity>[A-Z]+)\]\s?(?<message>.*)$'
+    regex: '(?m)^(?:\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+ )?\[(?<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)\]\[(?<severity>[A-Z])\]\s?(?<message>.*)$'
+    time_key: time
+    time_format: '%Y-%m-%d %H:%M:%S.%L'
+
+  - name: dpl
+    format: regex
+    regex: '(?m)^(?:(?<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+) )?\[(?:\x1b\[[0-9;]*m)?(?<log_time>\d{1,2}:\d{2}:\d{2}(?:\.\d+)?)(?:\x1b\[[0-9;]*m)?\]\[(?:\x1b\[[0-9;]*m)?(?<severity>[A-Z]+)(?:\x1b\[[0-9;]*m)?\]\s?(?<message>.*)$'
+    time_key: time
+    time_format: '%Y-%m-%d %H:%M:%S.%L'
+
+  # A DPL device logs its severity with no clock at all before FairMQ starts.
+  # 3,021 of 3,004,364 sampled lines, and they carry the core limit and the
+  # crash-handler state, so they are worth a severity rather than a fall-through.
+  - name: dpl_noclock
+    format: regex
+    regex: '(?m)^(?:(?<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+) )?\[(?<severity>INFO|WARN|ERROR|FATAL|STATE|ALARM|DEBUG)\]\s?(?<message>.*)$'
+    time_key: time
+    time_format: '%Y-%m-%d %H:%M:%S.%L'
 
   - name: stdout_root
     format: regex
-    regex: '(?m)^(?:(?<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+) )?(?:(?<severity>Info|Warning|Error|Fatal|Sys) in <(?<facility>[^>]*)>: )?(?<message>.*)$'
+    regex: '(?m)^(?:(?<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+) )?(?:(?<severity>Info|Warning|Error|Fatal|Sys|Break) in <(?<facility>[^>]*)>: )?(?<message>.*)$'
     time_key: time
     time_format: '%Y-%m-%d %H:%M:%S.%L'
 
+  # The third column is the agent or workflow that wrote the line, so it is the
+  # program identity for this source and it is named the same as everywhere else.
   - name: dds_text
     format: regex
-    regex: '(?m)^(?<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)\s+(?<severity>\S+)\s+(?<source>\S+)\s+(?<tid><[^>]*>)\s+(?<message>.*)$'
+    regex: '(?m)^(?<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)\s+(?<severity>\S+)\s+(?<program>\S+)\s+(?<tid><[^>]*>)\s+(?<message>.*)$'
     time_key: time
     time_format: '%Y-%m-%d %H:%M:%S.%L'
 
-  # source_file is the basename, always; host is the EPN when the file is named
-  # after one, and the optional group adds no key when it does not participate.
-  - name: source_path
+  # DDS is the ground truth for what was supposed to be running: which slots
+  # were assigned, which channels were wired, which binaries were launched.
+  # Three shapes carry those, and they run over `message` rather than the whole
+  # line, so the envelope is parsed once instead of four times.
+  - name: dds_slot
+    format: regex
+    regex: 'ADD SLOT request,\s+id\s+=\s+(?<slot_id>\d+)'
+    types: slot_id:integer
+  - name: dds_channel
+    format: regex
+    regex: 'Added shared memory channel output with ID:\s+(?<channel_id>\d+)\s+name:\s+(?<channel>\S+)'
+    types: channel_id:integer
+  # The binary, not the whole command line.
+  #
+  # The reason is duplication in the document, not processor cost. An executed
+  # task line averages 3,487 bytes of O2 arguments and this parser runs with
+  # preserve_key, so the record already holds every one of them in `message`.
+  # Capturing them again into `task` writes the same 3.4 kB twice into every
+  # such record and into the index, where `task` is a text field with a 1,024
+  # byte keyword subfield that would silently stop indexing past that length.
+  # The field that answers "which binary was launched" is the first token.
+  #
+  # Round 8 justified this with a measured 20.8 % of the DDS family, on wall
+  # clock. Re-measured in round 9 against the container's real processor time,
+  # over 399,889 records and ten interleaved rounds, the whole-line form costs
+  # +6.5 % against a control arm at +2.5 % — which is to say it is not
+  # distinguishable from the shipped form on this host. The narrow capture is
+  # kept on the duplication argument above, which does not depend on a
+  # measurement this host cannot make.
+  - name: dds_task
+    format: regex
+    regex: 'Executing user task:\s+(?<task>\S+)'
+
+  # One shape in the process tree carries numbers nothing else reports, and the
+  # 27 August survey found no parser anywhere covering it. It runs unanchored
+  # over `message` only, with a literal in front, and is applied with
+  # preserve_key so the text survives alongside the fields.
+  #
+  # The decoder error stream is a per-component fault signal: which front-end
+  # identifier, which chip, and what went wrong. 1,479 lines in one sampled
+  # program.
+  # The full phrase, not a shorter leading literal. A shorter one was tried, on
+  # the belief that starting the search at `error` — the commonest letter in
+  # English first — was costing 17 % of this family. Measured properly, with the
+  # arms interleaved instead of run in blocks, both forms cost the same as no
+  # extractor at all. See docs/SOAK_RESULTS.md; the 17 % was the host drifting,
+  # not the pattern. The specific phrase is kept because it is the readable one.
+  - name: mft_decoder_error
+    format: regex
+    regex: 'error registered at bc/orbit (?<bc>\d+)/(?<orbit>\d+) on the FEEID:(?<feeid>0x[0-9a-fA-F]+) chip#(?<chip>-?\d+): (?<decoder_error>.*)'
+    types: bc:integer orbit:integer chip:integer
+
+  # There was an mft_link parser here for the link-registration line the
+  # 27 August survey found. It matched ZERO of 21,200,248 process-tree lines in
+  # the 2026 archive, and so did the per-detector CTF size report. Both shapes
+  # are from the October 2022 data on /scratch; the newer O2 build does not
+  # print them. A parser that cannot be tested against current data is the same
+  # mistake as porting twelve ITS regexes with no ITS data, so neither was kept.
+
+  # --- who wrote the line ------------------------------------------------
+  #
+  # dds keeps its old shape: one firehose per node, named after the node.
+  - name: dds_path
     format: regex
     regex: '^(?:.*/)?(?<source_file>(?<host>epn\d+)?[^/]*)$'
+
+  # The process-log tree is <host>/<program>[_t<slot>][_reco<N>]_<start>_<pid>_{out,err}.log,
+  # the name the farm itself gives the file. The program group is optional, so a
+  # file named some other way still yields a host and a source_file and lands in
+  # the catch-all count rather than being dropped.
+  - name: stdout_path
+    format: regex
+    regex: '^.*/(?<host>epn\d+)(?:\.internal)?/(?<source_file>(?:(?<program>[A-Za-z0-9][A-Za-z0-9._+-]*?)(?:_t\d+)?(?:_reco\d+)?_\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}_)?[^/]*)$'
 
   - name: il_event_time
     format: regex
     regex: '^(?<epoch>.+)$'
     time_key: epoch
     time_format: '%s.%L'
+
+  # --- /var/log/o2-infologger-daemon.log ---------------------------------
+  #
+  # YYYY-MM-DD HH:MM:SS.ffffff, then whitespace, then the message. The 5
+  # September 2026 census read the real file on epn146: the separator is spaces,
+  # not the tab `docs/LOG_TYPES.md` recorded, so a parser requiring \t matched
+  # none of its 162,642 lines.
+  - name: ildaemon
+    format: regex
+    regex: '^(?<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)\s+(?<message>.*)$'
+    time_key: time
+    time_format: '%Y-%m-%d %H:%M:%S.%L'
+
+  # The connection count against the ceiling in infoLoggerD.cfg, which is the
+  # only saturation signal on the node. The file has exactly two shapes:
+  #   New client: 557/2048
+  #   4 clients disconnected, now having 962/2048
+  # Both end in the count, so the count is where this anchors. An earlier form
+  # anchored on the word "client" and missed the second shape entirely — 58,175
+  # of 162,642 lines, 36 % of the file, silently without a count.
+  - name: ildaemon_clients
+    format: regex
+    regex: '(?<clients>\d+)/(?<client_limit>\d+)\s*$'
+    types: clients:integer client_limit:integer
+
+  # --- the run orchestrator ----------------------------------------------
+  #
+  # odc-grpc-server on the storage node: date, three-letter severity, program,
+  # PROCESS identifier, then an optional partition and run number, then the
+  # message. DDS puts a thread identifier in that fourth column; this puts a
+  # process identifier, so the two cannot share a parser.
+  #
+  # `partition` and `run` are the reason this source is worth collecting. They
+  # are the same two values InfoLogger carries, so an orchestration failure and
+  # the detector messages from the same run join on them. Measured on 2,612,951
+  # lines sampled from 25 of the 560 retained files: 981,228 lines carry the
+  # pair, and the run numbers in them are real ALICE run numbers.
+  #
+  # The partition group is `[A-Za-z0-9]+` and not `[A-Za-z0-9]{6,}`. The longer
+  # form was tried, because a message beginning `word:123 ` would otherwise be
+  # eaten as a partition. It was wrong: the sample holds `test0` and `idd`,
+  # which are real hand-named test partitions, and the shorter form matched
+  # 190,250 lines across a busy day and an idle day with no false positive at
+  # all.
+  - name: odc
+    format: regex
+    regex: '(?m)^(?<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)\s+(?<severity>[a-z]{3})\s+(?<program>\S+)\s+(?<pid>\d+)\s+(?:(?<partition>[A-Za-z0-9]+):(?<run>\d+)\s+)?(?<message>.*)$'
+    time_key: time
+    time_format: '%Y-%m-%d %H:%M:%S.%L'
+    types: pid:integer run:integer
+
+  # --- the journal -------------------------------------------------------
+  #
+  # `Comm:` is the process that raised the fault, and it is the join key back to
+  # the O2 logs: an IOMMU trace naming TfBuilder is the correlation that adding
+  # system logs is for. The whole trace is one record by then, so the match is
+  # not anchored to the start of the line.
+  - name: kernel_comm
+    format: regex
+    regex: 'Comm:\s+(?<comm>\S+)'

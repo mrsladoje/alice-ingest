@@ -11,41 +11,77 @@ produces here.
 
 ## How it is wired
 
-Four inputs, four tags, five outputs, one process. Every OpenSearch output goes
+Six inputs, six tags, six outputs, one process. Every OpenSearch output goes
 to `localhost` — this VM's own node.
 
 ```
                      ONE WORKER VM — alice-ingest-N
 
 ┌─ INPUTS: this VM only, never another worker ────────────────────────────────┐
-│  /var/log/node/dds/*.log       tail, multiline       --> [dds]              │
-│  /var/log/node/stdout/*.log    tail, multiline       --> [stdout]           │
-│  :5170  (the local producer)   tcp, json             --> [infologger]       │
-│  fb_health.py, every 30 s      exec, json            --> [health]           │
+│  /var/log/node/dds/*.log        tail, multiline      --> [dds]              │
+│  /var/log/node/stdout/*/*.log   tail, multiline      --> [stdout]           │
+│      one directory per EPN, one file per process, named as the farm         │
+│      names it. That name is where `program` comes from.                     │
+│  :5170  (the local producer)    tcp, json            --> [infologger]       │
+│  /var/log/o2-infologger-daemon.log  tail             --> [ildaemon]         │
+│  the journal, every unit        systemd              --> [journald]         │
+│  /var/log/odc/staging/*.log     tail, multiline      --> [odc]              │
+│      the run orchestrator, on the storage node only. A glob, because the     │
+│      file is dated and rolls at midnight; elsewhere it matches nothing.      │
+│  fb_health.py, every 30 s       exec, json           --> [health]           │
 └─────────────────────────────────────┬───────────────────────────────────────┘
                                       v
 ┌─ PARSE, then STAMP collector_time ──────────────────────────────────────────┐
-│  [dds]         parser dds_text          severity, source, tid, message      │
-│  [stdout]      parser stdout_root       severity optional, facility, message│
-│  [infologger]  parser il_event_time     event epoch becomes @timestamp      │
+│  [dds]         dds_text                 severity, program, tid, message     │
+│                + slot / channel / task, over `message` only                 │
+│  [stdout]      datadist, then dpl,      the tree is two line formats, tried │
+│                dpl_noclock, stdout_root in measured order; first match wins │
+│  [infologger]  il_event_time            event epoch becomes @timestamp      │
+│  [ildaemon]    ildaemon + _clients      connected clients / the ceiling     │
+│  [journald]    kernel_trace multiline,  Comm: is the join key from a kernel │
+│                then kernel_comm         fault back to the O2 logs           │
+│  [odc]         odc                      severity, program, pid, and the     │
+│                                         partition and run number that join  │
+│                                         an orchestration failure to the     │
+│                                         detector messages from that run     │
 │  [health]      lua health_deltas        cumulative counters become *_delta  │
 └─────────────────────────────────────┬───────────────────────────────────────┘
                                       v
-┌─ ROUTE BY SEVERITY: two log families ───────────────────────────────────────┐
-│  [dds]     severity == inf     ─┐                                           │
-│  [stdout]  severity == Info    ─┴--> [family.local]                         │
-│  either one, anything else      --> [family.central]                        │
+┌─ ROUTE BY SEVERITY ─────────────────────────────────────────────────────────┐
+│  [dds]       inf, dbg          ─┐                                           │
+│  [stdout]    INFO DEBUG TRACE   │                                           │
+│              Info, I, D, T      ├--> [family.local]                         │
+│  [journald]  PRIORITY 5..7      │                                           │
+│  [odc]       inf, dbg          ─┘                                           │
+│                                                                             │
+│  anything else, AND anything whose severity no parser                       │
+│  recovered, AND anything no parser claimed at all      --> [family.central] │
 └─────────────────────────────────────┬───────────────────────────────────────┘
                                       v
 ┌─ OUTPUTS ───────────────────────────────────────────────────────────────────┐
-│  [infologger]    --> localhost:9200   infologger                            │
-│  [family.local]   --> localhost:9200   application-logs-local-<node_id>     │
+│  [infologger]      --> localhost:9200   infologger                          │
+│  [ildaemon]        --> localhost:9200   application-logs-central            │
+│  [family.local]    --> localhost:9200   application-logs-local-<node_id>    │
 │  [family.central]  --> localhost:9200   application-logs-central            │
-│  [health]        --> localhost:9200   cockpit-metrics                       │
+│  [health]          --> localhost:9200   cockpit-metrics                     │
 │                                                                             │
-│  [infologger] + [family.central] --> live lane, HTTP, a different VM        │
+│  [infologger] + [ildaemon] + [family.central] --> live lane, HTTP, a VM     │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+`ildaemon` is the one source severity does not route, because the file has no
+severity column. Its whole content is durable: a handful of lines a day, and
+the connected-client count against the ceiling in `infoLoggerD.cfg` is only
+useful as a series that outlives the node.
+
+`odc` exists on one machine. The tail reads a directory through a glob and on a
+worker that glob matches nothing, which is what the daemon-log input already
+does on epn323 — so the input is unconditional rather than probed.
+
+The journal is collected only if the packaged Fluent Bit was built with the
+`systemd` input. The role asks the binary and turns the source off with a
+message if it was not, because a configuration naming an input the binary does
+not have aborts the whole service.
 
 **No worker ever writes to another worker.** A worker owns its own
 `application-logs-local-<node_id>` index and nothing else. That is why the info tier
@@ -219,7 +255,9 @@ site-wide.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `fluent_bit_version` | `5.0.8` | Pinned RPM version. Matches `images/node/Dockerfile`. |
+| `fluent_bit_version` | `4.0.14` | Pinned RPM version. **Was 5.0.8.** 5.x loses bytes appended to a file after `logrotate` renames it away — docs/SOAK_RESULTS.md round 10. The farm workers pin 4.x in the inventory; `epn-infra13` does not, and it is the node that would collect the one source that rotates daily. |
+| `collector_blocked_version_prefixes` | `["5."]` | Versions the role refuses to install. Checked before the package task, not documented in a comment and hoped for. |
+| `collector_allow_blocked_version` | `false` | Deliberate override, for someone who has re-tested rotation on that build. |
 | `collector_repo_baseurl` | packages.fluentbit.io | Upstream yum repository. |
 | `collector_repo_gpgkey` | packages.fluentbit.io key | Signing key for that repository. |
 | `collector_service_name` | `fluent-bit` | systemd unit and package name. |
@@ -234,6 +272,13 @@ site-wide.
 | `collector_register_script` | `/opt/alice-ingest/register_node.sh` | Installed through the `opensearch_local_index_registration` role. |
 | `collector_start_timeout_seconds` | `600` | `TimeoutStartSec`. Coupled — see below. |
 | `collector_metrics_scrape_open` | `false` | `true` opens the metrics port to the scrape source. |
+| `collector_stdout_refresh_interval` | `5` | How often the process-tree tail sweeps for new files. `/scratch` is NFS and NFS has no inotify, so this is the only thing that finds a program that started since the last sweep. |
+| `infologger_daemon_log_path` | `/var/log/o2-infologger-daemon.log` | One explicit file. Never widen this to a `/var/log` wildcard — `/var/log/messages` is already in the journal and tailing it double-counts. |
+| `collector_dds_extractors` | `dds_slot`, `dds_channel`, `dds_task` | Slot, channel and launched-task extraction over the DDS `message`. Set to `[]` to drop them. |
+| `collector_journald_enabled` | `true` | The role probes the binary and turns this on only if the packaged build has the `systemd` input. A configuration naming an input the binary lacks aborts the whole service. |
+| `collector_journald_filters` | `[]` — every unit | OR-ed journal matches. Empty means all of them: Lubos asked for all system logs and the census priced it at nothing. An allow-list only creates blind spots; volume is held down by the priority routing, not by refusing to read. |
+| `collector_odc_enabled` | `true` | Whether to read the run orchestrator's log. An off switch, not a probe. |
+| `collector_odc_log_path` | `/var/log/odc/staging/*.log` | The real path, on the farm and under replay alike. The replay engine writes the captured files here at a paced rate, keeping their own names. |
 | `fluent_bit_storage_path` | `/var/log/flb-storage` | Filesystem buffer and tail position databases. |
 | `fluent_bit_http_port` | `2020` | Fluent Bit's own metrics and health endpoint. |
 | `fluent_bit_http_listen` | `127.0.0.1` | Loopback since the push cutover. |
