@@ -66,3 +66,29 @@ producer_cpuset: ""
 # on every service placed on epn146 and epn323. Empty leaves it unbounded.
 producer_memory_high: ""
 producer_memory_max: ""
+
+# --- the two farm-captured families -----------------------------------------
+#
+# InfoLogger, DDS and the process tree come out of the S3 archive. The
+# InfoLogger daemon log and the journal do not: they are written on a live EPN
+# and nothing backs them up. A bundle captured with tools/epnsurvey/mkbundle.sh
+# is the only way a staging VM can carry either.
+#
+# replay_bundle_src and replay_bundle_root live in group_vars/all.yml, because
+# the collector role needs them too: it points its systemd input at the shipped
+# journal. A role default would be invisible to the other role.
+# The daemon log grows by about 930 lines a day on the real farm. Replaying it
+# at the speed of the disk would put months of connection churn into one second
+# and make every saturation figure meaningless.
+ildaemon_replay_rate: 20
+
+# The run orchestrator writes about 100,000 lines a day, roughly one a second.
+# Replaying at the speed of the disk would compress a day of run transitions
+# into a moment, for the same reason the daemon log is paced.
+odc_replay_rate: 200
+
+# Where the replay writes it, which must be what the collector's
+# collector_odc_log_path globs over. The capture's own file names are kept, so a
+# bundle holding two days replays as two files and the rotation the tail has to
+# follow is reproduced rather than flattened.
+odc_replay_log_dir: /var/log/odc/staging

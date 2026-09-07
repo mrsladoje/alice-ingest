@@ -23,12 +23,21 @@
 # SINGLE-PARTITION DESIGN (LOCKED topology: each VM replays ONLY its own
 # epn_partition slice, InfoLogger strictly to localhost): replay.py's own
 # NODE_COUNT/NODES_ROOT/COLLECTOR_HOSTS fan-out assumes ONE process serving
-# ALL collectors. images/replay/replay.py is PRESERVED (must not be edited),
-# so files/replay_partition_wrapper.py imports it unmodified and monkeypatches
-# its list_objects()/il_connect() extension points to narrow the SAME fan-out
-# logic to this VM's slice — see that file's module docstring for the full
-# reasoning (why a directory/symlink trick alone can't handle InfoLogger,
-# whose per-collector routing is row-level, not object-level).
+# ALL collectors. files/replay_partition_wrapper.py imports the engine and
+# monkeypatches its list_objects()/il_connect() extension points to narrow the
+# SAME fan-out logic to this VM's slice — see that file's module docstring for
+# the full reasoning (why a directory/symlink trick alone can't handle
+# InfoLogger, whose per-collector routing is row-level, not object-level).
+#
+# The engine was treated as PRESERVED — deployed byte-for-byte, with every
+# divergence pushed into the wrapper — until the source-coverage work of
+# 4 Sep 2026. It could not stay that way: the engine flattened every process
+# log of a node into one stdout file, which destroyed the program name before
+# Fluent Bit ever read a line, and no monkeypatch seam reaches that loop. The
+# engine now writes one file per process under stdout/<host>/ and rebuilds a
+# real per-line event time. The rule that replaced PRESERVED: the wrapper still
+# owns every deployment-shaped divergence, and the engine is edited only for
+# defects in what the archive itself produces.
 # =============================================================================
 ---
 
@@ -61,7 +70,7 @@
     group: root
     mode: "0755"
 
-- name: Copy the replay engine verbatim (PRESERVED ground truth, unmodified)
+- name: Copy the replay engine (the same file the mocks stack runs)
   ansible.builtin.copy:
     src: "{{ producer_replay_source }}"
     dest: "{{ producers_app_root }}/replay.py"
@@ -70,7 +79,7 @@
     mode: "0644"
   notify: restart alice-replay
 
-- name: Copy the single-partition wrapper (imports replay.py unmodified, see its docstring)
+- name: Copy the single-partition wrapper (imports replay.py, see its docstring)
   ansible.builtin.copy:
     src: replay_partition_wrapper.py
     dest: "{{ producers_app_root }}/replay_partition_wrapper.py"
@@ -78,6 +87,40 @@
     group: root
     mode: "0644"
   notify: restart alice-replay
+
+# --- the captured bundle, when there is one ---------------------------------
+- name: Ensure the bundle root exists
+  ansible.builtin.file:
+    path: "{{ replay_bundle_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: replay_bundle_src | length > 0
+
+# Ships the InfoLogger daemon log and the journal captured from a real EPN.
+# Neither is in S3 and neither can be synthesised: the daemon log is the only
+# saturation signal on a node, and libsystemd reads journal FILES, so an export
+# would have to be re-parsed by something that is not the production input.
+- name: Ship the captured EPN bundle
+  ansible.posix.synchronize:
+    src: "{{ replay_bundle_src }}/"
+    dest: "{{ replay_bundle_root }}/"
+    delete: true
+    rsync_opts:
+      - "--chmod=D755,F644"
+  when: replay_bundle_src | length > 0
+  notify: restart alice-replay
+
+- name: Say when there is no bundle, rather than leaving two sources silently absent
+  ansible.builtin.debug:
+    msg: >-
+      No REPLAY_BUNDLE_SRC, so the InfoLogger daemon log, the journal and the
+      run orchestrator's log are not
+      replayed on this VM. Both are live-node sources with no S3 archive behind
+      them; capture one with tools/epnsurvey/mkbundle.sh <epn> <dir> and deploy
+      with REPLAY_BUNDLE_SRC=<dir>.
+  when: replay_bundle_src | length == 0
 
 - name: Create/update the replay venv and install boto3 into it
   ansible.builtin.pip:
@@ -107,11 +150,11 @@
   notify: restart alice-replay
 
 # --- Local log_root + this VM's slice of replay.py's NODES_ROOT layout -------
-# replay.py writes DDS/stdout files under
-# NODES_ROOT/<collector-name>/<family>/<host>.log via os.makedirs(exist_ok=True)
-# — untouched. Pointing NODES_ROOT/<our node_id> at log_root via a symlink
-# means those unmodified writes land exactly where the LOCAL Fluent Bit tails
-# (log_root/dds/*.log, log_root/stdout/*.log — see
+# replay.py writes DDS under NODES_ROOT/<collector-name>/dds/<host>.log and
+# each process log under NODES_ROOT/<collector-name>/stdout/<host>/<file>.log
+# via os.makedirs(exist_ok=True). Pointing NODES_ROOT/<our node_id> at log_root
+# via a symlink means those writes land exactly where the LOCAL Fluent Bit tails
+# (log_root/dds/*.log, log_root/stdout/*/*.log — see
 # images/node/fluent-bit/collector.yaml), with zero code changes and zero
 # extra disk usage for the two partitions this VM never touches (the
 # wrapper's list_objects() filter means no other collector name is ever

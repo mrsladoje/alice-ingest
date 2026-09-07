@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Single-partition wrapper around images/replay/replay.py (PRESERVED,
+"""Single-partition wrapper around images/replay/replay.py (deployed as-is,
 copied to the VM byte-for-byte — this file never imports a modified copy).
 
 LOCKED topology (deploy/playbooks/site.yml / group_vars/all.yml): each VM replays ONLY
@@ -11,7 +11,8 @@ WHY A WRAPPER (not an edit to replay.py, not env/dir tricks alone):
 replay.py's own fan-out (NODE_COUNT / NODES_ROOT / COLLECTOR_HOSTS) assumes
 ONE process serving ALL collectors: it partitions the ~31 real EPN hosts by
 `epn_num % NODE_COUNT` and, per family, either
-  - DDS/stdout: writes into NODES_ROOT/<collector-name>/<family>/<host>.log
+  - DDS: writes into NODES_ROOT/<collector-name>/dds/<host>.log, and stdout:
+    one file per process under NODES_ROOT/<collector-name>/stdout/<host>/
     (an object-level decision — one whole S3 tarball belongs to exactly one
     host, hence exactly one collector), or
   - InfoLogger: opens a TCP connection to <collector-name>:INFOLOGGER_TCP_PORT
@@ -20,9 +21,10 @@ ONE process serving ALL collectors: it partitions the ~31 real EPN hosts by
 A pure directory/symlink arrangement (route NODES_ROOT/<name> for every OTHER
 collector into a black hole) would still make the DDS/stdout side correct, but
 CANNOT filter InfoLogger, whose collector target is chosen per-row deep inside
-replay_infologger(). Editing images/replay/replay.py is out of scope (PRESERVED
-ground truth). So instead we import the module UNMODIFIED and monkeypatch its
-two extension points:
+replay_infologger(). The engine owns what the archive produces; this wrapper
+owns every deployment-shaped divergence, and that boundary is why the partition
+narrowing lives here rather than in the engine. So we import the module and
+monkeypatch its two extension points:
 
   1. list_objects(s3, prefix) — wrapped so any S3 key that IS a per-host DDS/
      stdout tarball (matches replay._HOST_RE) for a host NOT in our partition
@@ -77,7 +79,7 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import replay  # noqa: E402  -- images/replay/replay.py, copied verbatim
+import replay  # noqa: E402  -- images/replay/replay.py, copied to the VM
 
 try:
     EPN_PARTITION = int(os.environ["EPN_PARTITION"])
@@ -364,7 +366,27 @@ def _json_dumps_shifted(obj, *args, **kwargs):
 
 
 def _stdout_event_ts_shifted(member_name):
-    return _shift_stdout_ts(_orig_stdout_event_ts(member_name))
+    """Shift the process-log start time, which is now a (date, seconds) pair.
+
+    The engine used to return 'YYYY-MM-DD HH:MM:SS' as one string. It now
+    returns the date and the seconds since midnight separately, because the
+    event time is rebuilt per line from the file's date and the line's own
+    clock rather than stamping every line with the process start. This shifts
+    the pair and hands back a pair, so the engine's _StdoutClock still gets what
+    it expects.
+    """
+    got = _orig_stdout_event_ts(member_name)
+    if _CLOCK_OFFSET_SEC == 0 or got is None:
+        return got
+    date, start_seconds = got
+    shifted = _shift_stdout_ts("%s %02d:%02d:%02d" % (
+        date, start_seconds // 3600, (start_seconds // 60) % 60,
+        start_seconds % 60))
+    if shifted is None:
+        return got
+    new_date, _, clock = shifted.partition(" ")
+    hours, minutes, seconds = (int(p) for p in clock.split(":"))
+    return new_date, hours * 3600 + minutes * 60 + seconds
 
 
 def _write_lines_shifted(lines, out_path, stop, pacer, counter, host, label):

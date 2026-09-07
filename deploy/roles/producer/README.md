@@ -50,7 +50,7 @@ fan-out process it was written to be.
 ┌─ 4. THE SYMLINK — one line that replaces an engine edit ───────────────────┐
 │  {{ log_root }}/dds, {{ log_root }}/stdout        created defensively      │
 │  /var/log/alice-replay-root/{{ node_id }}  --->  {{ log_root }}            │
-│  replay.py's unmodified NODES_ROOT/<collector>/ writes now land locally    │
+│  replay.py's NODES_ROOT/<collector>/ writes now land locally              │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 5. UNIT — armed, not fired ───────────────────────────────────────────────┐
@@ -69,7 +69,7 @@ real EPN hosts by `epn_num % NODE_COUNT` and then, per family, either writes
 VM replays only its own slice, into its own log root, and ships InfoLogger
 strictly to `127.0.0.1`.
 
-Editing the engine is out of scope, so the wrapper imports it unmodified and
+Deployment-shaped divergences belong in the wrapper, so it imports the engine and
 monkeypatches its two extension points.
 
 | Extension point | What the wrapper does | Why it is needed there |
@@ -308,7 +308,7 @@ knobs and must not become knobs:
 - **InfoLogger to `127.0.0.1`, never a hostname.** Locked topology: a worker's
   logs are that worker's. A configurable target would let one VM's replay feed
   another VM's collector, which is exactly what the wrapper exists to prevent.
-- **The two-file split.** Engine verbatim, divergences in the wrapper. Merging
+- **The two-file split.** Engine as-is, divergences in the wrapper. Merging
   them would make the next upstream change a manual diff.
 
 ## Upstream roles rejected

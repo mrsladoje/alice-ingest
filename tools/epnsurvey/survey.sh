@@ -61,6 +61,97 @@ journalctl --no-pager -o json -k --since "$JOURNAL_SINCE" 2>/dev/null \
   | head -n "$KERNEL_MAX" > "$OUT/journal/kernel.json"
 say "journal lines: $(wc -l < "$OUT/journal/journal.json") kernel: $(wc -l < "$OUT/journal/kernel.json")"
 
+# --- what is actually running, and where it writes -------------------------
+# The census question the October 2022 data on /scratch cannot answer: where
+# does a run write its job logs TODAY. Asked of the processes themselves rather
+# than of the filesystem, because a full-filesystem search on a node carrying a
+# staging run is not acceptable.
+say "live processes and their open log files"
+{
+  echo "### processes matching the O2 / DDS / DataDistribution names"
+  ps -eo pid,ppid,user,etimes,comm,args --no-headers 2>/dev/null \
+    | grep -Ei 'o2-|dpl|TfBuilder|StfBuilder|TfScheduler|dds-|odc|readout|qc-task' \
+    | grep -v grep | head -60
+  echo
+  echo "### open regular .log files held by those processes"
+  for pid in $(ps -eo pid,args --no-headers 2>/dev/null \
+                 | grep -Ei 'o2-|dpl|TfBuilder|StfBuilder|TfScheduler|dds-|odc|readout|qc-task' \
+                 | grep -v grep | awk '{print $1}' | head -40); do
+    for fd in /proc/$pid/fd/*; do
+      target="$(readlink "$fd" 2>/dev/null)" || continue
+      case "$target" in
+        *.log|*/log/*) printf '%s\t%s\t%s\n' "$pid" "$(cat /proc/$pid/comm 2>/dev/null)" "$target" ;;
+      esac
+    done
+  done 2>/dev/null | sort -u | head -80
+  echo
+  echo "### working directories of those processes"
+  for pid in $(ps -eo pid,args --no-headers 2>/dev/null \
+                 | grep -Ei 'o2-|dpl|TfBuilder|dds-|odc' | grep -v grep \
+                 | awk '{print $1}' | head -40); do
+    printf '%s\t%s\n' "$pid" "$(readlink /proc/$pid/cwd 2>/dev/null)"
+  done 2>/dev/null | sort -u -k2 | head -40
+} > "$OUT/live-processes.txt"
+
+say "log-writing packages and their versions"
+{
+  echo "### fluent-bit"
+  command -v fluent-bit >/dev/null 2>&1 && fluent-bit --version 2>&1 | head -2
+  /opt/fluent-bit/bin/fluent-bit --version 2>&1 | head -2
+  rpm -q fluent-bit 2>&1 | head -2
+  echo
+  echo "### does this build have the systemd input"
+  { /opt/fluent-bit/bin/fluent-bit --help 2>&1 || fluent-bit --help 2>&1; } \
+    | grep -iE '^\s*systemd|INPUT.*systemd' | head -3
+  echo
+  echo "### O2 / infologger packages"
+  rpm -qa 2>/dev/null | grep -iE 'infologger|o2-|odc|dds' | sort | head -20
+  echo
+  echo "### infoLoggerD configuration"
+  cat /etc/o2.d/infologger/infoLoggerD.cfg 2>&1 | head -30
+} > "$OUT/versions.txt"
+
+say "rotation"
+{
+  echo "### /etc/logrotate.conf"
+  cat /etc/logrotate.conf 2>&1 | head -20
+  echo
+  echo "### /etc/logrotate.d entries touching the files we tail"
+  grep -l -E 'infologger|o2|messages' /etc/logrotate.d/* 2>/dev/null \
+    | while read -r f; do echo "--- $f"; cat "$f"; done | head -60
+  echo
+  echo "### journald configuration"
+  grep -vE '^\s*#|^\s*$' /etc/systemd/journald.conf 2>/dev/null
+  cat /etc/systemd/journald.conf.d/*.conf 2>/dev/null | grep -vE '^\s*#|^\s*$'
+} > "$OUT/rotation.txt"
+
+say "journal volume by unit and priority"
+{
+  echo "### entries per priority, last ${JOURNAL_SINCE}"
+  for p in 0 1 2 3 4 5 6 7; do
+    printf '%s\t%s\n' "$p" \
+      "$(journalctl --no-pager -q -p "${p}..${p}" --since "$JOURNAL_SINCE" 2>/dev/null | wc -l)"
+  done
+  echo
+  echo "### entries per unit, last ${JOURNAL_SINCE}, top 40"
+  journalctl --no-pager -o json --since "$JOURNAL_SINCE" 2>/dev/null \
+    | head -n "$JOURNAL_MAX" \
+    | sed -n 's/.*"_SYSTEMD_UNIT"[^"]*"\([^"]*\)".*/\1/p' \
+    | sort | uniq -c | sort -rn | head -40
+  echo
+  echo "### how much the five configured units plus kernel would leave behind"
+  journalctl --no-pager -o json --since "$JOURNAL_SINCE" 2>/dev/null \
+    | head -n "$JOURNAL_MAX" \
+    | grep -cvE '"_SYSTEMD_UNIT"[^"]*"(slurmd|crond|fluent-bit|opensearch|alice-replay)\.service"|"_TRANSPORT"[^"]*"kernel"'
+} > "$OUT/journal-volume.txt"
+
+say "raw journal files, bounded, so the systemd input can be exercised off the farm"
+mkdir -p "$OUT/journal/raw"
+find /var/log/journal -name '*.journal' -type f -printf '%s\t%p\n' 2>/dev/null \
+  | sort -rn | head -2 | cut -f2 \
+  | while read -r jf; do cp -p "$jf" "$OUT/journal/raw/" 2>/dev/null; done
+du -sh "$OUT/journal/raw" 2>/dev/null >&2
+
 say "/var/log inventory"
 find "$VARLOG" -maxdepth 2 -type f -printf '%p\t%s\t%TY-%Tm-%TdT%TH:%TM\t%u\t%g\n' 2>/dev/null \
   | sort > "$OUT/varlog-inventory.tsv"

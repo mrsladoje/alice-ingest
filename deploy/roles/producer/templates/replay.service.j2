@@ -40,6 +40,13 @@ Environment=NODE_COUNT={{ node_count }}
 Environment=NODES_ROOT={{ producer_nodes_root }}
 Environment=DDS_REPLAY_RATE={{ dds_replay_rate }}
 Environment=IL_REPLAY_RATE={{ il_replay_rate }}
+# The three families with no S3 archive behind them. Empty bundle root means the
+# replay engine skips all of them and says so.
+Environment=REPLAY_BUNDLE_ROOT={{ replay_bundle_src | length > 0 | ternary(replay_bundle_root, '') }}
+Environment=ILDAEMON_LOG_PATH={{ infologger_daemon_log_path }}
+Environment=ILDAEMON_REPLAY_RATE={{ ildaemon_replay_rate }}
+Environment=ODC_LOG_DIR={{ odc_replay_log_dir }}
+Environment=ODC_REPLAY_RATE={{ odc_replay_rate }}
 Environment=STDOUT_REPLAY_RATE={{ stdout_replay_rate }}
 Environment=REPLAY_CLOCK_CACHE={{ replay_clock_cache }}
 Environment=REPLAY_LOOP={{ replay_loop | string | lower }}
