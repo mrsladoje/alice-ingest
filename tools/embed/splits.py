@@ -15,19 +15,25 @@ to flatter a result:
 1. Keep sources with at least --min-templates templates, and drop any source
    whose name contains "unknown" — round 3 excluded that bucket because its
    program name is a regex failure, not a program
-2. Drop the largest source from the evaluation pool. infologger/ODC/ODC owns
-   57 % of the templates, and putting it on either side would make that side one
-   program scoring against itself
-3. Sort the rest by template count, largest first, name as tie-break
-4. Take the top ten. Odd ranks go to dev, even ranks to held-out, so the two
+2. Drop every source in --exclude-family. `dds` is there because its source label
+   is a host, not a program: corpus.py labels a dds line with the EPN the tarball
+   came from, and every EPN runs the same dds-agent. Five hosts with ten or more
+   templates are five samples of one program, so asking a model to tell
+   dds/epn287 from dds/epn001 is not the transfer question this stage exists to
+   ask, and it has no right answer. dds templates stay in the training text
+3. Drop the largest source from the evaluation pool. infologger/ODC/ODC owned
+   57 % of round 3's templates and owns 15 % of round 6's, and putting it on
+   either side would make that side largely one program scoring against itself
+4. Sort the rest by template count, largest first, name as tie-break
+5. Take the top ten. Odd ranks go to dev, even ranks to held-out, so the two
    sets carry a similar size profile
-5. Every other source is training text, including the giant one and every source
+6. Every other source is training text, including the giant one and every source
    too small to score
 
 Each set gets its own null, and the null moves with the split. The macro null of
-0.035 in docs/EMBEDDING_RESULTS.md is a property of the 23-source set, not of the
-metric. A five-source set sits near 0.20, and a purity read against the wrong
-null says the opposite of the truth.
+0.035 in docs/EMBEDDING_RESULTS.md is a property of round 3's 23-source set, not
+of the metric; round 6's 40-source set sits at 0.0195. A five-source set sits near
+0.20, and a purity read against the wrong null says the opposite of the truth.
 """
 import argparse
 import json
@@ -60,10 +66,12 @@ def macro_null(rows):
     return sum((n - 1) / (pool - 1) for n in counts.values()) / len(counts)
 
 
-def choose(rows, min_templates, exclude_largest):
+def choose(rows, min_templates, exclude_largest, exclude_families=()):
     per_source = Counter(r["source"] for r in rows)
+    families = tuple("%s/" % f for f in exclude_families)
     eligible = {s: n for s, n in per_source.items()
-                if n >= min_templates and "unknown" not in s}
+                if n >= min_templates and "unknown" not in s
+                and not s.startswith(families)}
     dropped = None
     if exclude_largest and eligible:
         dropped = max(eligible.items(), key=lambda kv: (kv[1], kv[0]))[0]
@@ -107,12 +115,15 @@ def main():
     ap.add_argument("--corpus", default="")
     ap.add_argument("--min-templates", type=int, default=10)
     ap.add_argument("--keep-largest", action="store_true")
+    ap.add_argument("--exclude-family", default="dds",
+                    help="families whose source label is not a program name")
     ap.add_argument("--train-line-limit", type=int, default=0)
     args = ap.parse_args()
 
     rows = load_dump(args.templates)
+    excluded_families = [f.strip() for f in args.exclude_family.split(",") if f.strip()]
     dev_sources, heldout_sources, dropped, per_source = choose(
-        rows, args.min_templates, not args.keep_largest)
+        rows, args.min_templates, not args.keep_largest, excluded_families)
     evaluation = set(dev_sources) | set(heldout_sources)
 
     os.makedirs(args.out, exist_ok=True)
@@ -126,6 +137,7 @@ def main():
         "templates_total": len(rows),
         "sources_total": len(per_source),
         "min_templates": args.min_templates,
+        "excluded_families": excluded_families,
         "excluded_largest": dropped,
         "dev": {
             "sources": sorted(dev_sources),

@@ -66,6 +66,16 @@ entirely.
 
 ## What the page gives you
 
+- **The board opens on the live lane, not on an empty box.** Before anything
+  is queried the main table shows the live stream, filtered in the browser by
+  whatever the boxes hold. A note above it says why that is the cheap path:
+  every viewer shares the one stream, while a query is served for one person
+  alone. `Clear` returns to it. The point is that the free path is also the
+  default path, so nobody has to read anything to take it.
+- **The lane says how much of itself the boxes keep.** The dock header reads
+  `142 of 9,847 match` when a filter narrows it, `9,847 held` when nothing
+  does. It is there to show that the boxes already work on the lane, which is
+  the part people do not guess.
 - **A one-hour window by default.** A fresh page asks for the last hour, not for
   all time. Widen it in `Filters` when you need to. This is the difference
   between a bounded range query and a scan of the whole archive, and it is the
@@ -156,6 +166,20 @@ entirely.
   `N new — show newest` button tells you how many arrived and renders them only
   when you press it. `Autoscroll` opts out of that and pins the lane to the
   newest row instead.
+- **An unread count in the browser tab.** While the tab is in the background,
+  every `error` and `fatal` that arrives raises the count in the page title —
+  `(3) ALICE - Shifter View`. Coming back to the tab clears it. Note the
+  limit: the stream stops on its own after `shifter_hidden_grace_seconds`
+  (120) in the background, and from then the title reads `stream stopped`
+  rather than a count. Raise that value on a shift console.
+- **Copy a record as plain text.** `Copy`, beside `Close` in the record view
+  and in the inspector, puts every field and the message on the clipboard as
+  one block, for pasting into the e-log or a chat.
+- **Six keys, and a `?` in the corner that lists them.** `j` and `k` step
+  down and up the rows, `/` puts the cursor in the message box, `Enter` runs
+  the query from any filter box, `Esc` closes what is open, `?` opens the
+  list. The keys do nothing while the cursor is in a box, so typing `j` into
+  a filter types a `j`.
 - **Column layout is remembered** per browser, in `localStorage`.
 - **An inspector, in one of two places.** `Inspector` turns the record view on
   and off; the button beside it says where it opens. `Side panel` is the column

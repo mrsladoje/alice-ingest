@@ -38,18 +38,33 @@ GZIP_MIN_BYTES = int(os.environ.get("SHIFTER_GZIP_MIN_BYTES", "1024"))
 QUERY_PAGE_ROWS = int(os.environ.get("SHIFTER_QUERY_PAGE_ROWS", "500"))
 ASSET_MAX_AGE = int(os.environ.get("SHIFTER_ASSET_MAX_AGE", "600"))
 
+# The same map the alice-add-ingest-time pipeline applies. The live lane does not
+# go through OpenSearch, so it has to carry its own copy; if the two drift, a
+# record reads one way in Discover and another way in the live view. Every
+# severity spelling the five sources produce is here: DPL words,
+# DataDistribution and InfoLogger single letters, DDS three-letter codes, ROOT
+# words, and the journal's numeric priorities.
 SEVERITY_NORM = {
     "I": "info", "W": "warning", "E": "error", "F": "fatal", "D": "debug",
+    "T": "trace",
     "Info": "info", "Warning": "warning", "Error": "error",
-    "Fatal": "fatal", "Sys": "system",
-    "inf": "info", "err": "error", "cout": "info",
+    "Fatal": "fatal", "Sys": "system", "Break": "error",
+    "inf": "info", "wrn": "warning", "err": "error", "fat": "fatal",
+    "dbg": "debug", "cout": "info",
+    "INFO": "info", "WARN": "warning", "ERROR": "error", "FATAL": "fatal",
+    "DEBUG": "debug", "TRACE": "trace", "STATE": "state", "ALARM": "error",
+    "0": "fatal", "1": "fatal", "2": "fatal", "3": "error", "4": "warning",
+    "5": "info", "6": "info", "7": "debug",
 }
 
 KEEP_FIELDS = (
     "@timestamp", "collector_time", "severity", "severity_norm", "origin_host",
-    "host", "hostname", "node", "log_source", "source_file", "source",
+    "host", "hostname", "node", "log_source", "source_file",
     "facility", "message", "rolename", "run", "partition", "detector",
     "system", "pid", "username", "level", "errcode", "errsource", "errline",
+    # The process that wrote the line, on every source that has one. Without it
+    # the live view cannot tell a GPU reconstruction error from a tracker one.
+    "program", "log_time", "comm", "clients", "client_limit",
 )
 
 STATIC_TYPES = {
@@ -62,7 +77,11 @@ STATIC_TYPES = {
 
 KEYWORD_TARGETS = {
     "host": ("origin_host", "hostname", "host"),
-    "program": ("rolename", "source_file", "source"),
+    # `program` is now a real field on every source that has one, so the search
+    # target leads with it. rolename and source_file stay behind it because an
+    # InfoLogger record has the first and a line no parser claimed has only the
+    # second. `source` is gone: the DDS agent it used to hold is `program` now.
+    "program": ("program", "rolename", "source_file"),
     "system": ("system",),
     "facility": ("facility",),
     "detector": ("detector",),

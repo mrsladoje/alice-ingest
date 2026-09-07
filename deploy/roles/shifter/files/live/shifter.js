@@ -28,6 +28,7 @@
   var COUNTER_INTERVAL_MS = 400;
   var HIDDEN_GRACE_MS = (CONFIG.hiddenGraceSeconds == null
     ? 120 : CONFIG.hiddenGraceSeconds) * 1000;
+  var BASE_TITLE = document.title;
   var PRESET_KEY = 'alice.shifter.presets.v1';
   var LAYOUT_KEY = 'alice.shifter.layout.v1';
   var DETAIL_KEY = 'alice.shifter.detail.v1';
@@ -525,6 +526,22 @@
       }
     }, []);
 
+    var unseenRef = useRef(0);
+    var stoppedRef = useRef(false);
+
+    var paintTitle = useCallback(function () {
+      var n = unseenRef.current;
+      var badge = n ? '(' + (n > 99 ? '99+' : n) + ') ' : '';
+      document.title = badge +
+        (stoppedRef.current ? 'stream stopped — ' : '') + BASE_TITLE;
+    }, []);
+
+    var noteAlert = useCallback(function (rec) {
+      if (document.visibilityState !== 'hidden' || !isAlert(rec)) { return; }
+      unseenRef.current += 1;
+      paintTitle();
+    }, [paintTitle]);
+
     var connect = useCallback(function () {
       if (sourceRef.current) { return; }
       var source = new EventSource(STREAM_URL);
@@ -573,9 +590,10 @@
         reopenedRef.current = false;
         push(rec);
         sinceRef.current += 1;
+        noteAlert(rec);
       };
       sourceRef.current = source;
-    }, [push]);
+    }, [push, noteAlert]);
 
     var pause = useCallback(function () {
       if (!sourceRef.current) { return; }
@@ -583,13 +601,31 @@
       sourceRef.current = null;
       setConnected(false);
       setPaused(true);
+      stoppedRef.current = true;
+      paintTitle();
       refresh();
-    }, [refresh]);
+    }, [refresh, paintTitle]);
 
     var resume = useCallback(function () {
       setPaused(false);
+      stoppedRef.current = false;
+      paintTitle();
       connect();
-    }, [connect]);
+    }, [connect, paintTitle]);
+
+    useEffect(function () {
+      var onSeen = function () {
+        if (document.visibilityState === 'hidden') { return; }
+        unseenRef.current = 0;
+        paintTitle();
+      };
+      document.addEventListener('visibilitychange', onSeen);
+      window.addEventListener('focus', onSeen);
+      return function () {
+        document.removeEventListener('visibilitychange', onSeen);
+        window.removeEventListener('focus', onSeen);
+      };
+    }, [paintTitle]);
 
     useEffect(function () {
       connect();
@@ -918,6 +954,7 @@
     var narrow = props.narrow;
     var detail = props.detail;
     var onCloseDetail = props.onCloseDetail;
+    var onCopy = props.onCopy;
     var panelH = Math.max(90, Math.min(ROW_DETAIL_H, viewport - ROW_HEIGHT * 2));
 
     var body = useMemo(function () {
@@ -949,7 +986,7 @@
           }
           visible.push(e(RowDetail, {
             key: 'rowdetail', rec: detail, top: under, height: panelH,
-            onClose: onCloseDetail
+            onClose: onCloseDetail, onCopy: onCopy
           }));
         }
       }
@@ -957,7 +994,7 @@
         className: 'spacer', style: { height: (total * ROW_HEIGHT) + 'px' }
       }, visible);
     }, [rows, columns, start, end, total, selectedKey, onSelect, narrow,
-        detail, onCloseDetail, panelH]);
+        detail, onCloseDetail, onCopy, panelH]);
 
     var onReachTop = props.onReachTop;
 
@@ -1308,6 +1345,7 @@
           return e('input', {
             key: col.key,
             className: 'fg-input',
+            'data-fg': col.key,
             style: col.width ? { width: col.width + 'px' } : null,
             value: filters.fields[col.key].match,
             onInput: setField(col.key, 'match'),
@@ -1471,7 +1509,7 @@
 
   function Inspector(props) {
     return useMemo(function () { return inspectorBody(props); },
-                   [props.rec, props.onClose]);
+                   [props.rec, props.onClose, props.onCopy]);
   }
 
   function fieldRows(rec) {
@@ -1489,6 +1527,26 @@
       }));
   }
 
+  function recordText(rec) {
+    var keys = Object.keys(rec).filter(function (k) {
+      return k !== '_id' && k !== 'message';
+    });
+    keys.sort();
+    var lines = ['event time: ' + dateOf(rec)];
+    keys.forEach(function (k) { lines.push(k + ': ' + String(rec[k])); });
+    lines.push('');
+    lines.push(rec.message == null ? '' : String(rec.message));
+    return lines.join('\n');
+  }
+
+  function copyButton(rec, onCopy) {
+    return e('button', {
+      className: 'btn',
+      title: 'Copy this record as plain text',
+      onClick: function () { onCopy(rec); }
+    }, 'Copy');
+  }
+
   function inspectorBody(props) {
     var rec = props.rec;
     if (!rec) {
@@ -1499,6 +1557,8 @@
     return e('aside', { className: 'inspector' },
       e('div', { className: 'insp-head' },
         e('strong', null, 'Record'),
+        e('span', { className: 'grow' }),
+        copyButton(rec, props.onCopy),
         e('button', { className: 'btn', onClick: props.onClose }, 'Close')),
       e('div', { className: 'insp-body' },
         fieldRows(rec),
@@ -1515,10 +1575,41 @@
       e('div', { className: 'rd-head' },
         e('span', { className: 'rd-when' }, dateOf(rec)),
         e('span', { className: 'grow' }),
+        copyButton(rec, props.onCopy),
         e('button', { className: 'btn', onClick: props.onClose }, 'Close')),
       e('div', { className: 'rd-body' },
         fieldRows(rec),
         e('div', { className: 'insp-msg' }, rec.message)));
+  }
+
+  var SHORTCUTS = [
+    ['j', 'next row'],
+    ['k', 'previous row'],
+    ['/', 'jump to the message box'],
+    ['Enter', 'run the query, from any filter box'],
+    ['Esc', 'close the open record, or this panel'],
+    ['?', 'open this panel']
+  ];
+
+  function Help(props) {
+    return e('div', { className: 'helpwrap', onClick: props.onClose },
+      e('div', {
+        className: 'helppanel',
+        onClick: function (ev) { ev.stopPropagation(); }
+      },
+        e('div', { className: 'help-head' },
+          e('strong', null, 'Keyboard'),
+          e('span', { className: 'grow' }),
+          e('button', { className: 'btn', onClick: props.onClose }, 'Close')),
+        e('div', { className: 'help-body' },
+          SHORTCUTS.map(function (row) {
+            return e('div', { className: 'help-row', key: row[0] },
+              e('kbd', null, row[0]),
+              e('span', null, row[1]));
+          })),
+        e('div', { className: 'help-note' },
+          'The arrow buttons in the toolbar step through ERROR and FATAL '
+            + 'only. Click any row to open it.')));
   }
 
   function LiveDock(props) {
@@ -1536,8 +1627,13 @@
       }, mode === 'collapsed' ? '▲ Live lane'
          : (mode === 'half' ? '▲ Live lane' : '▼ Live lane')),
       e('span', { className: 'status ' + status }, status),
-      e('span', { className: 'dock-count' },
-        rows.length.toLocaleString() + ' held'),
+      e('span', {
+        className: 'dock-count',
+        title: 'The filter boxes narrow this lane in your browser'
+      }, props.total && props.total !== rows.length
+           ? rows.length.toLocaleString() + ' of ' +
+             props.total.toLocaleString() + ' match'
+           : rows.length.toLocaleString() + ' held'),
       live.dropped
         ? e('span', { className: 'dropped' },
             live.dropped.toLocaleString() + ' dropped by the server')
@@ -1578,12 +1674,14 @@
             scrollRef: props.scrollRef,
             selectedKey: props.selectedKey,
             onSelect: props.onSelect,
-            detail: props.detail, onCloseDetail: props.onCloseDetail
+            detail: props.detail, onCloseDetail: props.onCloseDetail,
+            onCopy: props.onCopy
           }),
           e(ScrollMap, { rows: rows, height: props.mapHeight }),
           props.dockInspector
             ? e(Inspector, {
-                rec: props.inspectorRec, onClose: props.onCloseInspector
+                rec: props.inspectorRec, onClose: props.onCloseInspector,
+                onCopy: props.onCopyRecord
               })
             : null)));
   }
@@ -1637,7 +1735,9 @@
             ? 'The rows below were found with different filters'
             : (badStamps(props.filters) > 0
                 ? 'Fix the date marked in red first'
-                : 'Run the filters below against OpenSearch (Enter)'),
+                : 'Run the filters below against OpenSearch (Enter). The '
+                  + 'newest records are already on screen in the live '
+                  + 'lane, which needs no query.'),
           disabled: badStamps(props.filters) > 0,
           onClick: props.runQuery
         }, props.query.state.status === 'loading'
@@ -1873,11 +1973,13 @@
     }, [live.snapshot, settledFilters]);
 
     var queryRows = query.state.rows;
+    var idle = query.state.status === 'idle';
+    var paneRows = idle ? liveRows : queryRows;
     var placeholder = query.state.status === 'loading'
       ? 'Querying\u2026'
-      : (query.state.status === 'done'
-          ? 'No rows matched these filters. Widen the time range, or clear a filter.'
-          : 'Set filters above, then press Query or hit Enter.');
+      : (idle
+          ? 'Nothing has reached the live lane yet.'
+          : 'No rows matched these filters. Widen the time range, or clear a filter.');
 
     var autoscroll = autoscrollState[0];
     var livePendingRef = live.pendingRef;
@@ -1905,10 +2007,23 @@
       }, 0);
     }, [liveRefresh]);
 
+    var detailPaneState = useState('query');
+    var setDetailPane = detailPaneState[1];
+
     var selectRecord = useCallback(function (rec) {
       if (detailMode !== 'row') { selectedState[1](rec); return; }
       selectedState[1](function (prev) { return prev === rec ? null : rec; });
     }, [detailMode]);
+
+    var selectInQuery = useCallback(function (rec) {
+      setDetailPane('query');
+      selectRecord(rec);
+    }, [selectRecord, setDetailPane]);
+
+    var selectInDock = useCallback(function (rec) {
+      setDetailPane('dock');
+      selectRecord(rec);
+    }, [selectRecord, setDetailPane]);
 
     var closeDetail = useCallback(function () { selectedState[1](null); }, []);
 
@@ -1916,7 +2031,7 @@
       inspectorState[1](false);
     }, []);
 
-    var jump = useJump(queryScrollRef, queryRows, selectedState[0],
+    var jump = useJump(queryScrollRef, paneRows, selectedState[0],
                        selectedState[1]);
 
     useEffect(function () {
@@ -1927,7 +2042,7 @@
       apply();
       window.addEventListener('resize', apply);
       return function () { window.removeEventListener('resize', apply); };
-    }, [dockState[0], queryRows.length]);
+    }, [dockState[0], paneRows.length]);
 
     useEffect(function () {
       if (query.state.status !== 'done' || !query.state.token) { return; }
@@ -1941,11 +2056,11 @@
 
     var stats = useMemo(function () {
       var out = { fatal: 0, error: 0, warning: 0, info: 0, debug: 0 };
-      queryRows.forEach(function (r) {
+      paneRows.forEach(function (r) {
         if (out[r.severity_norm] != null) { out[r.severity_norm] += 1; }
       });
       return out;
-    }, [queryRows]);
+    }, [paneRows]);
 
     var toggleSeverity = function (name) {
       return function () {
@@ -1982,6 +2097,56 @@
         toastState[1]('');
       }, 2200);
     }, []);
+
+    var copyRecord = useCallback(function (rec) {
+      writeClipboard(recordText(rec), function (ok) {
+        showToast(ok ? 'Record copied' : 'The browser blocked the copy');
+      });
+    }, [showToast]);
+
+    var moveSelection = useCallback(function (step) {
+      if (!paneRows.length) { return; }
+      var at = paneRows.indexOf(selectedState[0]);
+      var next = at === -1 ? (step > 0 ? 0 : paneRows.length - 1) : at + step;
+      while (next >= 0 && next < paneRows.length && paneRows[next]._gap) {
+        next += step;
+      }
+      if (next < 0 || next >= paneRows.length) { return; }
+      selectedState[1](paneRows[next]);
+      var el = queryScrollRef.current;
+      if (!el) { return; }
+      var top = next * ROW_HEIGHT;
+      if (top < el.scrollTop) { el.scrollTop = top; }
+      else if (top + ROW_HEIGHT > el.scrollTop + el.clientHeight) {
+        el.scrollTop = top + ROW_HEIGHT - el.clientHeight;
+      }
+    }, [paneRows, selectedState[0]]);
+
+    var helpState = useState(false);
+    var setHelp = helpState[1];
+
+    useEffect(function () {
+      var onKey = function (ev) {
+        if (ev.metaKey || ev.ctrlKey || ev.altKey) { return; }
+        var tag = (ev.target.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+          return;
+        }
+        if (ev.key === 'j') { ev.preventDefault(); moveSelection(1); }
+        else if (ev.key === 'k') { ev.preventDefault(); moveSelection(-1); }
+        else if (ev.key === '?') { ev.preventDefault(); setHelp(true); }
+        else if (ev.key === 'Escape') { setHelp(false); }
+        else if (ev.key === '/') {
+          var box = document.querySelector('.fg-input[data-fg="message"]');
+          if (!box) { return; }
+          ev.preventDefault();
+          box.focus();
+          box.select();
+        }
+      };
+      window.addEventListener('keydown', onKey);
+      return function () { window.removeEventListener('keydown', onKey); };
+    }, [moveSelection, setHelp]);
 
     var copyFilterLink = useCallback(function (f) {
       var url = filterLink(f);
@@ -2030,42 +2195,55 @@
 
       e('div', { className: 'workspace' },
         e('main', { className: 'querypane' },
+          idle ? e('div', { className: 'livenote' },
+            e('strong', null, 'Live — every viewer shares this one stream,'),
+            ' and the boxes above filter it in your browser for free. The '
+              + 'lane holds the newest ' + BUFFER_MAX.toLocaleString()
+              + ' records; Query looks further back, and re-reads the '
+              + 'archive for you alone.') : null,
           e(TableHead, { columns: columns, narrow: phone }),
           query.state.status === 'failed'
             ? e('div', { className: 'error' }, query.state.error)
             : e('div', { className: 'querybody' },
                 e(LogTable, {
-                  rows: queryRows, columns: columns, narrow: phone,
+                  rows: paneRows, columns: columns, narrow: phone,
                   scrollRef: queryScrollRef,
                   selectedKey: selectedKey,
-                  onSelect: selectRecord,
-                  detail: rowDetail, onCloseDetail: closeDetail,
+                  onSelect: selectInQuery,
+                  detail: detailPaneState[0] === 'query' ? rowDetail : null,
+                  onCloseDetail: closeDetail,
+                  onCopy: copyRecord,
                   onReachTop: query.state.hasMore ? loadOlder : null
                 }),
                 e(ScrollMap, {
-                  rows: queryRows, height: mapHeightState[0]
+                  rows: paneRows, height: mapHeightState[0]
                 }),
-                !queryRows.length && query.state.status !== 'failed'
+                !paneRows.length && query.state.status !== 'failed'
                   ? e('div', { className: 'empty' }, placeholder)
                   : null)),
         inspectorState[0] && detailMode === 'side' && dockMode !== 'full'
           && (!phone || selectedState[0])
           ? e(Inspector, {
-              rec: selectedState[0], onClose: closeInspector
+              rec: selectedState[0], onClose: closeInspector,
+              onCopy: copyRecord
             })
           : null),
 
       e(LiveDock, {
         live: live, dock: dockMode, cycle: cycleDock, rows: liveRows,
+        total: live.snapshot.length,
         columns: columns, narrow: phone, scrollRef: dockScrollRef,
         mapHeight: dockMode === 'full' ? 400 : 180,
         selectedKey: selectedKey,
-        onSelect: selectRecord,
-        detail: rowDetail, onCloseDetail: closeDetail,
+        onSelect: selectInDock,
+        detail: detailPaneState[0] === 'dock' ? rowDetail : null,
+        onCloseDetail: closeDetail,
+        onCopy: copyRecord,
         dockInspector: dockMode === 'full' && inspectorState[0] &&
                        detailMode === 'side',
         inspectorRec: selectedState[0],
         onCloseInspector: closeInspector,
+        onCopyRecord: copyRecord,
         showNewest: showNewest,
         autoscroll: autoscrollState[0],
         toggleAutoscroll: function () {
@@ -2074,9 +2252,11 @@
       }),
 
       e('footer', { className: 'statusbar' },
-        e('span', null, queryRows.length.toLocaleString() + ' of ' +
-          query.state.count.toLocaleString() +
-          (query.state.countRelation === 'gte' ? '+' : '') + ' matched'),
+        e('span', null, idle
+          ? paneRows.length.toLocaleString() + ' live rows on screen'
+          : paneRows.length.toLocaleString() + ' of ' +
+            query.state.count.toLocaleString() +
+            (query.state.countRelation === 'gte' ? '+' : '') + ' matched'),
         query.state.loadingMore
           ? e('span', { className: 'loadingmore' }, 'loading older rows…')
           : (query.state.hasMore
@@ -2092,7 +2272,16 @@
         e('span', { className: 'sev-info' }, stats.info + ' info'),
         e('span', { className: 'grow' }),
         phone ? null : e('span', { className: 'sql', title: query.state.sql },
-          query.state.sql)),
+          query.state.sql),
+        e('button', {
+          className: 'btn helpbtn',
+          title: 'Keyboard shortcuts (?)',
+          onClick: function () { setHelp(!helpState[0]); }
+        }, '?')),
+
+      helpState[0]
+        ? e(Help, { onClose: function () { setHelp(false); } })
+        : null,
 
       toastState[0]
         ? e('div', { className: 'toast', role: 'status' }, toastState[0])

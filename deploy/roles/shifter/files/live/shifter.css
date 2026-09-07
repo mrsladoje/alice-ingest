@@ -558,7 +558,7 @@ html, body {
 .insp-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 6px;
   padding: 5px 8px;
   border-bottom: 1px solid var(--line);
 }
@@ -770,7 +770,8 @@ html, body {
   .dock-count, .dropped { font-size: 10px; }
 
   .statusbar { gap: 8px; font-size: 10px; overflow-x: auto; }
-  .statusbar > span { flex: 0 0 auto; }
+  .statusbar > span, .statusbar > button { flex: 0 0 auto; }
+  .livenote { font-size: 10px; padding: 4px 8px; }
 
   .dd-menu { position: fixed; left: 6px; right: 6px; top: auto; min-width: 0; }
   .dd-menu.wide { min-width: 0; }
@@ -808,4 +809,78 @@ html, body {
   border-radius: 2px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
   pointer-events: none;
+}
+
+.livenote {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border-left: 2px solid var(--accent);
+  background: var(--panel);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.livenote strong { color: var(--ink); font-weight: 600; }
+
+.helpbtn {
+  min-width: 20px;
+  padding: 0 6px;
+  line-height: 16px;
+}
+
+.helpwrap {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(22, 24, 28, 0.18);
+}
+
+.helppanel {
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+
+.help-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.help-body { padding: 6px 8px; }
+
+.help-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+.help-row kbd {
+  flex: 0 0 46px;
+  text-align: center;
+  font: 11px/16px var(--mono);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 2px;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.help-note {
+  padding: 6px 8px 8px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-soft);
 }

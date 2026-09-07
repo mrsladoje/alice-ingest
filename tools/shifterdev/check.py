@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import sys
@@ -96,6 +97,26 @@ class Page(object):
     def unviewport(self):
         self.ws.call("Emulation.clearDeviceMetricsOverride", {})
         time.sleep(0.6)
+
+    def shifted(self, name, code):
+        for kind in ("keyDown", "keyUp"):
+            self.ws.call("Input.dispatchKeyEvent", {
+                "type": kind, "key": name, "code": name,
+                "modifiers": 8, "windowsVirtualKeyCode": code})
+        time.sleep(0.45)
+
+    def hide_tab(self, hidden):
+        state = "hidden" if hidden else "visible"
+        self.ws.js("Object.defineProperty(document,'visibilityState',"
+                   "{configurable:true,get:function(){return '" + state +
+                   "'}});"
+                   "document.dispatchEvent(new Event('visibilitychange'))")
+        time.sleep(0.4)
+
+    def close_button(self, scope):
+        self.ws.js("Array.from(document.querySelectorAll('" + scope +
+                   " .btn')).filter(function(b){"
+                   "return b.textContent==='Close'})[0].click()")
 
     def click_row(self, pane, margin=260):
         box = self.js(
@@ -198,9 +219,12 @@ def first_load(page):
         "document.querySelectorAll('.fg-select')[0].value"), "1h")
     check("exclude picker default", page.js(
         "document.querySelectorAll('.fg-select')[1].value"), "none")
-    check("idle placeholder", page.js(
-        "var n=document.querySelector('.empty');n?n.textContent:null"),
-        "Set filters above, then press Query or hit Enter.")
+    check("the idle pane explains the live lane", page.js(
+        "var n=document.querySelector('.livenote');"
+        "n?/every viewer shares this one stream/.test(n.textContent):null"),
+        True)
+    check("the idle pane shows live rows, not an empty box", page.wait(
+        "document.querySelectorAll('.querypane .trow').length>0", 20), True)
     check("favicon is linked", page.js(
         "var l=document.querySelector('link[rel=icon]');"
         "l?l.getAttribute('href'):null"), "alice-favicon.svg")
@@ -343,8 +367,11 @@ def paging_and_clear(page):
         "document.querySelectorAll('.fg-select')[0].value"), "1h")
     check("Clear turns the exclude off", page.js(
         "document.querySelectorAll('.fg-select')[1].value"), "none")
-    check("Clear empties the result", page.js(
-        "document.querySelectorAll('.querypane .trow').length"), 0)
+    check("Clear drops the query result", page.js(
+        "/live rows on screen/.test("
+        "document.querySelector('.statusbar').innerText)"), True)
+    check("Clear puts the live lane back on the board", page.js(
+        "!!document.querySelector('.livenote')"), True)
 
 
 def jump_arrows(page):
@@ -572,7 +599,7 @@ def row_detail(page):
         ".some(function(k){return k.textContent==='facility'})"), True)
     check("it carries the whole message", page.js(
         "!!document.querySelector('.rowdetail .insp-msg')"), True)
-    page.ws.js("document.querySelector('.rowdetail .rd-head .btn').click()")
+    page.close_button(".rowdetail .rd-head")
     time.sleep(0.5)
     check("Close puts the panel away", page.js(
         "!!document.querySelector('.rowdetail')"), False)
@@ -738,6 +765,96 @@ def share_link(page):
     page.reload()
 
 
+def keys_help_and_copy(page):
+    print("\nkeyboard, the help panel and copying a record")
+    page.reload()
+    page.wait("document.querySelectorAll('.querypane .trow').length>0", 20)
+
+    page.click(".helpbtn")
+    check("the corner button opens the help panel", page.js(
+        "!!document.querySelector('.helppanel')"), True)
+    check("it names the row keys", page.js(
+        "var n=document.querySelector('.help-body');n?"
+        "/next row/.test(n.textContent)&&/previous row/.test(n.textContent)"
+        ":null"), True)
+    page.key("Escape", 27)
+    check("Escape closes the help panel", page.js(
+        "!!document.querySelector('.helppanel')"), False)
+    page.shifted("?", 191)
+    check("? opens it from the keyboard", page.js(
+        "!!document.querySelector('.helppanel')"), True)
+    page.key("Escape", 27)
+
+    page.key("/", 191)
+    check("/ puts the cursor in the message box", page.js(
+        "var a=document.activeElement;"
+        "a?a.getAttribute('data-fg'):null"), "message")
+    page.key("j", 74)
+    check("j inside a filter box moves no row", page.js(
+        "document.querySelectorAll('.trow.selected').length"), 0)
+    page.ws.js("document.activeElement.blur()")
+    time.sleep(0.5)
+
+    page.key("j", 74)
+    first = page.js("var n=document.querySelector('.querypane .trow.selected');"
+                    "n?n.textContent:null")
+    check("j selects a row", bool(first), True)
+    page.key("j", 74)
+    second = page.js("var n=document.querySelector('.querypane .trow.selected');"
+                     "n?n.textContent:null")
+    check("j again moves to another row", second != first and bool(second), True)
+    page.key("k", 75)
+    check("k goes back to the row before it", page.js(
+        "var n=document.querySelector('.querypane .trow.selected');"
+        "n?n.textContent:null"), first)
+
+    page.arm_copy()
+    check("the record opens beside the table", page.js(
+        "document.querySelectorAll('.inspector .kv').length") > 8, True)
+    page.ws.js("Array.from(document.querySelectorAll('.inspector .btn'))"
+               ".filter(function(b){return b.textContent==='Copy'})[0].click()")
+    time.sleep(0.5)
+    check("Copy writes the record as plain text", page.js(
+        "!!window.__copied && /^event time: /.test(window.__copied)"), True)
+    check("the copied text carries every field and the message", page.js(
+        "!!window.__copied && window.__copied.split('\\n').length>8"
+        " && window.__copied.indexOf('\\n\\n')>0"), True)
+    check("a toast confirms the record copy", page.js(
+        "var n=document.querySelector('.toast');n?n.textContent:null"),
+        "Record copied")
+    check("copying a record raises no dialog", page.js("window.__prompted"),
+          False)
+
+    print("\nthe live lane shows what the filter boxes keep")
+    page.ws.js("Array.from(document.querySelectorAll('.toolbar .btn'))"
+               ".filter(function(b){return b.textContent==='Live lane'})[0]"
+               ".click()")
+    time.sleep(0.8)
+    check("the lane says how many rows it holds", page.js(
+        "/[0-9]/.test(document.querySelector('.dock-count').textContent)"),
+        True)
+    page.type_into('.fg-input[data-fg="host"]', 0, "zzzznosuchhost")
+    check("a filter box narrows the lane in the browser", page.wait(
+        "/^0 of [0-9,]+ match$/.test("
+        "document.querySelector('.dock-count').textContent)", 10), True)
+    check("the query button says the lane needs no query", page.js(
+        "/needs no query/.test("
+        "document.querySelector('.toolbar .btn.primary').title)"), True)
+
+    page.type_into('.fg-input[data-fg="host"]', 0, "")
+
+    print("\nan alert arriving while the tab is in the background")
+    page.reload()
+    base = page.js("document.title")
+    page.hide_tab(True)
+    check("the title carries a count of what was missed", page.wait(
+        "/^\\([0-9]/.test(document.title)", 30), True)
+    page.hide_tab(False)
+    check("coming back to the tab clears the count", page.wait(
+        "document.title===" + json.dumps(base), 6), True)
+    page.reload()
+
+
 def live_lane(page):
     print("\nlive lane")
     check("the dock is there", page.js(
@@ -774,8 +891,7 @@ def live_lane(page):
         ".some(function(k){return k.textContent==='facility'})"), True)
     check("only one panel is open across both tables", page.js(
         "document.querySelectorAll('.rowdetail').length"), 1)
-    page.ws.js("document.querySelector('.dock .rowdetail .rd-head .btn')"
-               ".click()")
+    page.close_button(".dock .rowdetail .rd-head")
     time.sleep(0.5)
     check("Close puts the lane panel away", page.js(
         "!!document.querySelector('.dock .rowdetail')"), False)
@@ -810,7 +926,7 @@ def live_lane(page):
         ".getBoundingClientRect();"
         "var t=document.querySelector('.dock .logtable')"
         ".getBoundingClientRect();return i.left>=t.right-2;})()"), True)
-    page.ws.js("document.querySelector('.dock .inspector .btn').click()")
+    page.close_button(".dock .insp-head")
     time.sleep(0.5)
     check("Close puts it away", page.js(
         "!!document.querySelector('.dock .inspector')"), False)
@@ -845,7 +961,7 @@ def main():
         for stage in (first_load, ranges, exact_and_formats, calendar,
                       counting, paging_and_clear, jump_arrows,
                       few_rows_jump, toolbar, row_detail, phone_layout,
-                      share_link, live_lane):
+                      share_link, keys_help_and_copy, live_lane):
             stage(page)
         errors = page.js("(window.__errors||[]).slice(0, 5)")
     finally:

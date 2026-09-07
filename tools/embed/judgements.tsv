@@ -1,0 +1,635 @@
+authentication failed	0	CURL_perform() failed : Timeout was reached
+authentication failed	0	Change state failed : Failed to change state of a FairMQ device
+authentication failed	1	Could not find an env var QC_BKP_CLIENT_TOKEN nor a qc_bkp_client_token.txt file, using BKP client without an authentication token
+authentication failed	0	Failed registration to the BookKeeping : errors resolving ali-bookkeeping-internal : <NUM> : [field : hostname lookup error : address lookup failed for ali-bookkeeping-internal : <NUM> : Domain name not found]
+authentication failed	0	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : connect() timed out
+authentication failed	0	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : getsockopt(SO_ERROR) : Connection timed out
+authentication failed	0	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : getsockopt(SO_ERROR) : Connection timed outResetting the <*>
+authentication failed	0	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : tcp handshaker <*> <*> <*>
+authentication failed	0	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : tcp handshaker shutdown
+authentication failed	0	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : tcp handshaker shutdownInput summary (seen/expected) : data <NUM>/<NUM>, timer <NUM>/<NUM>, condition <NUM>/<NUM>. Action taken : <*>
+authentication failed	0	Failed to parse json in CcdbDatabase : : getListingAsPtree from data :
+authentication failed	0	Following collections failed to transition to <*> state :
+authentication failed	0	ResetFailed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : tcp handshaker shutdown
+authentication failed	0	Sending TfBuilder status update failed.
+authentication failed	0	StfSender gRPC connection error. stfs_id = <*> code = <NUM> error = failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : Connection refused
+authentication failed	0	StfSender gRPC connection error. stfs_id = <*> code = <NUM> error = failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : Connection refused <msgs_suppressed = <NUM>>
+authentication failed	0	StfSender gRPC connection finished. success = false failed = <NUM>
+authentication failed	0	TfBuilderUCXDisconnectionRequest : gRPC call failed err = failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : Connection refused details =
+authentication failed	0	failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : getsockopt(SO_ERROR) : Connection timed out
+authentication failed	0	failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : tcp handshaker shutdown
+authentication failed	0	resetFailed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : getsockopt(SO_ERROR) : Connection timed out
+authentication failed	0	resetFailed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : tcp handshaker shutdown
+calibration object missing	0	"calib" :
+calibration object missing	0	>> Aggregator name : CalibQuality
+calibration object missing	0	Backpressure on channel from_tof-diagnostic-calibration_to_ccdb-populator[<NUM>]. Waiting.
+calibration object missing	0	CALIB_TPC_SAC = <NUM>
+calibration object missing	0	CALIB_TPC_SCDCALIB = <NUM>
+calibration object missing	0	CalVdriftExB object has been updated
+calibration object missing	0	CalibQuality : Detector MCH
+calibration object missing	0	CalibQuality : QualityObjects :
+calibration object missing	0	Calibration data requested, disabling ensureContinuousROF!
+calibration object missing	1	Calibration data was not published, laser track calibration might not have enough statistics : <NUM> (<NUM>) matched tracks in <NUM> TFs on the A (C) < <NUM> min TFs ? <NUM> min matches per side per TF? Or eos was not called by the framework.
+calibration object missing	0	ERROR Trying to set resources, but no calib_collection_cores was set! This will leave calib collections without number of cores specific!
+calibration object missing	0	Energy Calibration from command line <*> = <NUM>
+calibration object missing	0	Found topology MID-calib-workflow - ['MID-calib-workflow : ', 'O2PDPSuite', 'reco,<NUM>,<NUM>,production/calib/mid-badchannels.sh']
+calibration object missing	0	Found topology tpc-idc-calib - ['tpc-idc-calib : ', 'O2PDPSuite', 'calib,<NUM>,AGGREGATOR_TASKS = TPC_IDCBOTH_SAC SHMSIZE = <NUM> WORKFLOW_PARAMETERS+ = ,CALIB_PROXIES production/aggregator-workflow.sh', 'calib,<NUM>,AGGREGATOR_TASKS = TPC_CMV SHMSIZE = <NUM> WORKFLOW_PARAMETERS+ = ,CALIB_PROXIES production/aggregator-workflow.sh']
+calibration object missing	0	HMP_PED_TAG = 'Calib'
+calibration object missing	0	INFO Adding calibration topology files : ['<PATH> : <NUM>', '<PATH> : <NUM>', '<PATH> : <NUM>', '<PATH> : <NUM>', '<PATH> : <NUM>', '<PATH> : <NUM>', '<PATH> : <NUM>']
+calibration object missing	0	INFO Adding calibration topology files : ['<PATH> : <NUM>', '<PATH> : <NUM>', '<PATH> : <NUM>', '<PATH> : <NUM>', '<PATH> : <NUM>', '<PATH> : <NUM>']
+calibration object missing	0	INFO Adding calibration topology files : ['<PATH> : <NUM>', '<PATH> : <NUM>', '<PATH> : <NUM>']
+calibration object missing	0	INFO Adding calibration topology files : ['<PATH> : <NUM>']
+calibration object missing	0	INFO Adding calibration topology files : []
+calibration object missing	0	Init for slewing calib object
+calibration object missing	0	Tower Calibration from CCDB ZEM2 = <NUM>
+calibration object missing	0	Tower Calibration from command line <*> = <NUM>
+calibration object missing	0	Tower Energy Calibration set to ZEM2 = <NUM>
+calibration object missing	1	Unable to find CCDB object <*>
+calibration object missing	0	Updating GPUReconstruction calibration objects
+calibration object missing	0	Updating all calib objects since pointers changed
+calibration object missing	0	Using topology ITS-thr-short of library production/standalone-calibration.desc
+calibration object missing	0	Using topology MID-calib-workflow of library production/standalone-calibration.desc
+configuration rejected	0	Configurable tracker parameters:
+configuration rejected	0	Configuration event
+configuration rejected	0	Configuration/v2.<FLOAT><NUM> Common-O2/v1.<FLOAT><NUM> ms_gsl/<FLOAT>.<NUM>-<NUM> libuv/v1.<FLOAT><NUM>
+configuration rejected	1	Configure reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : ERROR ; msg : ; exectime : <*> ; rmsjobids : ; ERROR : Failed to change FairMQ device state (Change state failed : Failed to change state of a FairMQ device) (<NUM>)
+configuration rejected	0	Configure reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : READY ; msg : Configure done ; exectime : <*> ; rmsjobids :
+configuration rejected	0	DDS configuration v0.<NUM>
+configuration rejected	0	ERROR Not enough resources available!
+configuration rejected	0	Empty bunch filling is provided, all vertices will be rejected
+configuration rejected	0	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : connect() timed out
+configuration rejected	0	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : getsockopt(SO_ERROR) : Connection timed out
+configuration rejected	0	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : getsockopt(SO_ERROR) : Connection timed outResetting the <*>
+configuration rejected	0	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : tcp handshaker <*> <*> <*>
+configuration rejected	0	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : tcp handshaker shutdown
+configuration rejected	1	File EMC/Config/RecoParam could not be retrieved. No more hosts to try.
+configuration rejected	1	File GLO/Config/GRPECS could not be retrieved. No more hosts to try.
+configuration rejected	1	Found error messages during topology generation
+configuration rejected	1	Incorrect topology provided : Topology generation script failed with exit code : <NUM>, stderr : "FATAL Error during <*> <*> <*>
+configuration rejected	1	Invalid debugOnFailureDirectory <PATH>
+configuration rejected	0	Preparing to submit <NUM> configurations :
+configuration rejected	0	Printing configuration cuts
+configuration rejected	0	Processed TFs : <NUM>
+configuration rejected	1	Run reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : UNDEFINED ; msg : ; exectime : <*> ; rmsjobids : ; ERROR : Failed topology (Incorrect topology provided : Topology generation script failed with exit code : <NUM>, stderr : "FATAL Error during <*> <*> <*>
+configuration rejected	0	StfSender gRPC connection error. stfs_id = <*> code = <NUM> error = failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : Connection refused
+configuration rejected	0	StfSender gRPC connection error. stfs_id = <*> code = <NUM> error = failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : Connection refused <msgs_suppressed = <NUM>>
+configuration rejected	0	TfBuilderUCXDisconnectionRequest : gRPC call failed err = failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : Connection refused details =
+configuration rejected	0	Using config file 'json : <PATH>'
+configuration rejected	1	[[<NUM> ; <*> ; 32mINFO[0m] fair::mq::plugins::Config: no channels configuration provided via --mq-config or --channel-config
+configuration rejected	0	[<FLOAT>] [epn285:<NUM>:<NUM>] sock.c:<NUM> UCX ERROR bind(fd = <NUM> addr = <IP>) failed: Address already in use
+configuration rejected	0	[CTPRawToDigitConverter - run] Writing <NUM> digits. IR rejected:<NUM> TCR rejected:<NUM>
+configuration rejected	1	[ERROR] error parsing options of <*> : unrecognised option <*>
+configuration rejected	0	checking channel configuration
+configuration rejected	0	failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : tcp handshaker shutdown
+configuration rejected	0	resetFailed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : getsockopt(SO_ERROR) : Connection timed out
+connection refused	0	BOUND ---> CONNECTING
+connection refused	0	CCDBDownloader CURL transfer error - Couldn't resolve host name
+connection refused	0	CURL_perform() failed : Couldn't resolve host name
+connection refused	0	DDS protocol v2
+connection refused	1	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : connect() timed out
+connection refused	1	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : getsockopt(SO_ERROR) : Connection timed out
+connection refused	1	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : getsockopt(SO_ERROR) : Connection timed outResetting the <*>
+connection refused	1	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : tcp handshaker <*> <*> <*>
+connection refused	0	Initialized db connection to 'o2-ccdb.internal'
+connection refused	1	ResetFailed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : tcp handshaker shutdown
+connection refused	1	StfSender gRPC connection error. stfs_id = <*> code = <NUM> error = failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : Connection refused
+connection refused	1	StfSender gRPC connection error. stfs_id = <*> code = <NUM> error = failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : Connection refused <msgs_suppressed = <NUM>>
+connection refused	1	TfBuilderUCXDisconnectionRequest : gRPC call failed err = failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : Connection refused details =
+connection refused	0	[<NUM>-<NUM>-<NUM> <NUM>:<NUM>:<FLOAT>][D] Received a connection request! addr = <IP> port = <NUM>
+connection refused	1	failed to attach channel <*> (connect on tcp : <PATH> : <NUM>)
+connection refused	1	failed to attach channel EMC-RawTask-proxy[<NUM>] (connect on tcp : <PATH> : <NUM>)
+connection refused	1	failed to attach channel GLO-MTCITSTPC-proxy[<NUM>] (connect on tcp : <PATH> : <NUM>)
+connection refused	1	failed to attach channel MCH-Clusters-proxy[<NUM>] (connect on tcp : <PATH> : <NUM>)
+connection refused	1	failed to attach channel TPC-PID-proxy[<NUM>] (connect on tcp : <PATH> : <NUM>)
+connection refused	1	failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : getsockopt(SO_ERROR) : Connection timed out
+connection refused	1	failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : tcp handshaker shutdown
+connection refused	1	resetFailed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : getsockopt(SO_ERROR) : Connection timed out
+connection refused	1	resetFailed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : tcp handshaker shutdown
+data lost or frames dropped	0	ARGS_EXTRA_PROCESS_o2_tpc_cmv_distribute = '--drop-data-after-nTFs
+data lost or frames dropped	0	CCDBDownloader CURL transfer error - Timeout was reached
+data lost or frames dropped	1	Cannot dispatch to channel <*> due to DOWNSTREAM BACKPRESSURE. NO DATA IS DROPPED, will keep retrying. This is only a problem if downstream congestion does not resolve by itself.
+data lost or frames dropped	0	Decoding... Digits decoded = <NUM> Frames received = <NUM> Execution time = <FLOAT>
+data lost or frames dropped	1	Device state change is requested, dropping <NUM> pending message(s) on channel <*> ATTENTION : DATA IS LOST! Could not dispatch data to downstream consumer(s), check if consumers have been terminated too early
+data lost or frames dropped	1	DropStfThread : Unknown StfSender. stfs_id = <*>
+data lost or frames dropped	1	Dropping incomplete MID/TRACKROFS/<NUM> Lifetime : : timeframe data in slot <NUM> with timestamp <NUM> < <NUM> as it can never be completed.
+data lost or frames dropped	0	Failed to parse json in CcdbDatabase : : getListingAsPtree from data :
+data lost or frames dropped	1	Lost in shiftInputs:<NUM>
+data lost or frames dropped	0	MFTTracker IRFrame filter enabled: loading ITS IR Frames.
+data lost or frames dropped	0	MFTTracker pulled <NUM> compressed clusters in <NUM> RO frames
+data lost or frames dropped	1	Message flood - resuming normal operation : <NUM> messages stored locally, <NUM> messages dropped
+data lost or frames dropped	1	Missing GLO/GLFWD/<NUM> (lifetime : timeframe) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+data lost or frames dropped	1	Missing GLO/MTC_MCHMID/<NUM> (lifetime : timeframe) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+data lost or frames dropped	1	Missing GLO/PVTX_TRMTC/<NUM> (lifetime : timeframe) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+data lost or frames dropped	1	Missing GLO/PVTX_TRMTCREFS/<NUM> (lifetime : timeframe) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+data lost or frames dropped	1	Missing MCH/TRACKCLUSTERS/<NUM> (lifetime : timeframe) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+data lost or frames dropped	1	Missing MCH/TRACKROFS/<NUM> (lifetime : timeframe) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+data lost or frames dropped	1	Missing MCH/TRACKS/<NUM> (lifetime : timeframe) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+data lost or frames dropped	1	Missing MFT/DIGITS/<NUM> (lifetime : timeframe) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+data lost or frames dropped	1	Missing MFT/DIGITSROF/<NUM> (lifetime : timeframe) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+data lost or frames dropped	1	Missing SubTimeFrames from StfSenders : <*>
+data lost or frames dropped	1	Missing SubTimeFrames from StfSenders : <*> <*>
+data lost or frames dropped	1	Missing SubTimeFrames from StfSenders : <*> <*> <*>
+data lost or frames dropped	1	Missing SubTimeFrames from StfSenders : <*> <*> <*> <*>
+data lost or frames dropped	1	Missing SubTimeFrames from StfSenders : <*> <*> <*> <*> <*>
+data lost or frames dropped	1	Missing SubTimeFrames from StfSenders : <*> <*> <*> <*> <*> <*>
+data lost or frames dropped	1	Missing SubTimeFrames from StfSenders : <*> <*> <*> <*> <*> <*> <*>
+data lost or frames dropped	1	PreClustering error: lost digit: seen <NUM> times
+data lost or frames dropped	1	Some Lifetime : : Timeframe data got dropped starting at <NUM>
+data lost or frames dropped	1	StfSender did not send data. stf_id = <*> stfs_id = DATA_DROPPED_UNKNOWN reason = FORMAT ERROR : argument not found. provided_format_string = StfSender did not send data. stf_id = {} stfs_id = {} reason = {}
+data lost or frames dropped	1	The STOP transition happened before an EndOfStream was received. The very last QC objects in this run might not have been stored.
+data lost or frames dropped	0	[INFO] ft0-datareader-dpl
+data lost or frames dropped	0	data-sink-dir = <string> [default]
+data lost or frames dropped	0	data-sink-stf-min-id = <NUM> <unsigned long> [default]
+data lost or frames dropped	1	some digits have been lost during the preclustering
+detector readout error	0	- full stderr output :
+detector readout error	0	Backpressure on channel from_tof-diagnostic-calibration_to_ccdb-populator[<NUM>]. Waiting.
+detector readout error	0	CCDBDownloader CURL transfer error - Couldn't resolve host name
+detector readout error	0	CCDBDownloader CURL transfer error - Timeout was reached
+detector readout error	0	CalibQuality : Detector MCH
+detector readout error	0	Check config : Module QualityControl ; Name CcdbCheck ; Class o2 : : quality_control_modules : : common : : CcdbInspectorCheck ; Detector MCH ; Policy OnAll ; MonitorObjects : / CcdbInspector/ObjectsStatus
+detector readout error	0	Creating decoding errors: yes
+detector readout error	0	ERROR Not enough resources available!
+detector readout error	0	Error during workflow description parsing
+detector readout error	0	File 'MCH/Calib/BadChannel' from db 'o2-ccdb.internal' : status is <*>
+detector readout error	0	IL : Detector set to TPC
+detector readout error	0	Incorrect topology provided : Topology generation script failed with exit code : <NUM>, stderr : "FATAL Error during <*> <*> <*>
+detector readout error	1	Received <NUM> errors
+detector readout error	0	StfSender gRPC connection error. stfs_id = <*> code = <NUM> error = Deadline Exceeded
+detector readout error	0	WORKFLOW_DETECTORS = <*>
+detector readout error	0	WORKFLOW_DETECTORS_EXCLUDE_CALIB = <*>
+detector readout error	0	WORKFLOW_DETECTORS_EXCLUDE_QC = <*>
+detector readout error	0	WORKFLOW_DETECTORS_FLP_PROCESSING = <*>
+detector readout error	0	WORKFLOW_DETECTORS_MATCHING = 'NONE'
+detector readout error	0	WORKFLOW_DETECTORS_RECO = <*>
+detector readout error	0	[ERROR]
+detector readout error	0	[ERROR] <*>
+detector readout error	0	[ERROR] error parsing options of <*> : unrecognised option <*>
+detector readout error	0	[INFO] Not instrumenting crash signals because O2_NO_CATCHALL_EXCEPTIONS is set
+detector readout error	0	[INFO] ft0-datareader-dpl
+detector readout error	0	key : detectors ; value : <*>
+detector readout error	0	o2-epn-stderr-monitor <<HEX>:<HEX>> DDSAO-<NUM>: stopping read operation due to shutdown
+detector readout error	0	o2-epn-stderr-monitor <<HEX>:<HEX>> User process is waiting error events.
+detector readout error	0	o2-fdd-entropy-encoder-workflow <<HEX>:<HEX>> User process is waiting error events.
+detector readout error	0	o2-tpc-calib-gainmap-tracks <<HEX>:<HEX>> DDSAO-<NUM>: stopping read operation due to shutdown
+detector readout error	0	o2-tpc-calib-gainmap-tracks <<HEX>:<HEX>> SM: Initializing input message queue: DDSAO-<NUM>
+detector readout error	0	o2-tpc-calib-gainmap-tracks <<HEX>:<HEX>> User process is waiting error events.
+detector readout error	0	o2-trd-datareader <<HEX>:<HEX>> DDSAO-<NUM>: stopping read operation due to shutdown
+detector readout error	0	o2-trd-datareader <<HEX>:<HEX>> User process is waiting error events.
+detector readout error	0	stderr : Exceeded log size for process <*> (<NUM> lines, <NUM> bytes), not reporting any more errors from this file...
+device or GPU error	1	<NUM> Aborted (core dumped) | ROCR_VISIBLE_DEVICES = <NUM> o2-gpu-reco-workflow --id gpu-reconstruction_t3_dds%TaskIndex%_%CollectionIndex% --shm-monitor false --log-color false --batch --color false --channel-config "name = gpu-prepare-channel,type = pull,method = bind,address = ipc:<PATH>@gpu-prepare-channel-<NUM>-<NUM>,transport = shmem,rateLogging = <NUM>" --channel-config "name = from_gpu-reconstruction_t3_to_its-tracker_t0,type = push,method = bind,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_gpu-reconstruction_t3_to_TOFClusterer,type = push,method = bind,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_gpu-reconstruction_t3_to_itstpc-track-matcher_t0,type = push,method = bind,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_gpu-reconstruction_t3_to_calib-tpc-gainmap-tracks,type = push,method = bind,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_gpu-reconstruction_t3_to_tpc-entropy-encoder_t0,type = push,method = bind,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_gpu-reconstruction_t3_to_Dispatcher,type = push,method = bind,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_gpu-reconstruction_t3_to_internal-dpl-injected-dummy-sink,type = push,method = bind,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_gpu-reconstruction_t3_to_its-tracker_t1,type = push,method = bind,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_gpu-reconstruction_t3_to_itstpc-track-matcher_t1,type = push,method = bind,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_gpu-reconstruction_t3_to_tpc-entropy-encoder_t1,type = push,method = bind,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_gpu-reconstruction_t3_to_its-tracker_t2,type = push,method = bind,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_gpu-reconstruction_t3_to_itstpc-track-matcher_t2,type = push,method = bind,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_gpu-reconstruction_t3_to_tpc-entropy-encoder_t2,type = push,method = bind,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_gpu-reconstruction_t3_to_itstpc-track-matcher_t3,type = push,method = bind,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_gpu-reconstruction_t3_to_tpc-entropy-encoder_t3,type = push,method = bind,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_internal-dpl-ccdb-backend_to_gpu-reconstruction_t3,type = pull,method = connect,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_gpu-reconstruction-prepare_t0_to_gpu-reconstruction_t3,type = pull,method = connect,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_gpu-reconstruction-prepare_t1_to_gpu-reconstruction_t3,type = pull,method = connect,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_gpu-reconstruction-prepare_t2_to_gpu-reconstruction_t3,type = pull,method = connect,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_gpu-reconstruction-prepare_t3_to_gpu-reconstruction_t3,type = pull,method = connect,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_tpc-scaler_to_gpu-reconstruction_t3,type = pull,method = connect,address = ipc:<PATH>@localhost916456_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --aod-file "" --aod-memory-rate-limit <NUM> --aod-origin-replace "" --aod-writer-json "" --aod-writer-keep "" --aod-writer-maxfilesize <NUM> --aod-writer-ntfmerge <NUM> --aod-writer-resdir "" --aod-writer-resfile "" --aod-writer-resmode RECREATE --bad-alloc-attempt-interval <NUM> --bad-alloc-max-attempts <NUM> --ccdb-fetchers <NUM> --clone "" --configFile "" --configKeyValues "keyval.input_dir = <PATH> ; keyval.output_dir = <PATH> ; NameConf.mCCDBServer = http:<PATH>:<NUM> ; ; GPU_global.deviceType = HIP ; GPU_proc.debugLevel = <NUM> ; GPU_global.synchronousProcessing = <NUM> ; GPU_proc.clearO2OutputFromGPU = <NUM> ; GPU_rec_tpc.trackletMinSharedNormFactor = <NUM>. ; GPU_rec_tpc.trackletMaxSharedFraction = <FLOAT> ; GPU_rec_tpc.rejectIFCLowRadiusCluster = <NUM> ; GPU_rec_tpc.extrapolationTrackingRowRange = <NUM> ; GPU_rec_tpc.clusterError2AdditionalYSeeding = <FLOAT> ; GPU_rec_tpc.clusterError2AdditionalZSeeding = <FLOAT> ; GPU_proc.memoryScalingFactor = <FLOAT> ; GPU_global.rundEdx = <NUM> ; GPU_proc.ompThreads = <NUM> ; GPU_QA.clusterRejectionHistograms = <NUM> ; GPU_proc.qcRunFraction = <NUM> ; GPU_proc.debugOnFailure = <NUM> ; GPU_proc.debugOnFailureDirectory = <PATH> ; GPU_proc.debugOnFailureMaxFiles = <NUM> ; GPU_proc.debugOnFailureMaxSize = <NUM> ; GPU_proc.debugOnFailureSignalMask = <NUM> ; GPU_global.dumpFolder = gpu_dump_[P] ; GPU_proc.tpcIncreasedMinClustersPerRow = <NUM> ; GPU_proc.ignoreNonFatalGPUErrors = <NUM> ; GPU_proc.throttleAlarms = <NUM> ; GPU_proc_scaling.conservativeMemoryEstimate = <NUM> ; GPU_global.registerSelectedSegmentIds = <NUM> ; GPU_proc.deviceNum = <NUM> ; GPU_proc.serializeGPU = <NUM> ; GPU_proc.forceMemoryPoolSize = <NUM> ; GPU_proc.forceHostMemoryPoolSize = <NUM> ; ; trackTuneParams.sourceLevelTPC = true ; trackTuneParams.tpcCovInnerType = <NUM> ; trackTuneParams.useTPCInnerCorr = false ; trackTuneParams.tpcCovInner[<NUM>] = <FLOAT> ; trackTuneParams.tpcCovInner[<NUM>] = <FLOAT> ; trackTuneParams.tpcCovInner[<NUM>] = <FLOAT> ; trackTuneParams.tpcCovInner[<NUM>] = <FLOAT> ; ; ; GPU_proc.tpcDownscaledEdx = <NUM> ; ; " --disable-ctp-lumi-request --disable-mc --disable-root-input --early-forward-policy noraw --enableDoublePipeline --environment ROCR_VISIBLE_DEVICES = {timeslice4} --exit-transition-timeout <NUM> --expected-region-callbacks <NUM> --fairmq-ipc-prefix "@" --fairmq-rate-logging <NUM> --fairmq-recv-buffer-size <NUM> --fairmq-send-buffer-size <NUM> --forwarding-destination drop --forwarding-policy dangling --hbfutils-config o2simdigitizerworkflow_configuration.ini --infologger-severity important --input-type zsraw --io-threads <NUM> --labels "" --monitoring-backend influxdb-unix:<PATH> --output-type tracks,clusters,tpc-triggers,compressed-clusters-flat,qa,error-qa --pipeline gpu-reconstruction:<NUM>,gpu-reconstruction-prepare:<NUM> --readers <NUM> --session default --severity info --shm-allocation rbtree_best_fit --shm-metadata-msg-size <NUM> --shm-mlock-segment false --shm-mlock-segment-on-creation <NUM> --shm-no-cleanup on --shm-segment-id <NUM> --shm-segment-size <NUM> --shm-throw-bad-alloc true --shm-zero-segment false --shmid <NUM> --signposts "" --spawners <NUM> --stacktrace-on-signal simple --timeframes-rate-limit <NUM> --timeframes-rate-limit-ipcid <NUM> --tpc-deadMap-sources <NUM> --workflow-suffix "" --condition-backend http:<PATH>:<NUM> --condition-timestamp <NUM> --resources-monitoring <NUM> --plugin odc
+device or GPU error	0	CONFIG_EXTRA_PROCESS_o2_gpu_reco_workflow = "GPU_proc.tpcDownscaledEdx = <NUM> ; "
+device or GPU error	0	CONFIG_EXTRA_PROCESS_o2_gpu_reco_workflow = "GPU_proc.tpcDownscaledEdx = <NUM> ; GPU_proc_nn.applyNNclusterizer = <NUM> ; GPU_rec_tpc.cfQTotCutoff = <NUM> ; GPU_proc_nn.nnInferenceDevice = ROCM ; GPU_proc_nn.nnInferenceAllocateDevMem = <NUM> ; GPU_proc_nn.nnInferenceInputDType = FP16 ; GPU_proc_nn.nnInferenceOutputDType = FP16 ; GPU_proc_nn.nnSigmoidTrafoClassThreshold = <NUM> ; GPU_proc_nn.nnClusterizerBatchedMode = <NUM> ; GPU_proc_nn.nnClusterizerAddIndexData = <NUM> ; GPU_proc_nn.nnInferenceIntraOpNumThreads = <NUM> ; GPU_proc_nn.nnInferenceInterOpNumThreads = <NUM> ; GPU_proc_nn.nnClusterizerUseCfRegression = <NUM> ; GPU_proc_nn.nnInferenceVerbosity = <NUM> ; GPU_proc_nn.nnClusterizerVerbosity = <NUM> ; GPU_proc_nn.nnClusterizerApplyCfDeconvolution = <NUM> ; GPU_proc_nn.nnClusterizerBoundaryFillValue = <NUM> ; GPU_proc_nn.nnInferenceOrtProfiling = <NUM> ; GPU_proc_nn.nnClusterizerSetDeconvolutionFlags = <NUM> ; GPU_proc_nn.nnClassThreshold = <FLOAT> ; GPU_proc_nn.nnClusterizerSizeInputRow = <NUM> ; GPU_proc_nn.nnClusterizerSizeInputPad = <NUM> ; GPU_pro [...]
+device or GPU error	0	CONFIG_EXTRA_PROCESS_o2_gpu_reco_workflow = "GPU_proc.tpcDownscaledEdx = <NUM> ; GPU_rec_tpc.hipTailFilter = <NUM> ; GPU_rec_tpc.hipTailFilterMinimum = <NUM> ; GPU_rec_tpc.hipTailFilterThreshold = <NUM>"
+device or GPU error	0	CONFIG_EXTRA_PROCESS_o2_gpu_reco_workflow = "GPU_proc.tpcDownscaledEdx = <NUM> ; GPU_rec_tpc.hipTailFilter = <NUM>"
+device or GPU error	0	CONFIG_EXTRA_PROCESS_o2_gpu_reco_workflow = "GPU_proc.tpcDownscaledEdx = <NUM>"
+device or GPU error	0	CONFIG_EXTRA_PROCESS_o2_gpu_reco_workflow = "GPU_rec_tpc.rejectionStrategy = <NUM> ; GPU_proc.disableTPCNoisyPadFilter = <NUM> ; "
+device or GPU error	0	CONFIG_EXTRA_PROCESS_o2_gpu_reco_workflow = 'GPU_proc.debugOnFailure = <NUM> ; GPU_proc.debugOnFailureDirectory = <PATH> ; GPU_proc.debugOnFailureMaxFiles = <NUM> ; GPU_proc.debugOnFailureMaxSize = <NUM> ; GPU_proc.debugOnFailureSignalMask = <NUM>'
+device or GPU error	0	Created GPUReconstruction instance for device type <*> (<NUM>)
+device or GPU error	0	Created GPUReconstruction instance for device type HIP (<NUM>) (slave)
+device or GPU error	0	Current settings for GPU TRD tracker:
+device or GPU error	0	DEVICE READY ---> RESETTING DEVICE
+device or GPU error	1	Device <NUM> unexpectedly reached ERROR state. On host : <*> working directory : <PATH>
+device or GPU error	0	Device states : DEVICE READY (<NUM>/<NUM>)
+device or GPU error	1	Device states : ERROR (<NUM>/<NUM>) <*> (<NUM>/<NUM>)
+device or GPU error	1	Device states : ERROR (<NUM>/<NUM>) <*> (<NUM>/<NUM>) <*> (<NUM>/<NUM>)
+device or GPU error	1	Device states : ERROR (<NUM>/<NUM>) <*> <*> <*> <*> <*> (<NUM>/<NUM>)
+device or GPU error	1	Device states : ERROR (<NUM>/<NUM>) DEVICE READY (<NUM>/<NUM>)
+device or GPU error	0	Device states : INITIALIZING DEVICE (<NUM>/<NUM>)
+device or GPU error	1	Following devices failed to transition to DEVICE READY state :
+device or GPU error	1	GPU Error Code (<NUM> : <NUM>) <*> : <NUM> / <NUM> / <NUM>
+device or GPU error	1	GPU Reconstruction aborted with non fatal error code, ignoring
+device or GPU error	0	GPU Tracker initialization <*>
+device or GPU error	0	GPU Tracker library loaded and GPU tracker object created sucessfully
+device or GPU error	1	GPUReconstruction suffered from an error in the GPU part
+device or GPU error	0	[ERROR]
+device or GPU error	0	[ERROR] <*>
+device or GPU error	1	[FMQ] Uncaught exception reached the top of DeviceRunner : Device transitioned to error state
+device or GPU error	0	o2-gpu-reco-workflow <<HEX>:<HEX>> User process is waiting error events.
+device or GPU error	1	what(): GPU Reconstruction initialization failed
+disk full	0	- full stderr output :
+disk full	0	DDS_TASK_PATH = <*>
+disk full	0	DD_DISK_FRACTION = '<NUM>'
+disk full	0	DEVICE READY ---> RESETTING DEVICE
+disk full	0	Discard debug ? <NUM> / Discard from level ? <NUM> / Discard to file ? No / Discard max bytes and files ? <NUM> = <NUM> / Put discarded debug messages in file ? <NUM>
+disk full	0	ERROR Not enough resources available!
+disk full	0	Exception : Not enough resources available!
+disk full	0	Found <NUM> partitions to restore
+disk full	0	Full 128b word is : <HEX>
+disk full	0	FullClusterScan = false
+disk full	0	HugePages_Total: <NUM>
+disk full	0	IL : Partition empty, we don't set it
+disk full	0	IL : Partition set to <*>
+disk full	0	INFO Merging asset file : <PATH> as qc.json
+disk full	0	ITSSTFDecoder Total STF decoding/clustering timing (w/o disk IO): Cpu: <*> Real: <*> s in <NUM> slots
+disk full	0	Inclusive clusterization timing (w/o disk IO): Cpu: <FLOAT> Real: <FLOAT> s in <NUM> slots
+disk full	0	MFTSTFDecoder Total STF decoding/clustering timing (w/o disk IO): Cpu: <NUM>.760e+<NUM> Real: <NUM>.952e+<NUM> s in <NUM> slots
+disk full	0	Memory region <*> is too small, or there is a large backpressure.
+disk full	0	RESETTING TASK ---> DEVICE READY
+disk full	0	ROOT_DYN_PATH = <PATH>:<PATH>:<PATH>
+disk full	0	Reading restore file "<PATH>"
+disk full	0	Run reply : partitionId : 32u6J1RzjpM ; runnr : <NUM> ; sessionid : <UUID> ; state : IDLE ; msg : Run done ; exectime : 13362ms ; rmsjobids : unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown ; hosts : epn339.internal, epn150.internal, epn008.internal, epn027.internal, epn090.internal, epn209.internal, epn020.internal, epn007.internal, epn280.internal, epn204.internal, epn025.internal, epn316.internal, epn159.internal, epn149.internal, epn006.internal, epn-calib3.internal
+disk full	0	Starting odc-grpc-server <FLOAT>.<NUM> (DDS <FLOAT>). Logging severity 'dbg'
+disk full	0	Status : found <NUM> partition(s)
+disk full	0	Status : found <NUM> partition(s) :
+disk full	0	Writing restore file "<PATH>"
+disk full	0	XDG_DATA_DIRS = <PATH>:<PATH>:<PATH>:<PATH>
+disk full	0	addStfInfo : stfs buffer full, dropping stf. stfs_id = <*> buffer_used = <NUM> buffer_size = <NUM>
+disk full	0	core file size (blocks, -c) unlimited
+disk full	0	data seg size (kbytes, -d) unlimited
+disk full	0	data-sink-max-stfs-per-file = <NUM> <unsigned long> [default]
+disk full	1	dds-agent <<HEX>:<HEX>> Available disk space: <*> (<NUM>)
+disk full	0	file locks (-x) unlimited
+disk full	0	file size (blocks, -f) unlimited
+disk full	0	max locked memory (kbytes, -l) unlimited
+disk full	0	stack size (kbytes, -s) unlimited
+disk full	0	tf-hdr-region-size = <NUM> <unsigned long> [provided]
+disk full	0	virtual memory (kbytes, -v) unlimited
+file could not be opened	1	<PATH> FOP exception @ <NUM>
+file could not be opened	0	Active(file): <NUM> kB
+file could not be opened	1	Could not find the file 'MCH/Calib/BadChannel' in the db 'o2-ccdb.internal' for given Activity settings. Zeroes and empty strings are treated as wildcards.
+file could not be opened	0	ERROR Not enough resources available!
+file could not be opened	0	Exception : Not enough resources available!
+file could not be opened	0	Exception while running : Fatal error. Rethrowing.
+file could not be opened	1	Failed to write CMV file <PATH> : CMVPerTF : : writeToFile : cannot open '<PATH>'
+file could not be opened	1	File CTP/Calib/OrbitReset could not be retrieved. No more hosts to try.
+file could not be opened	1	File EMC/Config/RecoParam could not be retrieved. No more hosts to try.
+file could not be opened	1	File GLO/Config/GRPECS could not be retrieved. No more hosts to try.
+file could not be opened	1	File TPC/Calib/PadGainResidual could not be retrieved. No more hosts to try.
+file could not be opened	1	File TPC/Calib/TimeGain could not be retrieved. No more hosts to try.
+file could not be opened	0	File \\"<PATH>\\", line <NUM>, in <*>
+file could not be opened	0	GEN_TOPO_LIBRARY_FILE = <*>
+file could not be opened	0	LESSOPEN = ||<PATH> %s
+file could not be opened	0	Monitoring file <*>
+file could not be opened	0	Reading restore file "<PATH>"
+file could not be opened	0	Run request topology file :
+file could not be opened	0	StfSender did not send data. stf_id = <*> stfs_id = DATA_DROPPED_UNKNOWN reason = FORMAT ERROR : argument not found. provided_format_string = StfSender did not send data. stf_id = {} stfs_id = {} reason = {}
+file could not be opened	0	Temp topology file "<PATH>" created successfully
+file could not be opened	0	Unable to register default resource plugin "odc-rp-same" : Failed to register resource plugin "odc-rp-same" : boost : : filesystem : : canonical : No such file or directory [generic : <NUM>] : "<PATH>"
+file could not be opened	0	Updating history file "<PATH>"...
+file could not be opened	0	Using config file 'json : <PATH>'
+file could not be opened	0	Writing restore file "<PATH>"
+file could not be opened	0	data-sink-max-stfs-per-file = <NUM> <unsigned long> [default]
+file could not be opened	0	failed on uploading to http : <PATH> : <NUM> / <*> for [<NUM> : <NUM>]
+file could not be opened	0	fi
+file could not be opened	0	fi ;
+file could not be opened	0	file locks (-x) unlimited
+file could not be opened	0	file size (blocks, -f) unlimited
+file could not be opened	0	file-severity = nolog <string> [default]
+file could not be opened	0	open files (-n) <NUM>
+file could not be opened	0	raise Exception(f\\"Not enough resources available!\\")
+file could not be opened	1	stderr : Error in <TFile : : TFile> : file <PATH> already exists
+incomplete timeframe	0	- TimeFrame initialisation completed in <FLOAT> ms
+incomplete timeframe	0	...Submit : still waiting for plug-in (elapsed 0s)...
+incomplete timeframe	1	Dropping incomplete GLO/TPCITSAB_CLID/<NUM> Lifetime : : timeframe data in slot <NUM> with timestamp <NUM> < <NUM> as it can never be completed.
+incomplete timeframe	1	Dropping incomplete MID/TRACKROFS/<NUM> Lifetime : : timeframe data in slot <NUM> with timestamp <NUM> < <NUM> as it can never be completed.
+incomplete timeframe	0	MFTTracker IRFrame filter enabled: loading ITS IR Frames.
+incomplete timeframe	1	Missing <matcher query : (and origin : <*> (and description : <*> (just startTime : $<NUM> )))> (lifetime : timeframe) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+incomplete timeframe	1	Missing GLO/GLFWD/<NUM> (lifetime : timeframe) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+incomplete timeframe	1	Missing GLO/MTC_MCHMID/<NUM> (lifetime : timeframe) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+incomplete timeframe	1	Missing GLO/PVTX_TRMTC/<NUM> (lifetime : timeframe) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+incomplete timeframe	1	Missing MCH/TRACKCLUSTERS/<NUM> (lifetime : timeframe) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+incomplete timeframe	1	Missing MCH/TRACKROFS/<NUM> (lifetime : timeframe) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+incomplete timeframe	1	Missing MCH/TRACKS/<NUM> (lifetime : timeframe) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+incomplete timeframe	1	Missing MFT/DIGITS/<NUM> (lifetime : timeframe) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+incomplete timeframe	1	Missing MFT/DIGITSROF/<NUM> (lifetime : timeframe) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+incomplete timeframe	1	Missing MID/CTFDICT/<NUM> (lifetime : condition) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+incomplete timeframe	1	Missing SubTimeFrames from StfSenders : <*>
+incomplete timeframe	1	Missing SubTimeFrames from StfSenders : <*> <*>
+incomplete timeframe	1	Missing SubTimeFrames from StfSenders : <*> <*> <*>
+incomplete timeframe	1	Missing SubTimeFrames from StfSenders : <*> <*> <*> <*>
+incomplete timeframe	1	Missing SubTimeFrames from StfSenders : <*> <*> <*> <*> <*>
+incomplete timeframe	1	Missing SubTimeFrames from StfSenders : <*> <*> <*> <*> <*> <*>
+incomplete timeframe	1	Missing SubTimeFrames from StfSenders : <*> <*> <*> <*> <*> <*> <*>
+incomplete timeframe	1	Scheduling incomplete TimeFrame on timeout. stf_id = <NUM> received_stfs = <NUM> expected_stfs = <NUM> timeout_ms = <NUM>
+incomplete timeframe	1	Scheduling incomplete TimeFrame on timeout. stf_id = <NUM> received_stfs = <NUM> expected_stfs = <NUM> timeout_ms = <NUM> <msgs_suppressed = <NUM>>
+incomplete timeframe	1	Some Lifetime : : Timeframe data got dropped starting at <NUM>
+incomplete timeframe	0	Timed out waiting for END transition
+incomplete timeframe	0	Timed out waiting for STOP transition
+incomplete timeframe	0	Timed out waiting for set property : async operation timed out
+incomplete timeframe	0	Use track time = false
+incomplete timeframe	0	[INFO] will select IRFrames from ITS/IRFRAMES
+incomplete timeframe	0	addStfInfo : this TimeFrame was already built. stfsender_id = <*> stf_id = <NUM>
+incomplete timeframe	0	addStfInfo : this TimeFrame was already built. stfsender_id = <*> stf_id = <NUM> <msgs_suppressed = <NUM>>
+incomplete timeframe	0	cpu time (seconds, -t) unlimited
+memory pressure	0	--use-compression-huffman"
+memory pressure	0	Compressor init
+memory pressure	1	Free SHM memory too low : <NUM> < <NUM>, waiting
+memory pressure	1	HIP Error : <NUM> / out of memory (<PATH> : <NUM>)
+memory pressure	1	HIP Error: <NUM> / out of memory (<PATH>:<NUM>)
+memory pressure	0	HIP Initialisation successfull (Device <NUM>: AMD Instinct MI100 (Frequency <NUM>, Cores <NUM>), <NUM> / <NUM> bytes host / global memory, Stack frame <NUM>, Constant memory <NUM>)
+memory pressure	0	HIP Initialisation successfull (Device <NUM>: AMD Instinct MI60 / MI50 (Frequency <NUM>, Cores <NUM>), <NUM> / <NUM> bytes host / global memory, Stack frame <NUM>, Constant memory <NUM>)
+memory pressure	0	MFTAlpideParam [Hash#<NUM>]
+memory pressure	0	MemFree: <NUM> kB
+memory pressure	0	MemTotal: <NUM> kB
+memory pressure	1	Memory region <*> is too small, or there is a large backpressure.
+memory pressure	1	Memory region <*> is too small, or there is a large backpressure. <msgs_suppressed = <NUM>>
+memory pressure	0	Rescaling buffer size limits from <NUM> to <NUM> bytes of memory (factor <FLOAT>)
+memory pressure	0	Setting default dE/dx polynomial track topology correction to allocate enough memory
+memory pressure	0	ShmemPmdMapped: <NUM> kB
+memory pressure	1	Sufficient SHM memory free (<NUM> > = <NUM>), continuing to publish
+memory pressure	0	Threads output merging timing : Cpu: <FLOAT> Real: <FLOAT> s in <NUM> slots
+memory pressure	0	[<NUM>-<NUM>-<NUM> <NUM>:<NUM>:<FLOAT>][D] <tfb-main> [FMQ] Destroying Shared Memory transport...
+memory pressure	0	[<NUM>-<NUM>-<NUM> <NUM>:<NUM>:<FLOAT>][I] InitTask::MemorySegment allocated. success = true duration = <FLOAT>
+memory pressure	0	ccdb reads http:<PATH>:<NUM>/TPC/Calib/Pressure/<NUM>/<UUID> for <NUM> (load to memory, agent_id: o2-itsmft-stf-d/o2-itsmft-stf-decoder-workflow@<NUM> target/Linux_x86_<NUM> init/<NUM> <*> <*>
+memory pressure	0	max locked memory (kbytes, -l) unlimited
+memory pressure	0	max memory size (kbytes, -m) <NUM>
+memory pressure	0	o2-ft0-entropy-encoder-workflow <<HEX>:<HEX>> CCDDSIntercomGuard: using shared memory for transport
+memory pressure	0	o2-ft0-flp-dpl-workflow <<HEX>:<HEX>> CCDDSIntercomGuard: using shared memory for transport
+memory pressure	0	o2-ft0-reco-workflow <<HEX>:<HEX>> CCDDSIntercomGuard: using shared memory for transport
+memory pressure	0	o2-hmpid-entropy-encoder-workflow <<HEX>:<HEX>> CCDDSIntercomGuard: using shared memory for transport
+memory pressure	0	o2-itsmft-entropy-encoder-workflow <<HEX>:<HEX>> CCDDSIntercomGuard: using shared memory for transport
+memory pressure	0	o2-mft-reco-workflow <<HEX>:<HEX>> CCDDSIntercomGuard: using shared memory for transport
+memory pressure	0	o2-mid-reco-workflow <<HEX>:<HEX>> CCDDSIntercomGuard: using shared memory for transport
+memory pressure	0	pipe size (<NUM> bytes, -p) <NUM>
+memory pressure	0	pµò
+memory pressure	1	stderr : Memory pool size exceeded (host) (
+memory pressure	0	stderr : munmap_chunk() : invalid pointer
+memory pressure	0	virtual memory (kbytes, -v) unlimited
+network timeout	1	CCDBDownloader CURL transfer error - Timeout was reached
+network timeout	1	CURL_perform() failed : Timeout was reached
+network timeout	1	Change state failed : odc : <NUM> (Request timeout. Remaining time is : <*>
+network timeout	1	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : connect() timed out
+network timeout	1	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : getsockopt(SO_ERROR) : Connection timed out
+network timeout	1	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : getsockopt(SO_ERROR) : Connection timed outResetting the <*>
+network timeout	1	Failed to create a DDS session : execute : Timeout has been reached, command execution will be terminated.
+network timeout	0	New state requested. No timeout set, quitting immediately as per --completion-policy
+network timeout	1	Reset reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : DEVICE READY ; msg : ; exectime : <*> ; rmsjobids : ; ERROR : Request timeout (Request timeout. Remaining time is : <*> (<NUM>)
+network timeout	1	Scheduling incomplete TimeFrame on timeout. stf_id = <NUM> received_stfs = <NUM> expected_stfs = <NUM> timeout_ms = <NUM>
+network timeout	1	Scheduling incomplete TimeFrame on timeout. stf_id = <NUM> received_stfs = <NUM> expected_stfs = <NUM> timeout_ms = <NUM> <msgs_suppressed = <NUM>>
+network timeout	0	Sending end-of-stream message over out-of-bands channel
+network timeout	1	SetProperties reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : <*> ; msg : ; exectime : <*> ; rmsjobids : ; ERROR : Request timeout (Timed out waiting for set property : async operation timed out) (<NUM>)
+network timeout	1	Shutdown failed : execute : Timeout has been reached, command execution will be terminated.
+network timeout	1	Timed out waiting for END transition
+network timeout	1	Timed out waiting for INIT TASK transition
+network timeout	1	Timed out waiting for RESET <*> transition
+network timeout	1	Timed out waiting for RUN transition
+network timeout	1	Timed out waiting for STOP transition
+network timeout	1	Timed out waiting for set property : async operation timed out
+network timeout	0	Use track time = false
+network timeout	0	cpu time (seconds, -t) unlimited
+network timeout	1	curl_easy_perform() timed out. Consider increasing the timeout using the env var `ALICEO2_CCDB_CURL_TIMEOUT_UPLOAD` (seconds), current one is <NUM>
+network timeout	1	failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : getsockopt(SO_ERROR) : Connection timed out
+network timeout	0	failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : tcp handshaker shutdown
+network timeout	0	init-timeout = <NUM> <int> [default]
+network timeout	0	real-time non-blocking time (microseconds, -R) unlimited
+network timeout	0	wait-for-exiting-ack-timeout = <NUM> <unsigned> [default]
+partition not found	0	DD_DISK_FRACTION = '<NUM>'
+partition not found	1	Failed to create new scheduler instance. partition = <*>
+partition not found	1	Failed to reach all StfSenders. partition = <*>
+partition not found	0	Found <NUM> partitions to restore
+partition not found	1	IL : Partition empty, we don't set it
+partition not found	0	IL : Partition set to <*>
+partition not found	0	Reset reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : IDLE ; msg : Reset done ; exectime : <*> ; rmsjobids :
+partition not found	0	Run reply : partitionId : 2zSdjJfxZhb ; runnr : <NUM> ; sessionid : <UUID> ; state : IDLE ; msg : Run done ; exectime : 33707ms ; rmsjobids : unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown ; hosts : epn330.internal, epn341.internal, epn347.internal, epn327.internal, epn346.internal, epn334.internal, epn342.internal, epn345.internal, epn349.internal, epn332.internal, epn338.internal, epn333.internal, epn343.internal, epn336.internal, epn326.internal, epn034.internal, epn348.internal, epn340.internal, epn032.internal, epn328.internal, epn322.internal, epn031.internal, epn-calib1.internal, epn337.internal, epn344.internal, epn-calib0.internal
+partition not found	0	Run reply : partitionId : 324jxNFP5zZ ; runnr : <NUM> ; sessionid : <UUID> ; state : IDLE ; msg : Run done ; exectime : 46469ms ; rmsjobids : unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown ; hosts : epn303.internal, epn301.internal, epn145.internal, epn133.internal, epn151.internal, epn220.internal, epn207.internal, epn223.internal, epn130.internal, epn276.internal, epn183.internal, epn193.internal, epn232.internal, epn297.internal, epn248.internal, epn172.internal, epn245.internal, epn175.internal, epn140.internal, epn247.internal, epn201.internal, ep [...]
+partition not found	0	Run reply : partitionId : 32u6J1RzjpM ; runnr : <NUM> ; sessionid : <UUID> ; state : IDLE ; msg : Run done ; exectime : 13362ms ; rmsjobids : unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown ; hosts : epn339.internal, epn150.internal, epn008.internal, epn027.internal, epn090.internal, epn209.internal, epn020.internal, epn007.internal, epn280.internal, epn204.internal, epn025.internal, epn316.internal, epn159.internal, epn149.internal, epn006.internal, epn-calib3.internal
+partition not found	0	Run reply : partitionId : 32z4QBMhuoF ; runnr : <NUM> ; sessionid : <UUID> ; state : IDLE ; msg : Run done ; exectime : 18960ms ; rmsjobids : unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown ; hosts : epn348.internal, epn101.internal, epn106.internal, epn036.internal, epn145.internal, epn223.internal, epn238.internal, epn342.internal, epn030.internal, epn085.internal, epn078.internal, epn183.internal, epn116.internal, epn315.internal, epn019.internal, epn-calib1.internal, epn-calib0.internal
+partition not found	0	Run reply : partitionId : 33YgYXTqTJh ; runnr : <NUM> ; sessionid : <UUID> ; state : IDLE ; msg : Run done ; exectime : 9536ms ; rmsjobids : unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown ; hosts : epn296.internal, epn345.internal, epn321.internal, epn298.internal, epn285.internal, epn288.internal, epn325.internal, epn287.internal, epn326.internal, epn344.internal, epn324.internal, epn299.internal, epn291.internal, epn328.internal, epn301.internal, epn286.in [...]
+partition not found	0	Run reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : <*> ; msg : <*> <*> <*> <*> <*> <*> <*> <*> <*> unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown unknown <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*> <*>
+partition not found	0	SLURM_JOB_PARTITION = <*>
+partition not found	0	Status : found <NUM> partition(s)
+partition not found	0	Status : found <NUM> partition(s) :
+partition not found	0	Terminate was already requested. partition_id =
+partition not found	0	initializing cluster finder
+partition not found	0	partitionId : <*> ; DDS session : RUNNING ; DDS session ID : <UUID> ; Run Nr. : <NUM> ; topology state : <*>
+partition not found	0	partitionId : <*> ; DDS session : RUNNING ; DDS session ID : <UUID> ; Run Nr. : <NUM> ; topology state : <*> <*>
+partition not found	1	slurm_load_partitions : Unable to contact slurm controller (connect failure)
+permission denied	0	--disable-tracking'
+permission denied	0	CCDBDownloader CURL transfer error - Couldn't resolve host name
+permission denied	0	Change state failed : Requested transition is not valid from the current state
+permission denied	0	Configure reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : READY ; msg : Configure done ; exectime : <*> ; rmsjobids :
+permission denied	0	ERROR No resources available in online-mi50 and online-mi100!
+permission denied	0	ERROR Not enough resources available!
+permission denied	0	Errors limit reached, the following ones will be suppressed
+permission denied	0	Exception : Not enough resources available!
+permission denied	0	Exception while running : Fatal error. Rethrowing.
+permission denied	1	Exception while running : Worker is not authorised to create message with origin(TRD) description(PULSEHEIGHTHD) subSpec(<NUM>). Rethrowing.
+permission denied	0	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : tcp handshaker shutdown
+permission denied	0	Failed to create a DDS session : execute : Timeout has been reached, command execution will be terminated.
+permission denied	0	Failed to create new scheduler instance. partition = <*>
+permission denied	0	Failed to write CMV file <PATH> : CMVPerTF : : writeToFile : cannot open '<PATH>'
+permission denied	0	File 'MCH/Calib/BadChannel' for run <NUM> from db 'o2-ccdb.internal' not found
+permission denied	0	File GLO/Config/GRPECS could not be retrieved. No more hosts to try.
+permission denied	0	File TPC/Calib/PadGainResidual could not be retrieved. No more hosts to try.
+permission denied	0	File TPC/Calib/TimeGain could not be retrieved. No more hosts to try.
+permission denied	0	Low pass filtering is enabled
+permission denied	0	Run reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : IDLE ; msg : Run done ; exectime : <*> ; rmsjobids : unknown ; hosts : <*>
+permission denied	0	Run reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : IDLE ; msg : Run done ; exectime : <*> ; rmsjobids : unknown unknown ; hosts : <*> <*>
+permission denied	0	Run reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : IDLE ; msg : Run done ; exectime : <*> ; rmsjobids : unknown unknown unknown ; hosts : <*> <*>
+permission denied	0	Run reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : IDLE ; msg : Run done ; exectime : <*> ; rmsjobids : unknown unknown unknown <*> <*> <*> <*> <*> <*>
+permission denied	0	Run reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : IDLE ; msg : Run done ; exectime : <*> ; rmsjobids : unknown unknown unknown unknown ; hosts : <*> <*> <*>
+permission denied	0	Run reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : IDLE ; msg : Run done ; exectime : <*> ; rmsjobids : unknown unknown unknown unknown ; hosts : <*> <*> <*> <*>
+permission denied	0	SLURM_SUBMIT_DIR = /
+permission denied	0	SetProperties reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : <*> ; msg : ; exectime : <*> ; rmsjobids : ; ERROR : Request timeout (Timed out waiting for set property : async operation timed out) (<NUM>)
+permission denied	0	SetProperties reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : ERROR ; msg : ; exectime : <*> ; rmsjobids : ; ERROR : Failed to set FairMQ device properties (Set property error message : Failed to set FairMQ device properties) (<NUM>)
+permission denied	0	SetProperties request path : ""
+permission denied	0	Shutdown failed : execute : Timeout has been reached, command execution will be terminated.
+permission denied	0	Start reply : partitionId : 318KoSVY9ku ; runnr : <NUM> ; sessionid : <UUID> ; state : ERROR ; msg : ; exectime : 54091ms ; rmsjobids : ; ERROR : Request timeout (Timed out waiting for RUN transition) (<NUM>)
+permission denied	0	StfSender gRPC connection error. stfs_id = <*> code = <NUM> error = failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : Connection refused <msgs_suppressed = <NUM>>
+permission denied	0	Terminate was already requested. partition_id =
+permission denied	0	TfBuilderUCXDisconnectionRequest : gRPC call failed err = failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : Connection refused details =
+permission denied	0	Unable to find CCDB object <*>
+permission denied	0	[CTPRawToDigitConverter - run] Writing <NUM> digits. IR rejected:<NUM> TCR rejected:<NUM>
+permission denied	0	[ERROR]
+permission denied	0	[ERROR] <*>
+permission denied	0	[INFO] Restricting DPL Display to collection index, my index
+permission denied	0	data-sink-enable = false <bool> [default]
+permission denied	0	dds-agent <<HEX>:<HEX>> Using user defined access permissions on output files. Mode: <NUM>
+permission denied	0	file locks (-x) unlimited
+permission denied	0	file size (blocks, -f) unlimited
+permission denied	0	raise Exception(f\\"Not enough resources available!\\")
+permission denied	0	slurm_load_partitions : Unable to contact slurm controller (connect failure)
+permission denied	0	stderr : Memory access fault by GPU node-<NUM> (Agent handle : <HEX>) on address <HEX>. Reason : Page not present or supervisor privilege.
+permission denied	0	which_declare = declare -f
+process died	1	"FATAL Error during workflow description parsing
+process died	0	ARGS_EXTRA_PROCESS_o2_raw_tf_dump_workflow = '
+process died	0	Done
+process died	0	END transition failed for <*> device is in <*> <*> state.
+process died	1	Exception while running : Fatal error. Rethrowing.
+process died	0	Execution time : <FLOAT>
+process died	0	Failed to create a DDS session : execute : Timeout has been reached, command execution will be terminated.
+process died	0	Shutdown failed : execute : Timeout has been reached, command execution will be terminated.
+process died	1	Task <NUM> exited. Last known state : <*> ; path : <*> ; exit code : <NUM> ; signal : <NUM> ; host : <*> ; working directory : "<PATH>"
+process died	1	Task <NUM> exited. Last known state : <*> DEVICE ; path : <*> ; exit code : <NUM> ; signal : <NUM> ; host : <*> ; working directory : "<PATH>"
+process died	0	The STOP transition happened before an EndOfStream was received. The very last QC objects in this run might not have been stored.
+process died	1	Unhandled o2 : : framework : : runtime_error reached the top of main of <*> device shutting down. Reason : Fatal error
+process died	0	WORKFLOW_EXTRA_PROCESSING_STEPS = <*>
+process died	1	[FATAL] unknown error while setting up workflow in o2-secondary-vertexing-workflow.
+process died	0	[INFO] Spawning new device <*> in process with pid <NUM>
+process died	0	dds-agent <<HEX>:<HEX>> <NUM> (process ID) : <NUM> (process group ID) : <NUM>(parent process ID)
+process died	0	dds-agent <<HEX>:<HEX>> DDSAO-<NUM>: Draining write queue, while there is a message pending: cmdUSER_TASK_DONE
+process died	0	dds-agent <<HEX>:<HEX>> No child processes to terminate for parent pid <NUM>
+process died	0	dds-agent <<HEX>:<HEX>> Sending graceful terminate signal to child process <NUM>
+process died	0	dds-agent <<HEX>:<HEX>> Sending graceful terminate signal to child processes.
+process died	1	dpl-workflow.sh failed
+process died	0	max user processes (-u) <NUM>
+process died	0	o2-epn-stderr-monitor <<HEX>:<HEX>> <NUM> (process ID) : <NUM> (process group ID) : <NUM>(parent process ID)
+process died	0	o2-eve-export-workflow <<HEX>:<HEX>> <NUM> (process ID) : <NUM> (process group ID) : <NUM>(parent process ID)
+process died	0	o2-fdd-entropy-encoder-workflow <<HEX>:<HEX>> <NUM> (process ID) : <NUM> (process group ID) : <NUM>(parent process ID)
+process died	0	o2-fdd-flp-dpl-workflow <<HEX>:<HEX>> <NUM> (process ID) : <NUM> (process group ID) : <NUM>(parent process ID)
+process died	0	o2-fdd-integrate-cluster-workflow <<HEX>:<HEX>> <NUM> (process ID) : <NUM> (process group ID) : <NUM>(parent process ID)
+process died	0	o2-ft0-flp-dpl-workflow <<HEX>:<HEX>> <NUM> (process ID) : <NUM> (process group ID) : <NUM>(parent process ID)
+process died	0	o2-ft0-flp-dpl-workflow <<HEX>:<HEX>> User process is waiting for custom commands.
+process died	0	o2-ft0-integrate-cluster-workflow <<HEX>:<HEX>> <NUM> (process ID) : <NUM> (process group ID) : <NUM>(parent process ID)
+process died	0	o2-ft0-integrate-cluster-workflow <<HEX>:<HEX>> User process is waiting for custom commands.
+process died	0	o2-fv0-flp-dpl-workflow <<HEX>:<HEX>> <NUM> (process ID) : <NUM> (process group ID) : <NUM>(parent process ID)
+process died	0	o2-fv0-integrate-cluster-workflow <<HEX>:<HEX>> User process is waiting for custom commands.
+process died	0	o2-hmpid-entropy-encoder-workflow <<HEX>:<HEX>> <NUM> (process ID) : <NUM> (process group ID) : <NUM>(parent process ID)
+process died	0	o2-its-reco-workflow <<HEX>:<HEX>> User process is waiting error events.
+process died	0	o2-mid-reco-workflow <<HEX>:<HEX>> User process is waiting error events.
+process died	0	o2-tpcits-match-workflow <<HEX>:<HEX>> <NUM> (process ID) : <NUM> (process group ID) : <NUM>(parent process ID)
+process died	0	o2-trd-datareader <<HEX>:<HEX>> <NUM> (process ID) : <NUM> (process group ID) : <NUM>(parent process ID)
+process died	0	o2-trd-entropy-encoder-workflow <<HEX>:<HEX>> <NUM> (process ID) : <NUM> (process group ID) : <NUM>(parent process ID)
+process died	0	o2-zdc-entropy-encoder-workflow <<HEX>:<HEX>> <NUM> (process ID) : <NUM> (process group ID) : <NUM>(parent process ID)
+process died	0	o2-zdc-raw2digits <<HEX>:<HEX>> <NUM> (process ID) : <NUM> (process group ID) : <NUM>(parent process ID)
+process died	0	o2-zdc-tdccalib-epn-workflow <<HEX>:<HEX>> <NUM> (process ID) : <NUM> (process group ID) : <NUM>(parent process ID)
+process died	0	o2-zdc-tdccalib-epn-workflow <<HEX>:<HEX>> DDSAO-<NUM>: stopping read operation due to shutdown
+process died	0	o2-zdc-tdccalib-epn-workflow <<HEX>:<HEX>> User process is waiting error events.
+process died	1	stderr : <NUM> Killed | o2-dpl-raw-proxy --id tpc-laser-input-proxy_dds%TaskIndex%_%CollectionIndex% --shm-monitor false --log-color false --batch --color false --channel-config name = tpc-laser-input-proxy,method = bind,type = pull,rateLogging = <NUM>,transport = zeromq --channel-config "name = from_tpc-laser-input-proxy_to_internal-dpl-ccdb-backend,type = push,method = bind,address = ipc : <PATH>@localhost163940_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_tpc-laser-input-proxy_to_calib-tpc-raw-<NUM>,type = push,method = bind,address = ipc : <PATH>@localhost163940_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_tpc-laser-input-proxy_to_tpc-calib-laser-tracks,type = push,method = bind,address = ipc : <PATH>@localhost163940_<NUM>,transport = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_tpc-laser-input-proxy [...]
+queue backed up or slow consumer	0	. Action taken : consume
+queue backed up or slow consumer	0	<NUM>. Action taken : consume
+queue backed up or slow consumer	0	<PATH> Action taken : consume
+queue backed up or slow consumer	1	Cannot dispatch to channel <*> due to DOWNSTREAM BACKPRESSURE. NO DATA IS DROPPED, will keep retrying. This is only a problem if downstream congestion does not resolve by itself.
+queue backed up or slow consumer	1	Cannot dispatch to channel from_mch-badchannel-input-proxy_to_mch-badchannel-calibrator due to DOWNSTREAM BACKPRESSURE. NO DATA IS DROPPED, will keep retrying. This is only a problem if downstream congestion does not resolve by itself.
+queue backed up or slow consumer	1	Device state change is requested, dropping <NUM> pending message(s) on channel <*> ATTENTION : DATA IS LOST! Could not dispatch data to downstream consumer(s), check if consumers have been terminated too early
+queue backed up or slow consumer	1	Memory region <*> is too small, or there is a large backpressure.
+queue backed up or slow consumer	0	Missing <*> (lifetime : qos) while dropping incomplete data in slot <NUM> with timestamp <NUM> < <NUM>.
+queue backed up or slow consumer	0	POSIX message queues (bytes, -q) <NUM>
+queue backed up or slow consumer	0	RESETTING DEVICE ---> IDLE
+queue backed up or slow consumer	0	RecoContainer::createTracks took <*> CPU s.
+queue backed up or slow consumer	0	Starting FairMQ state machine --> IDLE
+queue backed up or slow consumer	0	TfBuilder <<HEX>:<HEX>> SM: Initializing output message queue: <*>
+queue backed up or slow consumer	0	Timed out waiting for END transition
+queue backed up or slow consumer	0	Timed out waiting for INIT TASK transition
+queue backed up or slow consumer	0	Timed out waiting for RESET <*> transition
+queue backed up or slow consumer	0	Timed out waiting for RUN transition
+queue backed up or slow consumer	0	Timed out waiting for STOP transition
+queue backed up or slow consumer	0	Timed out waiting for set property : async operation timed out
+queue backed up or slow consumer	0	Traceback (most recent call last) :
+queue backed up or slow consumer	1	Unable to store object qc/MCH/QO/CcdbCheck. Next attempt to store objects in <NUM> seconds.
+queue backed up or slow consumer	1	Unable to store object qc/MCH/QO/PedestalsCheck. Next attempt to store objects in <NUM> seconds.
+queue backed up or slow consumer	0	Waiting for the topology to reach IDLE state.
+queue backed up or slow consumer	0	consume
+queue backed up or slow consumer	0	cpu time (seconds, -t) unlimited
+queue backed up or slow consumer	1	dds-agent <<HEX>:<HEX>> DDSAO-<NUM>: Draining write queue, while there is a message pending: cmdUSER_TASK_DONE
+queue backed up or slow consumer	0	fair::mq::Device running...
+queue backed up or slow consumer	0	initialize TPC Tracks QC task
+queue backed up or slow consumer	0	o2-ft0-reco-workflow <<HEX>:<HEX>> SM: Initializing output message queue: <*>
+queue backed up or slow consumer	0	o2-its-reco-workflow <<HEX>:<HEX>> SM: Initializing output message queue: <*>
+queue backed up or slow consumer	0	o2-mft-reco-workflow <<HEX>:<HEX>> SM: Initializing output message queue: <*>
+queue backed up or slow consumer	0	o2-mid-reco-workflow <<HEX>:<HEX>> SM: Initializing output message queue: <*>
+queue backed up or slow consumer	0	o2-qc <<HEX>:<HEX>> SM: Initializing output message queue: <*>
+queue backed up or slow consumer	0	o2-tpc-reco-workflow <<HEX>:<HEX>> SM: Initializing output message queue: <*>
+queue backed up or slow consumer	0	o2-tpc-scaler-workflow <<HEX>:<HEX>> SM: Initializing output message queue: <*>
+queue backed up or slow consumer	0	o2-trd-datareader <<HEX>:<HEX>> SM: Initializing output message queue: <*>
+queue backed up or slow consumer	0	o2-zdc-raw2digits <<HEX>:<HEX>> SM: Initializing output message queue: <*>
+queue backed up or slow consumer	0	real-time non-blocking time (microseconds, -R) unlimited
+queue backed up or slow consumer	0	stderr : <NUM> Aborted (core dumped) | o2-qc --id qc-task-TPC-PID_dds%TaskIndex%_%CollectionIndex% --shm-monitor false --log-color false --batch --color false --channel-config "name = from_qc-task-TPC-PID_to_qc-task-TPC-Tracks,type = push,method = bind,address = ipc : <*> = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_qc-task-TPC-PID_to_TPC-PID-proxy,type = push,method = bind,address = ipc : <*> = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_internal-dpl-clock_to_qc-task-TPC-PID,type = pull,method = connect,address = ipc : <*> = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" --channel-config "name = from_Dispatcher_to_qc-task-TPC-PID,type = pull,method = connect,address = ipc : <*> = shmem,rateLogging = <NUM>,rcvBufSize = <NUM>,sndBufSize = <NUM>" <*> [...]
+queue backed up or slow consumer	0	wait
+run started	1	IL : Run set to <NUM>
+run started	0	INITIALIZING TASK ---> READY
+run started	1	READY ---> RUNNING
+run started	0	RUNNING ---> READY
+run started	0	RUNTYPE = <*>
+run started	0	Registering taskRunner to BookKeeping
+run started	1	Requesting transition RUN for path ""
+run started	0	Run request topology file :
+run started	1	Start reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : RUNNING ; msg : Start done ; exectime : <*> ; rmsjobids :
+run started	1	Starting run <NUM>
+run started	1	Starting run <NUM> :
+run started	1	State changed to RUNNING via RUN transition
+run started	0	Stopping run <NUM>
+run started	1	Summary after transitioning to RUNNING state :
+run started	0	Timed out waiting for RUN transition
+run started	0	key : pdp_override_run_start_time ; value :
+run started	0	key : pdp_override_run_start_time ; value : <NUM>
+run started	0	key : run_start_time_ms ; value : <NUM>
+run started	0	key : run_type ; value : <*>
+run started	0	original_run_number not found in options, using the fallback.
+run started	0	run_start_time_ms returned by computeActivityField (default) : <NUM>
+run started	0	self.run()
+run started	0	startOfCycle
+run stopped	0	Device states : READY (<NUM>/<NUM>) RUNNING (<NUM>/<NUM>) EXITING (<NUM>/<NUM>)
+run stopped	0	IDLE ---> EXITING
+run stopped	0	READY ---> RUNNING
+run stopped	1	RUNNING ---> READY
+run stopped	0	RUNTYPE = <*>
+run stopped	0	Requesting transition RUN for path ""
+run stopped	1	Requesting transition STOP for path ""
+run stopped	0	Run number changed to <NUM>
+run stopped	0	Run request END OF TOPOLOGY SCRIPT
+run stopped	0	Shutdown failed : execute : Timeout has been reached, command execution will be terminated.
+run stopped	0	Shutdown reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : UNDEFINED ; msg : ; exectime : <*> ; rmsjobids : ; ERROR : Failed to shutdown a DDS session (Shutdown failed : execute : Timeout has been reached, command execution will be terminated.) (<NUM>)
+run stopped	0	Starting run <NUM>
+run stopped	0	Starting run <NUM> :
+run stopped	0	State changed to RUNNING via RUN transition
+run stopped	1	Stop reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : READY ; msg : Stop done ; exectime : <*> ; rmsjobids :
+run stopped	1	Stopping run <NUM>
+run stopped	1	The STOP transition happened before an EndOfStream was received. The very last QC objects in this run might not have been stored.
+run stopped	0	Timed out waiting for RUN transition
+run stopped	1	Timed out waiting for STOP transition
+run stopped	0	Unhandled o2 : : framework : : runtime_error reached the top of main of <*> device shutting down. Reason : Fatal error
+run stopped	0	key : pdp_override_run_start_time ; value :
+run stopped	0	self.run()
+service restarted	0	...Submit : RMS plug-in is online. Startup time : <*>
+service restarted	0	Cannot dispatch to channel <*> due to DOWNSTREAM BACKPRESSURE. NO DATA IS DROPPED, will keep retrying. This is only a problem if downstream congestion does not resolve by itself.
+service restarted	1	DEVICE READY ---> RESETTING DEVICE
+service restarted	0	Device states : DEVICE READY (<NUM>/<NUM>) READY (<NUM>/<NUM>) RESETTING TASK (<NUM>/<NUM>) EXITING (<NUM>/<NUM>)
+service restarted	0	Device states : DEVICE READY (<NUM>/<NUM>) RESETTING TASK (<NUM>/<NUM>)
+service restarted	0	Device states : DEVICE READY (<NUM>/<NUM>) RESETTING TASK (<NUM>/<NUM>) EXITING (<NUM>/<NUM>)
+service restarted	0	Device states : ERROR (<NUM>/<NUM>) DEVICE READY (<NUM>/<NUM>) READY (<NUM>/<NUM>) RESETTING TASK (<NUM>/<NUM>) EXITING (<NUM>/<NUM>)
+service restarted	0	Exception while running : Worker is not authorised to create message with origin(TRD) description(PULSEHEIGHTHD) subSpec(<NUM>). Rethrowing.
+service restarted	0	Got this property 'run_start_time_ms' from RawDeviceService : '<NUM>'
+service restarted	0	INITIALIZING DEVICE ---> INITIALIZED
+service restarted	0	New state pending and we are already idle, quitting immediately as per --completion-policy
+service restarted	0	New state requested. No timeout set, quitting immediately as per --completion-policy
+service restarted	1	READY ---> RESETTING TASK
+service restarted	0	READY ---> RUNNING
+service restarted	1	RESETTING DEVICE ---> IDLE
+service restarted	1	RESETTING TASK ---> DEVICE READY
+service restarted	0	RUNNING ---> READY
+service restarted	0	Reset
+service restarted	1	Reset reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : <*> ; msg : ; exectime : <*> ; rmsjobids : ; ERROR : Request timeout (Timed out waiting for RESET <*> transition) (<NUM>)
+service restarted	1	Reset reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : IDLE ; msg : Reset done ; exectime : <*> ; rmsjobids :
+service restarted	0	ResetFailed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : tcp handshaker shutdown
+service restarted	1	Resetting the <*>
+service restarted	0	Running gain merging mode: yes
+service restarted	0	Start reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : RUNNING ; msg : Start done ; exectime : <*> ; rmsjobids :
+service restarted	0	Starting FairMQ state machine --> IDLE
+service restarted	0	Starting run <NUM> :
+service restarted	1	State changed to DEVICE READY via RESET TASK transition
+service restarted	1	State changed to IDLE via RESET DEVICE transition
+service restarted	0	State changed to INITIALIZED via COMPLETE INIT transition
+service restarted	0	The session ID for the current DDS session is already zero. Not calling shutdown().
+service restarted	1	Timed out waiting for RESET <*> transition
+service restarted	0	key : orbit-reset-time ; value : <NUM>
+service restarted	0	orbit reset time updated to <NUM>
+service restarted	0	resetFailed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : tcp handshaker shutdown
+topology activation failed	0	Attempting submission with resources extracted from topology.
+topology activation failed	0	Creating a local QC topology.
+topology activation failed	0	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : connect() timed out
+topology activation failed	0	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : getsockopt(SO_ERROR) : Connection timed out
+topology activation failed	0	Failed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : getsockopt(SO_ERROR) : Connection timed outResetting the <*>
+topology activation failed	1	Found error messages during topology generation
+topology activation failed	0	INFO Adding Data Distribution topology file : <PATH>
+topology activation failed	0	INFO Topology successfully written to <PATH>
+topology activation failed	1	Incorrect topology provided : Topology generation script failed with exit code : <NUM>, stderr : "FATAL Error during <*> <*> <*>
+topology activation failed	1	Non-zero return value <NUM> during topology generation
+topology activation failed	1	Run reply : partitionId : <*> ; runnr : <NUM> ; sessionid : <UUID> ; state : UNDEFINED ; msg : ; exectime : <*> ; rmsjobids : ; ERROR : Failed topology (Incorrect topology provided : Topology generation script failed with exit code : <NUM>, stderr : "FATAL Error during <*> <*> <*>
+topology activation failed	0	Run request END OF TOPOLOGY SCRIPT
+topology activation failed	0	Run request topology content :
+topology activation failed	0	Run request topology file :
+topology activation failed	0	Running topology merger command env - PYTHONPATH+ = <PATH> : <PATH> <PATH> --dd <PATH> --reco <PATH> <PATH> --reco100 <PATH> <PATH> --calib <PATH> : <NUM> --mon tools/monitoring_workflows/epnstderrlog.xml --prependexe \\" module purge ; module load O2PDPSuite/epn-<FLOAT>-DDv1.<FLOAT>-QCv1.<FLOAT>-flp-suite-v1.<FLOAT><NUM> <NUM>>&<NUM> ; export O2_NO_CATCHALL_EXCEPTIONS = <NUM> ; \\" --assets <PATH> -o <PATH>
+topology activation failed	0	SLURM_TOPOLOGY_ADDR_PATTERN = node
+topology activation failed	0	StfSender gRPC connection error. stfs_id = <*> code = <NUM> error = failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : Connection refused
+topology activation failed	0	Temp topology file "<PATH>" created successfully
+topology activation failed	0	TfBuilderUCXDisconnectionRequest : gRPC call failed err = failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : Connection refused details =
+topology activation failed	0	Topology "<PATH>" activated successfully
+topology activation failed	1	Topology generation script failed with exit code : <NUM>
+topology activation failed	0	Topology generation script successfull. stderr : "Reusing cached XML topology <*>
+topology activation failed	0	Topology generation script successfull. stderr : "Running topology generation to temporary file <PATH>
+topology activation failed	0	Topology merger finished successfully
+topology activation failed	0	Topology state is now IDLE
+topology activation failed	0	Zones from the topology :
+topology activation failed	0	failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : getsockopt(SO_ERROR) : Connection timed out
+topology activation failed	0	resetFailed registration to the BookKeeping : failed to connect to all addresses ; last error : UNKNOWN : ipv4 : <IP> : Failed to connect to remote host : getsockopt(SO_ERROR) : Connection timed out
