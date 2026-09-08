@@ -13,5 +13,5 @@
 - name: Install and configure the nginx reverse proxy (TLS + basic-auth)
   ansible.builtin.import_tasks: nginx.yml
 
-- name: Cockpit bootstrap (index patterns, cockpit import, hydration) — after the opensearch_bootstrap role has created the indices
+- name: Cockpit bootstrap (index patterns, cockpit import, hydration) — after the sweet_opensearch role has created the indices
   ansible.builtin.import_tasks: cockpit.yml

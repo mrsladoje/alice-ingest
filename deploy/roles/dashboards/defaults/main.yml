@@ -22,7 +22,7 @@ dashboards_nginx_vhost_file: /etc/nginx/conf.d/dashboards.conf
 dashboards_basic_auth_user: alice
 dashboards_basic_auth_password: "{{ vault_dashboards_basic_auth_password }}"
 
-# Shared with the opensearch_bootstrap role, which writes templates.sh, ism.sh
+# Shared with the sweet_opensearch role, which writes templates.sh, ism.sh
 # and register_node.sh into the same directory and creates it with the same
 # owner, group and mode.
 alice_bootstrap_root: /opt/alice-ingest/init

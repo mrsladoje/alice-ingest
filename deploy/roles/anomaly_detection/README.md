@@ -10,7 +10,7 @@ detector and the forecaster, removes the bootstrap seed documents, and then runs
 `verify_detection.py`.
 
 The role does not create indices, index templates or the alerting monitors. The
-`opensearch_bootstrap` role creates the indices; the `alerting_monitors` role
+`sweet_opensearch` role creates the indices; the `alerting_monitors` role
 creates the monitors.
 
 ## Why it is a separate role
@@ -147,7 +147,7 @@ all satisfied by the play order in `playbooks/site.yml`.
 | `/opt/alice-ingest/init` exists, 0755 root:root | `alice_runtime` | Every staging task fails. This role writes into that directory and never creates it. |
 | `/opt/alice-ingest` exists, 0755 root:root | `alice_runtime` | Staging `backtest.py` fails. |
 | `signal_catalog.json` staged | `alice_runtime` | `verify_detection.py` exits non-zero on a missing catalog. |
-| The indices, templates and ISM policy exist | `opensearch_bootstrap` | The detectors have no source indices and `verify_detection.py` fails its ISM check. |
+| The indices, templates and ISM policy exist | `sweet_opensearch` | The detectors have no source indices and `verify_detection.py` fails its ISM check. |
 | `cockpit-metrics` holds `kind=node` and `kind=osd` documents | `cockpit_metrics` | The wait step burns 20 attempts and then fails the play. |
 | The 28 alerting monitors exist | `alerting_monitors` | `verify_detection.py` fails its `EXPECTED_MONITORS` assertion. |
 
@@ -221,16 +221,16 @@ Pairs of values that must change together.
 - The `METRICS_NAMES` list inside `detectors.sh.j2`. It is what splits the two
   window delays.
 - The `alice-bootstrap-seed` document id. `templates.sh` in
-  `opensearch_bootstrap` writes it under that exact literal and this role
+  `sweet_opensearch` writes it under that exact literal and this role
   deletes it under the same literal.
 
 ## What this role does not do
 
 - **It does not create the alerting monitors.** `alerting_monitors` does.
 - **It does not create indices, templates or ISM policies.**
-  `opensearch_bootstrap` does.
+  `sweet_opensearch` does.
 - **It does not create `/opt/alice-ingest/init`.** `alice_runtime` does, and
-  `opensearch_bootstrap` creates the same directory with the same owner, group
+  `sweet_opensearch` creates the same directory with the same owner, group
   and mode. Neither owns it. This role only writes files into it.
 - **It does not run the detection verify after the collector cutover.**
   `cockpit_metrics` does that, from `post_collector.yml`, against the copy this

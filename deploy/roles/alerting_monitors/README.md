@@ -57,7 +57,7 @@ The 29 monitors read five indices:
   a future value be inlined without moving the file.
 - **The role does not create `/opt/alice-ingest/init`.** It only writes into it.
   The directory is a shared artefact with no single owner. `alice_runtime` and
-  `opensearch_bootstrap` each create it, with the same owner, group and mode.
+  `sweet_opensearch` each create it, with the same owner, group and mode.
 - **`ensure_alert_sink_alias` refuses to create the sink index.** It checks that
   `alice-alert-actions` is a rollover write alias and stops the run if it is
   not. An earlier version created the name as a concrete index. That took the
@@ -127,8 +127,8 @@ the role order in `playbooks/site.yml`.
 | Prerequisite | Provided by | What breaks without it |
 |---|---|---|
 | OpenSearch answers on `localhost:9200` from the control host | `sweet_opensearch` role and the rolling-safety gate | Every curl in the script returns 000 and the first one fails the run. |
-| `/opt/alice-ingest/init` exists, 0755 root:root | `alice_runtime`, and `opensearch_bootstrap` before it | The render task fails: no such directory. |
-| `alice-alert-actions` is a rollover write alias | `opensearch_bootstrap`, through `templates.sh` and `ism.sh` | `ensure_alert_sink_alias` prints FATAL and the script exits 1. This is the hard one, and it is invisible from this role's own files. |
+| `/opt/alice-ingest/init` exists, 0755 root:root | `alice_runtime`, and the `sweet_opensearch` cluster bootstrap before it | The render task fails: no such directory. |
+| `alice-alert-actions` is a rollover write alias | `sweet_opensearch`, through `templates.sh` and `ism.sh` | `ensure_alert_sink_alias` prints FATAL and the script exits 1. This is the hard one, and it is invisible from this role's own files. |
 | The notification ingest listens on `127.0.0.1:{{ notification_ingest_port }}` | `signal_projector` | The two dead-man monitors upsert normally, but their break-glass webhook posts into nothing. Nothing fails at deploy time. |
 
 The source indices are a soft prerequisite. A monitor whose index is empty or
@@ -148,7 +148,8 @@ In a playbook, against the control host:
     - alerting_monitors
 ```
 
-- **Run it after `opensearch_bootstrap`.** The alias gate is the reason.
+- **Run it after the `sweet_opensearch` cluster bootstrap.** The alias gate is
+  the reason.
   `make deploy` does both in order.
 - **The role is safe to re-run.** Monitors are matched by name, channels by
   configuration id, and both are updated in place.

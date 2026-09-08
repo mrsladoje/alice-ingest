@@ -1,7 +1,7 @@
 alice_ops_script: /opt/alice-ingest/ops_server.py
 
 # The ops page re-applies the index templates. A literal, not a reference to the
-# opensearch_bootstrap role's variable: a default that reads another role's
+# sweet_opensearch role's variable: a default that reads another role's
 # variable resolves lazily and makes this role unrunnable alone. It must match
 # opensearch_bootstrap_templates_script.
 alice_ops_templates_script: /opt/alice-ingest/init/templates.sh

@@ -463,7 +463,7 @@ def wait_for_cluster(port, nodes, seconds):
 
 
 def apply_bootstrap(run_dir, args):
-    """Run the real `opensearch_bootstrap` script against the rig's cluster.
+    """Run the real `sweet_opensearch` script against the rig's cluster.
 
     Round 1's single bare container had no templates and no rollover aliases,
     collapsed at 2,000 records a second, and produced a number `docs/SOAK.md`

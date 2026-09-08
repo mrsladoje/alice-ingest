@@ -53,7 +53,7 @@ one decision is three places for it to drift. This role is the one copy.
   causal-edge completeness check run on every deploy. A catalog that a sandboxed
   service cannot read fails here, not three plays later inside a service that
   restarts in a loop.
-- **The role does not own `/opt/alice-ingest/init`.** `opensearch_bootstrap`
+- **The role does not own `/opt/alice-ingest/init`.** `sweet_opensearch`
   creates the same directory with the same owner, group and mode, and runs
   first. Both creations are deliberate. See couplings.
 - **The module staging task notifies whatever `alice_runtime_stage_notify`
@@ -79,7 +79,7 @@ would be a second place to change one value.
 
 | Variable | Owner | Used for |
 |---|---|---|
-| `alice_bootstrap_root` | `group_vars/all.yml` | The catalog directory, `/opt/alice-ingest/init`. Shared with `opensearch_bootstrap`. |
+| `alice_bootstrap_root` | `group_vars/all.yml` | The catalog directory, `/opt/alice-ingest/init`. Shared with `sweet_opensearch`. |
 | `alice_bootstrap_signal_catalog` | `group_vars/all.yml` | Destination of `signal_catalog.json`. |
 | `alice_bootstrap_causal_edges` | `group_vars/all.yml` | Destination of `causal_edges.json`. |
 | `alice_app_root` | `group_vars/all.yml` | The application root, `/opt/alice-ingest`. |
@@ -124,7 +124,7 @@ service:
 ## Couplings
 
 - **`/opt/alice-ingest/init` is created twice on the control host, on purpose.**
-  `opensearch_bootstrap` creates it, this role creates it. The owner, group and
+  `sweet_opensearch` creates it, this role creates it. The owner, group and
   mode are identical in both, so the two cannot drift, and each role stays
   runnable without the other. Change one, change the other.
 - **`causal_edges.json` has two readers with two different paths.** This role

@@ -8,7 +8,7 @@ catalogs.
 
 The role stops at the user interface. It does not create indices, monitors,
 detectors, forecasters or any background service. Those belong to
-`opensearch_bootstrap`, `alerting_monitors`, `anomaly_detection`,
+`sweet_opensearch`, `alerting_monitors`, `anomaly_detection`,
 `cockpit_metrics`, `trend_rollup`, `alice_ops`, `shifter` and
 `signal_projector`.
 
@@ -167,7 +167,7 @@ The role does not bootstrap the machine or the cluster.
 | Prerequisite | Provided by | What breaks without it |
 |---|---|---|
 | A reachable OpenSearch cluster | `sweet_opensearch` role | Dashboards starts but `/api/status` never returns 200, and the readiness wait times out after 5 minutes. |
-| Index templates, the ingest pipeline and the derived indices | `opensearch_bootstrap` role | `patterns.sh` still creates the patterns, but `hydrate_patterns.py` finds no fields to serialize and fails the required-field check. |
+| Index templates, the ingest pipeline and the derived indices | `sweet_opensearch` role | `patterns.sh` still creates the patterns, but `hydrate_patterns.py` finds no fields to serialize and fails the required-field check. |
 | `firewalld` running, with `dashboards_external_port` open | `common` role | nginx starts and nobody outside the host can reach it. |
 | The vault file loaded at play level | `playbooks/site.yml` | The htpasswd task fails on an undefined `vault_dashboards_basic_auth_password`. |
 | Alertmanager listening on `alertmanager_port` | `alertmanager` role | The vhost still renders. `/alertmanager/` returns 502 until the service is up. |
@@ -186,7 +186,8 @@ Against the control host only:
     - dashboards
 ```
 
-- **Run it after `opensearch_bootstrap`, not before.** The hydration step reads
+- **Run it after the `sweet_opensearch` cluster bootstrap, not before.** The
+  hydration step reads
   the real field mappings out of the cluster.
 - **Run it before `alerting_monitors`, `anomaly_detection` and
   `signal_projector`.** They stage their scripts into the same directory and
@@ -204,11 +205,12 @@ Against the control host only:
   Three of this role's own defaults interpolate it, and a role whose defaults
   reference an undeclared variable cannot run outside this repository. The
   `group_vars` value outranks the default and stays the site source of truth,
-  shared with `opensearch_bootstrap`, `alerting_monitors`, `anomaly_detection`,
+  shared with `sweet_opensearch`, `alerting_monitors`, `anomaly_detection`,
   `alice_ops` and `signal_projector`, which stage their own files into the same
   directory. Both values must stay `/opt/alice-ingest/init`.
 - **This role does not create `/opt/alice-ingest/init`.** It only writes into it.
-  `opensearch_bootstrap` creates it, root:root 0755, and runs first.
+  the `sweet_opensearch` cluster bootstrap creates it, root:root 0755,
+  and runs first.
 - **`dashboards_basic_auth_password` and the vault entry change together.** The
   default is an indirection to `vault_dashboards_basic_auth_password`, which
   resolves only in a play that loads `group_vars/vault.yml`. A play that does

@@ -76,7 +76,7 @@ def render_bootstrap(primaries=1):
     values = dict(group_vars())
     values.update(BOOTSTRAP_VARS)
     values["log_primary_shards_storage"] = primaries
-    return _environment("opensearch_bootstrap").get_template(
+    return _environment("sweet_opensearch").get_template(
         "templates.sh.j2").render(**values)
 
 
@@ -84,7 +84,7 @@ def schema_documents(primaries=1):
     values = dict(group_vars())
     values.update(BOOTSTRAP_VARS)
     values["log_primary_shards_storage"] = primaries
-    environment = _environment("opensearch_bootstrap")
+    environment = _environment("sweet_opensearch")
     found = {}
     for name in environment.list_templates():
         if not name.startswith("schema/") or not name.endswith(".json.j2"):
@@ -153,7 +153,7 @@ def test_the_fixed_indices_never_roll_over_and_the_buckets_age_out():
         settings = templates[pattern]["template"]["settings"]
         assert "*" not in pattern
         assert "index.plugins.index_state_management.rollover_alias" not in settings
-    ism = open(os.path.join(ROLES, "opensearch_bootstrap", "templates",
+    ism = open(os.path.join(ROLES, "sweet_opensearch", "templates",
                             "ism.sh.j2")).read()
     for index in ("template-triage", "shifter-queries", "template-catalog"):
         assert index not in ism
@@ -827,14 +827,14 @@ TEMPLATE_SUPPLIED = {
 
 SCHEMA_TEMPLATES = sorted(
     "schema/" + name
-    for name in os.listdir(os.path.join(ROLES, "opensearch_bootstrap",
+    for name in os.listdir(os.path.join(ROLES, "sweet_opensearch",
                                         "templates", "schema"))
     if name.endswith(".json.j2"))
 
 
 @pytest.mark.parametrize("role,template", [
-    ("opensearch_bootstrap", "templates.sh.j2"),
-] + [("opensearch_bootstrap", name) for name in SCHEMA_TEMPLATES] + [
+    ("sweet_opensearch", "templates.sh.j2"),
+] + [("sweet_opensearch", name) for name in SCHEMA_TEMPLATES] + [
     ("stamper", "alice-stamper.service.j2"),
     ("template_catalog", "alice-catalog-maintenance.service.j2"),
     ("template_catalog", "alice-catalog-maintenance.timer.j2"),
@@ -845,7 +845,7 @@ def test_every_variable_a_template_names_is_declared_somewhere(role, template):
     source = re.sub(r"\{%\s*raw\s*%\}.*?\{%\s*endraw\s*%\}", "", source,
                     flags=re.S)
     known = set(group_vars()) | set(role_defaults(role)) | TEMPLATE_SUPPLIED
-    for other in ("template_catalog", "shifter", "opensearch_bootstrap",
+    for other in ("template_catalog", "shifter", "sweet_opensearch",
                   "stamper", "collector"):
         known |= set(role_defaults(other))
     used = set()

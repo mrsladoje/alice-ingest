@@ -152,7 +152,7 @@ defaults, because a second copy is a second place to change one value.
 | `notification_ingest_token` | `group_vars/all.yml` | Shared secret. Empty means no authentication. |
 | `alice_service_memory_high` / `alice_service_memory_max` | `group_vars/all.yml` | Memory bounds on the receiver unit, shared with the other small services. |
 | `cluster_id` | `group_vars/all.yml` | Stamped on every emitted signal and notification. |
-| `signals_index`, `incidents_index`, `notifications_index`, `lane_state_index` | `group_vars/all.yml` | The four indices the projector writes. `opensearch_bootstrap` creates them. |
+| `signals_index`, `incidents_index`, `notifications_index`, `lane_state_index` | `group_vars/all.yml` | The four indices the projector writes. `sweet_opensearch` creates them. |
 | `cockpit_metrics_index` | `group_vars/all.yml` | Where the projector writes its heartbeat, and where the gate looks for it. |
 | `fleet_roster_index` | `group_vars/all.yml` | The immutable roster the projector reads to derive absence. |
 | `trend_rollup_index` | `group_vars/all.yml` | Read by the verify re-run. |
@@ -173,7 +173,7 @@ The role does not bootstrap either machine. Six things must be true first.
 | `/opt/alice-ingest` and `/opt/alice-ingest/init` exist on the projector host | `alice_runtime` | Every copy task fails — the destination directory is missing. |
 | `os_cursor.py` and `signal_identity.py` on the projector host | `alice_runtime` | The service starts and dies on import. Nothing in this role would notice until the cycle gate times out three minutes later. |
 | `signal_catalog.json` and `causal_edges.json` on the projector host, mode 0644 | `alice_runtime` | The projector runs `DynamicUser=true`. At 0640 or 0600 it cannot read either file. |
-| The projector's four indices exist | `opensearch_bootstrap` | The first cycle creates them with dynamic mappings, which is not the mapping the cockpit queries expect. |
+| The projector's four indices exist | `sweet_opensearch` | The first cycle creates them with dynamic mappings, which is not the mapping the cockpit queries expect. |
 | Monitors, detectors and forecasters exist | `alerting_monitors`, `anomaly_detection` | The projector has nothing to normalize, and the verify re-run fails its count assertions. |
 | Alertmanager is up and reachable from the projector host | `alertmanager`, plus its firewall rule | The readiness gate retries twelve times and then fails the play. |
 | `verify_detection.py` staged on the control host | `anomaly_detection` | The final control-host task fails — no such file. |

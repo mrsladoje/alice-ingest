@@ -2380,7 +2380,7 @@ def test_the_registration_script_has_exactly_one_definition():
     roles_root, scripts = _role_files("register_node.sh")
     collector_path = _checkout_file("roles", "collector", "tasks", "main.yml")
     bootstrap_path = _checkout_file(
-        "roles", "opensearch_bootstrap", "tasks", "main.yml")
+        "roles", "sweet_opensearch", "tasks", "cluster_bootstrap.yml")
     if roles_root is None or not all((collector_path, bootstrap_path)):
         print("[signal-contract] "
               "test_the_registration_script_has_exactly_one_definition: "
@@ -2398,7 +2398,7 @@ def test_the_registration_script_has_exactly_one_definition():
 
     for path, label, expected_notify in (
             (collector_path, "collector", ["restart fluent-bit"]),
-            (bootstrap_path, "opensearch_bootstrap", None)):
+            (bootstrap_path, "sweet_opensearch", None)):
         includes = [
             task for task in _ansible_tasks(path)
             if (task.get("ansible.builtin.include_role") or {}).get("name")

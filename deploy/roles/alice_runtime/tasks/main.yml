@@ -8,9 +8,9 @@
     # public, non-secret signal catalog below.  Scripts and definitions keep
     # their own root-only modes.
     #
-    # The opensearch_bootstrap role creates the same directory with the same
+    # The sweet_opensearch role creates the same directory with the same
     # owner, group and mode. Neither role owns it; each writes its own scripts
-    # into it, and opensearch_bootstrap runs first.
+    # into it, and sweet_opensearch runs first.
     mode: "0755"
 
 - name: Stage the signal identity catalog (one explicit per-monitor and per-detector classifier, never inferred from an index name)

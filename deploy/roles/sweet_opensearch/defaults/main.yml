@@ -1,3 +1,7 @@
+# Which of the role's two jobs this host does. site.yml turns it on for the one
+# play that runs against the control host, after the rolling health gate.
+opensearch_cluster_bootstrap: false
+
 # The version is declared here as well as in group_vars/all.yml, because the two
 # defaults below interpolate it. A role whose own defaults reference a variable
 # it does not declare cannot run outside this repository. group_vars/all.yml
@@ -128,7 +132,7 @@ opensearch_systemd_dropin_dir: "/etc/systemd/system/{{ opensearch_service_name }
 # registering itself at boot writes the same template the control host writes.
 #
 # The retention policy name is deliberately NOT a variable here. The policy is
-# created by name in the opensearch_bootstrap role (ism.sh.j2) and asserted by
+# created by name in the sweet_opensearch role (ism.sh.j2) and asserted by
 # name in verify_detection.py, and register_node.sh falls back to the same
 # literal. A variable would only let this end of the pair move.
 opensearch_node_env_dir: /etc/alice-ingest
@@ -147,3 +151,26 @@ opensearch_required_plugins:
 # stands on its own and one inventory line can switch the whole stack. See
 # roles/common/defaults/main.yml for why the EPN farm sets this false.
 alice_manage_firewalld: true
+
+# ---------------------------------------------------------------------------
+# Cluster bootstrap — read only when opensearch_cluster_bootstrap is true.
+# ---------------------------------------------------------------------------
+
+# The shared bootstrap script directory. The alice_runtime role writes its own
+# scripts into the same directory and creates it with the same owner, group and
+# mode, so neither role owns it and the two cannot drift.
+opensearch_bootstrap_root: /opt/alice-ingest/init
+
+opensearch_bootstrap_templates_script: "{{ opensearch_bootstrap_root }}/templates.sh"
+
+# templates.sh reads every request body from here, as "$(dirname "$0")/schema".
+# One file per OpenSearch object; the name prefix is the kind.
+opensearch_bootstrap_schema_root: "{{ opensearch_bootstrap_root }}/schema"
+opensearch_bootstrap_ism_script: "{{ opensearch_bootstrap_root }}/ism.sh"
+
+# templates.sh resolves this as "$(dirname "$0")/register_node.sh", so the two
+# files must land in the same directory.
+opensearch_bootstrap_register_node_script: "{{ opensearch_bootstrap_root }}/register_node.sh"
+
+# Supplied by the playbook. The role names no inventory group of its own.
+opensearch_bootstrap_worker_node_ids: []

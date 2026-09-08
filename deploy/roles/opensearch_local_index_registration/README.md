@@ -20,7 +20,7 @@ paths can run it and the last one to look simply finds nothing to do.
 └──────────┬───────────────────────────────────────────────┬──────────────────┘
            v                                               v
 ┌─ CONTROL HOST, at deploy ─────────────┐  ┌─ EACH WORKER, at every boot ─────┐
-│  installed by opensearch_bootstrap    │  │  installed by collector          │
+│  installed by sweet_opensearch    │  │  installed by collector          │
 │  /opt/alice-ingest/init/, mode 0750   │  │  /opt/alice-ingest/, mode 0755   │
 │                                       │  │                                  │
 │  run by templates.sh, once per worker │  │  run as ExecStartPre of          │
@@ -77,7 +77,7 @@ because a red index can also mean "recovering right now".
 ## Why this is a role and not a file in another role
 
 Two roles that run on two different host groups need the same bytes.
-`opensearch_bootstrap` runs on the control host only, and it would have to be
+`sweet_opensearch` runs on the control host only, and it would have to be
 included on every worker just to deliver one file, dragging its guards, its two
 rendered scripts and its cluster-wide REST calls onto machines that must not make
 them. A worker role reaching into another role's `files/` by relative path is the
@@ -157,4 +157,4 @@ timeout, or systemd kills a collector that was only waiting.
 ## Used by
 
 - `collector` — on every worker
-- `opensearch_bootstrap` (`tasks/main.yml`) — on the control host
+- `sweet_opensearch` (`tasks/main.yml`) — on the control host

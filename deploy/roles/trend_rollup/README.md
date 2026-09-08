@@ -62,7 +62,7 @@ retention window.
   catch up.
 - **Retention is enforced by the script, not by an ISM policy.**
   `trend_rollup_retention_days` becomes a `_delete_by_query` over the `ts`
-  field, run at most once an hour. `opensearch_bootstrap` creates the index and
+  field, run at most once an hour. `sweet_opensearch` creates the index and
   its mapping but attaches no lifecycle policy to it. Setting the value to 0 or
   less turns pruning off, and the index then grows without bound.
 - **Two of the script's knobs are deliberately not in the unit.**
@@ -97,7 +97,7 @@ defaults, because a second copy is a second place to change one value.
 | Variable | Owner | Used for |
 |---|---|---|
 | `trend_rollup_service_name` | `group_vars/all.yml` | The unit name. `playbooks/status.yml` and the `site.yml` pre-flight both name the same service. |
-| `trend_rollup_index` | `group_vars/all.yml` | The index written. `opensearch_bootstrap` creates it and its mapping, and `playbooks/replay.yml` wipes it. |
+| `trend_rollup_index` | `group_vars/all.yml` | The index written. `sweet_opensearch` creates it and its mapping, and `playbooks/replay.yml` wipes it. |
 | `opensearch_http_port` | `group_vars/all.yml` | Builds `OS_URL`. Every service in the tree reads it. |
 | `alice_service_memory_high` | `group_vars/all.yml` | `MemoryHigh` on the unit. Shared by all the thin Python services. |
 | `alice_service_memory_max` | `group_vars/all.yml` | `MemoryMax` on the unit. Same. |
@@ -118,7 +118,7 @@ first, all satisfied by the play order in `playbooks/site.yml`.
 |---|---|---|
 | `/opt/alice-ingest` exists on the background host | `alice_runtime` | The copy of the script fails. `ansible.builtin.copy` does not create a missing parent directory. |
 | An OpenSearch node answers on `localhost:9200` on this host | `sweet_opensearch` | The service starts, fails every query, and `Restart=on-failure` cycles it. The assertion at the end of the role then fails the deploy. |
-| The `trend-rollup` index and its mapping exist | `opensearch_bootstrap` | Rows land in a dynamically mapped index. The bucket-commit and silence-imputation fields get the wrong types, and the trend monitors read them wrong. |
+| The `trend-rollup` index and its mapping exist | `sweet_opensearch` | Rows land in a dynamically mapped index. The bucket-commit and silence-imputation fields get the wrong types, and the trend monitors read them wrong. |
 
 `alerting_monitors` is a consumer, not a prerequisite. It may run before or
 after this role; its monitors simply return nothing until the first bucket is
@@ -150,7 +150,7 @@ In a playbook, against the background group:
 ## Couplings
 
 - **`trend_rollup_index` is shared with three other places.**
-  `opensearch_bootstrap` creates the index template, the index and the live
+  `sweet_opensearch` creates the index template, the index and the live
   mapping under that name; `reset_derived.py` clears it during
   `playbooks/replay.yml`; the trend monitors query it. Change it in
   `group_vars/all.yml`, never here.

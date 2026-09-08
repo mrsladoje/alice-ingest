@@ -127,7 +127,7 @@ own. Five things must be true first, all satisfied by the role order in
 | Prerequisite | Provided by | What breaks without it |
 |---|---|---|
 | OpenSearch answering on `localhost:9200` | `sweet_opensearch` role | Every task here is a REST call. The roster publish fails first. |
-| `cockpit-metrics` and `cockpit-fleet` index templates | `opensearch_bootstrap` role | The roster and the samples land with guessed field types, and the absence monitors match nothing. |
+| `cockpit-metrics` and `cockpit-fleet` index templates | `sweet_opensearch` role | The roster and the samples land with guessed field types, and the absence monitors match nothing. |
 | `/opt/alice-ingest` and `os_cursor.py` | `alice_runtime` role | The two staged scripts have nowhere to land, and both fail on `import os_cursor`. |
 | Dashboards answering on `dashboards_internal_port` | `dashboards` role | The poller starts, but every Dashboards sample is an error until the port opens. |
 | Fluent Bit shipping on every worker | `collector` role | `post_collector.yml` only. The heartbeat wait times out after 2 minutes per collector. |

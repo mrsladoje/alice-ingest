@@ -199,7 +199,7 @@ def test_ops_poison_route_precedes_generic_replay_suffix():
 
 def test_deploy_wires_mapping_service_make_and_ops_controls():
     root = repo_root()
-    bootstrap = root / "deploy/roles/opensearch_bootstrap/templates"
+    bootstrap = root / "deploy/roles/sweet_opensearch/templates"
     templates = (bootstrap / "templates.sh.j2").read_text() + "".join(
         path.read_text() for path in sorted(bootstrap.glob("schema/*.json.j2")))
     unit = (root / "deploy/roles/alice_ops/templates/alice-poison-replay.service.j2").read_text()

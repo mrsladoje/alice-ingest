@@ -476,7 +476,7 @@ declares, and each step depends on the one above it.
 |---|---|---|
 | 1 | `alice_nodes` | `common` |
 | 2 | `alice_nodes` | `opensearch` (initial bring-up, then the `serial: 1` health gate) |
-| 3 | `control` | `opensearch_bootstrap` |
+| 3 | `control` | `sweet_opensearch` |
 | 4 | `control` | `alertmanager` |
 | 5 | `control` | `alice_runtime`, `dashboards`, `alice_ops`, `alerting_monitors`, `cockpit_metrics`, `anomaly_detection` |
 | 6 | `projector` | `alice_runtime`, `signal_projector` |
@@ -491,7 +491,7 @@ declares, and each step depends on the one above it.
 
 What each dependency is:
 
-- `opensearch_bootstrap` creates the indices and the write aliases. Every
+- `sweet_opensearch` creates the indices and the write aliases. Every
   cockpit pattern, monitor and detector below reads them.
 - `alice_runtime` creates `/opt/alice-ingest` and `/opt/alice-ingest/init`, and
   stages the signal catalog, the causal edges and the two shared Python modules
@@ -668,7 +668,7 @@ CERN network access and real quota.
 ## 8. Detection layer runbook (wooden-plane)
 
 Provisioned every `make deploy`: index templates and ISM by the
-`opensearch_bootstrap` role, then monitors by the `alerting_monitors` role, and
+`sweet_opensearch` role, then monitors by the `alerting_monitors` role, and
 detectors, the forecaster and strict verify by the `anomaly_detection` role.
 Definitions live under `roles/alerting_monitors/files/monitors/` and
 `roles/anomaly_detection/files/{detectors,forecasters}/`.
@@ -2111,7 +2111,7 @@ its own failure mode.
    other name, so OpenSearch answers 400 to the *whole* persistent settings
    body — including the anomaly-detection batch pacing that shares the call —
    and `templates.sh` exits non-zero under `set -eu`. The mode is therefore
-   asserted in `roles/opensearch_bootstrap/tasks/main.yml` before anything
+   asserted in `roles/sweet_opensearch/tasks/cluster_bootstrap.yml` before anything
    renders.
    An earlier revision shipped `shadow`, which is the word the OpenSearch source
    comments use for this mode but not the name the enum accepts; it failed the

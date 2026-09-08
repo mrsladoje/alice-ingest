@@ -211,7 +211,7 @@ of them satisfied by the role order in `playbooks/site.yml`.
 | `firewalld` installed and running | `common` role | The firewall task fails. |
 | `/etc/alice-ingest/opensearch-node.env` exists | `sweet_opensearch` role | `fluent-bit.service` refuses to start — the `EnvironmentFile` has no leading dash on purpose. |
 | An OpenSearch node listening on `localhost:{{ opensearch_http_port }}` | `sweet_opensearch` role | `register_node.sh` waits, then the unit times out. |
-| The `alice-application-local-retention` ISM policy and the ingest pipeline exist in the cluster | `opensearch_bootstrap` role, on the control host | Records still ship. Retention and field normalisation do not apply. |
+| The `alice-application-local-retention` ISM policy and the ingest pipeline exist in the cluster | `sweet_opensearch` role, on the control host | Records still ship. Retention and field normalisation do not apply. |
 
 **The `producer` role is not a prerequisite.** A collector with no producer starts
 and ships nothing.
