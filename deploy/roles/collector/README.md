@@ -392,7 +392,10 @@ is a collector that does nothing.
 
 ## Used by
 
-- `playbooks/site.yml`, against the `workers` group.
+- `playbooks/site.yml`, against the `workers` group, in the same play as
+  `stamper`, which is installed first so its socket exists when Fluent Bit
+  starts.
 
 ## Includes
 
+Nothing. This role includes no other role.
