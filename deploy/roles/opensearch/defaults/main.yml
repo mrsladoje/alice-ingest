@@ -37,6 +37,9 @@ opensearch_initial_cluster_manager_nodes: []
 
 opensearch_transport_port: 9300
 
+opensearch_vm_max_map_count: 262144
+opensearch_sysctl_conf_file: /etc/sysctl.d/99-opensearch.conf
+
 opensearch_data_path: "{{ '/var/lib/opensearch' if opensearch_install_method == 'native' else '/var/lib/opensearch/' ~ opensearch_instance_id }}"
 opensearch_log_path: "{{ '/var/log/opensearch' if opensearch_install_method == 'native' else '/var/log/opensearch/' ~ opensearch_instance_id }}"
 

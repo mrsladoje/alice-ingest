@@ -138,6 +138,8 @@ site-wide, or in `inventory.yml` for one group or host.
 | `opensearch_seed_hosts` | `[]` | `discovery.seed_hosts`. The playbook supplies it. |
 | `opensearch_initial_cluster_manager_nodes` | `[]` | `cluster.initial_cluster_manager_nodes`. Node names, not addresses. |
 | `opensearch_transport_port` | `9300` | Node-to-node port. |
+| `opensearch_vm_max_map_count` | `262144` | The kernel bootstrap-check minimum for mmapped Lucene segments. Not a tuning knob. |
+| `opensearch_sysctl_conf_file` | `/etc/sysctl.d/99-opensearch.conf` | Where the value above persists. See couplings. |
 | `opensearch_data_path` | `/var/lib/opensearch` | `path.data`. |
 | `opensearch_log_path` | `/var/log/opensearch` | `path.logs`. |
 | `opensearch_heap_size` | `1g` | `-Xms` and `-Xmx`. Declared here on purpose — see couplings. |
