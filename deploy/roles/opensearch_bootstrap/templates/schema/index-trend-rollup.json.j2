@@ -1,0 +1,52 @@
+{
+  "index_patterns": ["{{ trend_rollup_index }}"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 2,
+      "codec": "zstd",
+      "refresh_interval": "30s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "ts":                    { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "family":                { "type": "keyword" },
+        "entity_kind":           { "type": "keyword" },
+        "entity":                { "type": "keyword" },
+        "cohort_family":         { "type": "keyword" },
+        "cohort_kind":           { "type": "keyword" },
+        "doc_count":             { "type": "long" },
+        "ef_count":              { "type": "long" },
+        "fleet_count":           { "type": "long" },
+        "fleet_ef_count":        { "type": "long" },
+        "entity_count":          { "type": "integer" },
+        "imputed":               { "type": "boolean" },
+        "imputed_count":         { "type": "integer" },
+        "truncated":             { "type": "boolean" },
+        "bucket_seconds":        { "type": "integer" },
+        "complete":              { "type": "boolean" },
+        "committed_at":          { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "expected_cohorts":      { "type": "keyword" },
+        "expected_cohort_count": { "type": "integer" },
+        "observed_cohort_count": { "type": "integer" },
+        "commit_cohorts":        { "properties": {
+          "cohort":       { "type": "keyword" },
+          "entity_count": { "type": "integer" },
+          "doc_count":    { "type": "long" },
+          "truncated":    { "type": "boolean" }
+        } },
+        "p95_entry_lag_ms":      { "type": "double" },
+        "p95_shipping_lag_ms":   { "type": "double" },
+        "avg_entry_lag_ms":      { "type": "double" },
+        "avg_shipping_lag_ms":   { "type": "double" }
+      }
+    }
+  },
+  "_meta": {
+    "family": "trend-rollup",
+    "written_by": "alice-trend-rollup"
+  }
+}

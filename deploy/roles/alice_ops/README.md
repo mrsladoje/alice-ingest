@@ -154,7 +154,7 @@ services it installs do anything useful.
 | Prerequisite | Provided by | What breaks without it |
 |---|---|---|
 | nginx installed, with the `/ops/` proxy in its vhost | `dashboards` role | The page is unreachable. `alice-ops` binds loopback only, so nothing outside the control host can open it. |
-| `templates.sh` present at `alice_ops_templates_script` | `opensearch_bootstrap` role | The page's fresh-replay and wipe buttons cannot rebuild the aliases. The unit still starts. |
+| `templates.sh` present at `alice_ops_templates_script`, with its `schema/` directory beside it | `opensearch_bootstrap` role | The page's fresh-replay and wipe buttons cannot rebuild the aliases. The unit still starts. |
 | `os_cursor.py` in `/opt/alice-ingest` | `alice_runtime` role | `score_injection.py` fails its import, so an injection run produces no score. |
 | `causal_edges.json` staged | `alice_runtime` role | An injection run cannot explain a symptom by its cause. |
 | Fault agents running on the workers and the projector | `faults` role | An injection has nothing to inject. The `faults` play runs after this one in `site.yml`, which is safe because no run starts at deploy time. |
@@ -222,7 +222,8 @@ In a playbook, against the control host:
 - **It does not install nginx, TLS material or the basic-auth file.** The
   `dashboards` role does, and its vhost is what exposes this page.
 - **It does not create `/opt/alice-ingest/init`.** It only names
-  `templates.sh` inside it.
+  `templates.sh` inside it, which reads its request bodies from `schema/`
+  beside itself.
 - **It does not install `os_cursor.py` or `causal_edges.json`,** although two of
   its scripts need them. `alice_runtime` owns both.
 - **It does not start an injection or a calibration run.** Only an operator

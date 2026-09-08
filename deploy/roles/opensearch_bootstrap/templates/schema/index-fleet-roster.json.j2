@@ -1,0 +1,37 @@
+{
+  "index_patterns": ["{{ fleet_roster_index }}"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 2,
+      "codec": "zstd",
+      "refresh_interval": "5s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "doc_kind":          { "type": "keyword" },
+        "topology_version":  { "type": "keyword" },
+        "effective_from":    { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "published_at":      { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "collectors":        { "type": "keyword" },
+        "collector_count":   { "type": "integer" },
+        "assignment_count":  { "type": "integer" },
+        "supersedes":        { "type": "keyword" },
+        "cluster_id":        { "type": "keyword" },
+        "published_by":      { "type": "keyword" },
+        "assignments":       { "properties": {
+          "origin_host":  { "type": "keyword" },
+          "collector_id": { "type": "keyword" }
+        } }
+      }
+    }
+  },
+  "_meta": {
+    "family": "fleet-roster",
+    "written_by": "ansible roster publisher",
+    "note": "immutable, append-only topology snapshots; deliberately NOT in cockpit-metrics so roster history does not inherit metrics retention"
+  }
+}

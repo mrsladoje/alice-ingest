@@ -34,6 +34,23 @@
     # definitions keep their own root-only modes.
     mode: "0755"
 
+- name: Ensure the schema directory exists beside the scripts
+  ansible.builtin.file:
+    path: "{{ opensearch_bootstrap_schema_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Render the schema — one JSON document per OpenSearch object
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "{{ opensearch_bootstrap_schema_root }}/{{ item | basename | regex_replace('\\.j2$', '') }}"
+    owner: root
+    group: root
+    mode: "0640"
+  loop: "{{ query('ansible.builtin.fileglob', role_path ~ '/templates/schema/*.json.j2') | sort }}"
+
 - name: Render the tier-aware OpenSearch index-template bootstrap script
   ansible.builtin.template:
     src: templates.sh.j2

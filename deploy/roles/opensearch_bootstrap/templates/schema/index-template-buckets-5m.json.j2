@@ -1,0 +1,40 @@
+{
+  "index_patterns": ["{{ template_buckets_5m_prefix }}-*"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": {{ template_buckets_replicas }},
+      "codec": "zstd",
+      "refresh_interval": "30s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "kind":               { "type": "keyword" },
+        "schema_version":     { "type": "integer" },
+        "bucket_id":          { "type": "keyword" },
+        "node":               { "type": "keyword" },
+        "family":             { "type": "keyword" },
+        "resolution_seconds": { "type": "integer" },
+        "bucket_start":       { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "bucket_end":         { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "late":               { "type": "boolean" },
+        "total":              { "type": "long" },
+        "version_count":      { "type": "integer" },
+        "versions":           { "type": "keyword" },
+        "counts":             { "type": "nested", "properties": {
+          "version_id": { "type": "keyword" },
+          "count":      { "type": "long" }
+        } },
+        "published_at":       { "type": "date", "format": "strict_date_optional_time||epoch_millis" }
+      }
+    }
+  },
+  "_meta": {
+    "family": "template-buckets-5m",
+    "written_by": "alice-stamper",
+    "note": "One document per node, family and five-minute bucket, republished in place while the bucket is inside the worker's {{ stamper_ledger_hours }}-hour ledger. Indices are named by the bucket's own day so a republication lands in the same document it wrote before; retention is an ISM age policy on the pattern ({{ ism_retention_template_buckets_5m }}). `versions` is the flat routing key a search expands through; `counts` is nested so a window sum is one aggregation."
+  }
+}

@@ -43,6 +43,7 @@ verification are now the `anomaly_detection` role.
 ┌─ 2. STAGE — /opt/alice-ingest/init ────────────────────────────────────────┐
 │  templates.sh        rendered from templates.sh.j2                         │
 │  ism.sh              rendered from ism.sh.j2                               │
+│  schema/*.json       28 documents rendered from templates/schema/          │
 │  register_node.sh    installed through the opensearch_local_index_registration role          │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
@@ -67,6 +68,29 @@ verification are now the `anomaly_detection` role.
 │  alice-alert-actions-retention      30d                                    │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
+
+## Where the schema lives
+
+`templates.sh` holds no request body. Every one of them is a file under
+`templates/schema/`, rendered to `/opt/alice-ingest/init/schema/` and read back
+at run time as `$(dirname "$0")/schema/<name>`. The name prefix is the kind:
+
+| Prefix | Count | What it is |
+|---|---|---|
+| `component-` | 2 | The two shared log mappings. |
+| `index-` | 15 | One index template each. |
+| `pipeline-` | 1 | The `alice-add-ingest-time` ingest pipeline. |
+| `settings-` | 2 | Persistent cluster settings bodies. |
+| `patch-` | 8 | Mapping fragments PUT onto indices that predate a field. |
+
+The script keeps the parts that encode decisions — the seven helper functions
+and the ordered sequence of calls — and nothing else. Adding an object is a new
+file plus one `load` line; changing a mapping is a diff in one small file
+instead of a diff inside a thousand-line script.
+
+`load` fails the whole run if a document is missing, before any REST call, so a
+file that is added to the script but not to the directory cannot reach a
+cluster half-applied.
 
 ## Non-obvious settings
 
@@ -173,6 +197,7 @@ retention fills, with or without the Templates page. At first bootstrap it is
 |---|---|---|
 | `opensearch_bootstrap_root` | `/opt/alice-ingest/init` | Where the scripts are staged. Shared — see couplings. |
 | `opensearch_bootstrap_templates_script` | `{{ opensearch_bootstrap_root }}/templates.sh` | The rendered index-template script. |
+| `opensearch_bootstrap_schema_root` | `{{ opensearch_bootstrap_root }}/schema` | Where the rendered schema documents land. `templates.sh` resolves it relative to itself, so moving one moves both. |
 | `opensearch_bootstrap_ism_script` | `{{ opensearch_bootstrap_root }}/ism.sh` | The rendered retention script. |
 | `opensearch_bootstrap_register_node_script` | `{{ opensearch_bootstrap_root }}/register_node.sh` | Installed through `opensearch_local_index_registration`. Must sit beside `templates.sh`. |
 | `opensearch_bootstrap_worker_node_ids` | `[]` | The worker identities that get a per-node index template, write alias and retention attach. The playbook supplies it. |
@@ -225,6 +250,9 @@ All from `group_vars/all.yml`, and all read by the two templates.
   templates through `alice-ops.service`. That unit is written by the `alice_ops`
   role, which holds the path as a literal: a default reading another role's
   variable resolves lazily and would make `alice_ops` unrunnable alone.
+- **`tools/soak/mkbootstrap.py` renders the same schema for the soak rig.** It
+  writes `schema/` beside the script it produces and forces `number_of_replicas`
+  there, which is the rig's one stated divergence from production.
 - **`playbooks/replay.yml` also runs `templates.sh`.** It carries the path as the
   play variable `bootstrap_root`, with `SEED_EMPTY_INDICES=false`, to rebuild the
   write aliases after a fresh replay. Moving the staging directory means changing
@@ -238,8 +266,8 @@ All from `group_vars/all.yml`, and all read by the two templates.
 
 The domain layer is not parameterised. These scripts are the schema.
 
-- The field mappings in `templates.sh.j2`, both component templates and every
-  live mapping update.
+- The field mappings under `templates/schema/`, both component templates and
+  every `patch-` mapping update.
 - The ingest pipeline `alice-add-ingest-time`.
 - The index and alias names, which are matched by the index templates, the
   detectors, the monitors and the cockpit.

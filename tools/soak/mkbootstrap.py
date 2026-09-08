@@ -57,6 +57,7 @@ def render(name, variables):
 
 
 def set_replicas(text, replicas):
+    """The rig's one divergence. Every replica count lives in schema/."""
     return re.sub(r'("number_of_replicas"\s*:\s*)\d+', r"\g<1>%d" % replicas, text)
 
 
@@ -80,12 +81,30 @@ def main():
               "define: %s" % (args.template, error), file=sys.stderr)
         return 1
 
-    if args.replicas is not None:
-        text = set_replicas(text, args.replicas)
-
     with open(args.out, "w") as handle:
         handle.write(text)
     os.chmod(args.out, 0o755)
+
+    # templates.sh reads every request body from "$(dirname $0)/schema", so the
+    # rig gets the same directory the deploy stages.
+    schema_source = os.path.join(ROLE, "schema")
+    schema_out = os.path.join(os.path.dirname(os.path.abspath(args.out)),
+                              "schema")
+    os.makedirs(schema_out, exist_ok=True)
+    for name in sorted(os.listdir(schema_source)):
+        if not name.endswith(".json.j2"):
+            continue
+        try:
+            body = render(os.path.join("schema", name), variables)
+        except Exception as error:  # noqa: BLE001 - report the missing name plainly
+            print("mkbootstrap: %s needs a variable group_vars/all.yml does "
+                  "not define: %s" % (name, error), file=sys.stderr)
+            return 1
+        if args.replicas is not None:
+            body = set_replicas(body, args.replicas)
+        with open(os.path.join(schema_out, name[:-len(".j2")]), "w") as handle:
+            handle.write(body)
+
     print(args.out)
     return 0
 

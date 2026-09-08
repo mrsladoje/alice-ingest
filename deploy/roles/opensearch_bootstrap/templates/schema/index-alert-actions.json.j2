@@ -1,0 +1,27 @@
+{
+  "index_patterns": ["alice-alert-actions-*"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "index.plugins.index_state_management.rollover_alias": "alice-alert-actions"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "monitor":            { "type": "keyword" },
+        "trigger":            { "type": "keyword" },
+        "severity":           { "type": "keyword" },
+        "period_start":       { "type": "keyword" },
+        "period_end":         { "type": "keyword" },
+        "entity":             { "type": "keyword" },
+        "entity_kind":        { "type": "keyword" },
+        "notification_scope": { "type": "keyword" },
+        "feed":               { "type": "keyword" },
+        "delivery_path":      { "type": "keyword" }
+      }
+    }
+  },
+  "_meta": { "family": "alert-actions", "written_by": "alice-incluster-alert-sink", "note": "write-only action log: it gives the per-alert throttle a destination and keeps a record of each fire computed independently of the projector. Nothing reads it. dynamic false keeps the mapping stable across rollovers; unmapped fields still survive in _source" }
+}

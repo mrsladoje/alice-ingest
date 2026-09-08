@@ -1,0 +1,41 @@
+{
+  "index_patterns": ["{{ template_triage_index }}"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 2,
+      "codec": "zstd",
+      "refresh_interval": "1s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "kind":                  { "type": "keyword" },
+        "schema_version":        { "type": "integer" },
+        "label_id":              { "type": "keyword" },
+        "canonical_id":          { "type": "keyword" },
+        "reviewed_version_ids":  { "type": "keyword" },
+        "family":                { "type": "keyword" },
+        "template":              { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 2048 } } },
+        "normalized":            { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 2048 } } },
+        "label":                 { "type": "keyword" },
+        "note":                  { "type": "text" },
+        "author":                { "type": "keyword" },
+        "watched":               { "type": "boolean" },
+        "reviewed_programs":     { "type": "keyword" },
+        "reviewed_origin_hosts": { "type": "keyword" },
+        "revision":              { "type": "integer" },
+        "created_at":            { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "updated_at":            { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "history":               { "type": "object", "enabled": false }
+      }
+    }
+  },
+  "_meta": {
+    "family": "template-triage",
+    "written_by": "alice-shifter",
+    "note": "Human decisions. They outlive both the 28-day activity window and the 90-day definition retention, and they extend neither. An author name is self-reported: Shifter has no user login."
+  }
+}

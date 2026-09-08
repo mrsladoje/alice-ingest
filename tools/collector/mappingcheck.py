@@ -13,7 +13,7 @@ The ingest pipeline sets fields the collector never emits, which is exactly how
 a strict rejection gets introduced by a change to a file that is not the mapping.
 
 This creates the pipeline and the indices from
-`deploy/roles/opensearch_bootstrap/templates/templates.sh.j2`, indexes the
+`deploy/roles/opensearch_bootstrap/templates/schema/`, indexes the
 records the collector actually produced, and checks that every field survived
 and is searchable.
 """
@@ -28,9 +28,8 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
-TEMPLATES = os.path.join(
-    REPO, "deploy", "roles", "opensearch_bootstrap", "templates",
-    "templates.sh.j2")
+SCHEMA = os.path.join(
+    REPO, "deploy", "roles", "opensearch_bootstrap", "templates", "schema")
 
 # Values the Ansible render would supply. Only the ones the blocks below use.
 JINJA = {
@@ -43,16 +42,17 @@ JINJA = {
 
 
 def blocks():
-    """Every NAME=$(cat <<'JSON' ... JSON) block, with Jinja settled."""
-    source = open(TEMPLATES).read()
+    """Every schema document, keyed by file name, with Jinja settled."""
     found = {}
-    for match in re.finditer(r"^([A-Z_]+)=\$\(cat <<'JSON'\n(.*?)\nJSON\n\)",
-                             source, re.S | re.M):
-        name, body = match.group(1), match.group(2)
+    for name in sorted(os.listdir(SCHEMA)):
+        if not name.endswith(".json.j2"):
+            continue
+        body = open(os.path.join(SCHEMA, name)).read()
+        body = re.sub(r"\{#.*?#\}", "", body, flags=re.S)
         body = re.sub(r"\{%\s*raw\s*%\}|\{%\s*endraw\s*%\}", "", body)
         body = re.sub(r"\{\{\s*([a-z_]+)\s*\}\}",
                       lambda m: JINJA.get(m.group(1), "1"), body)
-        found[name] = json.loads(body)
+        found[name[:-len(".json.j2")]] = json.loads(body)
     return found
 
 
@@ -79,15 +79,15 @@ def main():
     failures = []
 
     status, _ = call(args.url, "/_ingest/pipeline/alice-add-ingest-time",
-                     tpl["INGEST_PIPELINE"], "PUT")
+                     tpl["pipeline-add-ingest-time"], "PUT")
     if status >= 300:
         print("   FAIL the ingest pipeline was rejected")
         return 1
 
     indices = {
-        "application-logs-central-000001": tpl["APPLICATION_MAPPINGS"]["template"],
-        "infologger-000001": tpl["INFOLOGGER_MAPPINGS"]["template"],
-        "template-catalog": tpl["TEMPLATE_CATALOG_TPL"]["template"],
+        "application-logs-central-000001": tpl["component-logs-application-mappings"]["template"],
+        "infologger-000001": tpl["component-logs-infologger-mappings"]["template"],
+        "template-catalog": tpl["index-template-catalog"]["template"],
     }
     for name, template in indices.items():
         call(args.url, "/" + name, method="DELETE")

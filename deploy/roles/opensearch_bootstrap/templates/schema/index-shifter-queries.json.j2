@@ -1,0 +1,38 @@
+{
+  "index_patterns": ["{{ shifter_queries_index }}"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "codec": "zstd",
+      "refresh_interval": "30s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "kind":             { "type": "keyword" },
+        "schema_version":   { "type": "integer" },
+        "query_id":         { "type": "keyword" },
+        "query_text":       { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 512 } } },
+        "mode":             { "type": "keyword" },
+        "include_inactive": { "type": "boolean" },
+        "model_revision":   { "type": "keyword" },
+        "corpus_revision":  { "type": "keyword" },
+        "result_ids":       { "type": "keyword" },
+        "result_ranks":     { "type": "object", "enabled": false },
+        "opened_ids":       { "type": "keyword" },
+        "viewer":           { "type": "keyword" },
+        "latency_ms":       { "type": "integer" },
+        "issued_at":        { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "updated_at":       { "type": "date", "format": "strict_date_optional_time||epoch_millis" }
+      }
+    }
+  },
+  "_meta": {
+    "family": "shifter-queries",
+    "written_by": "alice-shifter",
+    "note": "Research feedback for retrieval evaluation. It keeps identifiers and ranks, never a copy of the template payload. A click is implicit feedback and is not a graded relevance judgment."
+  }
+}

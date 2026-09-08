@@ -1,0 +1,23 @@
+{
+  "index_patterns": ["{{ lane_state_index }}"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 2,
+      "codec": "zstd",
+      "refresh_interval": "1s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "lane":         { "type": "keyword" },
+        "watermark_ms": { "type": "long" },
+        "updated_at":   { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "note":         { "type": "keyword" }
+      }
+    }
+  },
+  "_meta": { "family": "lane-state", "note": "traversal watermarks; advanced only after a complete PIT traversal" }
+}

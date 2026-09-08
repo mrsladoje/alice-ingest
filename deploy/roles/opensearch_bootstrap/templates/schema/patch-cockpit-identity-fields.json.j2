@@ -1,0 +1,23 @@
+{
+  "properties": {
+    "collector_id":       { "type": "keyword" },
+    "os_node":            { "type": "keyword" },
+    "heartbeat_missing":  { "type": "short" },
+    "heartbeat_age_ms":   { "type": "long" },
+    "roster_size":        { "type": "integer" },
+    "roster_missing":     { "type": "integer" },
+    "topology_version":   { "type": "keyword" },
+    "am_up":              { "type": "short" },
+    "am_latency_ms":      { "type": "long" },
+    "signals_open":       { "type": "integer" },
+    "incidents_open":     { "type": "integer" },
+    "incident_groups":    { "type": "integer" },
+    "incident_group_max": { "type": "integer" },
+    "projector_cycle_ok": { "type": "short" },
+    "projector_cycle_ms": { "type": "long" },
+    "stale_episodes":     { "type": "integer" },
+    "stale_dwell_p50_ms": { "type": "long" },
+    "stale_dwell_p95_ms": { "type": "long" },
+    "alertname":          { "type": "keyword" }
+  }
+}

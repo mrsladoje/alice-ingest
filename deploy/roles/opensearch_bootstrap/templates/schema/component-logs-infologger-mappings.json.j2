@@ -1,0 +1,47 @@
+{
+  "template": {
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "@timestamp":  { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "ingest_time": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "collector_time": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "ingest_lag_ms": { "type": "long" },
+        "enter_system_lag_ms": { "type": "long" },
+        "log_source": { "type": "keyword" },
+        "node":       { "type": "keyword" },
+        "severity":   { "type": "keyword" },
+        "severity_norm": { "type": "keyword" },
+        "origin_host":   { "type": "keyword" },
+        "synthetic":     { "type": "boolean" },
+        "poison_run_id": { "type": "keyword" },
+        "poison_stage":  { "type": "keyword" },
+        "poison_targets": { "type": "keyword" },
+        "source_file": { "type": "keyword" },
+        "level":      { "type": "short" },
+        "hostname":   { "type": "keyword" },
+        "rolename":   { "type": "keyword" },
+        "pid":        { "type": "integer" },
+        "username":   { "type": "keyword" },
+        "system":     { "type": "keyword" },
+        "facility":   { "type": "keyword" },
+        "detector":   { "type": "keyword" },
+        "partition":  { "type": "keyword" },
+        "run":        { "type": "long" },
+        "errcode":    { "type": "long" },
+        "errline":    { "type": "integer" },
+        "errsource":  { "type": "keyword" },
+        "program":    { "type": "keyword" },
+        "doc_id":     { "type": "keyword" },
+        "template_version": { "type": "keyword" },
+        "template_id":      { "type": "keyword" },
+        "template_status":  { "type": "keyword" },
+        "message":    { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 1024 } } }
+      }
+    }
+  },
+  "_meta": {
+    "family": "infologger",
+    "note": "dynamic is strict here, so a field the ingest pipeline sets and this mapping does not name gets the whole document REJECTED, not just left unindexed. program is set from facility for every InfoLogger record; anything else added to the pipeline has to be added here in the same change. doc_id is the collector-assigned document identifier that makes a retried bulk chunk an overwrite; under a strict mapping it is not optional, because the output leaves it in the body and an unmapped field rejects the whole record. template_version, template_id and template_status are the stamper's fields and are not optional here for the same reason."
+  }
+}

@@ -1,0 +1,17 @@
+{#
+  Cluster-wide, so these reach storage too. model_max_size_percent is
+  deliberately absent — lowering it evicts models and changes the output.
+  The IO valve is overridden off: it reaches 95% on a staging VM during an
+  ordinary replay, which would reject writes for no emergency at all.
+#}
+{
+  "persistent": {
+    "plugins.anomaly_detection.max_batch_task_per_node": {{ ad_max_batch_task_per_node }},
+    "plugins.anomaly_detection.batch_task_piece_interval_seconds": {{ ad_batch_task_piece_interval_seconds }},
+    "admission_control.transport.mode": "{{ admission_control_mode }}",
+    "admission_control.transport.io_usage.mode_override": "disabled",
+    "admission_control.search.cpu_usage.limit": {{ admission_control_cpu_limit }},
+    "admission_control.indexing.cpu_usage.limit": {{ admission_control_cpu_limit }},
+    "admission_control.cluster.admin.cpu_usage.limit": {{ admission_control_cpu_limit }}
+  }
+}

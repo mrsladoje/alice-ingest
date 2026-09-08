@@ -1,0 +1,9 @@
+{#
+  Existing indices predate source_file, and a new field only reaches them
+  through a live mapping update. Without this it is stored but not aggregatable.
+#}
+{
+  "properties": {
+    "source_file": { "type": "keyword" }
+  }
+}

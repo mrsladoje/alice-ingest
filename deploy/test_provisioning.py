@@ -80,17 +80,23 @@ def render_bootstrap(primaries=1):
         "templates.sh.j2").render(**values)
 
 
-def heredocs(script):
+def schema_documents(primaries=1):
+    values = dict(group_vars())
+    values.update(BOOTSTRAP_VARS)
+    values["log_primary_shards_storage"] = primaries
+    environment = _environment("opensearch_bootstrap")
     found = {}
-    for name, body in re.findall(r"^([A-Z_]+)=\$\(cat <<'JSON'\n(.*?)\nJSON\n\)",
-                                 script, re.S | re.M):
-        found[name] = body
+    for name in environment.list_templates():
+        if not name.startswith("schema/") or not name.endswith(".json.j2"):
+            continue
+        found[name[len("schema/"):-len(".json.j2")]] = \
+            environment.get_template(name).render(**values)
     return found
 
 
-def index_templates(script):
+def index_templates(primaries=1):
     found = {}
-    for name, body in heredocs(script).items():
+    for body in schema_documents(primaries).values():
         document = json.loads(body)
         for pattern in document.get("index_patterns", []):
             found[pattern] = document
@@ -110,21 +116,29 @@ def test_rendered_bootstrap_is_valid_shell():
     assert result.returncode == 0, result.stderr
 
 
-def test_every_bootstrap_heredoc_is_valid_json():
-    for name, body in heredocs(render_bootstrap()).items():
+def test_every_schema_document_is_valid_json():
+    documents = schema_documents()
+    assert len(documents) == 28
+    for name, body in documents.items():
         json.loads(body)
+
+
+def test_every_schema_document_the_script_loads_exists():
+    script = render_bootstrap()
+    loaded = set(re.findall(r"\$\(load (\S+)\.json\)", script))
+    assert loaded == set(schema_documents()), loaded ^ set(schema_documents())
 
 
 @pytest.mark.parametrize("pattern,shards", sorted(CONTRACT_SHARDS.items()))
 def test_new_and_changed_indices_carry_the_contract_shard_settings(pattern,
                                                                    shards):
-    settings = index_templates(render_bootstrap())[pattern]["template"]["settings"]
+    settings = index_templates()[pattern]["template"]["settings"]
     assert (settings["number_of_shards"],
             settings["number_of_replicas"]) == shards
 
 
 def test_the_two_fixed_new_indices_add_exactly_four_shards():
-    templates = index_templates(render_bootstrap())
+    templates = index_templates()
     added = 0
     for pattern in ("template-triage", "shifter-queries"):
         settings = templates[pattern]["template"]["settings"]
@@ -134,7 +148,7 @@ def test_the_two_fixed_new_indices_add_exactly_four_shards():
 
 
 def test_the_fixed_indices_never_roll_over_and_the_buckets_age_out():
-    templates = index_templates(render_bootstrap())
+    templates = index_templates()
     for pattern in ("template-triage", "shifter-queries", "template-catalog"):
         settings = templates[pattern]["template"]["settings"]
         assert "*" not in pattern
@@ -157,15 +171,16 @@ def test_the_fixed_indices_never_roll_over_and_the_buckets_age_out():
 
 
 def test_both_log_mappings_carry_the_three_stamp_fields():
-    found = heredocs(render_bootstrap())
-    for name in ("APPLICATION_MAPPINGS", "INFOLOGGER_MAPPINGS"):
+    found = schema_documents()
+    for name in ("component-logs-application-mappings",
+                 "component-logs-infologger-mappings"):
         properties = json.loads(found[name])["template"]["mappings"][
             "properties"]
         for field in STAMP_FIELDS:
             assert properties[field] == {"type": "keyword"}, (name, field)
-    assert json.loads(found["INFOLOGGER_MAPPINGS"])["template"]["mappings"][
+    assert json.loads(found["component-logs-infologger-mappings"])["template"]["mappings"][
         "dynamic"] == "strict"
-    metrics = json.loads(found["COCKPIT_METRICS_TPL"])["template"][
+    metrics = json.loads(found["index-cockpit-metrics"])["template"][
         "mappings"]["properties"]
     for field in ("stamper_up", "stamper_records", "stamper_records_delta",
                   "stamper_publication_failures", "stamper_peak_rss_bytes"):
@@ -173,7 +188,7 @@ def test_both_log_mappings_carry_the_three_stamp_fields():
 
 
 def test_the_three_existing_log_routes_are_unchanged():
-    templates = index_templates(render_bootstrap())
+    templates = index_templates()
     for pattern in ("infologger-*", "application-logs-central-*"):
         settings = templates[pattern]["template"]["settings"]
         assert settings["number_of_replicas"] == 2
@@ -185,7 +200,7 @@ def test_the_three_existing_log_routes_are_unchanged():
 
 
 def test_template_catalog_mapping_is_observation_based():
-    properties = index_templates(render_bootstrap())["template-catalog"][
+    properties = index_templates()["template-catalog"][
         "template"]["mappings"]["properties"]
     for field in REMOVED_CATALOG_FIELDS + REMOVED_SNAPSHOT_FIELDS:
         assert field not in properties
@@ -235,9 +250,9 @@ def test_the_changed_catalog_mapping_reaches_an_index_that_already_exists():
     loop = script.index("for idx_tpl in")
     assert create < loop
     assert "index already present (skip create)" in script
-    properties = index_templates(script)[index][
+    properties = index_templates()[index][
         "template"]["mappings"]["properties"]
-    assert index_templates(script)[index]["template"][
+    assert index_templates()[index]["template"][
         "mappings"]["dynamic"] is False
     for field in ("last_observed", "first_observed", "canonical_id",
                   "normalized", "version_id"):
@@ -810,8 +825,16 @@ TEMPLATE_SUPPLIED = {
 }
 
 
+SCHEMA_TEMPLATES = sorted(
+    "schema/" + name
+    for name in os.listdir(os.path.join(ROLES, "opensearch_bootstrap",
+                                        "templates", "schema"))
+    if name.endswith(".json.j2"))
+
+
 @pytest.mark.parametrize("role,template", [
     ("opensearch_bootstrap", "templates.sh.j2"),
+] + [("opensearch_bootstrap", name) for name in SCHEMA_TEMPLATES] + [
     ("stamper", "alice-stamper.service.j2"),
     ("template_catalog", "alice-catalog-maintenance.service.j2"),
     ("template_catalog", "alice-catalog-maintenance.timer.j2"),

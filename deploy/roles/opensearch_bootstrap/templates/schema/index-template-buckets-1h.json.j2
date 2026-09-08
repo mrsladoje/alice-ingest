@@ -1,0 +1,40 @@
+{
+  "index_patterns": ["{{ template_buckets_1h_prefix }}-*"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": {{ template_buckets_replicas }},
+      "codec": "zstd",
+      "refresh_interval": "30s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "kind":               { "type": "keyword" },
+        "schema_version":     { "type": "integer" },
+        "bucket_id":          { "type": "keyword" },
+        "node":               { "type": "keyword" },
+        "family":             { "type": "keyword" },
+        "resolution_seconds": { "type": "integer" },
+        "bucket_start":       { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "bucket_end":         { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "late":               { "type": "boolean" },
+        "total":              { "type": "long" },
+        "version_count":      { "type": "integer" },
+        "versions":           { "type": "keyword" },
+        "counts":             { "type": "nested", "properties": {
+          "version_id": { "type": "keyword" },
+          "count":      { "type": "long" }
+        } },
+        "published_at":       { "type": "date", "format": "strict_date_optional_time||epoch_millis" }
+      }
+    }
+  },
+  "_meta": {
+    "family": "template-buckets-1h",
+    "written_by": "alice-stamper",
+    "note": "The same bucket documents at one-hour resolution, summed exactly from the five-minute ledger on the worker. Indices are named by the bucket's month; the ISM age policy on the pattern ({{ ism_retention_template_buckets_1h }}) is the {{ template_catalog_active_days }}-day window plus the late horizon plus a month of index granularity. This is the series the 28-day volume, any baseline and the anomaly detectors read."
+  }
+}

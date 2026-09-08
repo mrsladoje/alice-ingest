@@ -1,0 +1,19 @@
+{
+  "properties": {
+    "imputed":               { "type": "boolean" },
+    "imputed_count":         { "type": "integer" },
+    "cohort_family":         { "type": "keyword" },
+    "cohort_kind":           { "type": "keyword" },
+    "complete":              { "type": "boolean" },
+    "committed_at":          { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+    "expected_cohorts":      { "type": "keyword" },
+    "expected_cohort_count": { "type": "integer" },
+    "observed_cohort_count": { "type": "integer" },
+    "commit_cohorts":        { "properties": {
+      "cohort":       { "type": "keyword" },
+      "entity_count": { "type": "integer" },
+      "doc_count":    { "type": "long" },
+      "truncated":    { "type": "boolean" }
+    } }
+  }
+}

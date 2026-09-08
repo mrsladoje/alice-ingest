@@ -1,0 +1,35 @@
+{
+  "index_patterns": ["{{ notifications_index }}"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 2,
+      "codec": "zstd",
+      "refresh_interval": "5s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "@timestamp":         { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "record_kind":        { "type": "keyword" },
+        "status":             { "type": "keyword" },
+        "receiver":           { "type": "keyword" },
+        "group_key":          { "type": "keyword" },
+        "alertname":          { "type": "keyword" },
+        "cluster_id":         { "type": "keyword" },
+        "entity_kind":        { "type": "keyword" },
+        "notification_scope": { "type": "keyword" },
+        "delivery_path":      { "type": "keyword" },
+        "alert_count":        { "type": "integer" },
+        "labels_kv":          { "type": "keyword" },
+        "signal_ids":         { "type": "keyword" },
+        "episode_ids":        { "type": "keyword" },
+        "signal_ids_truncated": { "type": "boolean" },
+        "body":               { "type": "text" }
+      }
+    }
+  },
+  "_meta": { "family": "notifications", "written_by": "alice-notification-ingest", "note": "record_kind notification comes from the ordinary webhook; record_kind event comes from the experimental Alertmanager event recorder and is AUDIT EVIDENCE ONLY, never incident truth" }
+}

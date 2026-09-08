@@ -1,0 +1,16 @@
+{
+  "index_patterns": ["infologger-*"],
+  "composed_of": ["alice-logs-infologger-mappings"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": {{ log_primary_shards_storage }},
+      "number_of_replicas": 2,
+      "codec": "zstd",
+      "index.default_pipeline": "alice-add-ingest-time",
+      "index.routing.allocation.require.role": "storage",
+      "index.plugins.index_state_management.rollover_alias": "infologger"
+    }
+  },
+  "_meta": { "note": "storage tier: durable, replicated, pinned to require.role=storage" }
+}

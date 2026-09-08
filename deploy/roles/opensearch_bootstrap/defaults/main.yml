@@ -4,6 +4,10 @@
 opensearch_bootstrap_root: /opt/alice-ingest/init
 
 opensearch_bootstrap_templates_script: "{{ opensearch_bootstrap_root }}/templates.sh"
+
+# templates.sh reads every request body from here, as "$(dirname "$0")/schema".
+# One file per OpenSearch object; the name prefix is the kind.
+opensearch_bootstrap_schema_root: "{{ opensearch_bootstrap_root }}/schema"
 opensearch_bootstrap_ism_script: "{{ opensearch_bootstrap_root }}/ism.sh"
 
 # templates.sh resolves this as "$(dirname "$0")/register_node.sh", so the two
