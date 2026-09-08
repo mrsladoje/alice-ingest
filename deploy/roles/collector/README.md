@@ -209,8 +209,8 @@ of them satisfied by the role order in `playbooks/site.yml`.
 | Prerequisite | Provided by | What breaks without it |
 |---|---|---|
 | `firewalld` installed and running | `common` role | The firewall task fails. |
-| `/etc/alice-ingest/opensearch-node.env` exists | `opensearch` role | `fluent-bit.service` refuses to start — the `EnvironmentFile` has no leading dash on purpose. |
-| An OpenSearch node listening on `localhost:{{ opensearch_http_port }}` | `opensearch` role | `register_node.sh` waits, then the unit times out. |
+| `/etc/alice-ingest/opensearch-node.env` exists | `sweet_opensearch` role | `fluent-bit.service` refuses to start — the `EnvironmentFile` has no leading dash on purpose. |
+| An OpenSearch node listening on `localhost:{{ opensearch_http_port }}` | `sweet_opensearch` role | `register_node.sh` waits, then the unit times out. |
 | The `alice-application-local-retention` ISM policy and the ingest pipeline exist in the cluster | `opensearch_bootstrap` role, on the control host | Records still ship. Retention and field normalisation do not apply. |
 
 **The `producer` role is not a prerequisite.** A collector with no producer starts
@@ -268,7 +268,7 @@ site-wide.
 | `collector_health_interval_seconds` | `cockpit_metrics_interval_seconds` (30) | How often that sampler runs. |
 | `collector_env_dir` | `/etc/alice-ingest` | Directory for the node identity file. |
 | `collector_env_file` | `/etc/alice-ingest/node.env` | This machine's identity. See below. |
-| `collector_opensearch_env_file` | `/etc/alice-ingest/opensearch-node.env` | Written by the `opensearch` role. See below. |
+| `collector_opensearch_env_file` | `/etc/alice-ingest/opensearch-node.env` | Written by the `sweet_opensearch` role. See below. |
 | `collector_register_script` | `/opt/alice-ingest/register_node.sh` | Installed through the `opensearch_local_index_registration` role. |
 | `collector_start_timeout_seconds` | `600` | `TimeoutStartSec`. Coupled — see below. |
 | `collector_metrics_scrape_open` | `false` | `true` opens the metrics port to the scrape source. |
@@ -368,7 +368,7 @@ is a collector that does nothing.
 
 ## What this role does not do
 
-- **It does not define the info-tier index settings.** The `opensearch` role
+- **It does not define the info-tier index settings.** The `sweet_opensearch` role
   writes them to `opensearch-node.env`. A consequence: changing an
   `opensearch_info_*` value does not restart `fluent-bit`, because that file
   belongs to another role in another play. The control host re-runs

@@ -1,4 +1,4 @@
-# `opensearch`
+# `sweet_opensearch`
 
 Installs one OpenSearch node and joins it to the `alice-logs` cluster. It opens
 the two cluster ports to the other nodes, installs the version-pinned build,
@@ -35,7 +35,7 @@ three instances.
 │  rpm_key                    signing key into the rpm keyring               │
 │  dnf install                opensearch-{{ opensearch_version }}            │
 │  DISABLE_INSTALL_DEMO_CONFIG   suppresses the demo security material       │
-│  ulimits-override.conf      LimitMEMLOCK, LimitNOFILE on the vendor unit   │
+│  resource-limits.conf       rlimits + cpuset and memory on the vendor unit │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 2b. INSTALL, container — one podman instance ─────────────────────────────┐
@@ -58,7 +58,7 @@ three instances.
 │  opensearch-node.env        the info-tier index settings, for the worker   │
 │  opensearch.yml             identity, tier, discovery, ports  --> restart  │
 │  jvm.options.d/heap.options -Xms and -Xmx                     --> restart  │
-│  ulimits-override.conf      LimitMEMLOCK, LimitNOFILE         --> restart  │
+│  resource-limits.conf       rlimits, cpuset, memory           --> restart  │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 5. START, then PROVE ─────────────────────────────────────────────────────┐
@@ -161,7 +161,7 @@ site-wide, or in `inventory.yml` for one group or host.
 | `opensearch_container_min_podman_version` | `4.4` | The version quadlet arrived in. Below it the run stops with the reason. |
 | `opensearch_quadlet_dir` | `/etc/containers/systemd` | Where quadlet reads `.container` unit files from. |
 | `opensearch_jvm_options_d` | `/etc/opensearch/jvm.options.d` | Holds `heap.options`. |
-| `opensearch_systemd_dropin_dir` | `/etc/systemd/system/opensearch.service.d` | Holds `ulimits-override.conf`. |
+| `opensearch_systemd_dropin_dir` | `/etc/systemd/system/opensearch.service.d` | Holds `resource-limits.conf`. |
 | `opensearch_node_env_dir` | `/etc/alice-ingest` | Shared with the `collector` role. |
 | `opensearch_node_env_file` | `/etc/alice-ingest/opensearch-node.env` | The info-tier index settings. See below. |
 | `opensearch_required_plugins` | 7 names | Asserted present after start. Not a setting — a gate. |
@@ -209,7 +209,7 @@ In a playbook, against every node in the cluster:
   hosts: alice_nodes
   become: true
   roles:
-    - opensearch
+    - sweet_opensearch
 ```
 
 - **Run it against the whole cluster in one play, not one node at a time.** A
@@ -225,7 +225,7 @@ In a playbook, against every node in the cluster:
 ## Couplings
 
 - **`bootstrap.memory_lock` and `LimitMEMLOCK` change together.** They live in
-  two files, `opensearch.yml.j2` and `ulimits-override.conf.j2`. Locking memory
+  two files, `opensearch.yml.j2` and `resource-limits.conf.j2`. Locking memory
   without the limit is a node that refuses to start.
 - **`opensearch_heap_size` is declared here, not in `group_vars/all.yml`.** Role
   defaults rank below every group variable, so an assignment in `inventory.yml`

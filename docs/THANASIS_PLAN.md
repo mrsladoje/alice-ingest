@@ -208,7 +208,7 @@ does reconstruction.**
 
 The design stays as built: one cluster, workers as `data, ingest` nodes but never
 cluster-manager eligible, the info tier pinned to its own box with no replicas
-(`deploy/roles/opensearch/templates/opensearch.yml.j2:6-13`,
+(`deploy/roles/sweet_opensearch/templates/opensearch.yml.j2:6-13`,
 `templates.sh.j2:229`). Lubos requires that the bulk tier never crosses the wire.
 
 What changes is how much the node spends to do it.

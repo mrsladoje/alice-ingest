@@ -9,6 +9,26 @@ flattens it; `refamily.py` relabels that corpus by format family;
 `recipesweep.py` sweeps one family's recipe to find out which settings earn
 their cost.
 
+## drainbench.py and masking.py ship to nodes
+
+These two are not benchmark-only. `deploy/roles/stamper` and
+`deploy/roles/shifter` each carry a byte-identical copy in their own `files/`
+directory and install it on the node, so a stamp written in production and a
+template mined here are the same string. Ansible roles have to stand on their
+own, so neither role reaches back into `tools/`.
+
+This directory is where the two are edited. **After changing either one, copy it
+into both roles:**
+
+```bash
+for r in stamper shifter; do
+    cp tools/templating/drainbench.py tools/templating/masking.py \
+       deploy/roles/$r/files/
+done
+```
+
+`deploy/test_provisioning.py` fails if a copy and its source differ.
+
 The collection family and the format family are not the same thing, and
 conflating them was a real error. `corpus.py` labels a line by where it was read
 from, so everything under the process-log tree is `stdout`. The tree holds two

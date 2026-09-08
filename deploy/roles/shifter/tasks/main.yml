@@ -40,19 +40,22 @@
     mode: "0755"
   when: shifter_templates_enabled | bool
 
+# Vendored, so the role needs nothing outside itself. tools/templating stays
+# the place these two are edited, and test_provisioning.py fails if this copy
+# and that one ever differ.
 - name: >-
-    Ship the frozen mining recipe and masker from tools/templating, so the
+    Ship the frozen mining recipe and masker this role vendors, so the
     Lines panel re-matches an ancestor's lines with the same tokens the
     stamper mined
   ansible.builtin.copy:
     src: "{{ item }}"
-    dest: "{{ shifter_templating_dir }}/{{ item | basename }}"
+    dest: "{{ shifter_templating_dir }}/{{ item }}"
     owner: root
     group: root
     mode: "0644"
   loop:
-    - ../../../tools/templating/drainbench.py
-    - ../../../tools/templating/masking.py
+    - drainbench.py
+    - masking.py
   when: shifter_templates_enabled | bool
   register: _shifter_templating
 

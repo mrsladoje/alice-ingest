@@ -126,7 +126,7 @@ the role order in `playbooks/site.yml`.
 
 | Prerequisite | Provided by | What breaks without it |
 |---|---|---|
-| OpenSearch answers on `localhost:9200` from the control host | `opensearch` role and the rolling-safety gate | Every curl in the script returns 000 and the first one fails the run. |
+| OpenSearch answers on `localhost:9200` from the control host | `sweet_opensearch` role and the rolling-safety gate | Every curl in the script returns 000 and the first one fails the run. |
 | `/opt/alice-ingest/init` exists, 0755 root:root | `alice_runtime`, and `opensearch_bootstrap` before it | The render task fails: no such directory. |
 | `alice-alert-actions` is a rollover write alias | `opensearch_bootstrap`, through `templates.sh` and `ism.sh` | `ensure_alert_sink_alias` prints FATAL and the script exits 1. This is the hard one, and it is invisible from this role's own files. |
 | The notification ingest listens on `127.0.0.1:{{ notification_ingest_port }}` | `signal_projector` | The two dead-man monitors upsert normally, but their break-glass webhook posts into nothing. Nothing fails at deploy time. |
@@ -196,7 +196,7 @@ published role ships them. What remains is a curl upsert loop of about twenty
 lines against a plugin REST API, which is smaller than the configuration a
 generic role would need.
 
-The Galaxy and GitHub search behind the `opensearch` role, run in August 2026,
+The Galaxy and GitHub search behind the `sweet_opensearch` role, run in August 2026,
 found no role that provisions OpenSearch Alerting monitors at all. That search
 was not repeated for this role.
 

@@ -28,10 +28,10 @@
     group: root
     mode: "0755"
 
-- name: Template systemd drop-in (LimitMEMLOCK/LimitNOFILE, ported from compose's ulimits block)
+- name: Template the systemd drop-in carrying this node's rlimits and cgroup limits
   ansible.builtin.template:
-    src: ulimits-override.conf.j2
-    dest: "{{ opensearch_systemd_dropin_dir }}/ulimits-override.conf"
+    src: resource-limits.conf.j2
+    dest: "{{ opensearch_systemd_dropin_dir }}/resource-limits.conf"
     owner: root
     group: root
     mode: "0644"

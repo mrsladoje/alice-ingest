@@ -154,7 +154,7 @@
   hosts: alice_nodes
   become: true
   roles:
-    - opensearch
+    - sweet_opensearch
 
 - name: OpenSearch cluster — rolling-safety gate (one node at a time)
   hosts: alice_nodes

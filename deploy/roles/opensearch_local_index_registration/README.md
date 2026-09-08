@@ -129,7 +129,7 @@ On a worker these arrive from two files, both loaded by `fluent-bit.service` as
   Fluent Bit paths and ports, `ALICE_OS_HTTP_PORT`.
 - `/etc/alice-ingest/opensearch-node.env` — written by `opensearch`. The four
   `ALICE_INFO_*` index settings, because those are index settings and the
-  `opensearch` role owns them.
+  `sweet_opensearch` role owns them.
 
 On the control host neither file is used. `templates.sh` passes the same
 variables on the command line, once per worker.

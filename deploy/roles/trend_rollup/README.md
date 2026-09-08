@@ -117,7 +117,7 @@ first, all satisfied by the play order in `playbooks/site.yml`.
 | Prerequisite | Provided by | What breaks without it |
 |---|---|---|
 | `/opt/alice-ingest` exists on the background host | `alice_runtime` | The copy of the script fails. `ansible.builtin.copy` does not create a missing parent directory. |
-| An OpenSearch node answers on `localhost:9200` on this host | `opensearch` | The service starts, fails every query, and `Restart=on-failure` cycles it. The assertion at the end of the role then fails the deploy. |
+| An OpenSearch node answers on `localhost:9200` on this host | `sweet_opensearch` | The service starts, fails every query, and `Restart=on-failure` cycles it. The assertion at the end of the role then fails the deploy. |
 | The `trend-rollup` index and its mapping exist | `opensearch_bootstrap` | Rows land in a dynamically mapped index. The bucket-commit and silence-imputation fields get the wrong types, and the trend monitors read them wrong. |
 
 `alerting_monitors` is a consumer, not a prerequisite. It may run before or

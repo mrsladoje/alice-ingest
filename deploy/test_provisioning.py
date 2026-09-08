@@ -619,12 +619,43 @@ def test_the_stamper_ships_the_shared_contract_the_recipe_and_its_modules():
             "{{ alice_shared_dir }}/template_contract.py") in copied
     loops = [task.get("loop") for task in tasks if task.get("loop")]
     assert ["stamper.py", "forward.py"] in loops
-    assert ["../../../tools/templating/drainbench.py",
-            "../../../tools/templating/masking.py"] in loops
+    assert ["drainbench.py", "masking.py"] in loops
     files = os.listdir(os.path.join(ROLES, "template_catalog", "files"))
     assert "template_catalog.py" not in files
     assert "snapshot.py" not in files
     assert "ledger.py" not in files
+
+
+VENDORED_TEMPLATING = ("drainbench.py", "masking.py")
+
+
+@pytest.mark.parametrize("role", ("stamper", "shifter"))
+@pytest.mark.parametrize("name", VENDORED_TEMPLATING)
+def test_the_vendored_templating_copy_matches_its_source(role, name):
+    source = os.path.join(DEPLOY, os.pardir, "tools", "templating", name)
+    if not os.path.exists(source):
+        pytest.skip("tools/templating is not present in this tree")
+    with open(source, "rb") as handle:
+        expected = handle.read()
+    with open(os.path.join(ROLES, role, "files", name), "rb") as handle:
+        got = handle.read()
+    assert got == expected, (
+        f"roles/{role}/files/{name} has drifted from tools/templating/{name}. "
+        f"Edit tools/templating and copy it into both roles.")
+
+
+@pytest.mark.parametrize("role", ("stamper", "shifter"))
+def test_no_role_task_reaches_outside_its_own_directory(role):
+    for task in role_tasks(role):
+        for action in ("ansible.builtin.copy", "ansible.builtin.template"):
+            src = (task.get(action) or {}).get("src")
+            if src:
+                assert os.pardir not in src.split("/"), \
+                    f"{role}: {action} src escapes the role: {src}"
+        for item in task.get("loop") or []:
+            if isinstance(item, str):
+                assert os.pardir not in item.split("/"), \
+                    f"{role}: loop item escapes the role: {item}"
 
 
 def test_the_shifter_unit_carries_the_new_serving_limits():

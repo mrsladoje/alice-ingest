@@ -5,7 +5,7 @@ opensearch_version: "3.7.0"
 # Read by the opensearch role and by cluster_id below.
 opensearch_cluster_name: alice-logs
 
-# The OpenSearch node footprint now lives in roles/opensearch/defaults/main.yml:
+# The OpenSearch node footprint now lives in roles/sweet_opensearch/defaults/main.yml:
 # opensearch_heap_size, opensearch_worker_heap_size, opensearch_worker_processors
 # and opensearch_worker_index_buffer_size. Heap moved there so the workers group
 # assignment in inventory.yml takes effect; group vars outrank role defaults but
@@ -49,7 +49,7 @@ alice_service_memory_max: "512M"
 # Its memory bounds are role defaults, in roles/signal_projector.
 signal_projector_host: "{{ groups['projector'][0] }}"
 
-# Both ports are declared here, not only in roles/opensearch/defaults/main.yml,
+# Both ports are declared here, not only in roles/sweet_opensearch/defaults/main.yml,
 # because the discovery lists below read them out of hostvars — and hostvars
 # holds group and host variables, never a role default. An inventory host entry
 # outranks this file, which is how three containers on one machine each get

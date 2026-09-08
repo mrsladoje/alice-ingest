@@ -146,7 +146,7 @@ defaults, because a second copy is a second place to change one value.
 
 | Variable | Owner | Used for |
 |---|---|---|
-| `opensearch_version` | `group_vars/all.yml` | The yum repository major version and the pinned RPM. Shared with the `opensearch` role. |
+| `opensearch_version` | `group_vars/all.yml` | The yum repository major version and the pinned RPM. Shared with the `sweet_opensearch` role. |
 | `dashboards_internal_port` | `group_vars/all.yml` | `server.port`, the readiness probe, the proxy target and every cockpit REST call. |
 | `dashboards_external_port` | `group_vars/all.yml` | The nginx listener and its SELinux port label. `common` opens it in the firewall. |
 | `dashboards_opensearch_hosts` | `group_vars/all.yml` | `opensearch.hosts`. Derived from the `storage` inventory group, so it cannot be a role default. |
@@ -166,7 +166,7 @@ The role does not bootstrap the machine or the cluster.
 
 | Prerequisite | Provided by | What breaks without it |
 |---|---|---|
-| A reachable OpenSearch cluster | `opensearch` role | Dashboards starts but `/api/status` never returns 200, and the readiness wait times out after 5 minutes. |
+| A reachable OpenSearch cluster | `sweet_opensearch` role | Dashboards starts but `/api/status` never returns 200, and the readiness wait times out after 5 minutes. |
 | Index templates, the ingest pipeline and the derived indices | `opensearch_bootstrap` role | `patterns.sh` still creates the patterns, but `hydrate_patterns.py` finds no fields to serialize and fails the required-field check. |
 | `firewalld` running, with `dashboards_external_port` open | `common` role | nginx starts and nobody outside the host can reach it. |
 | The vault file loaded at play level | `playbooks/site.yml` | The htpasswd task fails on an undefined `vault_dashboards_basic_auth_password`. |
@@ -197,7 +197,7 @@ Against the control host only:
 
 ## Couplings
 
-- **`opensearch_version` is shared with the `opensearch` role.** OpenSearch and
+- **`opensearch_version` is shared with the `sweet_opensearch` role.** OpenSearch and
   OpenSearch Dashboards must run the same version. Change it in
   `group_vars/all.yml`, which both roles read.
 - **`alice_bootstrap_root` is declared here and in `group_vars/all.yml`.**
@@ -240,7 +240,7 @@ Recorded so the question is not reopened at review time. Checked in August 2026.
 
 | Candidate | Type | Would replace | Why rejected |
 |---|---|---|---|
-| [`opensearch-project/ansible-playbook`](https://github.com/opensearch-project/ansible-playbook) | Vendor | Repository, key, package, configuration file | Same four objections as in the `opensearch` role: it is a playbook and not a Galaxy role, its defaults read inventory groups directly, its substance is the security plugin this cluster removes, and AlmaLinux 9 is not a supported platform. |
+| [`opensearch-project/ansible-playbook`](https://github.com/opensearch-project/ansible-playbook) | Vendor | Repository, key, package, configuration file | Same four objections as in the `sweet_opensearch` role: it is a playbook and not a Galaxy role, its defaults read inventory groups directly, its substance is the security plugin this cluster removes, and AlmaLinux 9 is not a supported platform. |
 | [`geerlingguy.nginx`](https://galaxy.ansible.com/ui/standalone/roles/geerlingguy/nginx/) | Third-party | `nginx.yml` install and service tasks | Well maintained, but it would replace 3 of 8 tasks and own `nginx.conf` site-wide. The vhost, the htpasswd file, the two SELinux tasks and the certificate stay ours either way, and the role brings a full vhost model this tree does not use. |
 | `community.crypto` | Collection, already used | The three TLS tasks | Not rejected — it is what `tls.yml` calls. |
 

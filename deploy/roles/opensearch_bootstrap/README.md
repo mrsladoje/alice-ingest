@@ -17,7 +17,7 @@ it is not:
 - **It is OpenSearch state, not Dashboards state.** Index templates, an ingest
   pipeline, mappings, cluster settings and ISM policies exist whether or not
   anything ever renders a chart.
-- **It has a different scope from the `opensearch` role.** That role configures
+- **It has a different scope from the `sweet_opensearch` role.** That role configures
   one node and runs on all five. This one configures the cluster and must run
   once. Folding it into `opensearch` would apply the same cluster-wide calls
   five times.

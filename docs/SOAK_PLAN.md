@@ -784,7 +784,7 @@ trusted. **If the live lane × flush check flips a ranking, stage C's winner is
 re-opened**, because that is the least safe of the three assumptions.
 
 **What round 2 hands over:** the `flush`, heap, `AllowedCPUs` and `MemoryMax` values
-the `collector` and `opensearch` roles should carry on an EPN worker. That is the
+the `collector` and `sweet_opensearch` roles should carry on an EPN worker. That is the
 deliverable, not a chart.
 
 ---

@@ -148,7 +148,7 @@ not co-located with that UI stack: `alice-signal-projector` runs on
 - **Heap `-Xms1g -Xmx1g`.** VMs are `m2.medium` (2 vCPU / 3.75 GB RAM).
   1 GB heap leaves ~2.5 GB for OS/page cache/Fluent Bit and raises the AD
   model memory budget (10% of heap). See `opensearch_heap_size` in
-  `deploy/roles/opensearch/defaults/main.yml`.
+  `deploy/roles/sweet_opensearch/defaults/main.yml`.
 - **Alertmanager is built, in the seam that was reserved for it.** The nginx
   vhost's "another control-host-only service behind this nginx" slot is now
   wired: `alertmanager_port` is a real variable, the service is control-host
@@ -408,13 +408,13 @@ Two consequences of three hosts on one machine, both deliberate:
 - **`common` runs three times on the storage machine**, once per host. It is
   idempotent, so the result is right; it costs runtime, not correctness.
 - **The container runtime is prepared three times**, once per host, by the
-  `opensearch` role's `container_runtime.yml`. Podman and the quadlet
+  `sweet_opensearch` role's `container_runtime.yml`. Podman and the quadlet
   directory are machine-level facts, so two of the three passes are no-ops.
 
 What this does **not** rehearse is fault tolerance. Three replicas on one disk
 survive nothing. The layout exists so that the design does not have to change
 when the storage tier grows onto a second machine — see "What the container
-path does not simulate" in `roles/opensearch/README.md`.
+path does not simulate" in `roles/sweet_opensearch/README.md`.
 
 ### 4.1 Two auth paths
 
@@ -1699,7 +1699,7 @@ changed — and that is a query, not a detector.
 
 PPL's `patterns` command groups raw messages into templates at query time. It
 ships in `opensearch-sql`, which is now asserted in
-`roles/opensearch/defaults/main.yml`. Run it in Query Workbench, or against
+`roles/sweet_opensearch/defaults/main.yml`. Run it in Query Workbench, or against
 `POST _plugins/_ppl` on `:9200`:
 
 ```
@@ -1868,7 +1868,7 @@ Lubos requires that the bulk tier never crosses the wire. Only the cost changes.
    **Staging and the farm now carry the same 1g**, so `inventory.yml`'s worker
    override is a restatement rather than a correction. Staging workers are
    `m2.medium` with 3.75 GB in total and could not have afforded more anyway.
-   `opensearch_heap_size` is declared in the `opensearch` role's defaults, which
+   `opensearch_heap_size` is declared in the `sweet_opensearch` role's defaults, which
    rank below every group variable, so the inventory value still wins.
 6. **The smaller levers.** `indices.memory.index_buffer_size` drops from the
    10%-of-heap default to 5%. `bootstrap.memory_lock` stays on, so locked memory
@@ -1988,7 +1988,7 @@ genuine per-tier split is ever needed.
 This trap bit `opensearch_heap_size` until August 2026. The `workers` group in
 `inventory.yml` set it to `1g` and that assignment had no effect, because
 `group_vars/all.yml` set the same name. It was invisible only because both said
-`1g`. The fix was to declare the name in `roles/opensearch/defaults/main.yml`
+`1g`. The fix was to declare the name in `roles/sweet_opensearch/defaults/main.yml`
 instead: role defaults rank below every group variable, including one written
 inside the inventory file, so the group assignment now wins. **Do not add
 `opensearch_heap_size` back to `group_vars/all.yml`** — that reintroduces the

@@ -295,9 +295,12 @@ five-minute bucket is not routed yet; **Search every node** widens the search
 to the local pattern for that case. **Include ancestors** adds the versions the
 selected one was observed to widen into, fetches their lines too, and keeps
 only the lines whose tokens fit the selected template. That re-match uses the
-same `recipe_tokens` the stamper mined with, so the role ships
-`tools/templating/drainbench.py` and `masking.py` beside the server and installs
-the pinned drain3 into the shifter venv. When the recipe cannot import, the
+same `recipe_tokens` the stamper mined with, so the role ships its own
+`files/drainbench.py` and `files/masking.py` beside the server and installs
+the pinned drain3 into the shifter venv. Those two are copies of the files of
+the same name in `tools/templating`, which is where they are edited; the role
+carries them so it depends on nothing outside its own directory, and
+`deploy/test_provisioning.py` fails if a copy and its source ever differ. When the recipe cannot import, the
 panel says so and searches without ancestors.
 
 **Open in Logs** carries the expanded stamp set to the Logs page as a
@@ -479,7 +482,7 @@ site-wide, or in `inventory.yml` for one group or host.
 | `shifter_template_page_rows` | `50` | `SHIFTER_TEMPLATE_PAGE_ROWS`. Template rows in one page. |
 | `shifter_template_lines_rows` | `50` | `SHIFTER_TEMPLATE_LINES_ROWS`. Lines one request returns when it names no limit. |
 | `shifter_template_lines_ceiling` | `500` | `SHIFTER_TEMPLATE_LINES_CEILING`. The most lines one request may ask for. |
-| `shifter_templating_dir` | `/opt/alice-ingest/templating` | `ALICE_TEMPLATING_PATH`. Where `drainbench.py` and `masking.py` are shipped from `tools/templating`, for the token-wise re-match. |
+| `shifter_templating_dir` | `/opt/alice-ingest/templating` | `ALICE_TEMPLATING_PATH`. Where the vendored `drainbench.py` and `masking.py` land, for the token-wise re-match. |
 | `shifter_drain3_version` | `0.9.11` | The drain3 the shifter venv gets, the same pin as the stamper. |
 | `shifter_buckets_5m_pattern`, `shifter_buckets_1h_pattern` | `template-buckets-5m-*`, `template-buckets-1h-*` | `SHIFTER_BUCKETS_5M_PATTERN`, `SHIFTER_BUCKETS_1H_PATTERN`. The date-named bucket indices the stamper publishes to. |
 | `shifter_local_index_prefix` | `application-logs-local-` | `SHIFTER_LOCAL_INDEX_PREFIX`. A routed line search names `<prefix><node>` for each routed node. |

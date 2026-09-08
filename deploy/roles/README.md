@@ -12,7 +12,7 @@ the wiring diagram, the variables it reads and the couplings it carries.
 | Role | Runs on | What it does |
 | --- | --- | --- |
 | `common` | every VM | Prepares a bare Alma 9 host: swap file, the two kernel parameters OpenSearch needs, baseline packages, clock, firewalld. Runs first. |
-| `opensearch` | every node | Installs one OpenSearch node and joins it to the `alice-logs` cluster. Writes the node identity and tier, caps the heap, opens its HTTP and transport ports to cluster members only. Installs from the vendor RPM or as a podman container, chosen by `opensearch_install_method`. |
+| `sweet_opensearch` | every node | Installs one OpenSearch node and joins it to the `alice-logs` cluster. Writes the node identity and tier, caps the heap, opens its HTTP and transport ports to cluster members only. Installs from the vendor RPM or as a podman container, chosen by `opensearch_install_method`. |
 | `opensearch_bootstrap` | control | Applies the cluster-wide state that must exist exactly once: ingest pipeline, component and index templates, cluster settings, pre-created indices, retention policies. |
 | `opensearch_local_index_registration` | control + workers | Installs `register_node.sh`, the one definition of a worker's local index template, retention attachment and write alias. Installed by two callers; starts nothing itself. |
 | `alertmanager` | control | Installs Prometheus Alertmanager: severity-tiered grouping, one webhook receiver, inhibit rules generated from the repository's causal edges. Decides when a human is told. |

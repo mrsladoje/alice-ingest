@@ -63,7 +63,7 @@ It runs on all five nodes, as the first play in `site.yml` that touches them.
 Each guarantee in the last band fails somewhere else. Without firewalld running,
 a later role's rule task fails, because `ansible.posix.firewalld` needs the
 daemon up to apply an immediate rule. Below `vm.max_map_count` 262144, the error
-is OpenSearch's own bootstrap check, raised in the `opensearch` role and not
+is OpenSearch's own bootstrap check, raised in the `sweet_opensearch` role and not
 here. Without swap, the `site.yml` pre-flight holds the memory-heavy services
 back and never releases them.
 
@@ -121,7 +121,7 @@ the call site instead of thirty tasks.
   `sysctl.d` loads in lexical order, so which value wins depends on the two
   names. Changing this means deleting the old file by hand, on every node.
 - **`common_vm_max_map_count` belongs to OpenSearch.** Set here only because it
-  must precede the `opensearch` role. Lowering it breaks that role, not this one.
+  must precede the `sweet_opensearch` role. Lowering it breaks that role, not this one.
 - **`common_swapfile_path` is used twice.** As a path to create, and as a string
   matched against `swapon --show=NAME` to decide whether swap is already active.
   A path the kernel normalises differently makes that task run every pass.

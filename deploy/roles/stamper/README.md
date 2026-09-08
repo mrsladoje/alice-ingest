@@ -22,9 +22,16 @@ would replace it with arrival time; the acceptance test proves the time comes
 back intact.
 
 drain3 does the stamping, with the frozen recipe, the masker and the four
-Drain patches from `tools/templating`, copied onto the node and imported. Any
-port would be a second implementation of a masker whose byte-identical output
-is the identity.
+Drain patches this role vendors in `files/`, copied onto the node and imported.
+Any port would be a second implementation of a masker whose byte-identical
+output is the identity.
+
+`files/drainbench.py` and `files/masking.py` are copies of the two files of the
+same name in `tools/templating`, which is where they are edited. The role keeps
+its own copies so it depends on nothing outside its own directory and can be
+lifted into another Ansible tree unchanged. `deploy/test_provisioning.py` fails
+if a copy and its source ever differ, and skips that check in a tree that has no
+`tools/`.
 
 ## Three fields on every record
 

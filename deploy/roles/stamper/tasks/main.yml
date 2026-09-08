@@ -38,19 +38,21 @@
     mode: "0644"
   notify: restart alice-stamper
 
-# Copied, not reimplemented. The recipe tables and the masker are the same
+# Vendored, not reimplemented. The recipe tables and the masker are the same
 # objects the archive miner uses, so a stamp written here and the template
-# mined offline are the same string.
-- name: Ship the frozen mining recipe and masker from tools/templating
+# mined offline are the same string. The role carries its own copies so it
+# needs nothing outside itself; tools/templating stays the place they are
+# edited, and test_provisioning.py fails if the two ever differ.
+- name: Ship the frozen mining recipe and masker this role vendors
   ansible.builtin.copy:
     src: "{{ item }}"
-    dest: "{{ stamper_templating_dir }}/{{ item | basename }}"
+    dest: "{{ stamper_templating_dir }}/{{ item }}"
     owner: root
     group: root
     mode: "0644"
   loop:
-    - ../../../tools/templating/drainbench.py
-    - ../../../tools/templating/masking.py
+    - drainbench.py
+    - masking.py
   notify: restart alice-stamper
 
 - name: Install the stamper and the Forward codec it imports beside it
