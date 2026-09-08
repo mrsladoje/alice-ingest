@@ -80,6 +80,38 @@
     group: root
     mode: "0644"
 
+- name: >-
+    Install the worker's boot-time self-heal and the index template it reads —
+    fluent-bit.service names this script as its ExecStartPre, the way its unit
+    already names opensearch-node.env
+  when: node_tier == 'worker'
+  block:
+    - name: Ensure the directory that holds the registration script exists
+      ansible.builtin.file:
+        path: "{{ opensearch_register_script_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Render this worker's own local index template
+      ansible.builtin.template:
+        src: schema-per-worker/index-logs-application-local.json.j2
+        dest: "{{ opensearch_local_index_template_file }}"
+        owner: root
+        group: root
+        mode: "0644"
+      vars:
+        node: "{{ node_id }}"
+
+    - name: Install the node self-registration script
+      ansible.builtin.copy:
+        src: register_node.sh
+        dest: "{{ opensearch_register_script }}"
+        owner: root
+        group: root
+        mode: "0755"
+
 - name: Template opensearch.yml (cluster identity, inventory-derived discovery, security disabled)
   ansible.builtin.template:
     src: opensearch.yml.j2

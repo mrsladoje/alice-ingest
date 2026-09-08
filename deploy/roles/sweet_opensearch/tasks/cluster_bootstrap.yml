@@ -59,15 +59,16 @@
     group: root
     mode: "0750"
 
-- name: >-
-    Install the node self-registration script beside it — templates.sh calls
-    this once per worker, and each worker runs the same file as ExecStartPre, so
-    the per-worker index template has exactly one definition
-  ansible.builtin.include_role:
-    name: opensearch_local_index_registration
+- name: Render one local index template per worker into the schema directory
+  ansible.builtin.template:
+    src: schema-per-worker/index-logs-application-local.json.j2
+    dest: "{{ opensearch_bootstrap_schema_root }}/index-logs-application-local-{{ item }}.json"
+    owner: root
+    group: root
+    mode: "0640"
+  loop: "{{ opensearch_bootstrap_worker_node_ids }}"
   vars:
-    opensearch_local_index_registration_dest: "{{ opensearch_bootstrap_register_node_script }}"
-    opensearch_local_index_registration_mode: "0750"
+    node: "{{ item }}"
 
 - name: Render the ISM retention bootstrap script
   ansible.builtin.template:

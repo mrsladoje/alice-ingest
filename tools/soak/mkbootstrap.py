@@ -87,10 +87,26 @@ def main():
 
     # templates.sh reads every request body from "$(dirname $0)/schema", so the
     # rig gets the same directory the deploy stages.
-    schema_source = os.path.join(ROLE, "schema")
     schema_out = os.path.join(os.path.dirname(os.path.abspath(args.out)),
                               "schema")
     os.makedirs(schema_out, exist_ok=True)
+
+    # One rendered index template per worker, the same file the deploy stages
+    # and the worker's boot-time self-heal reads.
+    per_worker = os.path.join(ROLE, "schema-per-worker",
+                              "index-logs-application-local.json.j2")
+    for node in variables["opensearch_bootstrap_worker_node_ids"]:
+        body = render(os.path.join("schema-per-worker",
+                                   "index-logs-application-local.json.j2"),
+                      dict(variables, node=node))
+        if args.replicas is not None:
+            body = set_replicas(body, args.replicas)
+        with open(os.path.join(schema_out,
+                               "index-logs-application-local-%s.json" % node),
+                  "w") as handle:
+            handle.write(body)
+
+    schema_source = os.path.join(ROLE, "schema")
     for name in sorted(os.listdir(schema_source)):
         if not name.endswith(".json.j2"):
             continue

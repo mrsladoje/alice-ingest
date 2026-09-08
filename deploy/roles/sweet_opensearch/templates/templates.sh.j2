@@ -205,10 +205,6 @@ ensure_index() {
   put "/$idx" "$body" "index $idx"
 }
 
-# The worker-tier template and write alias live in register_node.sh, which each
-# worker also runs as ExecStartPre. Called here too, because the detectors
-# provisioned later in this play cannot wait for the collectors to start.
-REGISTER_NODE="$(dirname "$0")/register_node.sh"
 
 APPLICATION_MAPPINGS=$(load component-logs-application-mappings.json)
 INFOLOGGER_MAPPINGS=$(load component-logs-infologger-mappings.json)
@@ -293,17 +289,15 @@ put "/_index_template/alice-alert-actions"      "$ALERT_ACTIONS_TPL"    "index t
 put "/_cluster/settings" "$QUERY_INSIGHTS_SETTINGS" "query insights top-n settings"
 put "/_cluster/settings" "$DETECTION_COST_SETTINGS" "anomaly-detection batch pacing and admission control"
 
-# One call per worker, running exactly what that worker runs at boot. STRICT
-# fails the deploy on an unreachable cluster, which must not happen at boot.
+# Per-worker objects, from the same schema file the worker's own boot-time
+# self-heal reads: its index template, then its write alias and first backing
+# index. ensure_rollover_index carries the MIGRATE_EXISTING decision, which is
+# never a boot-time one. ism.sh is the authoritative retention attach later.
 for wn in $WORKER_NODES; do
-  ALICE_NODE_ID="$wn" \
-  OS_URL="$OS" \
-  REGISTER_STRICT=true \
-  REGISTER_MIGRATE_EXISTING="$MIGRATE_EXISTING" \
-  ALICE_INFO_SEARCH_IDLE_AFTER="{{ opensearch_info_search_idle_after }}" \
-  ALICE_INFO_TRANSLOG_SYNC_INTERVAL="{{ opensearch_info_translog_sync_interval }}" \
-  ALICE_INFO_MERGE_THREADS="{{ opensearch_info_merge_threads }}" \
-  sh "$REGISTER_NODE"
+  put "/_index_template/alice-logs-application-local-$wn" \
+    "$(load index-logs-application-local-$wn.json)" \
+    "index template alice-logs-application-local-$wn"
+  ensure_rollover_index "application-logs-local-$wn" ""
 done
 
 ensure_rollover_index "infologger" ""

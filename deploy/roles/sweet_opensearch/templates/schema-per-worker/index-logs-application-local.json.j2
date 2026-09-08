@@ -1,0 +1,21 @@
+{
+  "index_patterns": ["application-logs-local-{{ node }}-*"],
+  "composed_of": ["alice-logs-application-mappings"],
+  "priority": 300,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "codec": "zstd",
+      "index.default_pipeline": "alice-add-ingest-time",
+      "index.routing.allocation.require.box": "{{ node }}",
+      "index.search.idle.after": "{{ opensearch_info_search_idle_after }}",
+      "index.translog.durability": "async",
+      "index.translog.sync_interval": "{{ opensearch_info_translog_sync_interval }}",
+      "index.merge.scheduler.max_thread_count": {{ opensearch_info_merge_threads }},
+      "index.search.concurrent_segment_search.mode": "none",
+      "index.plugins.index_state_management.rollover_alias": "application-logs-local-{{ node }}"
+    }
+  },
+  "_meta": { "note": "worker tier: local, disposable, rolled daily, pinned by require.box" }
+}

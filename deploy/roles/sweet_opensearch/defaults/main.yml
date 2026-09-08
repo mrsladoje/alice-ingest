@@ -138,6 +138,13 @@ opensearch_systemd_dropin_dir: "/etc/systemd/system/{{ opensearch_service_name }
 opensearch_node_env_dir: /etc/alice-ingest
 opensearch_node_env_file: "{{ opensearch_node_env_dir }}/opensearch-node.env"
 
+# The worker's own boot-time self-heal, and the rendered index template it reads.
+# Installed by the node mode on workers; fluent-bit.service names the script as
+# its ExecStartPre, the way its unit already names opensearch-node.env.
+opensearch_register_script: /opt/alice-ingest/register_node.sh
+opensearch_register_script_dir: /opt/alice-ingest
+opensearch_local_index_template_file: "{{ opensearch_node_env_dir }}/local-index-template.json"
+
 opensearch_required_plugins:
   - opensearch-anomaly-detection
   - opensearch-alerting

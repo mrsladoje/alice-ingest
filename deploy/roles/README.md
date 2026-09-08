@@ -1,6 +1,6 @@
 # `deploy/roles`
 
-Eighteen roles. Each one owns a single lifecycle: one package, one service,
+Seventeen roles. Each one owns a single lifecycle: one package, one service,
 one closed set of REST objects, or one shared file set. A role never installs a
 thing it does not also configure, start and prove.
 
@@ -13,7 +13,6 @@ the wiring diagram, the variables it reads and the couplings it carries.
 | --- | --- | --- |
 | `common` | every VM | Prepares a bare Alma 9 host: swap file, the two kernel parameters OpenSearch needs, baseline packages, clock, firewalld. Runs first. |
 | `sweet_opensearch` | every node, then control | Two modes, chosen by `opensearch_cluster_bootstrap`. **Node:** installs one OpenSearch node and joins it to the `alice-logs` cluster — node identity and tier, heap cap, HTTP and transport ports open to cluster members only, vendor RPM or podman container per `opensearch_install_method`. **Cluster bootstrap:** applies the state that must exist exactly once — ingest pipeline, component and index templates, cluster settings, pre-created indices, retention policies. |
-| `opensearch_local_index_registration` | control + workers | Installs `register_node.sh`, the one definition of a worker's local index template, retention attachment and write alias. Installed by two callers; starts nothing itself. |
 | `alertmanager` | control | Installs Prometheus Alertmanager: severity-tiered grouping, one webhook receiver, inhibit rules generated from the repository's causal edges. Decides when a human is told. |
 | `alice_runtime` | control, projector, background | Puts the shared runtime on every host that runs an `alice-*` service: the app root, the two imported Python modules, the two JSON catalogs. No service, no port. |
 | `dashboards` | control | Installs OpenSearch Dashboards, caps its Node heap, puts nginx with TLS and basic authentication in front, and imports the index patterns and the Maintainer Cockpit saved objects. |

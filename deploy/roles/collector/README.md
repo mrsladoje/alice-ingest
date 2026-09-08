@@ -269,7 +269,7 @@ site-wide.
 | `collector_env_dir` | `/etc/alice-ingest` | Directory for the node identity file. |
 | `collector_env_file` | `/etc/alice-ingest/node.env` | This machine's identity. See below. |
 | `collector_opensearch_env_file` | `/etc/alice-ingest/opensearch-node.env` | Written by the `sweet_opensearch` role. See below. |
-| `collector_register_script` | `/opt/alice-ingest/register_node.sh` | Installed through the `opensearch_local_index_registration` role. |
+| `collector_register_script` | `/opt/alice-ingest/register_node.sh` | Installed by `sweet_opensearch` on every worker. This role only names the path. |
 | `collector_start_timeout_seconds` | `600` | `TimeoutStartSec`. Coupled — see below. |
 | `collector_metrics_scrape_open` | `false` | `true` opens the metrics port to the scrape source. |
 | `collector_stdout_refresh_interval` | `5` | How often the process-tree tail sweeps for new files. `/scratch` is NFS and NFS has no inotify, so this is the only thing that finds a program that started since the last sweep. |
@@ -339,7 +339,7 @@ defaults, because a second copy is a second place to change one value.
 ## Couplings
 
 - **`collector_start_timeout_seconds` (600) must exceed `REGISTER_WAIT_ATTEMPTS ×
-  (REGISTER_WAIT_MAX_TIME + REGISTER_WAIT_SLEEP)`** from `opensearch_local_index_registration`.
+  (REGISTER_WAIT_MAX_TIME + REGISTER_WAIT_SLEEP)`** from `register_node.sh`.
   `ExecStartPre` counts against `TimeoutStartSec`, so raising those waits without
   raising this makes systemd kill a collector that was only waiting.
 - **`collector_health_interval_seconds` follows
@@ -374,8 +374,9 @@ is a collector that does nothing.
   belongs to another role in another play. The control host re-runs
   `register_node.sh` for every worker on each deploy, so the cluster converges;
   the worker's own copy applies at its next boot.
-- **It does not contain the registration script.** `opensearch_local_index_registration` holds it,
-  because the control host runs the same bytes.
+- **It does not contain the registration script.** `sweet_opensearch` installs it
+  on every worker, the way it already installs `opensearch-node.env`. This role
+  names the path in `ExecStartPre` and includes no other role.
 - **It does not normalise fields.** The `alice-add-ingest-time` ingest pipeline
   does, so anything bypassing OpenSearch — the live lane — must enrich itself.
 - **It does not own `/etc/alice-ingest`.** Both this role and `opensearch` create
@@ -395,5 +396,3 @@ is a collector that does nothing.
 
 ## Includes
 
-- `opensearch_local_index_registration` — installs `register_node.sh` and notifies
-  `restart fluent-bit` when it changes.

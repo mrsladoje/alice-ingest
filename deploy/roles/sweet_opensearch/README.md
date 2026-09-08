@@ -290,9 +290,9 @@ is a cluster with no design.
   never does. Both use the same owner, group and mode, so the two cannot drift.
 - **It does not restart the collector when the info-tier settings change.**
   `opensearch-node.env` is loaded by `fluent-bit.service`, but that unit belongs
-  to another role in another play. The control host re-runs `register_node.sh`
-  for every worker on each deploy, so the cluster converges; the worker's own
-  copy applies at its next boot.
+  to another role in another play. The control host re-applies every worker's
+  index template on each deploy, so the cluster converges; the worker's own
+  rendered copy applies at its next boot.
 
 ## Upstream roles rejected
 
@@ -382,8 +382,8 @@ the anomaly detectors, the forecaster and the verification are the
 ┌─ 2. STAGE — /opt/alice-ingest/init ────────────────────────────────────────┐
 │  templates.sh        rendered from templates.sh.j2                         │
 │  ism.sh              rendered from ism.sh.j2                               │
-│  schema/*.json       28 documents rendered from templates/schema/          │
-│  register_node.sh    installed through the opensearch_local_index_registration role          │
+│  schema/*.json       28 documents, plus one per worker rendered from       │
+│                      templates/schema-per-worker/                          │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 3. templates.sh — waits for cluster health, then applies ─────────────────┐
@@ -392,8 +392,8 @@ the anomaly detectors, the forecaster and the verification are the
 │  index templates        14, one per log family and derived index           │
 │  cluster settings       auto_create_index, query insights,                 │
 │                         anomaly-detection batch pacing, admission control  │
-│  register_node.sh       once per worker identity — the same file that      │
-│                         worker runs as ExecStartPre at boot                │
+│  per-worker objects     one index template, write alias and backing        │
+│                         index per worker identity                          │
 │  pre-created indices    the 11 derived indices, so nothing races a mapping │
 │  live mapping updates   fields added to indices that predate them          │
 └────────────────────────────────────┬───────────────────────────────────────┘
@@ -439,14 +439,18 @@ cluster half-applied.
   whole persistent settings body, which carries the anomaly-detection batch
   pacing down with it and makes `templates.sh` exit non-zero. The assertion names
   the cause; the 400 would not.
-- **`register_node.sh` is run from here, once per worker.** Each worker also runs
-  the same file as `ExecStartPre`. The control host cannot wait for the
-  collectors to start, because the detectors provisioned later in the deploy need
-  the worker index templates to exist already.
-- **`templates.sh` finds the registration script as `$(dirname "$0")/register_node.sh`.**
-  Both files must land in the same directory. That is why the role installs the
-  script rather than pointing at the copy the `collector` role installs on a
-  worker.
+- **The per-worker objects are created here, not by the workers.** The control
+  host cannot wait for the collectors to start, because the detectors
+  provisioned later in the deploy match `application-logs-local-*` and the
+  anomaly-detection plugin refuses a detector over an index holding no
+  documents. So the bootstrap applies each worker's index template, write alias
+  and backing index, and seeds it.
+- **The worker's own `register_node.sh` is a self-heal, not the definition.** It
+  runs as `ExecStartPre` of `fluent-bit.service` and rebuilds a worker's alias
+  and backing index after a reboot that follows a cluster wipe or a disk
+  replacement — cases no deploy is present for. It reads the same rendered index
+  template this role installs on the worker, so there is one definition of the
+  mapping, in `templates/schema-per-worker/`.
 - **`action.auto_create_index` forbids the bare log-family names.** Those names
   belong to rollover write aliases. If ingest reaches one while its alias is
   briefly absent, OpenSearch would create a concrete index with a dynamic
@@ -538,7 +542,6 @@ retention fills, with or without the Templates page. At first bootstrap it is
 | `opensearch_bootstrap_templates_script` | `{{ opensearch_bootstrap_root }}/templates.sh` | The rendered index-template script. |
 | `opensearch_bootstrap_schema_root` | `{{ opensearch_bootstrap_root }}/schema` | Where the rendered schema documents land. `templates.sh` resolves it relative to itself, so moving one moves both. |
 | `opensearch_bootstrap_ism_script` | `{{ opensearch_bootstrap_root }}/ism.sh` | The rendered retention script. |
-| `opensearch_bootstrap_register_node_script` | `{{ opensearch_bootstrap_root }}/register_node.sh` | Installed through `opensearch_local_index_registration`. Must sit beside `templates.sh`. |
 | `opensearch_bootstrap_worker_node_ids` | `[]` | The worker identities that get a per-node index template, write alias and retention attach. The playbook supplies it. |
 
 ### Bootstrap variables it requires but does not own
@@ -600,7 +603,3 @@ The domain layer is not parameterised. These scripts are the schema.
   after the rolling-safety gate between the two plays, and before `dashboards`,
   `alerting_monitors` and `anomaly_detection`.
 
-## Includes
-
-- `opensearch_local_index_registration` — in the bootstrap mode only, to install
-  `register_node.sh` beside `templates.sh`.

@@ -82,17 +82,6 @@
     mode: "0644"
   notify: restart fluent-bit
 
-- name: >-
-    Install the node self-registration script (Item 3 — the same file the
-    control host runs once per worker during the deploy)
-  ansible.builtin.include_role:
-    name: opensearch_local_index_registration
-  vars:
-    opensearch_local_index_registration_dest: "{{ collector_register_script }}"
-    opensearch_local_index_registration_mode: "0755"
-    opensearch_local_index_registration_notify:
-      - restart fluent-bit
-
 - name: Create the log directory tree the tail inputs watch ({{ log_root }})
   ansible.builtin.file:
     path: "{{ item }}"

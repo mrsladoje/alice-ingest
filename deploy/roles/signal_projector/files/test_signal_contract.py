@@ -2378,46 +2378,46 @@ def test_no_role_reaches_outside_its_own_directory():
 
 def test_the_registration_script_has_exactly_one_definition():
     roles_root, scripts = _role_files("register_node.sh")
+    unit_path = _checkout_file(
+        "roles", "collector", "templates", "fluent-bit-override.conf.j2")
     collector_path = _checkout_file("roles", "collector", "tasks", "main.yml")
-    bootstrap_path = _checkout_file(
-        "roles", "sweet_opensearch", "tasks", "cluster_bootstrap.yml")
-    if roles_root is None or not all((collector_path, bootstrap_path)):
+    if roles_root is None or not all((unit_path, collector_path)):
         print("[signal-contract] "
               "test_the_registration_script_has_exactly_one_definition: "
               "skipped, roles/ not beside this checkout")
         return
 
-    # Each worker runs this as ExecStartPre and the control host runs the same
-    # file once per worker. Two copies means two competing definitions of a
-    # worker's index template.
+    # Each worker runs this as ExecStartPre and sweet_opensearch installs it
+    # there. Two copies means two competing definitions.
     check([rel for rel, _ in scripts] ==
-          [os.path.join("opensearch_local_index_registration", "files", "register_node.sh")],
-          "register_node.sh must exist exactly once, inside the "
-          "opensearch_local_index_registration role, but roles/ holds: " +
-          ", ".join(rel for rel, _ in scripts))
+          [os.path.join("sweet_opensearch", "files", "register_node.sh")],
+          "register_node.sh must exist exactly once, inside sweet_opensearch, "
+          "but roles/ holds: " + ", ".join(rel for rel, _ in scripts))
 
-    for path, label, expected_notify in (
-            (collector_path, "collector", ["restart fluent-bit"]),
-            (bootstrap_path, "sweet_opensearch", None)):
-        includes = [
-            task for task in _ansible_tasks(path)
-            if (task.get("ansible.builtin.include_role") or {}).get("name")
-            == "opensearch_local_index_registration"]
-        check(len(includes) == 1,
-              f"{label} no longer installs register_node.sh through the "
-              f"opensearch_local_index_registration role ({len(includes)} include_role tasks)")
-        if not includes:
-            continue
-        task_vars = includes[0].get("vars") or {}
-        check(task_vars.get("opensearch_local_index_registration_dest"),
-              f"{label} does not tell opensearch_local_index_registration where to install "
-              "the script")
-        if expected_notify is not None:
-            check(task_vars.get("opensearch_local_index_registration_notify")
-                  == expected_notify,
-                  f"{label} no longer restarts its service when the "
-                  "registration script changes; it runs as ExecStartPre, so "
-                  "an unrestarted collector keeps the old one")
+    # The worker-tier mapping has one source. The script reads the rendered
+    # file; it must not carry a second copy of the body.
+    _, mappings = _role_files("index-logs-application-local.json.j2")
+    check([rel for rel, _ in mappings] ==
+          [os.path.join("sweet_opensearch", "templates", "schema-per-worker",
+                        "index-logs-application-local.json.j2")],
+          "the worker-tier index template must have exactly one source, but "
+          "roles/ holds: " + ", ".join(rel for rel, _ in mappings))
+    script_body = open(scripts[0][1]).read()
+    check("application-logs-local-%s-*" not in script_body,
+          "register_node.sh defines the worker index template again; it must "
+          "read the rendered file sweet_opensearch installs beside it")
+
+    # collector must not reach into another role for it. It names a path.
+    includes = [
+        task for task in _ansible_tasks(collector_path)
+        if (task.get("ansible.builtin.include_role") or {}).get("name")]
+    check(not includes,
+          "collector includes another role: " + ", ".join(
+              (t.get("ansible.builtin.include_role") or {}).get("name")
+              for t in includes))
+    check("ExecStartPre={{ collector_register_script }}" in open(unit_path).read(),
+          "fluent-bit.service no longer runs the registration script as "
+          "ExecStartPre; an unregistered worker has its writes rejected")
 
 
 def test_status_exposes_functional_projector_and_replay_health():

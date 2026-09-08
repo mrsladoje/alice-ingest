@@ -23,10 +23,8 @@ WAIT_ATTEMPTS="${REGISTER_WAIT_ATTEMPTS:-30}"
 WAIT_SLEEP="${REGISTER_WAIT_SLEEP:-3}"
 WAIT_MAX_TIME="${REGISTER_WAIT_MAX_TIME:-10}"
 
-IDLE_AFTER="${ALICE_INFO_SEARCH_IDLE_AFTER:-10s}"
-TRANSLOG_SYNC="${ALICE_INFO_TRANSLOG_SYNC_INTERVAL:-30s}"
-MERGE_THREADS="${ALICE_INFO_MERGE_THREADS:-1}"
 RETENTION_POLICY="${ALICE_LOCAL_RETENTION_POLICY:-alice-application-local-retention}"
+LOCAL_INDEX_TEMPLATE="${ALICE_LOCAL_INDEX_TEMPLATE:-/etc/alice-ingest/local-index-template.json}"
 
 CURL="curl -s --connect-timeout ${OS_CONNECT_TIMEOUT:-5} --max-time ${OS_MAX_TIME:-60}"
 
@@ -91,28 +89,19 @@ put() {
 # index.search.idle.after, then goes idle and stops. Setting an explicit
 # interval silently turns search idle off — it reads as a tuning improvement and
 # is the opposite of one. See README section 9, Item 4.2 for the rest.
+# The mapping is not defined here. sweet_opensearch renders one file per worker
+# from templates/schema-per-worker/, installs this node's copy beside
+# opensearch-node.env, and applies the same source from the control host during
+# the deploy. One definition, read by both.
 index_template_body() {
-  printf '{
-  "index_patterns": ["application-logs-local-%s-*"],
-  "composed_of": ["alice-logs-application-mappings"],
-  "priority": 300,
-  "template": {
-    "settings": {
-      "number_of_shards": 1,
-      "number_of_replicas": 0,
-      "codec": "zstd",
-      "index.default_pipeline": "alice-add-ingest-time",
-      "index.routing.allocation.require.box": "%s",
-      "index.search.idle.after": "%s",
-      "index.translog.durability": "async",
-      "index.translog.sync_interval": "%s",
-      "index.merge.scheduler.max_thread_count": %s,
-      "index.search.concurrent_segment_search.mode": "none",
-      "index.plugins.index_state_management.rollover_alias": "application-logs-local-%s"
-    }
-  },
-  "_meta": { "note": "worker tier: local, disposable, rolled daily, pinned by require.box; registered by register_node.sh" }
-}' "$NODE" "$NODE" "$IDLE_AFTER" "$TRANSLOG_SYNC" "$MERGE_THREADS" "$NODE"
+  if [ ! -f "$LOCAL_INDEX_TEMPLATE" ]; then
+    echo "[register-node] FATAL: index template missing: $LOCAL_INDEX_TEMPLATE" >&2
+    echo "[register-node] FATAL: the sweet_opensearch role installs it. Creating" >&2
+    echo "[register-node] FATAL: the index without it would give every field a" >&2
+    echo "[register-node] FATAL: guessed type and block the write alias for good." >&2
+    exit 1
+  fi
+  cat "$LOCAL_INDEX_TEMPLATE"
 }
 
 attach_policy() {

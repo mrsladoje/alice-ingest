@@ -126,7 +126,15 @@ def test_every_schema_document_is_valid_json():
 def test_every_schema_document_the_script_loads_exists():
     script = render_bootstrap()
     loaded = set(re.findall(r"\$\(load (\S+)\.json\)", script))
-    assert loaded == set(schema_documents()), loaded ^ set(schema_documents())
+    # One load is per-worker and names a shell variable. Its source is the
+    # single schema-per-worker template, rendered once per node id.
+    dynamic = {name for name in loaded if "$" in name}
+    assert dynamic == {"index-logs-application-local-$wn"}, dynamic
+    assert os.path.exists(os.path.join(
+        ROLES, "sweet_opensearch", "templates", "schema-per-worker",
+        "index-logs-application-local.json.j2"))
+    assert loaded - dynamic == set(schema_documents()), \
+        (loaded - dynamic) ^ set(schema_documents())
 
 
 @pytest.mark.parametrize("pattern,shards", sorted(CONTRACT_SHARDS.items()))
@@ -193,10 +201,13 @@ def test_the_three_existing_log_routes_are_unchanged():
         settings = templates[pattern]["template"]["settings"]
         assert settings["number_of_replicas"] == 2
         assert settings["index.plugins.index_state_management.rollover_alias"]
-    registration = open(os.path.join(ROLES,
-                                     "opensearch_local_index_registration",
+    worker = open(os.path.join(
+        ROLES, "sweet_opensearch", "templates", "schema-per-worker",
+        "index-logs-application-local.json.j2")).read()
+    assert '"index_patterns": ["application-logs-local-{{ node }}-*"]' in worker
+    registration = open(os.path.join(ROLES, "sweet_opensearch",
                                      "files", "register_node.sh")).read()
-    assert '"index_patterns": ["application-logs-local-%s-*"]' in registration
+    assert "application-logs-local-%s-*" not in registration
 
 
 def test_template_catalog_mapping_is_observation_based():
@@ -212,7 +223,7 @@ def test_template_catalog_mapping_is_observation_based():
 
 def test_bootstrap_applies_the_templates_and_precreates_the_fixed_indices():
     script = render_bootstrap()
-    assert script.count('put "/_index_template/') == 15
+    assert script.count('put "/_index_template/') == 16
     assert script.count("ensure_index \"") == 10
     for template in ("alice-template-buckets-5m", "alice-template-buckets-1h",
                      "alice-template-triage", "alice-shifter-queries"):

@@ -478,7 +478,7 @@ def apply_bootstrap(run_dir, args):
     # beside it. It is a plain file, not a template.
     shutil.copyfile(
         os.path.join(REPO, "deploy", "roles",
-                     "opensearch_local_index_registration", "files",
+                     "sweet_opensearch", "files",
                      "register_node.sh"),
         os.path.join(run_dir, "register_node.sh"))
     os.chmod(os.path.join(run_dir, "register_node.sh"), 0o755)
