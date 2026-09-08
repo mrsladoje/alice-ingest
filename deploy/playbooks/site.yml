@@ -267,6 +267,29 @@
 - name: Shifter view — the standalone log console, off the control host
   hosts: shifter
   become: true
+  pre_tasks:
+    # The unit the Shifter replaced. It held port 8092 on the farm and kept
+    # alice-shifter in a restart loop for 824 attempts on 8 September 2026.
+    - name: Retire the old live-lane unit that listened on the Shifter's port
+      ansible.builtin.systemd:
+        name: alice-live-lane
+        state: stopped
+        enabled: false
+      failed_when: false
+
+    - name: Remove the retired live-lane unit and script
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/alice-live-lane.service
+        - /opt/alice-ingest/live_lane.py
+      register: _live_lane_removed
+
+    - name: Reload systemd so the retired unit is forgotten
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: _live_lane_removed is changed
   roles:
     - role: shifter
       when: shifter_enabled | bool
