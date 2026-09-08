@@ -1975,7 +1975,7 @@
       e(Nav, { page: props.page, onPage: props.onPage }),
       e('span', { className: 'sep' }),
       e('span', { className: 'tp-lede' },
-        'Seven-day template activity. The live stream stays on the Logs page.'),
+        '28-day template activity. The live stream stays on the Logs page.'),
       e('span', { className: 'grow' }),
       e('a', { className: 'btn link', href: COCKPIT_URL }, 'Cockpit'));
   }
