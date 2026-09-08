@@ -1,0 +1,39 @@
+# {{ ansible_managed }}
+[Unit]
+Description=ALICE catalog maintenance — definition expiry, query-history expiry and the two counting checks, on one host
+After=network-online.target opensearch.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=OS_URL=http://localhost:{{ opensearch_http_port }}
+Environment=ALICE_SHARED_PATH={{ alice_shared_dir }}
+Environment=CATALOG_INDEX={{ template_catalog_index }}
+Environment=QUERIES_INDEX={{ shifter_queries_index }}
+Environment=BUCKETS_1H_PATTERN={{ template_buckets_1h_prefix }}-*
+Environment=CATALOG_SHARED_INDICES={{ template_catalog_shared_indices }}
+Environment=CATALOG_RETENTION_DAYS={{ template_catalog_definition_retention_days }}
+Environment=CATALOG_CHECK_RETENTION_DAYS={{ template_catalog_check_retention_days }}
+Environment=CATALOG_QUERY_RETENTION_DAYS={{ template_catalog_query_retention_days }}
+Environment=CATALOG_QUERY_CLEANUP_INTERVAL_HOURS={{ template_catalog_query_cleanup_interval_hours }}
+Environment=CATALOG_CLEANUP_BATCH={{ template_catalog_maintenance_page }}
+Environment=CATALOG_CLEANUP_MAX_DOCUMENTS={{ template_catalog_maintenance_max_docs }}
+Environment=CATALOG_CLEANUP_RPS={{ template_catalog_maintenance_requests_per_second }}
+Environment=CATALOG_CLEANUP_TIMEOUT={{ template_catalog_maintenance_timeout }}
+Environment=CATALOG_BULK_DOCUMENTS={{ template_catalog_maintenance_bulk_documents }}
+Environment=CATALOG_CHECK_HOURS={{ template_catalog_check_hours }}
+Environment=CATALOG_CHECK_LAG_HOURS={{ template_catalog_check_lag_hours }}
+Environment=CATALOG_CHECK_PAGE={{ template_catalog_check_page }}
+Environment=CATALOG_CHECK_MAX_BUCKETS={{ template_catalog_check_max_buckets }}
+Environment=CATALOG_MAINTENANCE_STATE_DIR={{ template_catalog_maintenance_state_dir }}
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 {{ template_catalog_maintenance_script }}
+StateDirectory={{ template_catalog_maintenance_state_dir | basename }}
+MemoryAccounting=yes
+MemoryMax={{ template_catalog_maintenance_memory_max }}
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true

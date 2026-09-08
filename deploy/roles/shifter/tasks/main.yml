@@ -9,6 +9,53 @@
     - "{{ alice_app_root }}"
     - "{{ shifter_static_dir }}"
 
+- name: Ensure the shared contract directory exists
+  ansible.builtin.file:
+    path: "{{ alice_shared_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: shifter_templates_enabled | bool
+
+- name: >-
+    Ship the template contract the Shifter server and every producer import, so
+    identity, bucket arithmetic and the published document shapes have one
+    definition rather than two that can drift
+  ansible.builtin.copy:
+    src: "{{ alice_shared_contract_file }}"
+    dest: "{{ alice_shared_dir }}/template_contract.py"
+    owner: root
+    group: root
+    mode: "0644"
+  when: shifter_templates_enabled | bool
+  register: _shifter_contract
+
+- name: Ensure the shipped templating directory exists
+  ansible.builtin.file:
+    path: "{{ shifter_templating_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: shifter_templates_enabled | bool
+
+- name: >-
+    Ship the frozen mining recipe and masker from tools/templating, so the
+    Lines panel re-matches an ancestor's lines with the same tokens the
+    stamper mined
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ shifter_templating_dir }}/{{ item | basename }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - ../../../tools/templating/drainbench.py
+    - ../../../tools/templating/masking.py
+  when: shifter_templates_enabled | bool
+  register: _shifter_templating
+
 - name: Install the live lane server
   ansible.builtin.copy:
     src: shifter.py
@@ -17,6 +64,99 @@
     group: root
     mode: "0755"
   register: _shifter_script
+
+- name: Install the three modules the live lane server imports beside it
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ shifter_script | dirname }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - templates_view.py
+    - semantic.py
+    - triage.py
+  register: _shifter_modules
+
+- name: Find an interpreter new enough for model2vec, which needs 3.10 or newer
+  ansible.builtin.command:
+    cmd: >-
+      sh -c "for p in {{ shifter_semantic_pythons | join(' ') }};
+      do command -v $p && break; done"
+  changed_when: false
+  check_mode: false
+  failed_when: false
+  register: _shifter_semantic_python
+  when: shifter_semantic_enabled | bool
+
+- name: >-
+    Refuse to deploy semantic search onto a host whose newest interpreter is too
+    old for it, rather than shipping a service that cannot start
+  ansible.builtin.fail:
+    msg: >-
+      shifter_semantic_enabled is true but none of
+      {{ shifter_semantic_pythons | join(', ') }} is on {{ inventory_hostname }}.
+      The platform interpreter here is
+      {{ ansible_python_version | default('unknown') }} and model2vec needs 3.10
+      or newer. Install one of them, or set shifter_semantic_enabled false for
+      this host and the Templates page keeps its text search.
+  when:
+    - shifter_semantic_enabled | bool
+    - (_shifter_semantic_python.stdout | default('') | trim) | length == 0
+
+- name: Create the shifter venv and install the pinned model2vec and drain3
+  ansible.builtin.pip:
+    name:
+      - "model2vec=={{ shifter_semantic_model2vec_version }}"
+      - "drain3=={{ shifter_drain3_version }}"
+    state: present
+    virtualenv: "{{ shifter_semantic_venv }}"
+    virtualenv_command: "{{ _shifter_semantic_python.stdout | trim }} -m venv"
+  when: shifter_semantic_enabled | bool
+  register: _shifter_venv
+
+- name: Create the shifter venv with the pinned drain3 when semantic is off
+  ansible.builtin.pip:
+    name: "drain3=={{ shifter_drain3_version }}"
+    state: present
+    virtualenv: "{{ shifter_semantic_venv }}"
+    virtualenv_command: /usr/bin/python3 -m venv
+  when:
+    - shifter_templates_enabled | bool
+    - not (shifter_semantic_enabled | bool)
+  register: _shifter_plain_venv
+
+- name: Ensure the model directory exists
+  ansible.builtin.file:
+    path: "{{ shifter_semantic_model_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: shifter_semantic_enabled | bool
+
+- name: >-
+    Fetch the retrieval model at the pinned revision the evaluation measured,
+    without the ONNX copy the static encoder never reads
+  ansible.builtin.command:
+    argv:
+      - "{{ shifter_semantic_venv }}/bin/python"
+      - -c
+      - >-
+        import sys; from huggingface_hub import snapshot_download;
+        snapshot_download(repo_id=sys.argv[1], revision=sys.argv[2],
+        local_dir=sys.argv[3], ignore_patterns=["onnx/*"])
+      - "{{ shifter_semantic_model_repo }}"
+      - "{{ shifter_semantic_model_revision }}"
+      - "{{ shifter_semantic_model_path }}"
+    creates: "{{ shifter_semantic_model_path }}/model.safetensors"
+  environment:
+    HF_HUB_DISABLE_TELEMETRY: "1"
+  when: shifter_semantic_enabled | bool
+  register: _shifter_model
+  retries: 3
+  delay: 10
+  until: _shifter_model is succeeded
 
 - name: Find a minifier on the control node, never on the target
   ansible.builtin.command:
@@ -73,6 +213,7 @@
   changed_when: false
   loop:
     - shifter.js
+    - templates.js
     - shifter.css
   when: _shifter_minify_with | length > 0
 
@@ -85,6 +226,7 @@
   register: _shifter_shrunk
   loop:
     - shifter.js
+    - templates.js
     - shifter.css
   when: _shifter_minify_with | length > 0
 
@@ -109,7 +251,7 @@
     src: >-
       {{ ((_shifter_build.path | default('')) ~ '/' ~ item)
          if (_shifter_minify_with | length > 0
-             and item in ['shifter.js', 'shifter.css'])
+             and item in ['shifter.js', 'templates.js', 'shifter.css'])
          else ('live/' ~ item) }}
     dest: "{{ shifter_static_dir }}/{{ item }}"
     owner: root
@@ -117,6 +259,7 @@
     mode: "0644"
   loop:
     - shifter.js
+    - templates.js
     - shifter.css
     - alice-favicon.svg
     - preact.umd.js
@@ -171,6 +314,11 @@
     state: >-
       {{ 'restarted'
          if ((_shifter_script.changed | default(false))
+             or (_shifter_modules.changed | default(false))
+             or (_shifter_contract.changed | default(false))
+             or (_shifter_templating.changed | default(false))
+             or (_shifter_venv.changed | default(false))
+             or (_shifter_plain_venv.changed | default(false))
              or (_shifter_assets.changed | default(false))
              or (_shifter_index.changed | default(false))
              or (_shifter_unit.changed | default(false)))

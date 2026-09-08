@@ -107,6 +107,21 @@
     # EPN, one file per process. That is what carries the program name.
     - "{{ log_root }}/stdout"
 
+- name: Own the socket directory the stamper loop runs through
+  ansible.builtin.copy:
+    dest: /etc/tmpfiles.d/alice-stamper.conf
+    content: "d {{ collector_stamper_socket_dir }} 0755 root root -\n"
+    owner: root
+    group: root
+    mode: "0644"
+  register: _collector_tmpfiles
+
+- name: Create the socket directory now, not only at the next boot
+  ansible.builtin.command:
+    cmd: systemd-tmpfiles --create /etc/tmpfiles.d/alice-stamper.conf
+  when: _collector_tmpfiles.changed
+  changed_when: true
+
 - name: Create Fluent Bit storage/buffer path (native equivalent of the container's /var/log/flb-storage)
   ansible.builtin.file:
     path: "{{ fluent_bit_storage_path }}"

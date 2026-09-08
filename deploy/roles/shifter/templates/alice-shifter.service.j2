@@ -27,6 +27,46 @@ Environment=SHIFTER_OS_INDICES={{ shifter_opensearch_indices }}
 Environment=SHIFTER_OS_VERIFY={{ shifter_opensearch_verify | lower }}
 Environment=SHIFTER_QUERY_MAX_ROWS={{ shifter_query_max_rows }}
 Environment=SHIFTER_QUERY_PAGE_ROWS={{ shifter_query_page_rows }}
+{% if shifter_templates_enabled | bool %}
+Environment=ALICE_SHARED_PATH={{ alice_shared_dir }}
+Environment=ALICE_TEMPLATING_PATH={{ shifter_templating_dir }}
+Environment=SHIFTER_BUCKETS_5M_PATTERN={{ shifter_buckets_5m_pattern }}
+Environment=SHIFTER_BUCKETS_1H_PATTERN={{ shifter_buckets_1h_pattern }}
+Environment=SHIFTER_LOCAL_INDEX_PREFIX={{ shifter_local_index_prefix }}
+Environment=SHIFTER_CATALOG_INDEX={{ template_catalog_index }}
+Environment=SHIFTER_TRIAGE_INDEX={{ template_triage_index }}
+Environment=SHIFTER_QUERIES_INDEX={{ shifter_queries_index }}
+Environment=SHIFTER_INCIDENTS_INDEX={{ incidents_index }}
+Environment=SHIFTER_TEMPLATE_CONCURRENT_QUERIES={{ shifter_template_concurrent_queries }}
+Environment=SHIFTER_TEMPLATE_ENCODERS={{ shifter_template_encoders }}
+Environment=SHIFTER_TEMPLATE_PAGE_ROWS={{ shifter_template_page_rows }}
+Environment=SHIFTER_TEMPLATE_LINES_ROWS={{ shifter_template_lines_rows }}
+Environment=SHIFTER_TEMPLATE_LINES_CEILING={{ shifter_template_lines_ceiling }}
+Environment=SHIFTER_TEMPLATE_WATCHED_MAX={{ shifter_template_watched_max }}
+Environment=SHIFTER_TEMPLATE_NOTE_MAX_CHARS={{ shifter_template_note_max_chars }}
+Environment=SHIFTER_TEMPLATE_LABEL_HISTORY_MAX={{ shifter_template_label_history_max }}
+Environment=SHIFTER_EPISODE_REFRESH_SECONDS={{ shifter_episode_refresh_seconds }}
+Environment=SHIFTER_VIEW_REFRESH_SECONDS={{ shifter_view_refresh_seconds }}
+Environment=SHIFTER_SEARCH_TIMEOUT_SECONDS={{ shifter_search_timeout_seconds }}
+Environment=SHIFTER_SEARCH_TERMINATE_AFTER={{ shifter_search_terminate_after }}
+Environment=SHIFTER_ACTIVE_DAYS={{ template_catalog_active_days }}
+Environment=SHIFTER_DEFINITION_RETENTION_DAYS={{ template_catalog_definition_retention_days }}
+Environment=SHIFTER_SEMANTIC_ENABLED={{ shifter_semantic_enabled | lower }}
+Environment=SHIFTER_SEMANTIC_BACKEND={{ shifter_semantic_backend }}
+Environment=SHIFTER_SEMANTIC_MODEL_PATH={{ shifter_semantic_model_path }}
+Environment=SHIFTER_SEMANTIC_MODEL_REVISION={{ shifter_semantic_model_revision }}
+Environment=HF_HUB_OFFLINE=1
+Environment=HF_HOME=/tmp/hf
+Environment=TRANSFORMERS_OFFLINE=1
+Environment=SHIFTER_SEMANTIC_MAX_GROUPS={{ shifter_semantic_max_groups }}
+Environment=SHIFTER_VECTOR_CACHE_BYTES={{ shifter_vector_cache_bytes }}
+Environment=SHIFTER_CATALOG_CACHE_BYTES={{ shifter_catalog_cache_bytes }}
+Environment=SHIFTER_RESPONSE_CACHE_BYTES={{ shifter_response_cache_bytes }}
+Environment=SHIFTER_AGGREGATION_BYTES={{ shifter_aggregation_bytes }}
+Environment=SHIFTER_LIVE_LANE_BYTES={{ shifter_live_lane_bytes }}
+Environment=SHIFTER_PROCESS_BASE_BYTES={{ shifter_process_base_bytes }}
+Environment=SHIFTER_MEMORY_MAX={{ shifter_memory_max }}
+{% endif %}
 {% if shifter_opensearch_user | length > 0 %}
 Environment=SHIFTER_OS_USER={{ shifter_opensearch_user }}
 Environment=SHIFTER_OS_PASSWORD={{ shifter_opensearch_password }}
@@ -36,7 +76,11 @@ Environment=SHIFTER_OS_PASSWORD={{ shifter_opensearch_password }}
 Environment=SHIFTER_TOKEN={{ shifter_token }}
 {% endif %}
 Environment=PYTHONUNBUFFERED=1
+{% if shifter_semantic_enabled | bool or shifter_templates_enabled | bool %}
+ExecStart={{ shifter_semantic_venv }}/bin/python {{ shifter_script }}
+{% else %}
 ExecStart=/usr/bin/python3 {{ shifter_script }}
+{% endif %}
 Restart=on-failure
 RestartSec=5s
 

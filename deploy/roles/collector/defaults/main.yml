@@ -161,3 +161,13 @@ collector_metrics_scrape_open: false
 # stands on its own and one inventory line can switch the whole stack. See
 # roles/common/defaults/main.yml for why the EPN farm sets this false.
 alice_manage_firewalld: true
+
+# The stamper loop. alice-stamper listens on the first socket and returns every
+# stamped chunk through the second, which the forward input above creates. The
+# directory is owned here, by a tmpfiles.d entry, because Fluent Bit creates
+# one socket and connects to the other; the stamper role names the same paths.
+collector_stamper_socket_dir: /run/alice
+collector_stamper_listen_socket: "{{ collector_stamper_socket_dir }}/stamper.sock"
+collector_stamper_return_socket: "{{ collector_stamper_socket_dir }}/stamped.sock"
+collector_stamper_socket_mode: "0660"
+collector_stamper_status_file: "{{ collector_stamper_socket_dir }}/stamper-status.json"

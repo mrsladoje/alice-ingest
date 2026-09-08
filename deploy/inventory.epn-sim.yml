@@ -65,7 +65,3 @@ all:
     shifter:
       hosts:
         os-node-06: {}
-
-    container_hosts:
-      hosts:
-        os-node-04: {}

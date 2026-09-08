@@ -36,7 +36,8 @@ def render(live_lane, flush, buffer_limit, retry_limit,
            journald_path="",
            dds_extractors=("dds_slot", "dds_channel", "dds_task"),
            dpl_extractors=("mft_decoder_error",),
-           odc=False, odc_path="/var/log/odc/staging/*.log"):
+           odc=False, odc_path="/var/log/odc/staging/*.log",
+           stamper_socket_dir="/run/alice"):
     with open(TEMPLATE, "r") as handle:
         source = handle.read()
     env = Environment(undefined=StrictUndefined, keep_trailing_newline=True)
@@ -65,7 +66,36 @@ def render(live_lane, flush, buffer_limit, retry_limit,
         shifter_host=lane_host,
         shifter_port=lane_port,
         shifter_ingest_path=lane_path,
+        collector_stamper_listen_socket=stamper_socket_dir + "/stamper.sock",
+        collector_stamper_return_socket=stamper_socket_dir + "/stamped.sock",
+        collector_stamper_status_file=stamper_socket_dir
+        + "/stamper-status.json",
+        collector_stamper_socket_mode="0660",
     )
+
+
+STAMPED = "stamped."
+
+
+def bypass_stamper(pipeline):
+    """The loop taken out: every output matches the tag it matched before the
+    stamper existed, and neither forward plugin is configured. This is the
+    rig's baseline arm; the stamper arm keeps the template as shipped and runs
+    alice-stamper beside Fluent Bit."""
+    pipeline["inputs"] = [item for item in pipeline["inputs"]
+                          if item.get("name") != "forward"]
+    outputs = []
+    for item in pipeline["outputs"]:
+        if item.get("name") == "forward":
+            continue
+        match = item.get("match")
+        if isinstance(match, str) and match.startswith(STAMPED):
+            item["match"] = match[len(STAMPED):]
+        pattern = item.get("match_regex")
+        if isinstance(pattern, str) and pattern.startswith("^stamped\\."):
+            item["match_regex"] = "^" + pattern[len("^stamped\\."):]
+        outputs.append(item)
+    pipeline["outputs"] = outputs
 
 
 DUP = "__dup%d__"
@@ -359,6 +389,13 @@ def main():
                              "wrote, the way a real InfoLogger file tap would")
     parser.add_argument("--infologger-path",
                         default="${ALICE_LOG_ROOT}/infologger/*.log")
+    parser.add_argument("--stamper", default="off", choices=["on", "off"],
+                        help="keep the Forward loop through alice-stamper as "
+                             "shipped, or take it out so every output matches "
+                             "its unstamped tag. The stamper arm needs "
+                             "alice-stamper running beside Fluent Bit with "
+                             "the same socket directory.")
+    parser.add_argument("--stamper-socket-dir", default="/run/alice")
     parser.add_argument("--families", default="all",
                         choices=["all", "tailed", "infologger"],
                         help="t3 splits the pipeline across two processes: "
@@ -372,8 +409,10 @@ def main():
                   args.journald_path,
                   [e for e in args.dds_extractors.split(",") if e],
                   [e for e in args.dpl_extractors.split(",") if e],
-                  args.odc == "on", args.odc_path)
+                  args.odc == "on", args.odc_path, args.stamper_socket_dir)
     config = yaml.load(text, Loader=DupKeyLoader)
+    if args.stamper == "off":
+        bypass_stamper(config["pipeline"])
 
     service = config["service"]
     service["flush"] = args.flush
@@ -391,7 +430,7 @@ def main():
     for item in pipeline["inputs"]:
         if item.get("tag") == "health" and args.health == "off":
             continue
-        if item.get("name") in ("tail", "tcp"):
+        if item.get("name") in ("tail", "tcp", "forward"):
             item["storage.type"] = args.storage_type
             if args.mem_buf_limit:
                 item["mem_buf_limit"] = args.mem_buf_limit
@@ -422,6 +461,9 @@ def main():
             if args.sink not in ("opensearch", "file"):
                 item["host"] = args.sink_host
                 item["port"] = args.sink_port
+            outputs.append(item)
+            continue
+        if item.get("name") == "forward":
             outputs.append(item)
             continue
         if item.get("name") == "http" and item.get("uri") == "/ingest":
@@ -490,7 +532,9 @@ def main():
     if args.arm == "t2":
         move_filters_to_processors(config)
     if args.lane_own_tag == "on" and args.live_lane == "on":
-        lane_on_its_own_tag(config, r"^(infologger|family\.central)$")
+        lane_on_its_own_tag(
+            config, r"^(infologger|family\.central)$" if args.stamper == "off"
+            else r"^stamped\.(infologger|family\.central)$")
 
     yaml.add_representer(str, block_str)
     rendered = yaml.dump(config, sort_keys=False, default_flow_style=False,

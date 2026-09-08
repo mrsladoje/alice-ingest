@@ -324,6 +324,13 @@ defaults, because a second copy is a second place to change one value.
   families** — `512K` with 5 retries and `1M` with 1 retry, against `256M`. Their
   durability budget is seconds of loss, not megabytes, and a dead live-lane viewer
   must never push back on OpenSearch.
+- **The four log outputs state `write_operation: create`.** It is the plugin's
+  default, and it is written out anyway because the template lane depends on it:
+  a retried chunk comes back 409 and is refused, so a `doc_id` the cluster
+  already holds is never overwritten by a second version. The catalog scan
+  raises `GAP_OVERWRITTEN_SOURCE` on any hit with `_version` above one, and
+  `deploy/test_provisioning.py` holds every output carrying an `id_key` to the
+  stated operation.
 - **Every OpenSearch output writes to `localhost`.** A worker ships to its own
   OpenSearch node and to no other.
 - **`storage.max_chunks_up: 64` is a literal.** It is the memory ceiling under

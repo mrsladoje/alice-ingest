@@ -1,0 +1,59 @@
+# roles/stamper — in-band template stamping on the worker, between Fluent Bit's
+# filters and its OpenSearch outputs.
+
+stamper_app_root: /opt/alice-ingest
+stamper_script: "{{ stamper_app_root }}/stamper.py"
+stamper_templating_dir: "{{ stamper_app_root }}/templating"
+stamper_venv: "{{ stamper_app_root }}/stamper-venv"
+stamper_service_name: alice-stamper
+
+# The mining library is pinned because the stamping path calls reviewed
+# internal methods of this release; an unpinned upgrade changes the template
+# text a worker stamps without changing a line of this repository.
+stamper_drain3_version: "0.9.11"
+stamper_msgpack_version: "1.1.2"
+
+# Both sockets live in one runtime directory. The collector role owns the
+# directory (a tmpfiles.d entry), because Fluent Bit creates the second socket
+# and connects to the first; this role only needs to agree on the path.
+stamper_socket_dir: /run/alice
+stamper_listen_socket: "{{ stamper_socket_dir }}/stamper.sock"
+stamper_return_socket: "{{ stamper_socket_dir }}/stamped.sock"
+stamper_socket_mode: "0660"
+stamper_status_file: "{{ stamper_socket_dir }}/stamper-status.json"
+
+# The ledger checkpoint, the journal since it and the drain trees per family.
+# systemd creates it through StateDirectory=, so it must stay under /var/lib.
+stamper_state_dir: /var/lib/alice-stamper
+
+# A ceiling on how many distinct templates one worker learns, across every
+# family. Depth and max_children bound the SHAPE of the tree; neither caps how
+# many clusters it holds. At the ceiling the worker stops LEARNING and keeps
+# STAMPING: a record that matches no cluster is stamped `unlearned`.
+stamper_max_templates: 20000
+
+# The publication cycle for bucket documents, definitions and the watermark.
+stamper_publish_seconds: 300
+
+# The ledger checkpoint. It sets the journal size against the replay time on
+# start; the journal is replayed line by line and a line is one chunk.
+stamper_checkpoint_seconds: 600
+
+# How long a returned chunk may wait for the Forward input's acknowledgement
+# before the origin chunk is refused and Fluent Bit resends it.
+stamper_ack_timeout_seconds: 30
+
+stamper_request_timeout: 60
+stamper_bulk_timeout: 120
+stamper_bulk_documents: 500
+stamper_clock_tolerance_ms: 300000
+stamper_ledger_hours: 48
+stamper_chunk_hold_ms: 3600000
+
+# The worker-side half of the stamped-against-indexed check reads this node's
+# own local index once an hour.
+stamper_local_check: true
+
+# The same memory limits as the collector.
+stamper_memory_high: "{{ fluent_bit_memory_high | default('384M') }}"
+stamper_memory_max: "{{ fluent_bit_memory_max | default('768M') }}"

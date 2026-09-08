@@ -174,9 +174,24 @@ pipeline:
       format: json
       storage.type: filesystem
 
+    # The return half of the stamper loop. Every log record leaves through the
+    # forward OUTPUT below, is stamped by alice-stamper, and comes back in here
+    # under its tag with `stamped.` in front, which is what the OpenSearch
+    # outputs and the live lane match. Filesystem storage means a stamped chunk
+    # is on disk before the outputs take it, so a crash after the return does
+    # not lose it. The acknowledgement this input answers with is what lets
+    # the stamper count a chunk exactly once: it counts, journals, and only
+    # then acknowledges its own origin.
+    - name: forward
+      unix_path: {{ collector_stamper_return_socket }}
+      unix_perm: {{ collector_stamper_socket_mode }}
+      tag_prefix: stamped.
+      threaded: on
+      storage.type: filesystem
+
     - name: exec
       tag: health
-      command: COLLECTOR_ID=${ALICE_NODE_ID} FB_HTTP_PORT=${ALICE_FB_HTTP_PORT} FB_EMIT_LEGACY_NODE={{ health_metrics_emit_legacy_node | bool | ternary('true', 'false') }} /usr/bin/python3 {{ collector_health_script }}
+      command: COLLECTOR_ID=${ALICE_NODE_ID} FB_HTTP_PORT=${ALICE_FB_HTTP_PORT} STAMPER_STATUS_FILE={{ collector_stamper_status_file }} FB_EMIT_LEGACY_NODE={{ health_metrics_emit_legacy_node | bool | ternary('true', 'false') }} /usr/bin/python3 {{ collector_health_script }}
       interval_sec: {{ collector_health_interval_seconds }}
       parser: fb_health_json
       buf_size: 32k
@@ -189,7 +204,9 @@ pipeline:
         local prev = {}
         local COUNTERS = {
           'input_records', 'output_records', 'output_errors',
-          'output_retries', 'output_retries_failed', 'output_dropped'
+          'output_retries', 'output_retries_failed', 'output_dropped',
+          'stamper_records', 'stamper_chunks', 'stamper_duplicate_chunks',
+          'stamper_return_failures', 'stamper_publication_failures'
         }
         function health_deltas(tag, ts, record)
           for i = 1, #COUNTERS do
@@ -567,38 +584,57 @@ pipeline:
   # live lane — must do that enrichment itself.
 
   outputs:
+    # The outbound half of the stamper loop. One worker keeps one connection,
+    # so the stamper sees chunks in the order they were flushed and the drain
+    # tree learns in that order. The acknowledgement is required and the
+    # retries are unlimited: the ten-retry limit the OpenSearch outputs carry
+    # would drop records after a few minutes of stamper outage, and the buffer
+    # cap below is the only bound. Forward over a Unix socket, not HTTP: the
+    # parsers set the record time from the log line and an HTTP hop would
+    # replace it with arrival time. Forward carries it intact.
+    - name: forward
+      match_regex: ^(infologger|ildaemon|family\.local|family\.central)$
+      unix_path: {{ collector_stamper_listen_socket }}
+      require_ack_response: on
+      workers: 1
+      retry_limit: no_limits
+      storage.total_limit_size: {{ fluent_bit_log_buffer_limit }}
+
     - name: opensearch
-      match: infologger
+      match: stamped.infologger
       host: localhost
       port: ${ALICE_OS_HTTP_PORT}
       index: infologger
       suppress_type_name: true
       trace_error: true
       id_key: doc_id
+      write_operation: create
       buffer_size: 'False'
       storage.total_limit_size: {{ fluent_bit_log_buffer_limit }}
       retry_limit: {{ fluent_bit_log_retry_limit }}
 
     - name: opensearch
-      match: family.local
+      match: stamped.family.local
       host: localhost
       port: ${ALICE_OS_HTTP_PORT}
       index: application-logs-local-${ALICE_NODE_ID}
       suppress_type_name: true
       trace_error: true
       id_key: doc_id
+      write_operation: create
       buffer_size: 'False'
       storage.total_limit_size: {{ fluent_bit_log_buffer_limit }}
       retry_limit: {{ fluent_bit_log_retry_limit }}
 
     - name: opensearch
-      match: family.central
+      match: stamped.family.central
       host: localhost
       port: ${ALICE_OS_HTTP_PORT}
       index: application-logs-central
       suppress_type_name: true
       trace_error: true
       id_key: doc_id
+      write_operation: create
       buffer_size: 'False'
       storage.total_limit_size: {{ fluent_bit_log_buffer_limit }}
       retry_limit: {{ fluent_bit_log_retry_limit }}
@@ -607,13 +643,14 @@ pipeline:
     # lines a day, and the one number on it — connected clients against the
     # ceiling — is only useful as a series that survives the node.
     - name: opensearch
-      match: ildaemon
+      match: stamped.ildaemon
       host: localhost
       port: ${ALICE_OS_HTTP_PORT}
       index: application-logs-central
       suppress_type_name: true
       trace_error: true
       id_key: doc_id
+      write_operation: create
       buffer_size: 'False'
       storage.total_limit_size: {{ fluent_bit_log_buffer_limit }}
       retry_limit: {{ fluent_bit_log_retry_limit }}
@@ -634,7 +671,7 @@ pipeline:
     # is needed yet. Never the info tier. Best-effort by construction — a small
     # buffer and one retry, so a dead viewer never pushes back on OpenSearch.
     - name: http
-      match_regex: ^(infologger|ildaemon|family\.central)$
+      match_regex: ^stamped\.(infologger|ildaemon|family\.central)$
       host: {{ shifter_host }}
       port: {{ shifter_port }}
       uri: {{ shifter_ingest_path }}

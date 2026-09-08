@@ -198,12 +198,45 @@ replay_clock: preserved
 
 trend_rollup_index: trend-rollup
 
-# One document per canonical template per family. This is how template identity
-# leaves a worker when the raw informational lines do not — the collector keeps
-# 96.9 % of the process tree node-local by severity, and a catalog built from
-# the durable tier alone would never see those templates. Written by
-# roles/template_catalog on each worker; read by the semantic retrieval work.
+# Template identity. Every record is stamped with its template version by
+# roles/stamper on the worker, before it reaches OpenSearch, so both tiers carry
+# the field and no raw informational line has to leave its node. The catalog
+# holds one definition per template version, one watermark per node and the
+# check results; the two bucket index families hold the exact counts per node,
+# family and bucket at five-minute and one-hour resolution. Read by the
+# Shifter, the maintenance job and the semantic retrieval work.
 template_catalog_index: template-catalog
+template_buckets_5m_prefix: template-buckets-5m
+template_buckets_1h_prefix: template-buckets-1h
+template_triage_index: template-triage
+shifter_queries_index: shifter-queries
+
+# Replicas on the bucket indices. One, not two: a day index per resolution and
+# a month index per resolution is a handful of shards, and the shard budget on
+# the storage tier is the binding constraint (see log_primary_shards_storage).
+template_buckets_replicas: 1
+
+alice_shared_dir: /opt/alice-ingest/shared
+alice_shared_contract_file: "{{ playbook_dir }}/../shared/template_contract.py"
+
+template_catalog_maintenance_host: "{{ groups['workers'][0] }}"
+
+# The volume window and the default activity view. 28 days is the working
+# figure until the return-interval measurement is in (docs/TEMPLATES_FIX_PLAN.md
+# section 9).
+template_catalog_active_days: 28
+template_catalog_definition_retention_days: 90
+
+# The worker keeps this much ledger and nothing older; a record stamped later
+# than this after its collector time goes into a flagged late bucket.
+stamper_ledger_hours: 48
+
+# Age delete on the date-named bucket indices. The five-minute series keeps
+# three days plus the day of index granularity; the hourly series keeps the
+# 28-day window plus the 48-hour late horizon plus a margin, plus the month of
+# index granularity.
+ism_retention_template_buckets_5m: "4d"
+ism_retention_template_buckets_1h: "66d"
 
 anomaly_grade_floor: 0.5
 
@@ -331,7 +364,7 @@ alice_ops_poison_replay_report_dir: /var/lib/alice-poison-replay/runs
 # and signal_projector roles, but they count JSON files owned by the
 # alerting_monitors and anomaly_detection roles: add a monitor or a detector
 # there and the matching number here has to change with it.
-expected_monitors: 28
+expected_monitors: 29
 expected_detectors: 17
 expected_forecasters: 1
 

@@ -12,6 +12,21 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    import templates_view
+    import template_contract as contract
+    import semantic
+    import triage
+    TEMPLATES_IMPORT_ERROR = ""
+except Exception as exc:                                      # noqa: BLE001
+    templates_view = None
+    contract = None
+    semantic = None
+    triage = None
+    TEMPLATES_IMPORT_ERROR = repr(exc)
+
 BIND = os.environ.get("SHIFTER_BIND", "0.0.0.0")
 PORT = int(os.environ.get("SHIFTER_PORT", "8092"))
 TOKEN = os.environ.get("SHIFTER_TOKEN", "")
@@ -37,6 +52,58 @@ QUERY_MAX_ROWS = int(os.environ.get("SHIFTER_QUERY_MAX_ROWS", "20000"))
 GZIP_MIN_BYTES = int(os.environ.get("SHIFTER_GZIP_MIN_BYTES", "1024"))
 QUERY_PAGE_ROWS = int(os.environ.get("SHIFTER_QUERY_PAGE_ROWS", "500"))
 ASSET_MAX_AGE = int(os.environ.get("SHIFTER_ASSET_MAX_AGE", "600"))
+
+TEMPLATES_ENABLED = os.environ.get(
+    "SHIFTER_TEMPLATES_ENABLED", "true").lower() not in ("0", "false", "no")
+TEMPLATE_PAGE_ROWS = int(os.environ.get("SHIFTER_TEMPLATE_PAGE_ROWS", "50"))
+TEMPLATE_CONCURRENT_QUERIES = int(
+    os.environ.get("SHIFTER_TEMPLATE_CONCURRENT_QUERIES", "2"))
+TEMPLATE_LINES_ROWS = int(
+    os.environ.get("SHIFTER_TEMPLATE_LINES_ROWS", "50"))
+TEMPLATE_LINES_CEILING = int(
+    os.environ.get("SHIFTER_TEMPLATE_LINES_CEILING", "500"))
+EPISODE_REFRESH_SECONDS = int(
+    os.environ.get("SHIFTER_EPISODE_REFRESH_SECONDS", "30"))
+VIEW_REFRESH_SECONDS = int(
+    os.environ.get("SHIFTER_VIEW_REFRESH_SECONDS", "300"))
+CATALOG_CACHE_BYTES = int(
+    os.environ.get("SHIFTER_CATALOG_CACHE_BYTES", str(32 * 1024 * 1024)))
+RESPONSE_CACHE_BYTES = int(
+    os.environ.get("SHIFTER_RESPONSE_CACHE_BYTES", str(16 * 1024 * 1024)))
+AGGREGATION_BYTES = int(
+    os.environ.get("SHIFTER_AGGREGATION_BYTES", str(48 * 1024 * 1024)))
+TEMPLATE_TICK_SECONDS = float(
+    os.environ.get("SHIFTER_TEMPLATE_TICK_SECONDS", "5"))
+VECTOR_CACHE_BYTES = int(
+    os.environ.get("SHIFTER_VECTOR_CACHE_BYTES", str(16 * 1024 * 1024)))
+LIVE_LANE_BYTES = int(
+    os.environ.get("SHIFTER_LIVE_LANE_BYTES", str(32 * 1024 * 1024)))
+PROCESS_BASE_BYTES = int(
+    os.environ.get("SHIFTER_PROCESS_BASE_BYTES", str(128 * 1024 * 1024)))
+MEMORY_MAX = os.environ.get("SHIFTER_MEMORY_MAX", "")
+RESIDENT_VIEWS_AT_PEAK = 2
+
+MEMORY_SUFFIXES = {"": 1, "K": 1024, "M": 1024 ** 2, "G": 1024 ** 3,
+                   "T": 1024 ** 4, "KI": 1024, "MI": 1024 ** 2,
+                   "GI": 1024 ** 3, "TI": 1024 ** 4}
+
+SEMANTIC_FALLBACK_NOTE = (
+    "Semantic ranking was unavailable, so these rows are text matches and "
+    "every score is empty.")
+NEIGHBOUR_NOTE = (
+    "These are the nearest templates by vector distance. They are suggestions "
+    "for a reviewer, not verified version relationships. No count, label or "
+    "alert is inherited from them.")
+NEIGHBOUR_UNAVAILABLE_NOTE = (
+    "No nearest neighbour is available for this template, so this drawer "
+    "suggests none.")
+
+HISTORY_READY = "ready"
+HISTORY_UNAVAILABLE = "unavailable"
+HISTORY_UNAVAILABLE_NOTE = (
+    "The ranked rows are the active templates only. The bounded search of "
+    "inactive central definitions did not answer, so the historical half of "
+    "this request was not run.")
 
 # The same map the alice-add-ingest-time pipeline applies. The live lane does not
 # go through OpenSearch, so it has to carry its own copy; if the two drift, a
@@ -65,6 +132,7 @@ KEEP_FIELDS = (
     # The process that wrote the line, on every source that has one. Without it
     # the live view cannot tell a GPU reconstruction error from a tracker one.
     "program", "log_time", "comm", "clients", "client_limit",
+    "template_version", "template_id", "template_status",
 )
 
 STATIC_TYPES = {
@@ -108,10 +176,15 @@ _stats = {
     "bad_posts": 0,
     "queries": 0,
     "bad_queries": 0,
+    "template_requests": 0,
+    "bad_template_requests": 0,
 }
 _seq = 0
 _epoch = f"{int(time.time() * 1000)}-{os.getpid()}"
 _asset_cache = {}
+
+TEMPLATES = None
+TEMPLATES_DISABLED = "the templates page has not been started on this server"
 
 
 class QueryRefused(Exception):
@@ -307,6 +380,11 @@ def build_query(criterias, mode):
     if level_max is not None:
         must.append({"range": {"level": {"lte": int(level_max)}}})
 
+    versions = (criterias.get("template_version") or {}).get("in") or []
+    if versions:
+        must.append({"terms": {"template_version": [str(v)
+                                                    for v in versions]}})
+
     for field, targets in KEYWORD_TARGETS.items():
         spec = criterias.get(field) or {}
         include = (spec.get("match") or "").strip()
@@ -385,6 +463,10 @@ def describe_query(criterias, mode, limit):
     level_max = (criterias.get("level") or {}).get("max")
     if level_max is not None:
         parts.append(f"level <= {level_max}")
+    versions = (criterias.get("template_version") or {}).get("in") or []
+    if versions:
+        parts.append("template_version in (" + ", ".join(
+            str(v) for v in versions) + ")")
     for field in list(KEYWORD_TARGETS) + list(NUMBER_TARGETS) + ["message"]:
         spec = criterias.get(field) or {}
         if (spec.get("match") or "").strip():
@@ -495,6 +577,477 @@ def run_query(payload):
     }
 
 
+def log_link(row):
+    own = row.get("version_id")
+    versions = [own] + [v for v in (row.get("descendants") or ())
+                        if v != own]
+    return {"criterias": {"template_version": {"in": [v for v in versions
+                                                      if v]}},
+            "options": {"mode": "wildcard", "limit": 2000}}
+
+
+class TemplatesRuntime:
+    def __init__(self, service, search, labels, queries, limits, clock=None,
+                 query_runner=None):
+        self._service = service
+        self._search = search
+        self._labels = labels
+        self._queries = queries
+        self.limits = limits
+        self._clock = clock or (lambda: int(time.time() * 1000))
+        self._run_query = query_runner or run_query
+        self._stop = threading.Event()
+        self._thread = None
+        self._submitted_at = None
+        self.cycles = 0
+
+    def now_ms(self):
+        return int(self._clock())
+
+    def start(self):
+        if self._thread is not None:
+            return self._thread
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._loop, daemon=True,
+                                        name="templates-runtime")
+        self._thread.start()
+        return self._thread
+
+    def stop(self, timeout=5.0):
+        self._stop.set()
+        thread = self._thread
+        self._thread = None
+        if thread is not None:
+            thread.join(timeout)
+        try:
+            self._search.stop(timeout)
+        except Exception as exc:                              # noqa: BLE001
+            log(f"semantic search did not stop cleanly: {exc!r}")
+
+    def _loop(self):
+        while not self._stop.is_set():
+            self.cycle()
+            self._stop.wait(TEMPLATE_TICK_SECONDS)
+
+    def cycle(self):
+        self.cycles += 1
+        try:
+            self._service.maybe_refresh()
+        except Exception as exc:                              # noqa: BLE001
+            log(f"template view refresh failed: {exc!r}")
+        try:
+            self._labels.maybe_refresh()
+        except Exception as exc:                              # noqa: BLE001
+            log(f"label cache refresh failed: {exc!r}")
+        self._submit_corpus()
+
+    def _submit_corpus(self):
+        view = self._service.current()
+        if (not view.window.get("window_end")
+                or view.refreshed_at == self._submitted_at):
+            return
+        try:
+            groups = semantic.active_groups(
+                view.rows, view.cutoff or self.now_ms(),
+                self._service.active_ms)
+            if self._search.submit(groups):
+                self._submitted_at = view.refreshed_at
+        except Exception as exc:                              # noqa: BLE001
+            log(f"semantic corpus was not submitted: {exc!r}")
+
+    def semantic_status(self):
+        try:
+            return self._search.status()
+        except Exception as exc:                              # noqa: BLE001
+            return semantic.unavailable_summary(
+                semantic.REASON_ENCODE_FAILED, repr(exc))
+
+    def summary(self):
+        payload = self._service.summary()
+        payload["semantic"] = self.semantic_status()
+        payload["labels"] = self._labels.cache_status()
+        return payload
+
+    def episodes(self):
+        return self._service.episodes()
+
+    def list_rows(self, payload):
+        started = time.time()
+        request = dict(payload or {})
+        mode = request.get("mode") or semantic.MODE_TEXT
+        watched_only = bool(request.get("watched_only"))
+        include_inactive = bool(request.get("include_inactive"))
+        if watched_only and include_inactive:
+            raise templates_view.ViewRefused(
+                "watched templates are read from the active view, so they "
+                "cannot be listed together with the inactive history; turn "
+                "one of the two off", "refused")
+        if mode == semantic.MODE_SEMANTIC:
+            page, semantic_block, note = self._semantic_page(request)
+        else:
+            if watched_only:
+                page = self._watched_page(request)
+            else:
+                page = self._service.list_rows(request)
+            semantic_block = self.semantic_status()
+            note = ""
+        self._labels.decorate(page["rows"])
+        if watched_only:
+            page["rows"] = [row for row in page["rows"] if row["watched"]]
+        page["semantic"] = semantic_block
+        if note:
+            page["note"] = note
+        page["took_ms"] = int((time.time() - started) * 1000)
+        page["query_id"] = self._record_query(request, page, mode,
+                                              include_inactive)
+        return page
+
+    def _decorated_page(self, page, view):
+        return templates_view.decorate_page(page, view)
+
+    def _page_size(self, request):
+        try:
+            size = int(request.get("page_size") or self.limits.page_rows)
+        except (TypeError, ValueError):
+            size = self.limits.page_rows
+        return max(1, min(size, self.limits.page_rows))
+
+    def _predicate(self, request, extra=None):
+        without = dict(request)
+        without.pop("watched_only", None)
+        base = templates_view._predicate(without)
+
+        def matches(row):
+            if extra is not None and not extra(row):
+                return False
+            return base is None or base(row)
+
+        return matches
+
+    def _watched_page(self, request):
+        view = self._service.current()
+        watched = self._labels.watched_ids()
+        predicate = self._predicate(
+            request, lambda row: row["canonical_id"] in watched)
+        sort = request.get("sort") or templates_view.SORT_VOLUME
+        if sort == templates_view.SORT_FIRST_CATALOGUED:
+            page = self._service.catalogued_page(
+                request, self._page_size(request),
+                canonical_ids=sorted(watched))
+            return self._decorated_page(page, view)
+        page = view.page(sort=sort, page_size=self._page_size(request),
+                         after=request.get("after"),
+                         predicate=templates_view._active_only(predicate))
+        return self._decorated_page(page, view)
+
+    def _semantic_page(self, request):
+        view = self._service.current()
+        text = (request.get("query") or "").strip()
+        page_size = self._page_size(request)
+        result = None
+        if text:
+            try:
+                result = self._search.search(text, limit=page_size)
+            except Exception as exc:                          # noqa: BLE001
+                log(f"semantic search failed: {exc!r}")
+        if result is None or result.status != semantic.STATUS_READY:
+            fallback = dict(request)
+            fallback["mode"] = semantic.MODE_TEXT
+            if bool(request.get("watched_only")):
+                page = self._watched_page(fallback)
+            else:
+                page = self._service.list_rows(fallback)
+            block = (semantic.result_summary(result) if result is not None
+                     else self.semantic_status())
+            return page, block, SEMANTIC_FALLBACK_NOTE
+        watched = (self._labels.watched_ids()
+                   if request.get("watched_only") else None)
+        filters = dict(request)
+        filters.pop("query", None)
+        predicate = self._predicate(
+            filters,
+            None if watched is None
+            else lambda row: row["canonical_id"] in watched)
+        include_inactive = bool(request.get("include_inactive"))
+        rows = []
+        for hit in result.hits:
+            for version_id in hit.version_ids:
+                row = view.row(version_id)
+                if row is None:
+                    continue
+                if not row["active"]:
+                    continue
+                if not predicate(row):
+                    continue
+                row["score"] = hit.score
+                rows.append(row)
+        note = ""
+        history = None
+        if include_inactive:
+            history = self._history_page(request, page_size)
+            if history["status"] != HISTORY_READY:
+                note = HISTORY_UNAVAILABLE_NOTE
+        seen = set(row["version_id"] for row in rows)
+        historical = [row for row in (history["rows"] if history else ())
+                      if row["version_id"] not in seen and predicate(row)]
+        reserved = min(len(historical), page_size // 2)
+        active_shown = rows[:page_size - reserved]
+        history_shown = historical[:page_size - len(active_shown)]
+        merged = active_shown + history_shown
+        has_more = (len(rows) > len(active_shown)
+                    or len(historical) > len(history_shown)
+                    or bool(history and history["has_more"]))
+        page = {
+            "rows": merged,
+            "page_size": page_size,
+            "after": None,
+            "has_more": has_more,
+            "total": len(merged),
+            "total_relation": "gte" if has_more else "eq",
+        }
+        if history is not None:
+            page["history"] = {
+                "status": history["status"],
+                "after": history["after"],
+                "total": history["total"],
+                "total_relation": history["total_relation"],
+                "note": history["note"],
+            }
+        return (self._decorated_page(page, view),
+                semantic.result_summary(result), note)
+
+    def _history_page(self, request, page_size):
+        text = (request.get("query") or "").strip()
+        body = semantic.history_query(
+            text, self._service.now_ms(), page_size=page_size,
+            after=request.get("history_after"),
+            retention_ms=self._service.retention_ms,
+            active_ms=self._service.active_ms)
+        try:
+            found = self._service.catalog_search(body, page_size)
+        except Exception as exc:                              # noqa: BLE001
+            log(f"the inactive history lane failed: {exc!r}")
+            return {"status": HISTORY_UNAVAILABLE, "rows": [], "after": None,
+                    "has_more": False, "total": 0, "total_relation": "eq",
+                    "note": HISTORY_UNAVAILABLE_NOTE}
+        found["status"] = HISTORY_READY
+        found["note"] = ""
+        return found
+
+    def _record_query(self, request, page, mode, include_inactive):
+        text = (request.get("query") or "").strip()
+        if not text:
+            return None
+        block = page.get("semantic") or {}
+        try:
+            return self._queries.record(
+                text, mode, include_inactive,
+                block.get("model_revision"),
+                self._search.config.corpus_revision,
+                [row["version_id"] for row in page["rows"]],
+                viewer=str(request.get("viewer") or ""),
+                latency_ms=int(page.get("took_ms") or 0))
+        except Exception as exc:                              # noqa: BLE001
+            log(f"the query was answered but not recorded: {exc!r}")
+            return None
+
+    def detail(self, payload):
+        version_id = str((payload or {}).get("version_id") or "").strip()
+        if not version_id:
+            raise templates_view.ViewRefused(
+                "a detail request names one version identifier", "refused")
+        detail = self._service.detail(version_id)
+        version = detail["version"]
+        rows = [version] + list(detail["canonical_group"]["versions"])
+        self._labels.decorate(rows)
+        try:
+            with self._service.detail_slot():
+                labels = self._labels.read(version["canonical_id"])
+        except templates_view.ViewRefused:
+            labels = self._labels.cached(version["canonical_id"])
+        except Exception as exc:                              # noqa: BLE001
+            log(f"stored labels were unreadable: {exc!r}")
+            labels = self._labels.cached(version["canonical_id"])
+        detail["labels"] = labels
+        detail["episodes"] = self._related_episodes(version)
+        detail["neighbours"] = self._neighbours(version)
+        detail["log_link"] = log_link(version)
+        detail["descendant_count"] = version["descendant_count"]
+        detail["descendants"] = list(version["descendants"][:20])
+        detail["widened_into"] = list(version["widened_into"])
+        detail["widened_from"] = list(version["widened_from"])
+        detail["rematch_available"] = templates_view.rematch_available()
+        return detail
+
+    def _neighbours(self, row):
+        try:
+            result = self._search.neighbours(row.get("canonical_id"))
+        except Exception as exc:                              # noqa: BLE001
+            log(f"semantic neighbours were unreadable: {exc!r}")
+            return {"suggestions": [], "note": NEIGHBOUR_UNAVAILABLE_NOTE,
+                    "semantic": self.semantic_status()}
+        view = self._service.current()
+        suggestions = []
+        for hit in result.hits:
+            for version_id in hit.version_ids:
+                found = view.row(version_id)
+                if found is None or not found["active"]:
+                    continue
+                suggestions.append({
+                    "version_id": found["version_id"],
+                    "canonical_id": found["canonical_id"],
+                    "family": found["family"],
+                    "template": found["template"],
+                    "score": hit.score,
+                })
+                break
+        return {
+            "suggestions": suggestions,
+            "note": self._neighbour_note(result),
+            "semantic": semantic.result_summary(result),
+        }
+
+    def _neighbour_note(self, result):
+        if result.status == semantic.STATUS_READY:
+            return NEIGHBOUR_NOTE
+        words = semantic.REASON_TEXT.get(result.reason, result.reason)
+        if not words:
+            return NEIGHBOUR_UNAVAILABLE_NOTE
+        return f"{NEIGHBOUR_UNAVAILABLE_NOTE} The server reports that {words}."
+
+    def _related_episodes(self, row):
+        if row.get("historical"):
+            return []
+        hosts = set(row.get("origin_hosts") or ())
+        try:
+            summary = self._service.episodes()
+        except Exception as exc:                              # noqa: BLE001
+            log(f"episode summary unreadable: {exc!r}")
+            return []
+        if not hosts:
+            return list(summary.get("episodes") or [])
+        return [episode for episode in (summary.get("episodes") or [])
+                if episode.get("entity_id") in hosts]
+
+    def lines(self, payload):
+        request = dict(payload or {})
+        if not request.get("limit"):
+            request["limit"] = TEMPLATE_LINES_ROWS
+        return self._service.lines(request)
+
+    def label_read(self, payload):
+        canonical_id = str((payload or {}).get("canonical_id") or "").strip()
+        if not canonical_id:
+            raise templates_view.ViewRefused(
+                "a label read names one canonical identifier", "refused")
+        with self._service.detail_slot():
+            labels = self._labels.read(canonical_id)
+        return {"canonical_id": canonical_id, "labels": labels,
+                "limits": {"note_max_chars": self._labels.note_max,
+                           "history_max": self._labels.history_max,
+                           "watched_max": self._labels.watched_max}}
+
+    def label_write(self, payload):
+        document = self._labels.write(payload or {})
+        return {"label": document, "revision": document["revision"]}
+
+    def opened(self, payload):
+        request = dict(payload or {})
+        self._queries.opened(request.get("query_id"),
+                             request.get("version_id"),
+                             request.get("rank"))
+        return None
+
+
+def memory_bytes(text):
+    body = str(text or "").strip()
+    if not body or body.lower() == "infinity":
+        return 0
+    digits = 0
+    while digits < len(body) and body[digits].isdigit():
+        digits += 1
+    if digits == 0:
+        raise ValueError(f"{text!r} does not start with a number of bytes")
+    suffix = body[digits:].strip().upper()
+    if suffix not in MEMORY_SUFFIXES:
+        raise ValueError(f"{text!r} carries no size suffix this server knows")
+    return int(body[:digits]) * MEMORY_SUFFIXES[suffix]
+
+
+def serving_peak_bytes():
+    return {
+        "process_base": PROCESS_BASE_BYTES,
+        "live_lane": LIVE_LANE_BYTES,
+        "vectors": VECTOR_CACHE_BYTES,
+        "cached_metadata": CATALOG_CACHE_BYTES * RESIDENT_VIEWS_AT_PEAK,
+        "decoded_responses": RESPONSE_CACHE_BYTES,
+        "aggregation": AGGREGATION_BYTES,
+    }
+
+
+def memory_verdict(ceiling_text):
+    parts = serving_peak_bytes()
+    peak = sum(parts.values())
+    try:
+        ceiling = memory_bytes(ceiling_text)
+    except ValueError as exc:
+        return peak, (
+            f"the templates page cannot check its memory budget because the "
+            f"service ceiling is unreadable: {exc}")
+    if not ceiling:
+        return peak, (
+            "the templates page needs the service memory ceiling to verify "
+            "its combined peak, and SHIFTER_MEMORY_MAX is not set")
+    if peak <= ceiling:
+        return peak, ""
+    named = ", ".join(f"{name} {value}"
+                      for name, value in sorted(parts.items()))
+    return peak, (
+        f"the configured serving limits peak at {peak} bytes against a "
+        f"{ceiling} byte service ceiling, so the templates page is not "
+        f"started; lower a limit or raise MemoryMax ({named}, cached metadata "
+        f"counted {RESIDENT_VIEWS_AT_PEAK} times because the previous view "
+        f"stays resident while the next one is built)")
+
+
+def build_templates():
+    if not TEMPLATES_ENABLED:
+        return None, "the templates page is turned off on this server"
+    if templates_view is None:
+        return None, (
+            "the templates page needs the shared template contract, which did "
+            f"not import: {TEMPLATES_IMPORT_ERROR}")
+    if not OS_URL:
+        return None, (
+            "the templates page reads bucket documents and definitions "
+            "through the query lane, and SHIFTER_OS_URL is empty")
+    peak, refusal = memory_verdict(MEMORY_MAX)
+    if refusal:
+        return None, refusal
+    log(f"templates serving limits peak at {peak} bytes, "
+        f"inside the {MEMORY_MAX} service ceiling")
+    try:
+        limits = templates_view.Limits(
+            page_rows=TEMPLATE_PAGE_ROWS,
+            lines_rows=TEMPLATE_LINES_CEILING,
+            detail_concurrency=TEMPLATE_CONCURRENT_QUERIES,
+            refresh_interval_ms=VIEW_REFRESH_SECONDS * 1000,
+            episode_interval_ms=EPISODE_REFRESH_SECONDS * 1000,
+            max_metadata_bytes=CATALOG_CACHE_BYTES)
+    except ValueError as exc:
+        return None, f"the templates limits do not hold together: {exc}"
+    transport = templates_view.OpenSearchTransport(
+        OS_URL, OS_USER, OS_PASSWORD, OS_VERIFY, OS_TIMEOUT)
+    service = templates_view.TemplatesService(
+        transport, limits=limits, shared_indices=OS_INDICES)
+    decisions = triage.Transport(OS_URL, OS_USER, OS_PASSWORD, OS_VERIFY,
+                                 OS_TIMEOUT)
+    runtime = TemplatesRuntime(service, semantic.build(),
+                               triage.LabelStore(decisions),
+                               triage.QueryLog(decisions), limits)
+    return runtime, ""
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "alice-shifter"
@@ -529,6 +1082,9 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?", 1)[0]
         if path == "/api/query":
             self.query()
+            return
+        if path.startswith("/api/templates/"):
+            self.templates(path, True)
             return
         if path != INGEST_PATH:
             self._send(404, b"not found")
@@ -587,6 +1143,71 @@ class Handler(BaseHTTPRequestHandler):
             log(f"query failed: {exc!r}")
             self._json(502, {"error": str(exc)})
 
+    def templates(self, path, has_body):
+        runtime = TEMPLATES
+        with _lock:
+            _stats["template_requests"] += 1
+        if runtime is None:
+            with _lock:
+                _stats["bad_template_requests"] += 1
+            self._json(503, {"error": TEMPLATES_DISABLED})
+            return
+        payload = {}
+        if has_body:
+            payload = decode_body(self)
+            if not isinstance(payload, dict):
+                with _lock:
+                    _stats["bad_template_requests"] += 1
+                self._json(400, {"error": "bad payload"})
+                return
+        name = path[len("/api/templates/"):]
+        try:
+            if name == "summary" and not has_body:
+                self._json(200, runtime.summary())
+            elif name == "episodes" and not has_body:
+                self._json(200, runtime.episodes())
+            elif name == "list" and has_body:
+                self._json(200, runtime.list_rows(payload))
+            elif name == "detail" and has_body:
+                self._json(200, runtime.detail(payload))
+            elif name == "lines" and has_body:
+                self._json(200, runtime.lines(payload))
+            elif name == "labels" and has_body:
+                self._json(200, runtime.label_read(payload))
+            elif name == "label" and has_body:
+                self._json(200, runtime.label_write(payload))
+            elif name == "opened" and has_body:
+                runtime.opened(payload)
+                self._send(204)
+            else:
+                self._send(404, b"not found")
+        except templates_view.ViewRefused as exc:
+            self._refused(400 if exc.status == "refused" else 503, str(exc))
+        except triage.LabelConflict as exc:
+            with _lock:
+                _stats["bad_template_requests"] += 1
+            self._json(409, {"error": str(exc), "label": exc.label})
+        except triage.TriageRefused as exc:
+            self._refused(400 if exc.status == "refused" else 503, str(exc))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")[:2000]
+            with _lock:
+                _stats["bad_template_requests"] += 1
+            log(f"templates request rejected by OpenSearch: {exc.code} "
+                f"{detail}")
+            self._json(502, {"error": f"OpenSearch answered {exc.code}",
+                             "detail": detail})
+        except Exception as exc:                              # noqa: BLE001
+            with _lock:
+                _stats["bad_template_requests"] += 1
+            log(f"templates request failed: {exc!r}")
+            self._json(502, {"error": str(exc)})
+
+    def _refused(self, code, message):
+        with _lock:
+            _stats["bad_template_requests"] += 1
+        self._json(code, {"error": message})
+
     def do_GET(self):
         path = self.path.split("?", 1)[0]
         if path == "/healthz":
@@ -597,9 +1218,13 @@ class Handler(BaseHTTPRequestHandler):
                     "viewers": len(_clients),
                     "buffered": len(_recent),
                     "queryConfigured": bool(OS_URL),
+                    "templatesConfigured": TEMPLATES is not None,
                     **_stats,
                 }).encode()
             self._send(200, body, "application/json; charset=utf-8")
+            return
+        if path.startswith("/api/templates/"):
+            self.templates(path, False)
             return
         if path == "/stream":
             self.stream()
@@ -687,9 +1312,15 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    global TEMPLATES, TEMPLATES_DISABLED
     if not os.path.isdir(STATIC_DIR):
         log(f"FATAL: static directory {STATIC_DIR} does not exist")
         return 1
+    TEMPLATES, TEMPLATES_DISABLED = build_templates()
+    if TEMPLATES is not None:
+        TEMPLATES.start()
+    else:
+        log(f"templates page off: {TEMPLATES_DISABLED}")
     server = ThreadingHTTPServer((BIND, PORT), Handler)
     server.daemon_threads = True
     log(f"listening on {BIND}:{PORT}; ingest {INGEST_PATH}; "
@@ -701,6 +1332,8 @@ def main():
         pass
     finally:
         server.server_close()
+        if TEMPLATES is not None:
+            TEMPLATES.stop()
     return 0
 
 

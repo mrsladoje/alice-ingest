@@ -250,6 +250,63 @@ entirely.
 - **Not authenticated by itself** in the default configuration. See
   `shifter_token` below: the firewall is the boundary.
 
+## The Templates page
+
+The second page of the same app. It lists every template version the farm
+stamped in the last 28 days, with an exact volume per version, and it finds
+the lines behind a version by their stamp.
+
+What it reads, all through the query lane:
+
+- **Watermarks** (`kind: watermark` in `template-catalog`), one per node.
+  Each says how far that node has published its buckets and when it last
+  published. The page takes the hour boundary every live node has published
+  past. That is the **cutoff**. A node that has not published for three
+  publication intervals is idle and does not hold the cutoff back.
+- **Hourly bucket documents** (`template-buckets-1h-*`). One nested
+  aggregation over the window `[cutoff - 28 days, cutoff)` gives the count
+  per version and the set of nodes with a bucket in the window. Late buckets
+  are not summed. The sum is exact by construction; the checks the
+  maintenance job runs prove the bucket documents conserve their totals.
+- **Definitions** (`kind: template` in `template-catalog`) with a last
+  observation inside the window. They give the text, the scope and the
+  observed widening links.
+
+Coverage is `complete` when every node with a bucket in the window has
+published past the cutoff. It is `partial` when a node is behind the cutoff
+or idle, and the page names those nodes. A partial count is shown as a lower
+bound, never as a total, and a zero under partial coverage is not a proved
+zero. A view whose cutoff is older than one hour plus the idle horizon plus one
+refresh is marked stale; past twice that it is retired and the page says the
+window is history. A stale figure is never shown as current.
+
+The **cover relation** is computed in memory on every refresh. Version W
+covers version N when both have the same family and token count and W has
+`<*>` or the same token at every position. The page shows how many narrower
+versions a selected template covers, because a search for its lines expands to
+them.
+
+The **Lines** panel replaces the old example search. It expands the selected
+version to itself and the versions it covers, asks the bucket documents of both
+resolutions which nodes stamped any of them, and queries only those nodes'
+local indices plus the central and InfoLogger indices with one `terms` query on
+`template_version`. A node that started writing the template inside the open
+five-minute bucket is not routed yet; **Search every node** widens the search
+to the local pattern for that case. **Include ancestors** adds the versions the
+selected one was observed to widen into, fetches their lines too, and keeps
+only the lines whose tokens fit the selected template. That re-match uses the
+same `recipe_tokens` the stamper mined with, so the role ships
+`tools/templating/drainbench.py` and `masking.py` beside the server and installs
+the pinned drain3 into the shifter venv. When the recipe cannot import, the
+panel says so and searches without ancestors.
+
+**Open in Logs** carries the expanded stamp set to the Logs page as a
+`template_version` filter. The Logs page shows it as a `stamp × N` chip, keeps
+it in the link fragment as `tv=`, and applies it to the live lane too.
+
+Nothing on this page mines a line, rebuilds a regular expression or reads a
+manifest. The volume is a sum over documents the workers published.
+
 ## The server's endpoints
 
 | Method and path | Who calls it | What it does |
@@ -257,6 +314,9 @@ entirely.
 | `POST /ingest` (`shifter_ingest_path`) | the collectors | Accepts one record or an array, gzip or plain. Returns `204`, `400` on a body it cannot parse, `401` when a token is set and not presented. |
 | `GET /stream` | the page | Server-Sent Events. Opens with a `hello` event carrying the boot epoch, then the replay backlog, then live records. A keepalive comment after every `SHIFTER_KEEPALIVE_SECONDS` of silence. |
 | `POST /api/query` | the page | Takes `{criterias, options}` — `options.after` continues a page. Builds one OpenSearch query, returns `{rows, count, countRelation, limit, pageSize, after, hasMore, took, queryAsString}`. `400` when the filters would scan the term dictionary with no time range, `503` when `SHIFTER_OS_URL` is empty, `502` when OpenSearch refuses. The live stream is unaffected by all three. |
+| `GET /api/templates/summary` | the Templates page | The window, the cutoff and its age, the coverage with the nodes behind or idle, one watermark row per node, the totals, and whether the view is stale or retired. |
+| `POST /api/templates/list`, `detail`, `labels`, `label`, `opened`, `GET /api/templates/episodes` | the Templates page | The ranked list with its cursor, one version with its canonical group, its cover set and its widening links, the stored labels, a label write, a click record, and the firing episodes. |
+| `POST /api/templates/lines` | the Templates page | `{version_id, include_ancestors, every_node, limit, since, until}`. Returns the lines, the routed node set, the expanded version set, the cutoff, and a note that says what was searched. |
 | `GET /healthz` | Ansible, and you | JSON: `ok`, `epoch`, `viewers`, `buffered`, `queryConfigured`, `received`, `posts`, `bad_posts`, `queries`, `bad_queries`, `dropped_slow_client`. This is where you look to tell "nothing is arriving" apart from "nobody is watching". |
 | `GET /` and the assets | the browser | The page shell, the script, the stylesheet and the two React files. Flat: only basenames inside the static directory are served. |
 
@@ -413,8 +473,35 @@ site-wide, or in `inventory.yml` for one group or host.
 | `shifter_query_max_rows` | `20000` | `SHIFTER_QUERY_MAX_ROWS`. The ceiling the server clamps any requested limit to. |
 | `shifter_query_page_rows` | `500` | `SHIFTER_QUERY_PAGE_ROWS`. Rows in one page. The page pulls the next one as the shifter scrolls up. |
 | `shifter_hidden_grace_seconds` | `120` | How long a browser tab may sit in the background before the page closes its own stream. A visible tab is never closed. `0` turns the behaviour off. Rendered into the page shell as `hiddenGraceSeconds`. |
-| `shifter_memory_high` | `192M` | `MemoryHigh` on the unit. |
-| `shifter_memory_max` | `384M` | `MemoryMax` on the unit. |
+| `shifter_templates_enabled` | `true` | Whether the unit exports the Templates-page environment. It is nested inside the query-lane block, so an empty `shifter_opensearch_url` turns the page off with it. |
+| `shifter_template_concurrent_queries` | `2` | `SHIFTER_TEMPLATE_CONCURRENT_QUERIES`. Concurrent OpenSearch detail queries. |
+| `shifter_template_encoders` | `1` | `SHIFTER_TEMPLATE_ENCODERS`. One semantic encoding or catalog embedding task at a time. |
+| `shifter_template_page_rows` | `50` | `SHIFTER_TEMPLATE_PAGE_ROWS`. Template rows in one page. |
+| `shifter_template_lines_rows` | `50` | `SHIFTER_TEMPLATE_LINES_ROWS`. Lines one request returns when it names no limit. |
+| `shifter_template_lines_ceiling` | `500` | `SHIFTER_TEMPLATE_LINES_CEILING`. The most lines one request may ask for. |
+| `shifter_templating_dir` | `/opt/alice-ingest/templating` | `ALICE_TEMPLATING_PATH`. Where `drainbench.py` and `masking.py` are shipped from `tools/templating`, for the token-wise re-match. |
+| `shifter_drain3_version` | `0.9.11` | The drain3 the shifter venv gets, the same pin as the stamper. |
+| `shifter_buckets_5m_pattern`, `shifter_buckets_1h_pattern` | `template-buckets-5m-*`, `template-buckets-1h-*` | `SHIFTER_BUCKETS_5M_PATTERN`, `SHIFTER_BUCKETS_1H_PATTERN`. The date-named bucket indices the stamper publishes to. |
+| `shifter_local_index_prefix` | `application-logs-local-` | `SHIFTER_LOCAL_INDEX_PREFIX`. A routed line search names `<prefix><node>` for each routed node. |
+| `shifter_template_watched_max` | `100` | `SHIFTER_TEMPLATE_WATCHED_MAX`. Templates that may be watched at once. |
+| `shifter_template_note_max_chars` | `2000` | `SHIFTER_TEMPLATE_NOTE_MAX_CHARS`. Characters in one triage note. |
+| `shifter_template_label_history_max` | `50` | `SHIFTER_TEMPLATE_LABEL_HISTORY_MAX`. Revisions kept in one label document. |
+| `shifter_episode_refresh_seconds` | `30` | `SHIFTER_EPISODE_REFRESH_SECONDS`. Shared incident summaries refresh no faster than this. |
+| `shifter_view_refresh_seconds` | `300` | `SHIFTER_VIEW_REFRESH_SECONDS`. The view is rebuilt once per publication interval: the stamper publishes every five minutes. |
+| `shifter_search_timeout_seconds` | `30` | `SHIFTER_SEARCH_TIMEOUT_SECONDS`. The OpenSearch-side deadline stamped on every search the templates lane sends. It sits under the 45 second socket deadline, so the cluster gives up first. |
+| `shifter_search_terminate_after` | `200000` | `SHIFTER_SEARCH_TERMINATE_AFTER`. Documents one shard may collect for such a search. It is a ceiling, not a page size: the catalog holds a few thousand definitions, so it never fires in normal service. When it does fire, or when the deadline above expires, the page reports the match total as a lower bound rather than an exact number. |
+| `shifter_semantic_enabled` | `true` | `SHIFTER_SEMANTIC_ENABLED`. Exact vector search is off until the serving footprint is measured on the deployment host. Off, every query runs on the text path and the page says why the semantic path is unavailable. |
+| `shifter_semantic_backend` | `"none"` | `SHIFTER_SEMANTIC_BACKEND`. `model2vec` or `sentence_transformers` once a model is staged on the host. |
+| `shifter_semantic_model_path` | `""` | `SHIFTER_SEMANTIC_MODEL_PATH`. Where that model is staged. Empty while the backend is `none`. |
+| `shifter_semantic_max_groups` | `20000` | `SHIFTER_SEMANTIC_MAX_GROUPS`. Active search groups. Past it the page reports unavailable semantic coverage rather than a truncated corpus. |
+| `shifter_vector_cache_bytes` | `16777216` | `SHIFTER_VECTOR_CACHE_BYTES`. 16 MiB. |
+| `shifter_catalog_cache_bytes` | `33554432` | `SHIFTER_CATALOG_CACHE_BYTES`. 32 MiB. |
+| `shifter_response_cache_bytes` | `16777216` | `SHIFTER_RESPONSE_CACHE_BYTES`. 16 MiB. |
+| `shifter_aggregation_bytes` | `50331648` | `SHIFTER_AGGREGATION_BYTES`. 48 MiB. |
+| `shifter_live_lane_bytes` | `33554432` | `SHIFTER_LIVE_LANE_BYTES`. 32 MiB set aside for the replay buffer and the per-viewer queues. |
+| `shifter_process_base_bytes` | `134217728` | `SHIFTER_PROCESS_BASE_BYTES`. 128 MiB set aside for the interpreter, the modules and the encoder's own weights. |
+| `shifter_memory_high` | `192M` | `MemoryHigh` on the unit. Unchanged: the four caches above total 112 MiB. |
+| `shifter_memory_max` | `384M` | `MemoryMax` on the unit, and `SHIFTER_MEMORY_MAX` for the startup check. The templates page sums the ceilings above, counts cached metadata twice because the previous view stays resident while the next one is built, and refuses to start when the total passes this number. |
 | `shifter_allowed_client_addresses` | `[]` | Addresses allowed through the firewall to the lane port. The playbook supplies it. |
 
 ### Variables the role requires but does not own
@@ -428,7 +515,82 @@ defaults, because a second copy is a second place to change one value.
 | `shifter_ingest_path` | `group_vars/all.yml` | `SHIFTER_INGEST_PATH`. The `collector` role writes the same path into its output. |
 | `shifter_enabled` | `group_vars/all.yml` | Read by the play that calls this role and by the `collector` role. The role itself never reads it. |
 | `shifter_host` | `group_vars/all.yml` | Read by the `collector` role only. It names the `shifter` inventory group, so it cannot be a role default. |
+| `alice_shared_dir`, `alice_shared_contract_file` | `group_vars/all.yml` | Where `template_contract.py` is staged and where it is shipped from. The `template_catalog` role stages the same file on every worker. |
+| `template_catalog_index`, `template_triage_index`, `shifter_queries_index` | `group_vars/all.yml` | The three Templates-page indices in the catalog family. Shared with `opensearch_bootstrap`, which creates them. The bucket indices are date-named and come from the role defaults above. |
+| `incidents_index` | `group_vars/all.yml` | `SHIFTER_INCIDENTS_INDEX`. The incident index gives the episode summary beside a template. Shared with `signal_projector`, which writes the incidents. |
+| `template_catalog_active_days`, `template_catalog_definition_retention_days` | `group_vars/all.yml` | `SHIFTER_ACTIVE_DAYS` and `SHIFTER_DEFINITION_RETENTION_DAYS`. The first is the volume window, 28 days; the inactive history stops at the second. Shared with `template_catalog`, whose maintenance unit deletes at the same deadline. |
 | `alice_app_root` | `group_vars/all.yml` | `/opt/alice-ingest`, the parent of the static directory. Shared with every other alice service. |
+
+## Why the memory ceiling moved, and where the cost is
+
+The plan requires the Templates page to declare each cache separately and to
+verify their combined peak against the service ceiling. Four separate limits,
+because they are four separate costs and one shared number would hide which of
+them grew.
+
+| Cache | Ceiling | Where the number comes from |
+|---|---|---|
+| Vectors | 64 MiB | One 512-dimension vector per canonical group at four bytes per value. 5,301 groups is 10,856,448 bytes. 64 MiB carries the whole 20,000-group admission ceiling, so the corpus is never silently truncated. |
+| Catalog metadata | 32 MiB | One cached row per active version, with its cover set. The frozen corpus holds 5,571, and a row costs about 1.6 KiB as Python objects: 8.9 MiB. This is 3.6 times that. The refresh refuses the view rather than truncate it when the rows pass this ceiling. |
+| Decoded responses | 16 MiB | The nested aggregation answer at the 20,000-version ceiling, a definition page of 1,000 documents, and a page of 500 lines. Two concurrent detail queries and one refresh put three in flight. |
+| Temporary aggregation | 48 MiB | The definition list and the cover relation while a refresh runs, beside the previous view. At the 20,000-version ceiling and 1.6 KiB per version, 32 MiB. |
+
+64 + 32 + 16 + 48 is 160 MiB of cache. With the interpreter base and the live
+lane the declared serving peak is 352 MiB, and the retrieval model adds a
+measured 325.5 MiB: 677 MiB in total. `MemoryHigh` is 1 GiB and `MemoryMax` is
+2 GiB, so the peak fits under the soft limit.
+
+The model is the whole cost, and the number is measured on the deployment host
+rather than computed. On `epn-infra13`, 8 September 2026, through this role's
+own `semantic.py` and the pinned revision below:
+
+| Stage | Peak resident |
+|---|---|
+| Interpreter | 8.5 MiB |
+| After importing `semantic.py` | 14.0 MiB |
+| After loading the model | 325.5 MiB, in 0.35 s |
+| After encoding all 5,301 canonical groups | 325.5 MiB, in 0.27 s |
+
+Encoding the whole corpus costs nothing beyond the model: the 5,301-group matrix
+is 10.4 MiB and the vectors are built inside the load figure. A query encodes in
+0.1 ms. The same measurement on a development Mac reported 360 MiB, so the farm
+figure is the smaller of the two and the one this role is sized against.
+
+The old 384 MiB ceiling was a role default from when this service was a live
+lane and nothing else. It was never a property of the host. `docs/EPN-ACCESS.md`
+requires a hard `MemoryMax` on `epn146` and `epn323`, which carry staging ECS
+runs beside us. The shifter runs on `epn-infra13`, which that table lists as
+shared with nothing and which carries 376 GB with 324 GB available. The ceiling
+here is hygiene, not scarcity.
+
+A host that cannot afford the model turns semantic search off rather than
+shrinking these caches. `inventory.yml` does exactly that for `alice-ingest-5`:
+an m2.medium is 3.75 GB in total and runs an OpenSearch node beside the shifter,
+and AlmaLinux 9 ships 3.9 as its platform interpreter where model2vec needs
+3.10. The Templates page keeps its text search, its labels and its exact counts
+with semantic search off; only the nearest-neighbour lane goes away.
+
+## The retrieval model
+
+`shifter_semantic_backend` is `model2vec` and the model is
+`minishlab/potion-retrieval-32M`, pinned to revision
+`6fc8051fab2a1e0ee76689cf08c853792ac285e7`. That is the system recorded in
+`downloads/frozen/s9-production-potion.json`, whose production form agreed with
+exact search on 99 percent of the top ten over 112 queries. A different revision
+is a different model and its evaluation numbers do not carry over.
+
+The role builds `/opt/alice-ingest/shifter-venv` on the newest of
+`python3.13`, `python3.12`, `python3.11`, `python3.10` that the host carries,
+because model2vec needs 3.10 or newer and AlmaLinux 9 ships 3.9 as
+`/usr/bin/python3`. When a host has none of them and semantic search is on, the
+deploy stops and names the reason rather than installing a service that cannot
+start. The unit runs that interpreter only while semantic search is on;
+otherwise it runs `/usr/bin/python3` as before.
+
+The model is fetched once into `/opt/alice-ingest/models/potion-retrieval-32M`,
+without the ONNX copy the static encoder never reads, and the task is skipped
+when `model.safetensors` is already there. At run time the unit sets
+`HF_HUB_OFFLINE`, so the service never reaches for the network to serve a query.
 
 `shifter_allowed_client_addresses` replaces an inline
 `groups['workers'] + groups['control']` expression. A role default must not name

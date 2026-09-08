@@ -1,9 +1,9 @@
-# roles/template_catalog — one oneshot service and a timer, on the workers.
+# roles/template_catalog — the central maintenance job, on one worker.
 #
-# The collector routes by severity, so 96.9 % of the process tree never leaves
-# the node it was written on. That is deliberate. This carries the TEMPLATE of
-# those lines to the shared catalog without carrying the lines, so the catalog
-# is complete while the raw informational traffic still stays local.
+# The worker half of the old catalog producer is gone: every record is stamped
+# in-band by roles/stamper, which also publishes the definitions, the bucket
+# counts and the watermarks. What is left here runs on exactly one host:
+# definition expiry, query-history expiry, and the two counting checks.
 ---
 - name: Ensure the app root exists
   ansible.builtin.file:
@@ -12,69 +12,61 @@
     owner: root
     group: root
     mode: "0755"
+  when: inventory_hostname == template_catalog_maintenance_host
 
-- name: Ensure the shipped templating directory exists
+- name: Ensure the shared contract directory exists
   ansible.builtin.file:
-    path: "{{ template_catalog_templating_dir }}"
+    path: "{{ alice_shared_dir }}"
     state: directory
     owner: root
     group: root
     mode: "0755"
+  when: inventory_hostname == template_catalog_maintenance_host
 
-# Copied, not reimplemented. The recipe tables and the masker are the same
-# objects the archive miner uses, so a template mined here and the same template
-# mined offline are the same string. A second copy of the rules would drift and
-# the drift would be invisible until two catalogs disagreed.
-- name: Ship the frozen mining recipe and masker from tools/templating
+- name: Ship the template contract the maintenance job imports
   ansible.builtin.copy:
-    src: "{{ item }}"
-    dest: "{{ template_catalog_templating_dir }}/{{ item | basename }}"
+    src: "{{ alice_shared_contract_file }}"
+    dest: "{{ alice_shared_dir }}/template_contract.py"
     owner: root
     group: root
     mode: "0644"
-  loop:
-    - ../../../tools/templating/drainbench.py
-    - ../../../tools/templating/masking.py
-  notify: restart alice-template-catalog timer
+  when: inventory_hostname == template_catalog_maintenance_host
+  notify: restart alice-catalog-maintenance timer
 
-- name: Install the catalog service
+- name: Install the central catalog maintenance task on the one host that runs it
   ansible.builtin.copy:
-    src: template_catalog.py
-    dest: "{{ template_catalog_script }}"
+    src: catalog_maintenance.py
+    dest: "{{ template_catalog_maintenance_script }}"
     owner: root
     group: root
     mode: "0755"
-  notify: restart alice-template-catalog timer
+  when: inventory_hostname == template_catalog_maintenance_host
+  notify: restart alice-catalog-maintenance timer
 
-- name: Create the catalog venv and install drain3 into it
-  ansible.builtin.pip:
-    name: drain3
-    state: present
-    virtualenv: "{{ template_catalog_venv }}"
-    virtualenv_command: /usr/bin/python3 -m venv
-  notify: restart alice-template-catalog timer
-
-- name: Template the catalog systemd unit
+- name: Template the catalog maintenance systemd unit
   ansible.builtin.template:
-    src: alice-template-catalog.service.j2
-    dest: /etc/systemd/system/{{ template_catalog_service_name }}.service
+    src: alice-catalog-maintenance.service.j2
+    dest: /etc/systemd/system/{{ template_catalog_maintenance_service_name }}.service
     owner: root
     group: root
     mode: "0644"
-  notify: restart alice-template-catalog timer
+  when: inventory_hostname == template_catalog_maintenance_host
+  notify: restart alice-catalog-maintenance timer
 
-- name: Template the catalog systemd timer
+- name: Template the catalog maintenance systemd timer
   ansible.builtin.template:
-    src: alice-template-catalog.timer.j2
-    dest: /etc/systemd/system/{{ template_catalog_service_name }}.timer
+    src: alice-catalog-maintenance.timer.j2
+    dest: /etc/systemd/system/{{ template_catalog_maintenance_service_name }}.timer
     owner: root
     group: root
     mode: "0644"
-  notify: restart alice-template-catalog timer
+  when: inventory_hostname == template_catalog_maintenance_host
+  notify: restart alice-catalog-maintenance timer
 
-- name: Enable the catalog timer
+- name: Enable the catalog maintenance timer
   ansible.builtin.systemd:
-    name: "{{ template_catalog_service_name }}.timer"
+    name: "{{ template_catalog_maintenance_service_name }}.timer"
     enabled: true
     state: started
     daemon_reload: true
+  when: inventory_hostname == template_catalog_maintenance_host

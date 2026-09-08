@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Run ALICE catalog maintenance every {{ template_catalog_maintenance_interval }}
+
+[Timer]
+OnCalendar={{ template_catalog_maintenance_calendar }}
+AccuracySec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

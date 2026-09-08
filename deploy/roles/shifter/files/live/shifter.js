@@ -14,6 +14,8 @@
   var STREAM_URL = CONFIG.streamUrl || 'stream';
   var QUERY_URL = CONFIG.queryUrl || 'api/query';
   var COCKPIT_URL = CONFIG.cockpitUrl || '/';
+  var TEMPLATES_ASSET = CONFIG.templatesAsset || 'templates.js';
+  var TEMPLATES_ENABLED = CONFIG.templatesEnabled !== false;
   var DEFAULT_LIMIT = CONFIG.queryLimit || 5000;
   var ROW_HEIGHT = 20;
   var OVERSCAN = 14;
@@ -116,6 +118,7 @@
       hideUntil: '',
       mode: 'wildcard',
       limit: DEFAULT_LIMIT,
+      templateVersions: [],
       fields: {}
     };
     FILTER_FIELDS.forEach(function (k) {
@@ -234,6 +237,32 @@
     }
   }
 
+  function decodeCount(value) {
+    if (typeof value === 'string') { return BigInt(value); }
+    if (Number.isSafeInteger(value)) { return BigInt(value); }
+    throw new Error('a count arrived as an unsafe number: ' + value);
+  }
+
+  window.SHIFTER_DECODE_COUNT = decodeCount;
+
+  var PAGE_LOGS = 'logs';
+  var PAGE_TEMPLATES = 'templates';
+  var PAGE_MARK = 'page=templates';
+
+  function pageOfHash(raw) {
+    var found = PAGE_LOGS;
+    String(raw || '').split('&').forEach(function (chunk) {
+      if (chunk === PAGE_MARK) { found = PAGE_TEMPLATES; }
+    });
+    return found;
+  }
+
+  function hashFor(page, filters) {
+    var body = encodeFilters(filters);
+    if (page !== PAGE_TEMPLATES) { return body; }
+    return body ? PAGE_MARK + '&' + body : PAGE_MARK;
+  }
+
   var HASH_SCALARS = [['range', 'range'], ['since', 'since'],
                       ['until', 'until'], ['hideSince', 'hidesince'],
                       ['hideUntil', 'hideuntil'], ['mode', 'mode'],
@@ -256,6 +285,9 @@
         add(pair[1], v);
       });
       if (filters.hide) { parts.push('hide=1'); }
+      if ((filters.templateVersions || []).length) {
+        add('tv', filters.templateVersions.join(','));
+      }
       FILTER_FIELDS.forEach(function (k) {
         var f = (filters.fields || {})[k] || {};
         if (f.match) { add(k, f.match); }
@@ -282,6 +314,10 @@
           return;
         }
         if (key === 'hide') { out.hide = val === '1'; return; }
+        if (key === 'tv') {
+          out.templateVersions = val ? val.split(',') : [];
+          return;
+        }
         var scalar = '';
         HASH_SCALARS.forEach(function (pair) {
           if (pair[1] === key) { scalar = pair[0]; }
@@ -479,7 +515,8 @@
         excludeUntil: filters.hide ? localToInstant(filters.hideUntil) : ''
       },
       severity: { in: filters.severities },
-      level: { max: filters.levelMax }
+      level: { max: filters.levelMax },
+      template_version: { in: (filters.templateVersions || []).slice() }
     };
     FILTER_FIELDS.forEach(function (k) {
       criterias[k] = {
@@ -855,6 +892,10 @@
   function localMatch(rec, filters) {
     if (filters.severities.length &&
         filters.severities.indexOf(rec.severity_norm) === -1) {
+      return false;
+    }
+    if ((filters.templateVersions || []).length &&
+        filters.templateVersions.indexOf(rec.template_version) === -1) {
       return false;
     }
     if (filters.levelMax != null && rec.level != null &&
@@ -1591,7 +1632,14 @@
     ['?', 'open this panel']
   ];
 
+  var TEMPLATE_SHORTCUTS = [
+    ['/', 'jump to the template search box'],
+    ['Esc', 'close the open template, or this panel'],
+    ['?', 'open this panel']
+  ];
+
   function Help(props) {
+    var rows = props.page === PAGE_TEMPLATES ? TEMPLATE_SHORTCUTS : SHORTCUTS;
     return e('div', { className: 'helpwrap', onClick: props.onClose },
       e('div', {
         className: 'helppanel',
@@ -1602,14 +1650,17 @@
           e('span', { className: 'grow' }),
           e('button', { className: 'btn', onClick: props.onClose }, 'Close')),
         e('div', { className: 'help-body' },
-          SHORTCUTS.map(function (row) {
+          rows.map(function (row) {
             return e('div', { className: 'help-row', key: row[0] },
               e('kbd', null, row[0]),
               e('span', null, row[1]));
           })),
         e('div', { className: 'help-note' },
-          'The arrow buttons in the toolbar step through ERROR and FATAL '
-            + 'only. Click any row to open it.')));
+          props.page === PAGE_TEMPLATES
+            ? 'Click any template to open its panel. The Logs page keeps the '
+              + 'live stream while this page is open.'
+            : 'The arrow buttons in the toolbar step through ERROR and FATAL '
+              + 'only. Click any row to open it.')));
   }
 
   function LiveDock(props) {
@@ -1727,6 +1778,8 @@
 
   function Toolbar(props) {
     return e('header', { className: 'toolbar' },
+        e(Nav, { page: props.page, onPage: props.onPage }),
+        e('span', { className: 'sep' }),
         e('button', {
           className: 'btn primary' +
             (props.query.state.status === 'loading' ? ' loading' : '') +
@@ -1782,6 +1835,18 @@
               onClick: props.toggleSeverity(name)
             }, name);
           })),
+        (props.filters.templateVersions || []).length
+          ? e('button', {
+              className: 'chip on',
+              title: 'Only records stamped with one of these template '
+                + 'versions: ' + props.filters.templateVersions.join(', ') +
+                '. Click to drop the stamp filter.',
+              onClick: function () {
+                props.setFilters(Object.assign({}, props.filters,
+                                               { templateVersions: [] }));
+              }
+            }, 'stamp × ' + props.filters.templateVersions.length)
+          : null,
         e('span', { className: 'grow' }),
         e(Dropdown, {
           label: props.filters.mode === 'regex' ? 'Filters · regex' : 'Filters',
@@ -1829,6 +1894,92 @@
         e('a', { className: 'btn link', href: COCKPIT_URL }, 'Cockpit'))
   }
 
+  var templatesAsset = null;
+
+  function loadTemplates() {
+    if (window.SHIFTER_TEMPLATES) {
+      return Promise.resolve(window.SHIFTER_TEMPLATES);
+    }
+    if (!templatesAsset) {
+      templatesAsset = new Promise(function (resolve, reject) {
+        var tag = document.createElement('script');
+        tag.src = TEMPLATES_ASSET;
+        tag.async = true;
+        tag.onload = function () {
+          if (window.SHIFTER_TEMPLATES) {
+            resolve(window.SHIFTER_TEMPLATES);
+            return;
+          }
+          reject(new Error('the templates page did not register itself'));
+        };
+        tag.onerror = function () {
+          reject(new Error('the templates page did not load'));
+        };
+        document.head.appendChild(tag);
+      });
+    }
+    return templatesAsset;
+  }
+
+  function TemplatesHost(props) {
+    var state = useState(function () {
+      return window.SHIFTER_TEMPLATES
+        ? { status: 'ready', page: window.SHIFTER_TEMPLATES, error: null }
+        : { status: 'loading', page: null, error: null };
+    });
+    var setState = state[1];
+
+    useEffect(function () {
+      var live = true;
+      loadTemplates().then(function (page) {
+        if (live) { setState({ status: 'ready', page: page, error: null }); }
+      }, function (err) {
+        if (live) {
+          setState({ status: 'failed', page: null,
+                     error: String(err.message || err) });
+        }
+      });
+      return function () { live = false; };
+    }, []);
+
+    var current = state[0];
+    if (current.status === 'failed') {
+      return e('div', { className: 'tp-boot tp-warn' }, current.error);
+    }
+    if (current.status !== 'ready') {
+      return e('div', { className: 'tp-boot' }, 'Loading the templates page…');
+    }
+    return e(current.page.Page, {
+      view: props.view || current.page.initialView(),
+      setView: props.setView,
+      onOpenLogs: props.onOpenLogs
+    });
+  }
+
+  function Nav(props) {
+    return e('div', { className: 'group nav' },
+      e('button', {
+        className: 'navtab' + (props.page === PAGE_LOGS ? ' on' : ''),
+        onClick: function () { props.onPage(PAGE_LOGS); }
+      }, 'Logs'),
+      TEMPLATES_ENABLED
+        ? e('button', {
+            className: 'navtab' + (props.page === PAGE_TEMPLATES ? ' on' : ''),
+            onClick: function () { props.onPage(PAGE_TEMPLATES); }
+          }, 'Templates')
+        : null);
+  }
+
+  function TemplatesBar(props) {
+    return e('header', { className: 'toolbar' },
+      e(Nav, { page: props.page, onPage: props.onPage }),
+      e('span', { className: 'sep' }),
+      e('span', { className: 'tp-lede' },
+        'Seven-day template activity. The live stream stays on the Logs page.'),
+      e('span', { className: 'grow' }),
+      e('a', { className: 'btn link', href: COCKPIT_URL }, 'Cockpit'));
+  }
+
   function App() {
     var live = useLiveBuffer();
     var query = useQuery();
@@ -1848,14 +1999,30 @@
     var filters = filtersState[0];
     var setFilters = filtersState[1];
 
+    var pageState = useState(function () {
+      return pageOfHash(window.location.hash.slice(1));
+    });
+    var page = TEMPLATES_ENABLED ? pageState[0] : PAGE_LOGS;
+    var setPage = pageState[1];
+    var templateViewState = useState(null);
+    var setTemplateView = useCallback(function (update) {
+      templateViewState[1](function (prev) {
+        var base = prev || (window.SHIFTER_TEMPLATES
+          ? window.SHIFTER_TEMPLATES.initialView() : {});
+        return typeof update === 'function' ? update(base) : update;
+      });
+    }, []);
+
     useEffect(function () {
       var onHash = function () {
-        var next = decodeFilters(window.location.hash.slice(1));
+        var raw = window.location.hash.slice(1);
+        var next = decodeFilters(raw);
         if (next) { setFilters(next); }
+        setPage(pageOfHash(raw));
       };
       window.addEventListener('hashchange', onHash);
       return function () { window.removeEventListener('hashchange', onHash); };
-    }, []);
+    }, [setPage]);
 
     var settledState = useState(initial);
     useEffect(function () {
@@ -1896,10 +2063,10 @@
 
     useEffect(function () {
       var timer = window.setTimeout(function () {
-        window.history.replaceState(null, '', '#' + encodeFilters(filters));
+        window.history.replaceState(null, '', '#' + hashFor(page, filters));
       }, 300);
       return function () { window.clearTimeout(timer); };
-    }, [filters]);
+    }, [filters, page]);
 
     var columns = useMemo(function () {
       var chosen = COLUMNS.filter(function (c) { return visible[c.key]; });
@@ -2132,12 +2299,17 @@
         if (tag === 'input' || tag === 'textarea' || tag === 'select') {
           return;
         }
-        if (ev.key === 'j') { ev.preventDefault(); moveSelection(1); }
-        else if (ev.key === 'k') { ev.preventDefault(); moveSelection(-1); }
+        var logs = page === PAGE_LOGS;
+        if (ev.key === 'j' && logs) { ev.preventDefault(); moveSelection(1); }
+        else if (ev.key === 'k' && logs) {
+          ev.preventDefault();
+          moveSelection(-1);
+        }
         else if (ev.key === '?') { ev.preventDefault(); setHelp(true); }
         else if (ev.key === 'Escape') { setHelp(false); }
         else if (ev.key === '/') {
-          var box = document.querySelector('.fg-input[data-fg="message"]');
+          var box = document.querySelector(
+            logs ? '.fg-input[data-fg="message"]' : '.tp-search');
           if (!box) { return; }
           ev.preventDefault();
           box.focus();
@@ -2146,7 +2318,34 @@
       };
       window.addEventListener('keydown', onKey);
       return function () { window.removeEventListener('keydown', onKey); };
-    }, [moveSelection, setHelp]);
+    }, [moveSelection, setHelp, page]);
+
+    var openLogsFromTemplate = useCallback(function (link) {
+      var next = emptyFilters();
+      var wanted = (link && link.fields) || {};
+      var named = 0;
+      Object.keys(wanted).forEach(function (key) {
+        if (!next.fields[key]) { return; }
+        next.fields[key] = { match: wanted[key].match || '',
+                             exclude: wanted[key].exclude || '' };
+        named += 1;
+      });
+      if (link && (link.templateVersions || []).length) {
+        next.templateVersions = link.templateVersions.slice();
+        named += 1;
+      }
+      if (link && link.mode) { next.mode = link.mode; }
+      if (link && link.limit) { next.limit = link.limit; }
+      next.range = '7d';
+      setFilters(next);
+      setPage(PAGE_LOGS);
+      selectedState[1](null);
+      if (!named) {
+        showToast('this template has no stamp to search for');
+        return;
+      }
+      query.run(next);
+    }, [query, setPage, showToast]);
 
     var copyFilterLink = useCallback(function (f) {
       var url = filterLink(f);
@@ -2161,8 +2360,39 @@
         : (dockMode === 'half' ? 'full' : 'collapsed'));
     };
 
+    var liveStatus = live.paused
+      ? 'paused' : (live.connected ? 'live' : 'reconnecting');
+
+    if (page === PAGE_TEMPLATES) {
+      return e('div', { className: 'app app-templates' },
+        e(TemplatesBar, { page: page, onPage: setPage }),
+        e(TemplatesHost, {
+          view: templateViewState[0],
+          setView: setTemplateView,
+          onOpenLogs: openLogsFromTemplate
+        }),
+        e('footer', { className: 'statusbar' },
+          e('span', { className: 'status ' + liveStatus }, liveStatus),
+          e('span', null, 'the Logs page holds ' +
+            live.buffered.toLocaleString() +
+            ' live records and keeps the only stream'),
+          e('span', { className: 'grow' }),
+          e('button', {
+            className: 'btn helpbtn',
+            title: 'Keyboard shortcuts (?)',
+            onClick: function () { setHelp(!helpState[0]); }
+          }, '?')),
+        helpState[0]
+          ? e(Help, { page: page, onClose: function () { setHelp(false); } })
+          : null,
+        toastState[0]
+          ? e('div', { className: 'toast', role: 'status' }, toastState[0])
+          : null);
+    }
+
     return e('div', { className: 'app dock-' + dockMode },
       e(Toolbar, {
+        page: page, onPage: setPage,
         query: query, filters: filters, setFilters: setFilters, stale: stale,
         runQuery: runQuery, jump: jump, toggleSeverity: toggleSeverity,
         saved: savedState[0], setSaved: savedState[1],
@@ -2280,7 +2510,7 @@
         }, '?')),
 
       helpState[0]
-        ? e(Help, { onClose: function () { setHelp(false); } })
+        ? e(Help, { page: page, onClose: function () { setHelp(false); } })
         : null,
 
       toastState[0]

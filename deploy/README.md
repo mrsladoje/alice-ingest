@@ -407,9 +407,9 @@ Two consequences of three hosts on one machine, both deliberate:
 
 - **`common` runs three times on the storage machine**, once per host. It is
   idempotent, so the result is right; it costs runtime, not correctness.
-- **`container_host` runs once**, because it targets the `container_hosts`
-  group, which names one host per machine. Podman and the quadlet directory
-  are machine-level facts, not node-level ones.
+- **The container runtime is prepared three times**, once per host, by the
+  `opensearch` role's `container_runtime.yml`. Podman and the quadlet
+  directory are machine-level facts, so two of the three passes are no-ops.
 
 What this does **not** rehearse is fault tolerance. Three replicas on one disk
 survive nothing. The layout exists so that the design does not have to change

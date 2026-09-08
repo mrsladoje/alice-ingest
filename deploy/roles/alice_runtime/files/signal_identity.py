@@ -128,6 +128,14 @@ MONITOR_PRESENTATION = {
         "heartbeat for ten minutes.",
         "Check alice-signal-projector immediately; incident state and "
         "Alertmanager re-sends are no longer trustworthy."),
+    "template-count-check": (
+        "A template counting check failed",
+        "A bucket document's per-template counts did not sum to its total, or "
+        "an index holds more records of a template version than the worker "
+        "stamped, within the last two hours.",
+        "Read the kind=check documents in template-catalog with ok=false: "
+        "they name the node, family, hour and index; then inspect that "
+        "worker's alice-stamper journal and ledger."),
     "alertmanager-down": (
         "Alertmanager is unreachable",
         "The projector reported Alertmanager unavailable during the last "

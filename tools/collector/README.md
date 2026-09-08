@@ -87,14 +87,12 @@ that is not the mapping.
 ```
 docker run -d --name ostest -p 9299:9200 -e discovery.type=single-node \
   -e DISABLE_SECURITY_PLUGIN=true opensearchproject/opensearch:3.7.0
-python3 tools/collector/mappingcheck.py --catalog
+python3 tools/collector/mappingcheck.py
 ```
 
 It builds the pipeline and the indices from the real bootstrap template, indexes
 the records `replaycheck.py` actually produced, and checks every field survived
-and is searchable. `--catalog` also exercises `roles/template_catalog` end to
-end: that the process tree splits into its two formats, that counts add across
-nodes rather than overwrite, and that a second pass mines nothing.
+and is searchable.
 
 The first run of this check found that the bootstrap script would not have run
 at all — a heredoc opener had lost its closing quote and the JSON validator had
@@ -165,15 +163,6 @@ now raise, because there is no useful partial answer: every count in the file
 comes from this one listing. A 404 is different and stays an answer — a
 destination that received nothing does not exist. So does `successful < total`
 on a refresh, which is the shipped single-node layout and not a fault.
-
-**The same rule belongs in `mappingcheck.py`, and fixing one checker and not the
-other was the mistake.** Every catalog sequence there is judged on what its own
-reader returned, so a partial listing that hides a stale contribution makes a
-sequence report success — for exactly the reason a partial listing here made the
-two retry arms balance. Its reads now reject a failed refresh, a timed-out
-search, a failed shard, and a search that answered for fewer shards than it was
-asked about. A 404 stays an answer, because several sequences delete the catalog
-on purpose. `test_mappingcheck.py` covers all of it without a cluster.
 
 It feeds the tcp input as well as the files. The InfoLogger mapping is
 `dynamic: "strict"` and the output leaves the identifier in the document body as

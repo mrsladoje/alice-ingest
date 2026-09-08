@@ -791,6 +791,27 @@ monitors.append(query_monitor(
     "1", 1, "alice-signal-projector", "breakglass"))
 
 monitors.append(query_monitor(
+    "template-count-check",
+    "Fire when a counting check on the template stamps fails: a bucket "
+    "document whose per-template counts do not sum to its total "
+    "(conservation), or an index holding more records of a template version "
+    "than the worker stamped (stamped against indexed). Both checks write "
+    "their results into template-catalog as kind=check; alice-stamper writes "
+    "the worker-side half and alice-catalog-maintenance the central half. "
+    "Either failure is a ledger bug, never a data condition, so one is enough.",
+    "template-catalog",
+    {"size": 0,
+     "query": {"bool": {"filter": [
+         {"term": {"kind": "check"}},
+         {"term": {"ok": False}},
+         {"range": {"checked_at": {
+             "gte": "{{period_end}}||-2h",
+             "lte": "{{period_end}}",
+             "format": "epoch_millis"}}}]}}},
+    "ctx.results[0].hits.total.value > 0",
+    "3", 60, "alice-stamper"))
+
+monitors.append(query_monitor(
     "alertmanager-down",
     "Page when the projector cannot reach Alertmanager. Alertmanager does not "
     "persist alerts, so a dead one loses every active notification until the "

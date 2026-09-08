@@ -13,7 +13,11 @@ window.SHIFTER_CONFIG = {
   queryUrl: "api/query",
   queryLimit: {{ shifter_query_default_rows }},
   hiddenGraceSeconds: {{ shifter_hidden_grace_seconds }},
-  cockpitUrl: "{{ shifter_cockpit_url }}"
+  cockpitUrl: "{{ shifter_cockpit_url }}",
+  templatesEnabled: {{ shifter_templates_enabled | bool | ternary('true', 'false') }},
+  templatesUrl: "api/templates/",
+  templatesAsset: "templates.js",
+  templatePageRows: {{ shifter_template_page_rows }}
 };
 </script>
 </head>

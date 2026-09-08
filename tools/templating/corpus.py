@@ -25,7 +25,8 @@ REGION = os.environ.get("S3_REGION", "us-east-1")
 HOST_RE = re.compile(r"_(epn[0-9]+)\.tar\.gz$")
 DDS_MEMBER_RE = re.compile(r"/dds_\d{4}-\d{2}-\d{2}\.\d+\.log$")
 STDOUT_MEMBER_RE = re.compile(r"_(?:out|err)\.log$")
-PROGRAM_RE = re.compile(r"/([A-Za-z0-9._-]+?)(?:_t\d+)?_reco\d+_\d{4}-\d{2}-\d{2}")
+PROGRAM_RE = re.compile(
+    r"^([A-Za-z0-9][A-Za-z0-9._+-]*?)(?:_t\d+)?(?:_reco\d+)?_\d{4}-\d{2}-\d{2}")
 
 
 def client():
@@ -101,7 +102,7 @@ def take_tarballs(s3, out, families, max_objects, max_lines, run_tag):
                     src = tar.extractfile(member)
                     if src is None:
                         continue
-                    pm = PROGRAM_RE.search(name)
+                    pm = PROGRAM_RE.match(name.rsplit("/", 1)[-1])
                     program = pm.group(1) if pm else "unknown"
                     kept = 0
                     for raw in src:

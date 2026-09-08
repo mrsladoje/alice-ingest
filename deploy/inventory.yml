@@ -48,8 +48,6 @@ all:
               ansible_host: 203.0.113.15
               node_id: node-05
 
-    container_hosts: {}
-
     control:
       hosts:
         alice-ingest-3: {}
@@ -70,4 +68,8 @@ all:
     # with readers.  Deliberately not the control host.
     shifter:
       hosts:
-        alice-ingest-5: {}
+        alice-ingest-5:
+          shifter_semantic_enabled: false
+          shifter_semantic_backend: "none"
+          shifter_memory_high: "192M"
+          shifter_memory_max: "384M"

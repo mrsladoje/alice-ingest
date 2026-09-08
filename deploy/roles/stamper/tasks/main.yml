@@ -1,0 +1,100 @@
+# roles/stamper — one long-running service per worker. Fluent Bit hands every
+# log record through it over a Unix socket and takes it back stamped with its
+# template identity, before the record reaches OpenSearch.
+---
+- name: Ensure the app root exists
+  ansible.builtin.file:
+    path: "{{ stamper_app_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure the shipped templating directory exists
+  ansible.builtin.file:
+    path: "{{ stamper_templating_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure the shared contract directory exists
+  ansible.builtin.file:
+    path: "{{ alice_shared_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: >-
+    Ship the template contract the stamper, the maintenance job and the Shifter
+    import, so identity, bucket arithmetic and the document shapes have one
+    definition
+  ansible.builtin.copy:
+    src: "{{ alice_shared_contract_file }}"
+    dest: "{{ alice_shared_dir }}/template_contract.py"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart alice-stamper
+
+# Copied, not reimplemented. The recipe tables and the masker are the same
+# objects the archive miner uses, so a stamp written here and the template
+# mined offline are the same string.
+- name: Ship the frozen mining recipe and masker from tools/templating
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ stamper_templating_dir }}/{{ item | basename }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - ../../../tools/templating/drainbench.py
+    - ../../../tools/templating/masking.py
+  notify: restart alice-stamper
+
+- name: Install the stamper and the Forward codec it imports beside it
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ stamper_app_root }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - stamper.py
+    - forward.py
+  notify: restart alice-stamper
+
+- name: Create the stamper venv with the pinned drain3 and msgpack
+  ansible.builtin.pip:
+    name:
+      - "drain3=={{ stamper_drain3_version }}"
+      - "msgpack=={{ stamper_msgpack_version }}"
+    state: present
+    virtualenv: "{{ stamper_venv }}"
+    virtualenv_command: /usr/bin/python3 -m venv
+  notify: restart alice-stamper
+
+- name: Template the stamper systemd unit
+  ansible.builtin.template:
+    src: alice-stamper.service.j2
+    dest: /etc/systemd/system/{{ stamper_service_name }}.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart alice-stamper
+
+- name: Enable and start the stamper
+  ansible.builtin.systemd:
+    name: "{{ stamper_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Apply a pending stamper restart now, before the collector is checked
+  ansible.builtin.meta: flush_handlers
+
+- name: Prove the stamper opened its socket
+  ansible.builtin.wait_for:
+    path: "{{ stamper_listen_socket }}"
+    timeout: 60

@@ -149,3 +149,143 @@ directory: `--model alice-vocab=static=models/alice-vocab-bge`.
 applied to queries only, never to templates. `CodeRankEmbed` was finetuned for
 natural-language-query-against-code, so its prefix belongs on the twenty queries
 and nowhere else.
+
+---
+
+## The frozen retrieval corpus
+
+`docs/SEMANTIC_PLAN.md` Stage S0 ends with a corpus that can be named, and Stage
+S1 cannot start until the unit that corpus is searched in is decided. Two tools
+produce both, and neither restates a rule that lives somewhere else: mining is
+`tools/templating/drainbench.py`'s shipped recipe, and severity and program come
+from the rendered production parser cascade.
+
+### mkcorpus.py — one file per family
+
+```bash
+python3 tools/embed/mkcorpus.py --out downloads/frozen
+```
+
+Four columns: family, source, severity, message. The fourth column is new and
+the third is why. Six of the seven families keep their severity inside the line,
+where the cascade finds it; the journal keeps it in `PRIORITY`, outside the
+message, exactly as the collector reads it. A three-column corpus would have
+thrown that away and then reported the journal as a source with no severity.
+
+The archive families come from the refamilied pull, whole. **There is no line
+cap, and an early version of this had one.** Three million lines of InfoLogger
+mine 675 templates; all 33.4 million mine 1,497. A cap on the corpus being
+frozen buys minutes and costs coverage. The three the archive does not hold —
+the InfoLogger daemon log, the journal and the orchestrator — come from the farm
+captures `tools/epnsurvey/mkbundle.sh` takes.
+
+### freeze.py — canonical groups and their source instances
+
+```bash
+python3 tools/embed/freeze.py downloads/frozen/fam-*.tsv \
+    --out downloads/frozen/corpus-<date>
+```
+
+Writes `corpus.jsonl`, `duplicates.json` and `manifest.json`.
+
+**The retrieval unit is the canonical template group.** One record is one
+normalised event meaning, carrying every source instance that produced it. The
+same GPU allocation failure written by forty programs is one result with forty
+instances attached, not forty results — otherwise one event takes every rank a
+metric at ten can see.
+
+| Identifier | What it hashes | What it survives |
+|---|---|---|
+| `canonical_id` | the normalised template text | a model, representation or re-mine change |
+| `instance_id` | family, program and template | the same, and it stays distinct per program |
+
+Normalisation is deterministic and is written into `duplicates.json` beside the
+groups it produced: every mask placeholder and every Drain wildcard becomes
+`<*>`, the text is lower-cased, whitespace collapses, and edge punctuation goes.
+`<NUM> bytes` and `<FLOAT> bytes` are the same event; `new client: <*>` and
+`new client` are not, which is why the edge rule strips punctuation and never a
+placeholder.
+
+Two fields are honestly empty rather than guessed, and both are recorded in the
+manifest per family:
+
+- **InfoLogger severity is `absent`.** The archive pull kept family, source and
+  message; severity is a column of the mysqldump and was never written to the
+  corpus. It returns on the next pull, not by inference here.
+- **DataDistribution program was `parse_failed`.** `corpus.py` asked for a
+  `_recoN_` segment that DataDistribution file names do not carry, so every one
+  of its lines was labelled `unknown`. The rule now mirrors the shipped
+  `stdout_path` parser and is anchored to the file name; the corpus in hand
+  predates the fix.
+
+### qrels.py — carrying the old labels onto the frozen corpus
+
+```bash
+python3 tools/embed/qrels.py --corpus downloads/frozen/corpus-<date>/corpus.jsonl \
+    --out downloads/frozen/qrels-<date>
+```
+
+Writes `queries.jsonl`, `qrels.tsv` and `migration.json`.
+
+Stage S1 opens with an audit of the 635 pairs in `judgements.tsv`. This tool
+does the half a machine may do, and refuses the half it may not.
+
+**It re-anchors a label from template text to a canonical identifier.** The old
+file names a template by its text, and text moves whenever the recipe or a
+parser moves. An identifier does not.
+
+**It never invents a grade.** Every migrated row leaves with `grade = -1` and
+`state = unreviewed`. The old binary label rides along as `prior_binary`, next
+to the name of what produced it. The plan is explicit that these labels came
+from an AI judge, that they are development data for ever, and that a graded
+judgement is a person's decision.
+
+Two counts in `migration.json` are the ones to read. **Lost** is a template the
+frozen corpus no longer holds, so its label has nothing to point at.
+**Collapsed onto a judged group** is two old templates that are now one
+canonical group: the second one is dropped, because counting it twice would
+make one answer look like two pieces of evidence.
+
+A row that matches only after separators are unpadded says so in `matched_by`.
+That tolerance exists because the process tree was mined as `stdout` then and as
+`dpl` now, and the two recipes disagree about padding `= ;`. It is a migration
+convenience and not the canonical rule: folding separators into the canonical
+rule merges two groups out of 4,304, which is not worth a looser corpus.
+
+### judgekit.py — dealing a judging pool, and reading the grades back
+
+```bash
+python3 tools/embed/judgekit.py --deal \
+    --qrels downloads/frozen/qrels-<date>/qrels.tsv \
+    --corpus downloads/frozen/corpus-<date>/corpus.jsonl \
+    --out downloads/frozen/judging-<date>
+# assessors fill in grades-<name>.tsv, then
+python3 tools/embed/judgekit.py --collect \
+    --qrels downloads/frozen/qrels-<date>/qrels.tsv \
+    --graded downloads/frozen/judging-<date> \
+    --out downloads/frozen/qrels-<date>/qrels-graded.tsv \
+    --report downloads/frozen/judging-<date>/agreement.json
+```
+
+The plan puts three conditions on a judgement, and all three are mechanical, so
+they live here rather than in an assessor's discipline. The assessor sees the
+template, its stable metadata, its frequency and **redacted** examples — the
+same masker the miner uses, so an address or a path never reaches the reviewer.
+The assessor never sees which system returned the candidate, its score, or the
+old binary label. Candidate order is randomised from a recorded seed.
+
+`--deal` splits the queries across primary assessors, and gives every
+second-pass assessor the same stratified sample, so agreement is measured on
+identical items rather than on whatever happened to overlap.
+
+`--collect` merges the primary grades into the qrels and measures every pair of
+assessors that shares at least 20 items: raw agreement, agreement within one
+grade, agreement on relevant-or-not, and weighted Cohen's kappa. The threshold
+kappa must clear is frozen in `docs/JUDGING_RUBRIC.md` **before** any grade is
+read.
+
+`assessor_kind` records what the assessor was. A machine assessor is named like
+any other and marked `model`. The plan forbids machine labels from selecting a
+retrieval system, and this file does not change that; what a machine pass buys
+is a rehearsal of the pipeline and a measurement of whether the rubric is clear
+enough for two independent assessors to agree.

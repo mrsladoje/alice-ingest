@@ -9,6 +9,10 @@ RET_IL="{{ ism_retention_infologger }}"
 RET_AD="{{ ism_retention_ad_results }}"
 RET_ALERT="{{ ism_retention_alert_history }}"
 RET_ACTIONS="{{ ism_retention_alert_actions }}"
+RET_BUCKETS_5M="{{ ism_retention_template_buckets_5m }}"
+RET_BUCKETS_1H="{{ ism_retention_template_buckets_1h }}"
+BUCKETS_5M="{{ template_buckets_5m_prefix }}"
+BUCKETS_1H="{{ template_buckets_1h_prefix }}"
 ROLL_AGE_ACTIONS="{{ alert_actions_rollover_period }}"
 ROLL_SIZE_ACTIONS="{{ alert_actions_rollover_max_size }}"
 ROLL_AGE="{{ log_rollover_period }}"
@@ -143,6 +147,19 @@ put_policy "alice-ad-results-retention" \
 put_policy "alice-alert-history-retention" \
   "$(age_delete_policy "delete alert history after $RET_ALERT" "$RET_ALERT" ".opendistro-alerting-alert-history-*" 100)"
 
+# Date-named, not rolled over: a bucket document is republished in place while
+# it is inside the worker's ledger, and a rollover alias would put the
+# republication in a new index beside the old document. The stamper names the
+# index from the bucket's own start, so the age policy on the pattern is the
+# whole retention mechanism. The ages are padded by one index period, because
+# min_index_age counts from creation and a day index created at 00:00 holds
+# buckets written up to 23:59.
+put_policy "alice-template-buckets-5m-retention" \
+  "$(age_delete_policy "delete $BUCKETS_5M day indices after $RET_BUCKETS_5M" "$RET_BUCKETS_5M" "$BUCKETS_5M-*" 100)"
+
+put_policy "alice-template-buckets-1h-retention" \
+  "$(age_delete_policy "delete $BUCKETS_1H month indices after $RET_BUCKETS_1H" "$RET_BUCKETS_1H" "$BUCKETS_1H-*" 100)"
+
 put_policy "alice-alert-actions-retention" \
   "$(rollover_delete_policy "roll alice-alert-actions every $ROLL_AGE_ACTIONS/$ROLL_SIZE_ACTIONS, delete backing indices at $RET_ACTIONS" \
      "$ROLL_AGE_ACTIONS" "$ROLL_SIZE_ACTIONS" "$RET_ACTIONS" "alice-alert-actions-*" 100)"
@@ -154,4 +171,4 @@ for wn in $WORKER_NODES; do
   attach_policy "alice-application-local-retention" "application-logs-local-$wn-*"
 done
 
-echo "[ism] DONE — rollover+delete on the log families; cockpit-metrics and trend-rollup prune by document"
+echo "[ism] DONE — rollover+delete on the log families, age delete on the template bucket indices; cockpit-metrics and trend-rollup prune by document"

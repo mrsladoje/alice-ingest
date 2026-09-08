@@ -49,6 +49,19 @@ def main():
             doc["output_dropped"] = sum(
                 v.get("dropped_records", 0) for v in outs)
 
+    status_file = os.environ.get("STAMPER_STATUS_FILE", "")
+    doc["stamper_up"] = 0
+    if status_file:
+        try:
+            with open(status_file) as handle:
+                stamped = json.load(handle)
+        except (OSError, ValueError):
+            stamped = None
+        if isinstance(stamped, dict):
+            for key, value in stamped.items():
+                if key.startswith("stamper_") and isinstance(value, int):
+                    doc[key] = value
+
     sys.stdout.write(json.dumps(doc) + "\n")
     return 0
 

@@ -21,7 +21,7 @@ LANE_BIND = os.environ.get("SHIFTER_BIND", "127.0.0.1")
 MOCK_PORT = os.environ.get("MOCK_OS_PORT", "9209")
 CONTROL_PORT = os.environ.get("FEED_CONTROL_PORT", "8093")
 
-ASSETS = ["shifter.js", "shifter.css", "alice-favicon.svg",
+ASSETS = ["shifter.js", "templates.js", "shifter.css", "alice-favicon.svg",
           "preact.umd.js", "hooks.umd.js", "preact-shim.js"]
 
 VALUES = {
@@ -29,6 +29,8 @@ VALUES = {
     "shifter_query_default_rows": "5000",
     "shifter_hidden_grace_seconds": "120",
     "shifter_cockpit_url": "https://opensearch.org/docs/latest/dashboards/",
+    "shifter_templates_enabled": "true",
+    "shifter_template_page_rows": "50",
 }
 
 
@@ -42,7 +44,7 @@ def render_index(target):
             raise SystemExit(f"the page shell wants an unknown variable: {key}")
         return VALUES[key]
 
-    text = re.sub(r"\{\{\s*([a-z_]+)\s*\}\}", sub, text)
+    text = re.sub(r"\{\{\s*([a-z_]+)(?:\s*\|[^}]*)?\s*\}\}", sub, text)
     with open(os.path.join(target, "index.html"), "w") as fh:
         fh.write(text)
 
@@ -101,6 +103,7 @@ def main():
         SHIFTER_OS_URL=f"http://127.0.0.1:{MOCK_PORT}",
         SHIFTER_OS_INDICES="infologger,application-logs-central",
         SHIFTER_QUERY_MAX_ROWS="20000",
+        SHIFTER_MEMORY_MAX=os.environ.get("SHIFTER_MEMORY_MAX", "384M"),
         PYTHONUNBUFFERED="1",
     )
     procs.append(subprocess.Popen([sys.executable, SERVER], env=lane_env))

@@ -157,6 +157,9 @@ site-wide, or in `inventory.yml` for one group or host.
 | `opensearch_home` | `/usr/share/opensearch` | RPM install root. |
 | `opensearch_plugin_bin` | `{{ opensearch_home }}/bin/opensearch-plugin` | Used by the plugin assertion. |
 | `opensearch_config_dir` | `/etc/opensearch` | Holds `opensearch.yml`. |
+| `opensearch_container_runtime_packages` | `[podman]` | The container runtime, installed only on the container path. |
+| `opensearch_container_min_podman_version` | `4.4` | The version quadlet arrived in. Below it the run stops with the reason. |
+| `opensearch_quadlet_dir` | `/etc/containers/systemd` | Where quadlet reads `.container` unit files from. |
 | `opensearch_jvm_options_d` | `/etc/opensearch/jvm.options.d` | Holds `heap.options`. |
 | `opensearch_systemd_dropin_dir` | `/etc/systemd/system/opensearch.service.d` | Holds `ulimits-override.conf`. |
 | `opensearch_node_env_dir` | `/etc/alice-ingest` | Shared with the `collector` role. |
@@ -195,7 +198,6 @@ satisfied by the role order in `playbooks/site.yml`.
 | Prerequisite | Provided by | What breaks without it |
 |---|---|---|
 | `firewalld` installed and running | `common` role | The two firewall tasks fail. `ansible.posix.firewalld` needs the daemon up to apply an immediate rule. |
-| `vm.max_map_count` at least 262144 | `common` role | OpenSearch fails its own bootstrap check and the service never starts. |
 | Swap in place | `common` role | On a node that also carries the control plane, the kernel selects the OpenSearch JVM when memory runs out. |
 
 ## How to use it
@@ -245,9 +247,11 @@ In a playbook, against every node in the cluster:
   host's `opensearch_transport_port` out of `hostvars` — which is why both ports
   are declared there and not only in this role's defaults. A role default never
   reaches `hostvars`.
-- **`opensearch_quadlet_dir` must equal `container_host_quadlet_dir`.** The
-  `container_host` role creates that directory; this role writes
-  `opensearch-<node_id>.container` into it.
+- **The container runtime is prepared by this role, per node.**
+  `container_runtime.yml` installs podman, asserts it is new enough for
+  quadlet, and creates `opensearch_quadlet_dir` — the directory the next task
+  file writes `opensearch-<node_id>.container` into. It runs once per node,
+  so on a machine carrying three nodes two of the three passes are no-ops.
 - **The container path is not enabled by systemd.** Quadlet generates the unit
   at `daemon-reload`, and a generated unit cannot be enabled — its `[Install]`
   section does that instead. `opensearch_service_enabled` is therefore false on

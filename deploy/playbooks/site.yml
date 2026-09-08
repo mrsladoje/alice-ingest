@@ -150,12 +150,6 @@
   roles:
     - common
 
-- name: Container runtime, once per machine that hosts more than one OpenSearch node
-  hosts: container_hosts
-  become: true
-  roles:
-    - container_host
-
 - name: OpenSearch cluster — initial bring-up (all 5 nodes together, so a storage-tier manager can be elected)
   hosts: alice_nodes
   become: true
@@ -277,16 +271,21 @@
     - role: shifter
       when: shifter_enabled | bool
 
-- name: Fluent Bit collector (worker VMs only)
+# The stamper runs in the same play as the collector: Fluent Bit hands every
+# record through it and back before the OpenSearch outputs, and its unit
+# reads the collector's memory limits. The stamper is installed
+# first so its socket exists when the collector starts; a collector that
+# starts first only buffers and retries.
+- name: Fluent Bit collector and the template stamper (worker VMs only)
   hosts: workers
   become: true
   roles:
+    - stamper
     - collector
 
-# Runs after the collector, because the index it reads is the one the collector
-# fills, and before the producers, because a worker with no replay running still
-# has a local index worth mining.
-- name: Template catalog (worker VMs only)
+# The central maintenance job: definition expiry, query-history expiry and the
+# two counting checks. One host, named by template_catalog_maintenance_host.
+- name: Template catalog maintenance (one worker)
   hosts: workers
   become: true
   roles:

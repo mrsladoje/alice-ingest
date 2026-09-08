@@ -12,7 +12,6 @@ the wiring diagram, the variables it reads and the couplings it carries.
 | Role | Runs on | What it does |
 | --- | --- | --- |
 | `common` | every VM | Prepares a bare Alma 9 host: swap file, the two kernel parameters OpenSearch needs, baseline packages, clock, firewalld. Runs first. |
-| `container_host` | machines carrying more than one node | Installs podman and proves it is new enough to read quadlet unit files. Runs once per machine, not once per node. The kernel parameters stay with `common`. |
 | `opensearch` | every node | Installs one OpenSearch node and joins it to the `alice-logs` cluster. Writes the node identity and tier, caps the heap, opens its HTTP and transport ports to cluster members only. Installs from the vendor RPM or as a podman container, chosen by `opensearch_install_method`. |
 | `opensearch_bootstrap` | control | Applies the cluster-wide state that must exist exactly once: ingest pipeline, component and index templates, cluster settings, pre-created indices, retention policies. |
 | `opensearch_local_index_registration` | control + workers | Installs `register_node.sh`, the one definition of a worker's local index template, retention attachment and write alias. Installed by two callers; starts nothing itself. |
@@ -35,9 +34,9 @@ the wiring diagram, the variables it reads and the couplings it carries.
 `playbooks/site.yml` runs the roles in the order of the table. The order is a
 dependency chain, not a preference:
 
-1. **Hosts, then the cluster.** `common` on every VM, `container_host` on any
-   machine that carries several nodes, then `opensearch` on every node in one play, so a storage-tier node can be elected cluster manager
-   while the cluster comes up together. A rolling gate follows.
+1. **Hosts, then the cluster.** `common` on every VM, then `opensearch` on
+   every node in one play, so a storage-tier node can be elected cluster
+   manager while the cluster comes up together. A rolling gate follows.
 2. **Cluster state, then the things that read it.** `opensearch_bootstrap`
    creates the indices before any index pattern, monitor or detector names one.
 3. **Data before detection.** `cockpit_metrics` must produce samples before

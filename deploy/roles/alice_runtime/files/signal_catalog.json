@@ -224,6 +224,14 @@
       "notification_scope": "collector",
       "feed": "logs",
       "healthy_windows_required": 3
+    },
+    "template-count-check": {
+      "entity_kind": "service",
+      "entity_source": "constant",
+      "entity_id": "alice-stamper",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane"
     }
   },
   "detectors": {

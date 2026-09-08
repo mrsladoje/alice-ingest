@@ -22,6 +22,9 @@ opensearch_container_log_path: /usr/share/opensearch/logs
 opensearch_container_uid: 1000
 opensearch_container_gid: 1000
 opensearch_quadlet_dir: /etc/containers/systemd
+opensearch_container_runtime_packages:
+  - podman
+opensearch_container_min_podman_version: "4.4"
 opensearch_container_memory_max: ""
 opensearch_container_start_timeout_seconds: 900
 

@@ -37,6 +37,10 @@
   ansible.builtin.include_tasks: install_native.yml
   when: opensearch_install_method == 'native'
 
+- name: Prepare the container runtime on this machine
+  ansible.builtin.include_tasks: container_runtime.yml
+  when: opensearch_install_method == 'container'
+
 - name: Install OpenSearch as a podman container beside its siblings on this machine
   ansible.builtin.include_tasks: install_container.yml
   when: opensearch_install_method == 'container'

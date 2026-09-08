@@ -241,6 +241,9 @@ APPLICATION_MAPPINGS=$(cat <<'JSON'
         "PID":        { "type": "integer" },
         "COMM":       { "type": "keyword" },
         "doc_id":     { "type": "keyword" },
+        "template_version": { "type": "keyword" },
+        "template_id":      { "type": "keyword" },
+        "template_status":  { "type": "keyword" },
         "message":    { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 1024 } } }
       }
     }
@@ -248,7 +251,7 @@ APPLICATION_MAPPINGS=$(cat <<'JSON'
   "_meta": {
     "family": "application-logs",
     "sources": ["dds", "stdout", "ildaemon", "journald", "odc"],
-    "note": "Numbers are typed so they can be charted and alerted on; stored as text they can only be read. slot_id, channel_id, channel and task come from DDS and say what was supposed to be running. bc, orbit, feeid, chip and decoder_error are the per-component fault signal; program is the process that wrote the line, on every source that has one. log_time is O2's own clock, kept as a keyword because it carries no date and must never be read as one. clients/client_limit are the InfoLogger daemon's connection count against its ceiling. comm is the process named inside a kernel trace, and it is the join key from a fault back to the O2 logs. partition and run come from the run orchestrator and carry the same two values InfoLogger does, so an orchestration failure and the detector messages from the same run join on them; pid is the orchestrator's own process. doc_id is the identifier the collector writes each record under, so a bulk request that was applied but whose success response was lost is retried as an overwrite instead of a second document; it is mapped because the output leaves it in the body, and it is the only field here that is also the document _id."
+    "note": "Numbers are typed so they can be charted and alerted on; stored as text they can only be read. slot_id, channel_id, channel and task come from DDS and say what was supposed to be running. bc, orbit, feeid, chip and decoder_error are the per-component fault signal; program is the process that wrote the line, on every source that has one. log_time is O2's own clock, kept as a keyword because it carries no date and must never be read as one. clients/client_limit are the InfoLogger daemon's connection count against its ceiling. comm is the process named inside a kernel trace, and it is the join key from a fault back to the O2 logs. partition and run come from the run orchestrator and carry the same two values InfoLogger does, so an orchestration failure and the detector messages from the same run join on them; pid is the orchestrator's own process. doc_id is the identifier the collector writes each record under, so a bulk request that was applied but whose success response was lost is retried as an overwrite instead of a second document; it is mapped because the output leaves it in the body, and it is the only field here that is also the document _id. template_version, template_id and template_status are written by alice-stamper before the record reaches OpenSearch: the exact template version the record matched, its mask-class-collapsed identifier, and whether it matched, created the cluster, was refused at the state limit or produced no template."
   }
 }
 JSON
@@ -290,13 +293,16 @@ INFOLOGGER_MAPPINGS=$(cat <<'JSON'
         "errsource":  { "type": "keyword" },
         "program":    { "type": "keyword" },
         "doc_id":     { "type": "keyword" },
+        "template_version": { "type": "keyword" },
+        "template_id":      { "type": "keyword" },
+        "template_status":  { "type": "keyword" },
         "message":    { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 1024 } } }
       }
     }
   },
   "_meta": {
     "family": "infologger",
-    "note": "dynamic is strict here, so a field the ingest pipeline sets and this mapping does not name gets the whole document REJECTED, not just left unindexed. program is set from facility for every InfoLogger record; anything else added to the pipeline has to be added here in the same change. doc_id is the collector-assigned document identifier that makes a retried bulk chunk an overwrite; under a strict mapping it is not optional, because the output leaves it in the body and an unmapped field rejects the whole record."
+    "note": "dynamic is strict here, so a field the ingest pipeline sets and this mapping does not name gets the whole document REJECTED, not just left unindexed. program is set from facility for every InfoLogger record; anything else added to the pipeline has to be added here in the same change. doc_id is the collector-assigned document identifier that makes a retried bulk chunk an overwrite; under a strict mapping it is not optional, because the output leaves it in the body and an unmapped field rejects the whole record. template_version, template_id and template_status are the stamper's fields and are not optional here for the same reason."
   }
 }
 JSON
@@ -434,7 +440,31 @@ COCKPIT_METRICS_TPL=$(cat <<'JSON'
         "response_avg_ms":       { "type": "float" },
         "response_max_ms":       { "type": "float" },
         "requests_total":        { "type": "integer" },
-        "concurrent_connections": { "type": "integer" }
+        "concurrent_connections": { "type": "integer" },
+        "stamper_up":            { "type": "short" },
+        "stamper_records":       { "type": "long" },
+        "stamper_records_delta": { "type": "long" },
+        "stamper_chunks":        { "type": "long" },
+        "stamper_chunks_delta":  { "type": "long" },
+        "stamper_duplicate_chunks": { "type": "long" },
+        "stamper_duplicate_chunks_delta": { "type": "long" },
+        "stamper_return_failures": { "type": "long" },
+        "stamper_return_failures_delta": { "type": "long" },
+        "stamper_unlearned_records": { "type": "long" },
+        "stamper_no_template_records": { "type": "long" },
+        "stamper_late_records":  { "type": "long" },
+        "stamper_journal_bytes": { "type": "long" },
+        "stamper_journal_lines": { "type": "long" },
+        "stamper_clusters":      { "type": "integer" },
+        "stamper_ledger_buckets": { "type": "integer" },
+        "stamper_ledger_versions": { "type": "integer" },
+        "stamper_publications":  { "type": "long" },
+        "stamper_publication_failures": { "type": "long" },
+        "stamper_publication_failures_delta": { "type": "long" },
+        "stamper_peak_rss_bytes": { "type": "long" },
+        "stamper_socket_backlog": { "type": "integer" },
+        "stamper_published_through": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "stamper_last_publish":  { "type": "date", "format": "strict_date_optional_time||epoch_millis" }
       }
     }
   },
@@ -863,28 +893,234 @@ TEMPLATE_CATALOG_TPL=$(cat <<'JSON'
     "mappings": {
       "dynamic": false,
       "properties": {
-        "kind":            { "type": "keyword" },
-        "family":          { "type": "keyword" },
-        "template":        { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 2048 } } },
-        "programs":        { "type": "keyword" },
-        "nodes":           { "type": "keyword" },
-        "count":           { "type": "long" },
-        "superseded_by":   { "type": "keyword" },
-        "counts_by_node":  { "type": "object", "enabled": false },
-        "last_pass":       { "type": "object", "enabled": false },
-        "first_seen":      { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
-        "last_seen":       { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
-        "last_seen_node":  { "type": "keyword" },
-        "index":           { "type": "keyword" },
-        "node":            { "type": "keyword" },
-        "collector_time":  { "type": "date", "format": "strict_date_optional_time||epoch_millis" }
+        "kind":                   { "type": "keyword" },
+        "schema_version":         { "type": "integer" },
+        "version_id":             { "type": "keyword" },
+        "canonical_id":           { "type": "keyword" },
+        "family":                 { "type": "keyword" },
+        "template":               { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 2048 } } },
+        "normalized":             { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 2048 } } },
+        "token_count":            { "type": "integer" },
+        "programs":               { "type": "keyword" },
+        "programs_truncated":     { "type": "boolean" },
+        "origin_hosts":           { "type": "keyword" },
+        "origin_hosts_truncated": { "type": "boolean" },
+        "log_sources":            { "type": "keyword" },
+        "severity_norm":          { "type": "keyword" },
+        "nodes":                  { "type": "keyword" },
+        "nodes_truncated":        { "type": "boolean" },
+        "first_observed":         { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "last_observed":          { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "first_catalogued":       { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "widened_into":           { "type": "keyword" },
+        "widened_from":           { "type": "keyword" },
+        "watermark_id":           { "type": "keyword" },
+        "node":                   { "type": "keyword" },
+        "published_through":      { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "ledger_start":           { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "published_at":           { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "counters":               { "type": "object", "enabled": false },
+        "check_id":               { "type": "keyword" },
+        "check":                  { "type": "keyword" },
+        "resolution_seconds":     { "type": "integer" },
+        "bucket_start":           { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "index":                  { "type": "keyword" },
+        "stamped":                { "type": "long" },
+        "indexed":                { "type": "long" },
+        "difference":             { "type": "long" },
+        "ok":                     { "type": "boolean" },
+        "versions_short":         { "type": "keyword" },
+        "versions_short_truncated": { "type": "boolean" },
+        "detail":                 { "type": "text" },
+        "checked_at":             { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "maintenance_id":         { "type": "keyword" },
+        "section":                { "type": "keyword" },
+        "cleanup_age_ms":         { "type": "long" },
+        "deleted":                { "type": "long" },
+        "version_conflicts":      { "type": "long" },
+        "failures":               { "type": "integer" }
       }
     }
   },
   "_meta": {
     "family": "template-catalog",
-    "written_by": "alice-template-catalog",
-    "note": "One document per canonical template per family. Progress lives in the worker's own state file, not here, because it has to become durable at the same instant as that worker's mining tree. This is how template identity leaves a worker when the raw informational lines do not: the collector keeps 96.9 percent of the process tree node-local by severity, and a catalog built from the durable tier alone would never see those templates. Nothing here is a log line; `template` is the masked, mined form. Not time-partitioned: a catalog is a set, not a stream, and it is updated in place."
+    "written_by": "alice-stamper, alice-catalog-maintenance",
+    "note": "Three kinds of document. `template`: one per template version, written by every stamper that observed it, keyed by the version identifier so 228 workers upserting the same text produce one document; activity is the maximum accepted collector_time, never a publication time; retained {{ template_catalog_definition_retention_days }} days after its last observation; the default page view selects the {{ template_catalog_active_days }}-day active subset. `watermark`: one per node, the end of the latest bucket that node published. `check`: the results of the conservation and stamped-against-indexed checks, so the Shifter can show them. Volume is never here: it is a sum over {{ template_buckets_1h_prefix }}-* bucket documents."
+  }
+}
+JSON
+)
+
+TEMPLATE_BUCKETS_FINE_TPL=$(cat <<'JSON'
+{
+  "index_patterns": ["{{ template_buckets_5m_prefix }}-*"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": {{ template_buckets_replicas }},
+      "codec": "zstd",
+      "refresh_interval": "30s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "kind":               { "type": "keyword" },
+        "schema_version":     { "type": "integer" },
+        "bucket_id":          { "type": "keyword" },
+        "node":               { "type": "keyword" },
+        "family":             { "type": "keyword" },
+        "resolution_seconds": { "type": "integer" },
+        "bucket_start":       { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "bucket_end":         { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "late":               { "type": "boolean" },
+        "total":              { "type": "long" },
+        "version_count":      { "type": "integer" },
+        "versions":           { "type": "keyword" },
+        "counts":             { "type": "nested", "properties": {
+          "version_id": { "type": "keyword" },
+          "count":      { "type": "long" }
+        } },
+        "published_at":       { "type": "date", "format": "strict_date_optional_time||epoch_millis" }
+      }
+    }
+  },
+  "_meta": {
+    "family": "template-buckets-5m",
+    "written_by": "alice-stamper",
+    "note": "One document per node, family and five-minute bucket, republished in place while the bucket is inside the worker's {{ stamper_ledger_hours }}-hour ledger. Indices are named by the bucket's own day so a republication lands in the same document it wrote before; retention is an ISM age policy on the pattern ({{ ism_retention_template_buckets_5m }}). `versions` is the flat routing key a search expands through; `counts` is nested so a window sum is one aggregation."
+  }
+}
+JSON
+)
+
+TEMPLATE_BUCKETS_COARSE_TPL=$(cat <<'JSON'
+{
+  "index_patterns": ["{{ template_buckets_1h_prefix }}-*"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": {{ template_buckets_replicas }},
+      "codec": "zstd",
+      "refresh_interval": "30s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "kind":               { "type": "keyword" },
+        "schema_version":     { "type": "integer" },
+        "bucket_id":          { "type": "keyword" },
+        "node":               { "type": "keyword" },
+        "family":             { "type": "keyword" },
+        "resolution_seconds": { "type": "integer" },
+        "bucket_start":       { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "bucket_end":         { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "late":               { "type": "boolean" },
+        "total":              { "type": "long" },
+        "version_count":      { "type": "integer" },
+        "versions":           { "type": "keyword" },
+        "counts":             { "type": "nested", "properties": {
+          "version_id": { "type": "keyword" },
+          "count":      { "type": "long" }
+        } },
+        "published_at":       { "type": "date", "format": "strict_date_optional_time||epoch_millis" }
+      }
+    }
+  },
+  "_meta": {
+    "family": "template-buckets-1h",
+    "written_by": "alice-stamper",
+    "note": "The same bucket documents at one-hour resolution, summed exactly from the five-minute ledger on the worker. Indices are named by the bucket's month; the ISM age policy on the pattern ({{ ism_retention_template_buckets_1h }}) is the {{ template_catalog_active_days }}-day window plus the late horizon plus a month of index granularity. This is the series the 28-day volume, any baseline and the anomaly detectors read."
+  }
+}
+JSON
+)
+
+TEMPLATE_TRIAGE_TPL=$(cat <<'JSON'
+{
+  "index_patterns": ["{{ template_triage_index }}"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 2,
+      "codec": "zstd",
+      "refresh_interval": "1s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "kind":                  { "type": "keyword" },
+        "schema_version":        { "type": "integer" },
+        "label_id":              { "type": "keyword" },
+        "canonical_id":          { "type": "keyword" },
+        "reviewed_version_ids":  { "type": "keyword" },
+        "family":                { "type": "keyword" },
+        "template":              { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 2048 } } },
+        "normalized":            { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 2048 } } },
+        "label":                 { "type": "keyword" },
+        "note":                  { "type": "text" },
+        "author":                { "type": "keyword" },
+        "watched":               { "type": "boolean" },
+        "reviewed_programs":     { "type": "keyword" },
+        "reviewed_origin_hosts": { "type": "keyword" },
+        "revision":              { "type": "integer" },
+        "created_at":            { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "updated_at":            { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "history":               { "type": "object", "enabled": false }
+      }
+    }
+  },
+  "_meta": {
+    "family": "template-triage",
+    "written_by": "alice-shifter",
+    "note": "Human decisions. They outlive both the seven-day activity window and the 90-day definition retention, and they extend neither. An author name is self-reported: Shifter has no user login."
+  }
+}
+JSON
+)
+
+SHIFTER_QUERIES_TPL=$(cat <<'JSON'
+{
+  "index_patterns": ["{{ shifter_queries_index }}"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "codec": "zstd",
+      "refresh_interval": "30s",
+      "index.routing.allocation.require.role": "storage"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "kind":             { "type": "keyword" },
+        "schema_version":   { "type": "integer" },
+        "query_id":         { "type": "keyword" },
+        "query_text":       { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 512 } } },
+        "mode":             { "type": "keyword" },
+        "include_inactive": { "type": "boolean" },
+        "model_revision":   { "type": "keyword" },
+        "corpus_revision":  { "type": "keyword" },
+        "result_ids":       { "type": "keyword" },
+        "result_ranks":     { "type": "object", "enabled": false },
+        "opened_ids":       { "type": "keyword" },
+        "viewer":           { "type": "keyword" },
+        "latency_ms":       { "type": "integer" },
+        "issued_at":        { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+        "updated_at":       { "type": "date", "format": "strict_date_optional_time||epoch_millis" }
+      }
+    }
+  },
+  "_meta": {
+    "family": "shifter-queries",
+    "written_by": "alice-shifter",
+    "note": "Research feedback for retrieval evaluation. It keeps identifiers and ranks, never a copy of the template payload. A click is implicit feedback and is not a graded relevance judgment."
   }
 }
 JSON
@@ -1014,6 +1250,10 @@ put "/_index_template/alice-logs-infologger"    "$INFOLOGGER_INDEX_TPL" "index t
 put "/_index_template/alice-cockpit-metrics"    "$COCKPIT_METRICS_TPL"  "index template alice-cockpit-metrics"
 put "/_index_template/alice-trend-rollup"       "$TREND_ROLLUP_TPL"     "index template alice-trend-rollup"
 put "/_index_template/alice-template-catalog"   "$TEMPLATE_CATALOG_TPL" "index template alice-template-catalog"
+put "/_index_template/alice-template-buckets-5m" "$TEMPLATE_BUCKETS_FINE_TPL" "index template alice-template-buckets-5m"
+put "/_index_template/alice-template-buckets-1h" "$TEMPLATE_BUCKETS_COARSE_TPL" "index template alice-template-buckets-1h"
+put "/_index_template/alice-template-triage"    "$TEMPLATE_TRIAGE_TPL"  "index template alice-template-triage"
+put "/_index_template/alice-shifter-queries"    "$SHIFTER_QUERIES_TPL"  "index template alice-shifter-queries"
 put "/_index_template/alice-fleet-roster"       "$FLEET_ROSTER_TPL"     "index template alice-fleet-roster"
 put "/_index_template/alice-lane-state"         "$LANE_STATE_TPL"       "index template alice-lane-state"
 put "/_index_template/alice-signals"            "$SIGNALS_TPL"          "index template alice-signals"
@@ -1043,6 +1283,8 @@ ensure_alert_actions_alias
 ensure_index "{{ cockpit_metrics_index }}" '{}'
 ensure_index "{{ trend_rollup_index }}" '{}'
 ensure_index "{{ template_catalog_index }}" '{}'
+ensure_index "{{ template_triage_index }}" '{}'
+ensure_index "{{ shifter_queries_index }}" '{}'
 ensure_index "{{ fleet_roster_index }}" '{}'
 ensure_index "{{ lane_state_index }}" '{}'
 ensure_index "{{ signals_index }}" '{}'
@@ -1053,6 +1295,9 @@ put "/{{ cockpit_metrics_index }}/_mapping" "$COCKPIT_IDENTITY_FIELDS" "live map
 put "/{{ trend_rollup_index }}/_mapping" "$TREND_COMMIT_FIELDS" "live mapping: bucket-commit and silence-imputation fields on {{ trend_rollup_index }}"
 
 for idx_tpl in \
+  "{{ template_catalog_index }}:alice-template-catalog" \
+  "{{ template_triage_index }}:alice-template-triage" \
+  "{{ shifter_queries_index }}:alice-shifter-queries" \
   "{{ fleet_roster_index }}:alice-fleet-roster" \
   "{{ lane_state_index }}:alice-lane-state" \
   "{{ signals_index }}:alice-signals" \

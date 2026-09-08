@@ -1,0 +1,61 @@
+# {{ ansible_managed }}
+[Unit]
+Description=ALICE template stamper — drain3 in-band between Fluent Bit's filters and its outputs
+After=network-online.target
+Wants=network-online.target
+# Fluent Bit buffers to disk and retries without limit while this is down, so
+# there is no ordering requirement between the two units; the stamper is only
+# named here so a restart of the collector does not orphan a socket.
+Before=fluent-bit.service
+
+[Service]
+Type=simple
+Environment=OS_URL=http://localhost:{{ opensearch_http_port }}
+Environment=ALICE_NODE_ID={{ node_id }}
+Environment=ALICE_SHARED_PATH={{ alice_shared_dir }}
+Environment=ALICE_TEMPLATING_PATH={{ stamper_templating_dir }}
+Environment=CATALOG_INDEX={{ template_catalog_index }}
+Environment=STAMPER_LOCAL_INDEX=application-logs-local-{{ node_id }}
+Environment=STAMPER_LISTEN_SOCKET={{ stamper_listen_socket }}
+Environment=STAMPER_RETURN_SOCKET={{ stamper_return_socket }}
+Environment=STAMPER_SOCKET_MODE={{ stamper_socket_mode }}
+Environment=STAMPER_STATUS_FILE={{ stamper_status_file }}
+Environment=STAMPER_STATE_DIR={{ stamper_state_dir }}
+Environment=STAMPER_MAX_TEMPLATES={{ stamper_max_templates }}
+Environment=STAMPER_PUBLISH_SECONDS={{ stamper_publish_seconds }}
+Environment=STAMPER_CHECKPOINT_SECONDS={{ stamper_checkpoint_seconds }}
+Environment=STAMPER_ACK_TIMEOUT={{ stamper_ack_timeout_seconds }}
+Environment=STAMPER_REQUEST_TIMEOUT={{ stamper_request_timeout }}
+Environment=STAMPER_BULK_TIMEOUT={{ stamper_bulk_timeout }}
+Environment=STAMPER_BULK_DOCUMENTS={{ stamper_bulk_documents }}
+Environment=STAMPER_CLOCK_TOLERANCE_MS={{ stamper_clock_tolerance_ms }}
+Environment=STAMPER_LEDGER_HOURS={{ stamper_ledger_hours }}
+Environment=STAMPER_CHUNK_HOLD_MS={{ stamper_chunk_hold_ms }}
+Environment=STAMPER_LOCAL_CHECK={{ stamper_local_check | bool | ternary('true', 'false') }}
+Environment=PYTHONUNBUFFERED=1
+ExecStart={{ stamper_venv }}/bin/python {{ stamper_script }}
+# The ledger checkpoint, the journal and the drain trees. State, not a cache:
+# a tree rebuilt from empty stamps the same message with a different version
+# depending on which chunk it fell in.
+StateDirectory={{ stamper_state_dir | basename }}
+# The socket directory. Preserved across a stop so the socket Fluent Bit
+# created in it is not removed under the collector.
+RuntimeDirectory={{ stamper_socket_dir | basename }}
+RuntimeDirectoryPreserve=yes
+RuntimeDirectoryMode=0755
+# Same limits as the collector unit. The drain tree is the memory here: 20,000
+# clusters hold 61 MB and serialising them peaks at 208 MB.
+MemoryAccounting=yes
+MemoryHigh={{ stamper_memory_high }}
+MemoryMax={{ stamper_memory_max }}
+Restart=always
+RestartSec=2s
+TimeoutStopSec=60s
+KillSignal=SIGTERM
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

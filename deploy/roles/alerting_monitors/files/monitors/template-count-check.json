@@ -1,0 +1,83 @@
+{
+  "type": "monitor",
+  "name": "template-count-check",
+  "description": "Fire when a counting check on the template stamps fails: a bucket document whose per-template counts do not sum to its total (conservation), or an index holding more records of a template version than the worker stamped (stamped against indexed). Both checks write their results into template-catalog as kind=check; alice-stamper writes the worker-side half and alice-catalog-maintenance the central half. Either failure is a ledger bug, never a data condition, so one is enough.",
+  "monitor_type": "query_level_monitor",
+  "enabled": true,
+  "schedule": {
+    "period": {
+      "interval": 60,
+      "unit": "MINUTES"
+    }
+  },
+  "inputs": [
+    {
+      "search": {
+        "indices": [
+          "template-catalog"
+        ],
+        "query": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "term": {
+                    "kind": "check"
+                  }
+                },
+                {
+                  "term": {
+                    "ok": false
+                  }
+                },
+                {
+                  "range": {
+                    "checked_at": {
+                      "gte": "{{period_end}}||-2h",
+                      "lte": "{{period_end}}",
+                      "format": "epoch_millis"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "triggers": [
+    {
+      "query_level_trigger": {
+        "name": "template-count-check",
+        "severity": "3",
+        "condition": {
+          "script": {
+            "source": "ctx.results[0].hits.total.value > 0",
+            "lang": "painless"
+          }
+        },
+        "actions": [
+          {
+            "name": "notify",
+            "destination_id": "alice-incluster-alert-sink",
+            "subject_template": {
+              "source": "{{ctx.monitor.name}}",
+              "lang": "mustache"
+            },
+            "message_template": {
+              "source": "{\"monitor\":\"{{ctx.monitor.name}}\",\"trigger\":\"{{ctx.trigger.name}}\",\"severity\":\"{{ctx.trigger.severity}}\",\"period_start\":\"{{ctx.periodStart}}\",\"period_end\":\"{{ctx.periodEnd}}\",\"entity_kind\":\"service\",\"notification_scope\":\"fleet\",\"feed\":\"control-plane\",\"delivery_path\":\"alertmanager\",\"entity\":\"alice-stamper\"}",
+              "lang": "mustache"
+            },
+            "throttle_enabled": true,
+            "throttle": {
+              "value": 30,
+              "unit": "MINUTES"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
