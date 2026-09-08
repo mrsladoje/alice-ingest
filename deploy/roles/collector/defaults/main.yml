@@ -58,9 +58,9 @@ fluent_bit_flush_seconds: 1
 # process log that appeared since the last sweep. It is not a tuning detail.
 collector_stdout_refresh_interval: 5
 
-# One explicit file. Never a wildcard over /var/log: /var/log/messages is
-# already in the journal and tailing it would double-count every line.
-infologger_daemon_log_path: /var/log/o2-infologger-daemon.log
+# infologger_daemon_log_path is in group_vars/all.yml: the producer role
+# writes the replayed daemon log into the same file this role tails, and the
+# two run in different plays.
 
 # The journal needs the systemd input compiled into the packaged build. The
 # role probes for it and overrides this fact, so the shipped default is what a

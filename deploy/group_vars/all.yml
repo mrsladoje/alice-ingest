@@ -131,6 +131,11 @@ common_open_tcp_ports: "{{ [dashboards_external_port] if inventory_hostname in g
 infologger_tcp_port: 5170
 log_root: /var/log/node
 
+# Read by two roles in two plays: the collector tails this file and the
+# producer's replay writes the daemon-log bundle into it. A role default is
+# invisible to the other play, so the one copy lives here.
+infologger_daemon_log_path: /var/log/o2-infologger-daemon.log
+
 # --- the two farm-captured families -----------------------------------------
 #
 # InfoLogger, DDS and the process tree come out of the S3 archive. The
