@@ -1,13 +1,11 @@
 # New log types — EPN survey and integration plan
 
-The Item 1 gate from `docs/THANASIS_PLAN.md` is closed. The survey ran on
-`epn146` on 27 Aug 2026 and the results are below.
+The survey ran on `epn146` on 27 Aug 2026 and the results are below.
 
 Tools: `tools/epnsurvey/survey.sh` (read-only capture, runs on an EPN) and
 `tools/epnsurvey/regex_report.py` (scores a parser library against the bundle).
 
-Source of the scope: `LUBOS_MEETING.md` item 3, and `docs/THANASIS_PLAN.md`
-Items 1 and 2.
+Source of the scope: `LUBOS_MEETING.md` item 3.
 
 ---
 

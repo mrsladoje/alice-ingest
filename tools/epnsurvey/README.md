@@ -1,6 +1,6 @@
 # epnsurvey
 
-Two tools that close the Item 1 gate in `docs/THANASIS_PLAN.md`. Results are in
+Two tools that survey the log types on an EPN. Results are in
 `docs/LOG_TYPES.md`.
 
 ## survey.sh

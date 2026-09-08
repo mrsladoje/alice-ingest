@@ -1739,9 +1739,8 @@ should run the query above once; if `method=brain` is rejected, the fallback is
 
 ## 9. Ported from logstack — what changed and why
 
-Everything in this section comes from `docs/THANASIS_PLAN.md`, which compared
-Thanasis's `logstack` against this tree. The plan is the argument; this section
-is what was built. Items waiting on EPN access are named at the end.
+This section is what was built when Thanasis's `logstack` was compared against
+this tree. Items waiting on EPN access are named at the end.
 
 ### The three rules every port obeys
 
@@ -2053,8 +2052,8 @@ a default we inherited, and no note survives explaining it.
 
 The dead-letter question is settled for now. Current Fluent Bit documents
 `storage.keep.rejected`, which preserves chunks that exhaust their retries, but it
-does **not** appear in the documentation for the pinned 5.0 line. Item 9 below and
-`docs/THANASIS_PLAN.md` say a dead-letter design cannot be built, and that remains
+does **not** appear in the documentation for the pinned 5.0 line. Item 9 below
+says a dead-letter design cannot be built, and that remains
 true for the version we run. Revisit it whenever `fluent_bit_version` moves to
 5.1 or later, because it would weaken Item 9's argument for a queue.
 
