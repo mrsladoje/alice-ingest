@@ -670,6 +670,10 @@ pipeline:
     # The live lane: the second consumer of the stream, and the reason no queue
     # is needed yet. Never the info tier. Best-effort by construction — a small
     # buffer and one retry, so a dead viewer never pushes back on OpenSearch.
+    # The buffer is sized for one returned chunk: the stamper hands a chunk
+    # back whole, up to the 2 MB Fluent Bit builds, and a limit below that
+    # made every chunk fail to place for this route ("no available chunk",
+    # 90,000 times in five minutes on epn146 on 8 September 2026).
     - name: http
       match_regex: ^stamped\.(infologger|ildaemon|family\.central)$
       host: {{ shifter_host }}
@@ -680,7 +684,7 @@ pipeline:
       json_date_format: iso8601
       compress: gzip
       header: Content-Type application/json
-      storage.total_limit_size: 1M
+      storage.total_limit_size: 8M
       retry_limit: 1
       net.keepalive: on
 {% endif %}

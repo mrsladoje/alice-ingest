@@ -138,6 +138,13 @@ all:
               fluent_bit_cpuset: "44-47,140-143"
               producer_cpuset: "42-43,138-139"
               fluent_bit_version: "4.0.14"
+              # 8 September 2026: Fluent Bit 4.0.14 segfaults reading this
+              # host's journal (AlmaLinux 10, systemd 257, zstd-compressed
+              # entries): in_systemd_collect -> sd_journal_enumerate_data ->
+              # ZSTD_freeDCtx lands in Fluent Bit's own bundled zstd. Five
+              # core dumps in five seconds, before the first record. The
+              # journal stays off here until a build links libsystemd's zstd.
+              collector_journald_enabled: false
 
         # Three OpenSearch nodes as podman containers on epn-infra13, which is
         # ours alone. The soak rig ran two nodes with one replica and recorded
