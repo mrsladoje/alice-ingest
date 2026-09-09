@@ -144,10 +144,10 @@ Physical memory on the host does not establish available service memory.
 
 Sources:
 
-- `deploy/roles/sweet_shifter_view/files/shifter.py`
-- `deploy/roles/sweet_shifter_view/files/live/shifter.js`
-- `deploy/roles/sweet_shifter_view/defaults/main.yml`
-- `deploy/roles/sweet_shifter_view/templates/alice-shifter.service.j2`
+- `deploy/roles/loggy_shifter_view/files/shifter.py`
+- `deploy/roles/loggy_shifter_view/files/live/shifter.js`
+- `deploy/roles/loggy_shifter_view/defaults/main.yml`
+- `deploy/roles/loggy_shifter_view/templates/alice-shifter.service.j2`
 
 ### Template catalog producer
 
@@ -201,9 +201,9 @@ Missing producer coverage is not evidence of zero template volume.
 
 Sources:
 
-- `deploy/roles/sweet_signal_projector/files/signal_projector.py`
-- `deploy/roles/sweet_alertmanager/templates/alertmanager.yml.j2`
-- `deploy/roles/sweet_trend_rollup/files/trend_rollup.py`
+- `deploy/roles/loggy_signal_projector/files/signal_projector.py`
+- `deploy/roles/loggy_alertmanager/templates/alertmanager.yml.j2`
+- `deploy/roles/loggy_trend_rollup/files/trend_rollup.py`
 
 ## 3. Where work runs and how it stays bounded
 

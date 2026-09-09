@@ -3,7 +3,7 @@
 
 The configuration is never hand-written here: it comes out of
 `tools/soak/mkconfig.py`, the same renderer the soak rig uses, which reads
-`deploy/roles/sweet_collector/templates/`. The outputs are swapped for the file sink,
+`deploy/roles/loggy_collector/templates/`. The outputs are swapped for the file sink,
 so which file a record lands in is the routing assertion, and the JSON in that
 file is the field assertion.
 

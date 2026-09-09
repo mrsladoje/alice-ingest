@@ -68,7 +68,7 @@ CHECKOUT_ON_AFS := $(filter /afs/%,$(CURDIR))
 ifeq (,$(CHECKOUT_ON_AFS))
 VENV ?= $(CURDIR)/.venv
 else
-LOCAL_SCRATCH := $(shell printf '%s/sweet-%s' "$${TMPDIR:-/tmp}" "$$(id -un)" | tr -s /)
+LOCAL_SCRATCH := $(shell printf '%s/loggy-%s' "$${TMPDIR:-/tmp}" "$$(id -un)" | tr -s /)
 VENV ?= $(LOCAL_SCRATCH)/venv
 export ANSIBLE_LOCAL_TEMP := $(LOCAL_SCRATCH)/ansible-tmp
 export ANSIBLE_COLLECTIONS_PATH := $(LOCAL_SCRATCH)/collections
@@ -258,12 +258,12 @@ roster-discover:
 	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/roster_discover.yml $(ANSIBLE_EXTRA)
 
 monitors:
-	python3 deploy/roles/sweet_anomaly_detection/files/gen_monitors.py
+	python3 deploy/roles/loggy_anomaly_detection/files/gen_monitors.py
 
 contract:
 	$(DEPLOY_PYTHON) deploy/roles/alice_ops/files/test_poison_replay.py
-	$(DEPLOY_PYTHON) deploy/roles/sweet_trend_rollup/files/test_trend_rollup.py
-	$(DEPLOY_PYTHON) deploy/roles/sweet_signal_projector/files/test_signal_contract.py
+	$(DEPLOY_PYTHON) deploy/roles/loggy_trend_rollup/files/test_trend_rollup.py
+	$(DEPLOY_PYTHON) deploy/roles/loggy_signal_projector/files/test_signal_contract.py
 
 status:
 	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/status.yml

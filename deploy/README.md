@@ -1,4 +1,4 @@
-# sweet — Distributed Deployment (5-VM two-tier, native, no Docker)
+# loggy — Distributed Deployment (5-VM two-tier, native, no Docker)
 
 This tree takes the ALICE O2 logging paper-airplane from "Docker Compose on
 one machine" to **5 CERN OpenStack VMs, native systemd services, one 5-node
@@ -112,7 +112,7 @@ not co-located with that UI stack: `alice-signal-projector` runs on
   record still has precisely when no parser claimed it — without it a
   `rewrite_tag` rule can match nothing at all and the record is dropped without
   a word, which is what was happening to every DDS startup banner.
-- **The program name survives.** `deploy/roles/sweet_replay` deploys
+- **The program name survives.** `deploy/roles/loggy_replay` deploys
   `images/replay/replay.py`, which used to flatten every process log of a node
   into one file and destroy the program name before Fluent Bit read a line. It
   now writes one file per process under `stdout/<host>/`, keeping the name the
@@ -148,7 +148,7 @@ not co-located with that UI stack: `alice-signal-projector` runs on
 - **Heap `-Xms1g -Xmx1g`.** VMs are `m2.medium` (2 vCPU / 3.75 GB RAM).
   1 GB heap leaves ~2.5 GB for OS/page cache/Fluent Bit and raises the AD
   model memory budget (10% of heap). See `opensearch_heap_size` in
-  `deploy/roles/sweet_opensearch/defaults/main.yml`.
+  `deploy/roles/loggy_opensearch/defaults/main.yml`.
 - **Alertmanager is built, in the seam that was reserved for it.** The nginx
   vhost's "another control-host-only service behind this nginx" slot is now
   wired: `alertmanager_port` is a real variable, the service is control-host
@@ -229,7 +229,7 @@ an already-activated venv on `PATH` if it is absent), so after
 
 **On lxplus the toolchain is kept off AFS, and that is deliberate.** When the
 checkout is under `/afs/...` the Makefile puts the venv in
-`$TMPDIR/sweet-$USER/venv` (so `/tmp/sweet-masladoj/venv`) and points
+`$TMPDIR/loggy-$USER/venv` (so `/tmp/loggy-masladoj/venv`) and points
 `ANSIBLE_LOCAL_TEMP` and `ANSIBLE_COLLECTIONS_PATH` at siblings of it. A checkout
 anywhere else is untouched: still `./.venv`, still Ansible's own defaults.
 
@@ -408,13 +408,13 @@ Two consequences of three hosts on one machine, both deliberate:
 - **`common` runs three times on the storage machine**, once per host. It is
   idempotent, so the result is right; it costs runtime, not correctness.
 - **The container runtime is prepared three times**, once per host, by the
-  `sweet_opensearch` role's `container_runtime.yml`. Podman and the quadlet
+  `loggy_opensearch` role's `container_runtime.yml`. Podman and the quadlet
   directory are machine-level facts, so two of the three passes are no-ops.
 
 What this does **not** rehearse is fault tolerance. Three replicas on one disk
 survive nothing. The layout exists so that the design does not have to change
 when the storage tier grows onto a second machine — see "Derived on the
-container path" in `roles/sweet_opensearch/README.md`.
+container path" in `roles/loggy_opensearch/README.md`.
 
 ### 4.1 Two auth paths
 
@@ -476,47 +476,47 @@ declares, and each step depends on the one above it.
 |---|---|---|
 | 1 | `alice_nodes` | `common` |
 | 2 | `alice_nodes` | `opensearch` (initial bring-up, then the `serial: 1` health gate) |
-| 3 | `control` | `sweet_opensearch` |
-| 4 | `control` | `sweet_alertmanager` |
-| 5 | `control` | `sweet_os_dashboards`, `alice_ops`, `sweet_cockpit_metrics`, `sweet_anomaly_detection` |
-| 6 | `projector` | `sweet_signal_projector` |
-| 7 | `control` | `sweet_signal_projector` (`tasks_from: control.yml`) |
-| 8 | `background` | `sweet_trend_rollup` |
-| 9 | `shifter` | `sweet_shifter_view` |
-| 10 | `workers` | `sweet_collector` (the stamper, then Fluent Bit) |
-| 11 | `control` | `sweet_template_catalog` |
-| 12 | `control` | `sweet_cockpit_metrics` (`tasks_from: post_collector.yml`) |
-| 13 | `workers` | `sweet_replay` |
+| 3 | `control` | `loggy_opensearch` |
+| 4 | `control` | `loggy_alertmanager` |
+| 5 | `control` | `loggy_os_dashboards`, `alice_ops`, `loggy_cockpit_metrics`, `loggy_anomaly_detection` |
+| 6 | `projector` | `loggy_signal_projector` |
+| 7 | `control` | `loggy_signal_projector` (`tasks_from: control.yml`) |
+| 8 | `background` | `loggy_trend_rollup` |
+| 9 | `shifter` | `loggy_shifter_view` |
+| 10 | `workers` | `loggy_collector` (the stamper, then Fluent Bit) |
+| 11 | `control` | `loggy_template_catalog` |
+| 12 | `control` | `loggy_cockpit_metrics` (`tasks_from: post_collector.yml`) |
+| 13 | `workers` | `loggy_replay` |
 | 14 | `workers` + `projector` | `faults` |
 | 15 | `control` | the final verdict on the projector gate |
 
 What each dependency is:
 
-- `sweet_opensearch` creates the indices and the write aliases. Every
+- `loggy_opensearch` creates the indices and the write aliases. Every
   cockpit pattern, monitor and detector below reads them.
 - Every alice-service role stages the catalogs and the Python modules its own
   scripts read (`signal_catalog.json`, `causal_edges.json`, `os_cursor.py`,
-  `signal_identity.py`) and creates `/opt/sweet` and `/opt/sweet/init` itself.
-  `sweet_anomaly_detection` owns the catalog, `sweet_signal_projector` owns the
+  `signal_identity.py`) and creates `/opt/loggy` and `/opt/loggy/init` itself.
+  `loggy_anomaly_detection` owns the catalog, `loggy_signal_projector` owns the
   other three; the contract test keeps every copy byte-identical.
-- `sweet_os_dashboards` creates the per-source index patterns before it imports the
+- `loggy_os_dashboards` creates the per-source index patterns before it imports the
   cockpit saved objects that reference them.
-- `sweet_cockpit_metrics` publishes the immutable fleet roster, then starts the poller
+- `loggy_cockpit_metrics` publishes the immutable fleet roster, then starts the poller
   that reads it to derive collector absence.
-- `sweet_anomaly_detection` upserts the 30 monitors, then waits for the poller's
+- `loggy_anomaly_detection` upserts the 30 monitors, then waits for the poller's
   first `kind=node` and `kind=osd` documents before it creates the detectors
   that read them, and verifies the whole set.
-- `sweet_signal_projector` normalizes the signals the monitors and detectors emit, so
+- `loggy_signal_projector` normalizes the signals the monitors and detectors emit, so
   both must exist first. It also proves it can reach Alertmanager before it
   starts, which is why play 4 is above it.
-- `sweet_cockpit_metrics`'s post-collector gate runs after `sweet_collector`, because
+- `loggy_cockpit_metrics`'s post-collector gate runs after `loggy_collector`, because
   it waits for each collector's pushed Fluent Bit heartbeat.
-- `sweet_template_catalog` runs after `sweet_collector`, because a maintenance
+- `loggy_template_catalog` runs after `loggy_collector`, because a maintenance
   pass reads the bucket documents every worker publishes. It runs on `control`,
   not a worker: nothing it touches is worker-local.
 
 One role runs in more than one play.
-`sweet_signal_projector` runs on the projector host for the projector itself, and on
+`loggy_signal_projector` runs on the projector host for the projector itself, and on
 the control host for the notification receiver — the receiver binds
 `127.0.0.1` and Alertmanager, which runs on control, posts its webhooks there.
 
@@ -601,7 +601,7 @@ below ran clean:
 |---|---|
 | `ansible-inventory --graph` on `inventory.yml` | pass — `alice_nodes` resolves to `workers` (2) + `storage` (3); `control` = `alice-ingest-3` (a storage node) |
 | `ansible-playbook --syntax-check` on `playbooks/site.yml`, `playbooks/provision.yml`, `playbooks/teardown.yml` | pass — zero syntax errors |
-| `ansible-playbook playbooks/site.yml --list-hosts` | pass — common/opensearch/gate target all 5; the control-plane roles (`sweet_os_dashboards`, `alice_ops`, `sweet_cockpit_metrics`, `sweet_anomaly_detection`) → control; `sweet_signal_projector` → projector; `sweet_trend_rollup` → background; `sweet_shifter_view` → shifter; collector + sweet_replay → the 2 workers only |
+| `ansible-playbook playbooks/site.yml --list-hosts` | pass — common/opensearch/gate target all 5; the control-plane roles (`loggy_os_dashboards`, `alice_ops`, `loggy_cockpit_metrics`, `loggy_anomaly_detection`) → control; `loggy_signal_projector` → projector; `loggy_trend_rollup` → background; `loggy_shifter_view` → shifter; collector + loggy_replay → the 2 workers only |
 | `group_vars/all.yml` derivations (`ansible -m debug`) | pass — `node_count=2` (from `workers`); seeds/initial-managers/Dashboards-hosts = the 3 storage nodes; `opensearch_cluster_hosts` = all 5 (firewall mesh) |
 | `opensearch.yml.j2` render (both tiers) | pass — workers get `node.roles: [data, ingest]` + `node.attr.role: worker` + `node.attr.box: <node_id>`; storage gets `[cluster_manager, data, ingest]` + `node.attr.role: storage` |
 | `opensearch.yml.j2` ingest role | pass — every index sets `default_pipeline: alice-add-ingest-time`, and explicit `node.roles` drops the implicit `ingest` role, so both tiers list `ingest` (`[data, ingest]` / `[cluster_manager, data, ingest]`); workers stay ingest-capable so the local info path needs no cross-node hop for the pipeline |
@@ -619,7 +619,7 @@ CERN network access and real quota.
 
 ## 8. Open items
 
-- **Alertmanager** — built (`roles/sweet_alertmanager`, single instance, no gossip
+- **Alertmanager** — built (`roles/loggy_alertmanager`, single instance, no gossip
   HA: a restart is self-healing because the projector re-sends). External
   receivers are still absent by design; adding one is a receiver config change,
   not an architecture change.
@@ -671,9 +671,9 @@ CERN network access and real quota.
 ## 8. Detection layer runbook (wooden-plane)
 
 Provisioned every `make deploy`: index templates and ISM by the
-`sweet_opensearch` role, then monitors, detectors, the forecaster and strict
-verify by the `sweet_anomaly_detection` role. Definitions live under
-`roles/sweet_anomaly_detection/files/{monitors,detectors,forecasters}/`.
+`loggy_opensearch` role, then monitors, detectors, the forecaster and strict
+verify by the `loggy_anomaly_detection` role. Definitions live under
+`roles/loggy_anomaly_detection/files/{monitors,detectors,forecasters}/`.
 
 ### Platform health is pushed, not scraped
 
@@ -1701,7 +1701,7 @@ changed — and that is a query, not a detector.
 
 PPL's `patterns` command groups raw messages into templates at query time. It
 ships in `opensearch-sql`, which is now asserted in
-`roles/sweet_opensearch/defaults/main.yml`. Run it in Query Workbench, or against
+`roles/loggy_opensearch/defaults/main.yml`. Run it in Query Workbench, or against
 `POST _plugins/_ppl` on `:9200`:
 
 ```
@@ -1760,7 +1760,7 @@ stays. Our pipeline already parses per source before it routes per severity, so
 a ported parser chain attaches at that point and never changes output routing.
 
 **R3 — per-node values come from the environment, not from Ansible.** Ansible
-writes `/etc/sweet/node.env` once, at install time, and the collector
+writes `/etc/loggy/node.env` once, at install time, and the collector
 reads `${ALICE_NODE_ID}`, `${ALICE_LOG_ROOT}` and the ports from it. The
 original reason was portability to Kubernetes, which is off the table; the
 surviving reason is self-registration below — a machine cannot register itself
@@ -1785,7 +1785,7 @@ never be aggregated or charted.
 
 ### Item 3 — a node registers itself
 
-`deploy/roles/sweet_opensearch/files/register_node.sh` is the single
+`deploy/roles/loggy_opensearch/files/register_node.sh` is the single
 definition of the three
 per-worker objects: the `application-logs-local-<box>-*` index template, the
 retention-policy attachment, and a writable rollover index behind the alias.
@@ -1869,7 +1869,7 @@ Lubos requires that the bulk tier never crosses the wire. Only the cost changes.
    **Staging and the farm now carry the same 1g**, so `inventory.yml`'s worker
    override is a restatement rather than a correction. Staging workers are
    `m2.medium` with 3.75 GB in total and could not have afforded more anyway.
-   `opensearch_heap_size` is declared in the `sweet_opensearch` role's defaults, which
+   `opensearch_heap_size` is declared in the `loggy_opensearch` role's defaults, which
    rank below every group variable, so the inventory value still wins.
 6. **The smaller levers.** `indices.memory.index_buffer_size` drops from the
    10%-of-heap default to 5%. `bootstrap.memory_lock` stays on, so locked memory
@@ -1962,7 +1962,7 @@ the real durability budget: about half a minute, on a tier whose whole job is no
 to lose logs during data taking.
 
 The new values are `fluent_bit_log_buffer_limit` and `fluent_bit_log_retry_limit`
-in `roles/sweet_collector/defaults/main.yml`. Ten retries is **50 seconds at best and about 109 minutes
+in `roles/loggy_collector/defaults/main.yml`. Ten retries is **50 seconds at best and about 109 minutes
 at worst** — the spread is wide because the backoff is jittered, and that is
 inherent, not a tuning mistake.
 
@@ -1989,7 +1989,7 @@ genuine per-tier split is ever needed.
 This trap bit `opensearch_heap_size` until August 2026. The `workers` group in
 `inventory.yml` set it to `1g` and that assignment had no effect, because
 `group_vars/all.yml` set the same name. It was invisible only because both said
-`1g`. The fix was to declare the name in `roles/sweet_opensearch/defaults/main.yml`
+`1g`. The fix was to declare the name in `roles/loggy_opensearch/defaults/main.yml`
 instead: role defaults rank below every group variable, including one written
 inside the inventory file, so the group assignment now wins. **Do not add
 `opensearch_heap_size` back to `group_vars/all.yml`** — that reintroduces the
@@ -2029,7 +2029,7 @@ the failure the 384 MB / 768 MB pair was chosen to avoid.
 
 The protection window itself scales cleanly with the buffer — roughly four
 seconds per 100 MB at 20,000 records a second — but it buys time for the
-InfoLogger output alone. See `roles/sweet_collector/README.md`: the DDS and stdout
+InfoLogger output alone. See `roles/loggy_collector/README.md`: the DDS and stdout
 tiers lost nothing in either run, because their `tail` sources hold the backlog
 in the log files.
 
@@ -2113,7 +2113,7 @@ its own failure mode.
    other name, so OpenSearch answers 400 to the *whole* persistent settings
    body — including the anomaly-detection batch pacing that shares the call —
    and `templates.sh` exits non-zero under `set -eu`. The mode is therefore
-   asserted in `roles/sweet_opensearch/tasks/configure_cluster.yml` before anything
+   asserted in `roles/loggy_opensearch/tasks/configure_cluster.yml` before anything
    renders.
    An earlier revision shipped `shadow`, which is the word the OpenSearch source
    comments use for this mode but not the name the enum accepts; it failed the
@@ -2279,7 +2279,7 @@ maintains this after us — and that reason stands. But this tree has no Node, n
 npm and no bundler, and adding a JavaScript toolchain to an Ansible deploy is
 the same kind of permanent tax the plan rejected for Dashboards plugins. So
 `react.production.min.js` and `react-dom.production.min.js` are committed under
-`roles/sweet_shifter_view/files/live/`, and the page calls `React.createElement`
+`roles/loggy_shifter_view/files/live/`, and the page calls `React.createElement`
 directly, which is what JSX compiles into. Nothing builds and nothing fetches at
 deploy time. See `live/VENDORED.md` for versions, hashes and provenance. React
 19 removed UMD builds, which is why the vendored line is 18.
@@ -2468,7 +2468,7 @@ Alertmanager `inhibit_rules` are a causal graph. We never called it one.
 | emits a ranked cause list | now both: it advises, and when proven it acts |
 
 The difference was direction and confidence, not structure. Every edge is now
-declared once in `roles/sweet_signal_projector/files/causal_edges.json` — cause, symptom,
+declared once in `roles/loggy_signal_projector/files/causal_edges.json` — cause, symptom,
 scope keys, probability and a `proven` flag — and the flag decides what the edge
 does:
 

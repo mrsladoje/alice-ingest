@@ -2,7 +2,7 @@
 
 Three instruments for the collector's parsing and routing. None of them holds a
 copy of the configuration: each reads what the production renderer emits from
-`deploy/roles/sweet_collector/templates/`, so a parser added there is picked up here
+`deploy/roles/loggy_collector/templates/`, so a parser added there is picked up here
 without an edit, and a parser removed there stops being measured.
 
 ## `replaycheck.py` — does the shipped configuration do what it claims

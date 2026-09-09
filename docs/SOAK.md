@@ -2,7 +2,7 @@
 
 Measured on 18 August 2026 with `tools/soak`, a container rig that runs the
 **production collector configuration** — the same template, parsers, Lua filters
-and severity routing that `deploy/roles/sweet_collector` installs on a worker.
+and severity routing that `deploy/roles/loggy_collector` installs on a worker.
 
 Twenty-three runs. Every number below comes from one of them, and every run keeps
 its own directory under `tools/soak/runs/` with the configuration that produced

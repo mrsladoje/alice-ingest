@@ -16,7 +16,7 @@ import template_contract as tc  # noqa: E402
 FREEZE = os.path.join(REPO, "tools", "embed", "freeze.py")
 STAMPER = os.path.join(REPO, "deploy", "roles", "stamper", "files",
                        "stamper.py")
-SHIFTER = os.path.join(REPO, "deploy", "roles", "sweet_shifter_view", "files",
+SHIFTER = os.path.join(REPO, "deploy", "roles", "loggy_shifter_view", "files",
                        "shifter.py")
 TEMPLATING = os.path.join(REPO, "tools", "templating")
 MASKING = os.path.join(TEMPLATING, "masking.py")

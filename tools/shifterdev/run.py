@@ -11,7 +11,7 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROLE = os.path.abspath(os.path.join(HERE, "..", "..", "deploy", "roles",
-                                    "sweet_shifter_view"))
+                                    "loggy_shifter_view"))
 STATIC_SRC = os.path.join(ROLE, "files", "live")
 TEMPLATE = os.path.join(ROLE, "templates", "shifter-index.html.j2")
 SERVER = os.path.join(ROLE, "files", "shifter.py")

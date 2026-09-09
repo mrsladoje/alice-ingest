@@ -13,7 +13,7 @@ The ingest pipeline sets fields the collector never emits, which is exactly how
 a strict rejection gets introduced by a change to a file that is not the mapping.
 
 This creates the pipeline and the indices from
-`deploy/roles/sweet_opensearch/templates/schema/`, indexes the
+`deploy/roles/loggy_opensearch/templates/schema/`, indexes the
 records the collector actually produced, and checks that every field survived
 and is searchable.
 """
@@ -29,7 +29,7 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 SCHEMA = os.path.join(
-    REPO, "deploy", "roles", "sweet_opensearch", "templates", "schema")
+    REPO, "deploy", "roles", "loggy_opensearch", "templates", "schema")
 
 # Values the Ansible render would supply. Only the ones the blocks below use.
 JINJA = {

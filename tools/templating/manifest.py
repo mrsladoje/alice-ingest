@@ -160,7 +160,7 @@ def main():
             file_revision("tools/templating/masking.py"),
             file_revision("tools/templating/corpus.py"),
             file_revision("tools/templating/refamily.py"),
-            file_revision("deploy/roles/sweet_collector/templates/parsers.yaml.j2"),
+            file_revision("deploy/roles/loggy_collector/templates/parsers.yaml.j2"),
         ) if r],
         "sources": sources,
         "families": families,

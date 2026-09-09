@@ -1,0 +1,131 @@
+- name: Open this instance's HTTP port to every other cluster node, tcp {{ opensearch_instance.http_port }}
+  ansible.posix.firewalld:
+    rich_rule: >-
+      rule family="ipv4"
+      source address="{{ item }}"
+      port port="{{ opensearch_instance.http_port }}" protocol="tcp"
+      accept
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ opensearch_cluster_hosts }}"
+  when: alice_manage_firewalld
+
+- name: Open this instance's transport port to every other cluster node, tcp {{ opensearch_instance.transport_port }}
+  ansible.posix.firewalld:
+    rich_rule: >-
+      rule family="ipv4"
+      source address="{{ item }}"
+      port port="{{ opensearch_instance.transport_port }}" protocol="tcp"
+      accept
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ opensearch_cluster_hosts }}"
+  when: alice_manage_firewalld
+
+- name: Declare this instance as a podman container beside its siblings on this machine
+  ansible.builtin.include_tasks: install_container.yml
+  when: opensearch_install_method == 'container'
+
+- name: Ensure this instance's data directory exists with correct ownership
+  ansible.builtin.file:
+    path: "{{ opensearch_data_path }}"
+    state: directory
+    owner: "{{ opensearch_dir_owner }}"
+    group: "{{ opensearch_dir_group }}"
+    mode: "0750"
+
+- name: Ensure this instance's log directory exists with correct ownership
+  ansible.builtin.file:
+    path: "{{ opensearch_log_path }}"
+    state: directory
+    owner: "{{ opensearch_dir_owner }}"
+    group: "{{ opensearch_dir_group }}"
+    mode: "0750"
+
+- name: Template opensearch.yml (cluster identity, inventory-derived discovery, security disabled)
+  ansible.builtin.template:
+    src: opensearch.yml.j2
+    dest: "{{ opensearch_config_dir }}/opensearch.yml"
+    owner: "{{ opensearch_dir_owner }}"
+    group: "{{ opensearch_dir_group }}"
+    mode: "0640"
+  register: _opensearch_config
+
+- name: Template JVM heap options
+  ansible.builtin.template:
+    src: heap.options.j2
+    dest: "{{ opensearch_jvm_options_d }}/heap.options"
+    owner: "{{ opensearch_dir_owner }}"
+    group: "{{ opensearch_dir_group }}"
+    mode: "0640"
+  register: _opensearch_heap
+
+- name: Enable and start this instance, restarting it when its configuration or its unit changed
+  ansible.builtin.systemd:
+    name: "{{ opensearch_service_name }}"
+    enabled: "{{ opensearch_service_enabled | bool }}"
+    daemon_reload: true
+    state: "{{ 'restarted' if (_opensearch_restart | bool) else 'started' }}"
+  vars:
+    _opensearch_restart: >-
+      {{ _opensearch_config.changed | default(false)
+         or _opensearch_heap.changed | default(false)
+         or _opensearch_unit.changed | default(false)
+         or _opensearch_dropin.changed | default(false) }}
+
+- name: Wait for this instance's OpenSearch HTTP API to respond (first boot / fresh install)
+  ansible.builtin.uri:
+    url: "http://localhost:{{ opensearch_instance.http_port }}/"
+    status_code: 200
+  register: _opensearch_boot_check
+  until: _opensearch_boot_check.status == 200
+  retries: "{{ opensearch_boot_wait_retries }}"
+  delay: "{{ opensearch_boot_wait_delay }}"
+
+- name: List installed OpenSearch plugins
+  ansible.builtin.command:
+    cmd: "{{ opensearch_plugin_list_cmd }}"
+  register: _opensearch_plugins
+  changed_when: false
+
+- name: Assert detection and alerting plugins are present
+  ansible.builtin.assert:
+    that:
+      - item in _opensearch_plugins.stdout
+    fail_msg: >-
+      Required plugin {{ item }} missing from `opensearch-plugin list`.
+      Got: {{ _opensearch_plugins.stdout }}
+    success_msg: "plugin present: {{ item }}"
+  loop: "{{ opensearch_required_plugins }}"
+
+- name: Assert anomaly-detection REST API answers
+  ansible.builtin.uri:
+    url: "http://localhost:{{ opensearch_instance.http_port }}/_plugins/_anomaly_detection/detectors/_search"
+    method: POST
+    body_format: json
+    body:
+      size: 0
+      query:
+        match_all: {}
+    status_code: [200, 404]
+  register: _ad_api_check
+  retries: "{{ opensearch_ad_api_retries }}"
+  delay: "{{ opensearch_ad_api_delay }}"
+  until: _ad_api_check.status in [200, 404]
+
+- name: Assert the anomaly-detection 404 is only the not-yet-created config index
+  ansible.builtin.assert:
+    that:
+      - _ad_api_check.status == 200 or
+        (_ad_api_check.json.error.type | default('')) == 'index_not_found_exception'
+    fail_msg: >-
+      The anomaly-detection REST API returned {{ _ad_api_check.status }} with an
+      unexpected body: {{ _ad_api_check.json | default(_ad_api_check.content) }}
+    success_msg: >-
+      anomaly-detection REST API answers
+      ({{ 'config index present' if _ad_api_check.status == 200
+          else '.opendistro-anomaly-detectors not created yet — the plugin
+                creates it with the first detector, in the loggy_anomaly_detection
+                role' }})

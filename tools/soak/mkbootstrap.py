@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the real `sweet_opensearch` script for the rig.
+"""Render the real `loggy_opensearch` script for the rig.
 
 Round 1's OpenSearch was a single bare container with no templates and no
 rollover aliases. It collapsed at 2,000 records a second, and `docs/SOAK.md`
@@ -28,9 +28,9 @@ import yaml
 from jinja2 import Environment, StrictUndefined
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-ROLE = os.path.join(REPO, "deploy", "roles", "sweet_opensearch", "templates")
+ROLE = os.path.join(REPO, "deploy", "roles", "loggy_opensearch", "templates")
 GROUP_VARS = os.path.join(REPO, "deploy", "group_vars", "all.yml")
-ROLE_DEFAULTS = os.path.join(REPO, "deploy", "roles", "sweet_opensearch",
+ROLE_DEFAULTS = os.path.join(REPO, "deploy", "roles", "loggy_opensearch",
                              "defaults", "main.yml")
 
 

@@ -10,9 +10,9 @@ from jinja2 import Environment, StrictUndefined
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 TEMPLATE = os.path.join(
-    REPO, "deploy", "roles", "sweet_collector", "templates", "collector.yaml.j2")
+    REPO, "deploy", "roles", "loggy_collector", "templates", "collector.yaml.j2")
 PARSERS = os.path.join(
-    REPO, "deploy", "roles", "sweet_collector", "templates", "parsers.yaml.j2")
+    REPO, "deploy", "roles", "loggy_collector", "templates", "parsers.yaml.j2")
 
 LOG_MATCHES = {"infologger", "ildaemon", "family.local", "family.central"}
 
@@ -46,7 +46,7 @@ def render(live_lane, flush, buffer_limit, retry_limit,
     return env.from_string(source).render(
         ansible_managed="soak rig",
         collector_config_dir="/etc/fluent-bit",
-        collector_health_script="/opt/sweet/fb_health.py",
+        collector_health_script="/opt/loggy/fb_health.py",
         collector_health_interval_seconds=10,
         cockpit_metrics_index="cockpit-metrics",
         fluent_bit_flush_seconds=flush,

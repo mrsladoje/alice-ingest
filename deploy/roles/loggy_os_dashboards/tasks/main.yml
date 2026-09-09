@@ -1,0 +1,17 @@
+- name: Install OpenSearch Dashboards (RPM, version-pinned)
+  ansible.builtin.import_tasks: install.yml
+
+- name: Disable the bundled Dashboards security plugin (cluster security is disabled)
+  ansible.builtin.import_tasks: security_plugin.yml
+
+- name: Configure and start OpenSearch Dashboards
+  ansible.builtin.import_tasks: configure.yml
+
+- name: Self-signed TLS material for the nginx reverse proxy
+  ansible.builtin.import_tasks: tls.yml
+
+- name: Install and configure the nginx reverse proxy (TLS + basic-auth)
+  ansible.builtin.import_tasks: nginx.yml
+
+- name: Cockpit bootstrap (index patterns, cockpit import, hydration) — after the loggy_opensearch role has created the indices
+  ansible.builtin.import_tasks: cockpit.yml

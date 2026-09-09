@@ -18,9 +18,9 @@ WORKERS = [w for w in os.environ.get("OPS_WORKER_TRIGGERS", "").split(",") if w]
 INFO_NODES = [n for n in os.environ.get("OPS_WORKER_INFO_NODES", "").split(",") if n]
 FAMILIES = os.environ.get("OPS_REPLAY_FAMILIES", "infologger,dds,stdout")
 TEMPLATES_SCRIPT = os.environ.get(
-    "OPS_TEMPLATES_SCRIPT", "/opt/sweet/init/templates.sh")
+    "OPS_TEMPLATES_SCRIPT", "/opt/loggy/init/templates.sh")
 RESET_SCRIPT = os.environ.get(
-    "OPS_RESET_SCRIPT", "/opt/sweet/reset_derived.py")
+    "OPS_RESET_SCRIPT", "/opt/loggy/reset_derived.py")
 POISON_SERVICE = os.environ.get(
     "OPS_POISON_SERVICE", "alice-poison-replay")
 POISON_STATUS = os.environ.get(

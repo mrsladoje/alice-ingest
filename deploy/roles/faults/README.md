@@ -14,15 +14,15 @@ role that exists to break it.
 ## Why it is a separate role
 
 - **Its host set belongs to no other role.** It runs on `workers:projector` — a
-  union nothing else in `site.yml` uses. Folding it into `sweet_collector` would leave
-  the projector host without an agent; folding it into `sweet_signal_projector` would
+  union nothing else in `site.yml` uses. Folding it into `loggy_collector` would leave
+  the projector host without an agent; folding it into `loggy_signal_projector` would
   leave the workers without one. Two copies of one service is the alternative.
 - **It is a service, not a step.** Its own unit, port, token, allowlist,
   readiness probe and firewall rule. The playbook that *drives* it
   (`playbooks/inject.yml`) runs on the control host and installs nothing.
 - **It owns the port, so it owns the rule.** The rich rule for
   `fault_agent_port` sits next to the service that listens on it, the same
-  convention `sweet_alertmanager` and `sweet_shifter_view` follow.
+  convention `loggy_alertmanager` and `loggy_shifter_view` follow.
 
 ## What it does
 
@@ -36,7 +36,7 @@ role that exists to break it.
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 2. INSTALL ───────────────────────────────────────────────────────────────┐
-│  /opt/sweet              0755 root  — shared with other roles       │
+│  /opt/loggy              0755 root  — shared with other roles       │
 │  fault_agent.py                 0755 root  --> restart alice-fault-agent   │
 │  alice-fault-agent.service      0644 root  --> restart alice-fault-agent   │
 │    the unit carries the allowlist as FAULT_AGENT_SERVICES                  │
@@ -97,7 +97,7 @@ uses `/cpu-stress`, and the restore pass uses the matching start or stop call.
   is a second allowlist that can disagree with the first one.
 - **It binds `0.0.0.0`, not loopback.** The control host calls it over the
   network. The firewalld rich rule, not the bind address, is what restricts
-  access — exactly the split `sweet_alertmanager` uses.
+  access — exactly the split `loggy_alertmanager` uses.
 - **`fault_agent_token` defaults to empty, and empty means no authentication.**
   `_authorised()` returns `True` when `TOKEN` is falsy. On a CERN-internal
   network behind a single-source firewall rule that is a deliberate default, not
@@ -124,8 +124,8 @@ uses `/cpu-stress`, and the restore pass uses the matching start or stop call.
 | Variable | Default | Meaning |
 |---|---|---|
 | `fault_agent_service_name` | `alice-fault-agent` | Unit name. Used by the handler and the unit file path. |
-| `fault_agent_app_root` | `/opt/sweet` | Directory the script lands in. Shared with other `alice-*` roles, which is why the role creates it rather than assuming it. |
-| `fault_agent_script` | `/opt/sweet/fault_agent.py` | `ExecStart` target. |
+| `fault_agent_app_root` | `/opt/loggy` | Directory the script lands in. Shared with other `alice-*` roles, which is why the role creates it rather than assuming it. |
+| `fault_agent_script` | `/opt/loggy/fault_agent.py` | `ExecStart` target. |
 | `fault_agent_services` | `[]` | The allowlist. Empty here so the role is runnable alone; **the playbook supplies the real per-host list** — `fluent-bit` on a worker, `alice-signal-projector` on the projector host. |
 | `fault_agent_allowed_client_addresses` | `[]` | Addresses permitted through the firewall to `fault_agent_port`. Empty for the same reason; the playbook supplies the control host. |
 
@@ -153,7 +153,7 @@ uses `/cpu-stress`, and the restore pass uses the matching start or stop call.
   from `group_vars/all.yml`.** The role's own defaults are empty, so a play that
   supplies neither installs an agent that can fault nothing and answers nobody —
   and the deploy gate catches it on the first run.
-- **Run it after `sweet_collector` and after `sweet_signal_projector`.** The deploy gate only
+- **Run it after `loggy_collector` and after `loggy_signal_projector`.** The deploy gate only
   proves the agent answers, but an allowlist naming a service that does not exist
   yet is a scenario that fails on its first call.
 - **Do not run it on the control host.** The control host is the caller. An agent

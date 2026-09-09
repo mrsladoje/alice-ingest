@@ -194,7 +194,7 @@ all:
     #                               tier can now afford on 8 GB heaps
     #
     # admission_control_mode and log_primary_shards_storage are read by the
-    # sweet_opensearch role alone, which runs here. alertmanager_port is
+    # loggy_opensearch role alone, which runs here. alertmanager_port is
     # also read on the projector host, so it appears twice.
     control:
       hosts:

@@ -5,7 +5,7 @@ opensearch_version: "3.7.0"
 # Read by the opensearch role and by cluster_id below.
 opensearch_cluster_name: alice-logs
 
-# Everything only the sweet_opensearch role reads is a default of that role:
+# Everything only the loggy_opensearch role reads is a default of that role:
 # the node footprint (heap, processors, index buffer), the info-tier index
 # settings, admission control, the detection pacing, and every rollover and
 # retention figure. Heap in particular must not be copied here: group vars
@@ -18,10 +18,10 @@ alice_service_memory_max: "512M"
 # The projector runs on node-04 rather than the crowded control VM.  Its
 # resident set is bounded, but a little larger than the thin pollers because it
 # must hold the active incident episode set while it traverses AD results.
-# Its memory bounds are role defaults, in roles/sweet_signal_projector.
+# Its memory bounds are role defaults, in roles/loggy_signal_projector.
 signal_projector_host: "{{ groups['projector'][0] }}"
 
-# Both ports are declared here, not only in roles/sweet_opensearch/defaults/main.yml,
+# Both ports are declared here, not only in roles/loggy_opensearch/defaults/main.yml,
 # because the discovery lists below read them out of hostvars — and hostvars
 # holds group and host variables, never a role default. An inventory host entry
 # outranks this file, which is how three containers on one machine each get
@@ -51,12 +51,12 @@ opensearch_initial_cluster_manager_nodes: "{{ groups['storage'] | map('extract',
 opensearch_instance_id: "{{ node_id }}"
 
 # The worker node identities the bootstrap writes a per-node index template and
-# retention policy for. Resolved here so sweet_opensearch names no inventory
+# retention policy for. Resolved here so loggy_opensearch names no inventory
 # group of its own.
 opensearch_cluster_config_worker_node_ids: "{{ groups['workers'] | map('extract', hostvars, 'node_id') | list }}"
 
 # The same worker node identities, under the name the cockpit_metrics,
-# sweet_anomaly_detection and alice_ops roles read. Resolved here for the same reason:
+# loggy_anomaly_detection and alice_ops roles read. Resolved here for the same reason:
 # a role default must never name an inventory group.
 fleet_collector_node_ids: "{{ groups['workers'] | map('extract', hostvars, 'node_id') | list }}"
 
@@ -106,7 +106,7 @@ infologger_tcp_port: 5170
 log_root: /var/log/node
 
 # Read by two roles in two plays: the collector tails this file and the
-# sweet_replay role writes the daemon-log bundle into it. A role default is
+# loggy_replay role writes the daemon-log bundle into it. A role default is
 # invisible to the other play, so the one copy lives here.
 infologger_daemon_log_path: /var/log/o2-infologger-daemon.log
 
@@ -117,7 +117,7 @@ infologger_daemon_log_path: /var/log/o2-infologger-daemon.log
 # and nothing backs them up. A bundle captured with tools/epnsurvey/mkbundle.sh
 # is the only way a staging VM can carry either.
 #
-# Both roles read these. sweet_replay ships the bundle and paces the daemon log
+# Both roles read these. loggy_replay ships the bundle and paces the daemon log
 # into the path the collector tails; the collector points its systemd input at
 # the shipped journal. A role default would be invisible to the other role and
 # the two would silently disagree about whether a bundle exists.
@@ -125,7 +125,7 @@ infologger_daemon_log_path: /var/log/o2-infologger-daemon.log
 # Empty means no bundle, which is the ordinary case: the replay engine skips
 # both families and says so rather than failing.
 replay_bundle_src: "{{ lookup('env', 'REPLAY_BUNDLE_SRC') | default('', true) }}"
-replay_bundle_root: /var/lib/sweet/bundle
+replay_bundle_root: /var/lib/loggy/bundle
 
 # The live lane. README section 9, Item 7.
 shifter_enabled: true
@@ -178,7 +178,7 @@ replay_clock: preserved
 trend_rollup_index: trend-rollup
 
 # Template identity. Every record is stamped with its template version by
-# roles/sweet_collector on the worker, before it reaches OpenSearch, so both
+# roles/loggy_collector on the worker, before it reaches OpenSearch, so both
 # tiers carry the field and no raw informational line has to leave its node. The catalog
 # holds one definition per template version, one watermark per node and the
 # check results; the two bucket index families hold the exact counts per node,
@@ -186,13 +186,13 @@ trend_rollup_index: trend-rollup
 # Shifter, the maintenance job and the semantic retrieval work.
 template_catalog_index: template-catalog
 # The hourly prefix only. The five-minute prefix, the bucket replicas and both
-# bucket retentions are sweet_opensearch defaults; this one stays because the
+# bucket retentions are loggy_opensearch defaults; this one stays because the
 # catalog maintenance reads it too.
 template_buckets_1h_prefix: template-buckets-1h
 template_triage_index: template-triage
 shifter_queries_index: shifter-queries
 
-alice_shared_dir: /opt/sweet/shared
+alice_shared_dir: /opt/loggy/shared
 alice_shared_contract_file: "{{ playbook_dir }}/../shared/template_contract.py"
 
 # The volume window and the default activity view. 28 days is the working
@@ -238,22 +238,22 @@ notification_ingest_token: ""
 # under playbooks/, has to agree on. A name is here only when a second reader
 # exists; everything read by exactly one role is that role's own default.
 #
-# Shared with the sweet_opensearch role, which writes templates.sh, ism.sh
+# Shared with the loggy_opensearch role, which writes templates.sh, ism.sh
 # and register_node.sh into the same directory and creates it with the same
 # owner, group and mode.
-alice_bootstrap_root: /opt/sweet/init
-alice_app_root: /opt/sweet
+alice_bootstrap_root: /opt/loggy/init
+alice_app_root: /opt/loggy
 
 alice_bootstrap_signal_catalog: "{{ alice_bootstrap_root }}/signal_catalog.json"
 alice_bootstrap_causal_edges: "{{ alice_bootstrap_root }}/causal_edges.json"
 alice_bootstrap_verify_script: "{{ alice_bootstrap_root }}/verify_detection.py"
 
-alice_os_cursor_script: /opt/sweet/os_cursor.py
-alice_signal_identity_script: /opt/sweet/signal_identity.py
-cockpit_metrics_discover_roster_script: /opt/sweet/discover_roster.py
-anomaly_detection_backtest_script: /opt/sweet/backtest.py
-alice_ops_reset_derived_script: /opt/sweet/reset_derived.py
-alice_ops_poison_replay_script: /opt/sweet/poison_replay.py
+alice_os_cursor_script: /opt/loggy/os_cursor.py
+alice_signal_identity_script: /opt/loggy/signal_identity.py
+cockpit_metrics_discover_roster_script: /opt/loggy/discover_roster.py
+anomaly_detection_backtest_script: /opt/loggy/backtest.py
+alice_ops_reset_derived_script: /opt/loggy/reset_derived.py
+alice_ops_poison_replay_script: /opt/loggy/poison_replay.py
 
 cockpit_metrics_service_name: alice-metrics
 trend_rollup_service_name: alice-trend-rollup
@@ -275,14 +275,14 @@ alice_ops_poison_replay_status: /var/lib/alice-poison-replay/status.json
 alice_ops_poison_replay_report_dir: /var/lib/alice-poison-replay/runs
 
 # The counts verify_detection.py asserts. They are read by the
-# sweet_anomaly_detection and sweet_signal_projector roles and they count the JSON
-# files sweet_anomaly_detection ships: add a monitor or a detector there and the
+# loggy_anomaly_detection and loggy_signal_projector roles and they count the JSON
+# files loggy_anomaly_detection ships: add a monitor or a detector there and the
 # matching number here has to change with it.
 expected_monitors: 30
 expected_detectors: 17
 expected_forecasters: 1
 
-# Set by the sweet_signal_projector role's rescue path and read by the final play of
+# Set by the loggy_signal_projector role's rescue path and read by the final play of
 # site.yml, which turns it into the deploy's exit code.
 projector_gate_failed: false
 
@@ -334,12 +334,12 @@ replay_loop_pause_seconds: 30
 # here because playbooks/poison_replay.yml prints it.
 poison_warmup_timeout_seconds: 4200
 
-replay_venv_path: /opt/sweet/venv
-replay_app_root: /opt/sweet/app
+replay_venv_path: /opt/loggy/venv
+replay_app_root: /opt/loggy/app
 
 # Site override: this repository holds the one PRESERVED copy of the replay
 # engine at images/replay/replay.py, which docker-compose.yml also builds from.
-# Drop this line when the sweet_replay role is extracted with its own files/copy.
+# Drop this line when the loggy_replay role is extracted with its own files/copy.
 replay_engine_source: "{{ playbook_dir }}/../../images/replay/replay.py"
 
 s3_access_key_id: "{{ vault_s3_access_key_id }}"

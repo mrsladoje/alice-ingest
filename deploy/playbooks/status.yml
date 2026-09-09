@@ -136,7 +136,7 @@
 
     - name: Run the detection status probe
       ansible.builtin.script:
-        cmd: "{{ playbook_dir }}/../roles/sweet_anomaly_detection/files/detection_status.py"
+        cmd: "{{ playbook_dir }}/../roles/loggy_anomaly_detection/files/detection_status.py"
         executable: /usr/bin/python3
       environment:
         OS_URL: "http://localhost:{{ opensearch_http_port }}"

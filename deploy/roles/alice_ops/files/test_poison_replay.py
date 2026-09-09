@@ -39,7 +39,7 @@ def repo_root():
 
 def test_fast_detector_inventory_matches_live_definitions():
     actual = set()
-    detectors = repo_root() / "deploy/roles/sweet_anomaly_detection/files/detectors"
+    detectors = repo_root() / "deploy/roles/loggy_anomaly_detection/files/detectors"
     for path in detectors.glob("*.json"):
         definition = json.loads(path.read_text())
         if poison.is_one_minute(definition):
@@ -199,7 +199,7 @@ def test_ops_poison_route_precedes_generic_replay_suffix():
 
 def test_deploy_wires_mapping_service_make_and_ops_controls():
     root = repo_root()
-    bootstrap = root / "deploy/roles/sweet_opensearch/templates"
+    bootstrap = root / "deploy/roles/loggy_opensearch/templates"
     templates = (bootstrap / "templates.sh.j2").read_text() + "".join(
         path.read_text() for path in sorted(bootstrap.glob("schema/*.json.j2")))
     unit = (root / "deploy/roles/alice_ops/templates/alice-poison-replay.service.j2").read_text()

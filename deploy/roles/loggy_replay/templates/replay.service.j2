@@ -1,0 +1,77 @@
+# Managed by Ansible (loggy_replay) — local edits will be overwritten.
+# Runs the replay engine's HTTP trigger (GET /health, POST /replay?family=...)
+# through the single-partition wrapper, so this machine only ever replays its
+# own epn_partition slice. A restart never re-ingests: the AUTOSTART_MARKER
+# guard persists in log_root and is checked before any autostart load.
+
+[Unit]
+Description=ALICE S3 log replay — single-partition wrapper ({{ node_id }}, epn_partition {{ epn_partition }})
+Documentation=file://{{ replay_app_root }}/replay_partition_wrapper.py
+# Soft ordering only: InfoLogger rows retry-connect forever inside the engine
+# and the tail files are picked up whenever Fluent Bit next polls, so this
+# unit tolerates starting before Fluent Bit is up.
+After=network-online.target fluent-bit.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory={{ replay_app_root }}
+
+Environment=AWS_PROFILE={{ s3_aws_profile }}
+Environment=AWS_SHARED_CREDENTIALS_FILE={{ replay_aws_credentials_file }}
+Environment=S3_ENDPOINT={{ s3_endpoint }}
+Environment=S3_BUCKET={{ s3_bucket }}
+Environment=S3_REGION={{ s3_region }}
+Environment=RUN_TAG={{ run_tag }}
+Environment=INFOLOGGER_PREFIX={{ infologger_prefix }}
+Environment=INFOLOGGER_TCP_PORT={{ infologger_tcp_port }}
+Environment=NODE_COUNT={{ node_count }}
+Environment=NODES_ROOT={{ replay_nodes_root }}
+Environment=DDS_REPLAY_RATE={{ dds_replay_rate }}
+Environment=IL_REPLAY_RATE={{ il_replay_rate }}
+# The three families with no S3 archive behind them. An empty bundle root means
+# the engine skips all of them and says so.
+Environment=REPLAY_BUNDLE_ROOT={{ (replay_bundle_src | length > 0) | ternary(replay_bundle_root, '') }}
+Environment=ILDAEMON_LOG_PATH={{ infologger_daemon_log_path }}
+Environment=ILDAEMON_REPLAY_RATE={{ ildaemon_replay_rate }}
+Environment=ODC_LOG_DIR={{ odc_replay_log_dir }}
+Environment=ODC_REPLAY_RATE={{ odc_replay_rate }}
+Environment=STDOUT_REPLAY_RATE={{ stdout_replay_rate }}
+Environment=REPLAY_CLOCK_CACHE={{ replay_clock_cache }}
+Environment=REPLAY_LOOP={{ replay_loop | string | lower }}
+Environment=REPLAY_LOOP_PAUSE_SECONDS={{ replay_loop_pause_seconds }}
+Environment=DDS_MAX_OBJECTS={{ dds_max_objects }}
+Environment=IL_MAX_OBJECTS={{ il_max_objects }}
+Environment=STDOUT_MAX_OBJECTS={{ stdout_max_objects }}
+Environment=REPLAY_MAX_OBJECT_BYTES={{ replay_max_object_bytes }}
+Environment=REPLAY_HTTP_PORT={{ replay_http_port }}
+Environment=AUTOSTART_REPLAY={{ replay_autostart | string | lower }}
+Environment=AUTOSTART_FAMILIES={{ replay_autostart_families }}
+Environment=AUTOSTART_MARKER={{ replay_autostart_marker }}
+Environment=EPN_PARTITION={{ epn_partition }}
+Environment=REPLAY_CLOCK={{ replay_clock }}
+Environment=PYTHONUNBUFFERED=1
+
+ExecStart={{ replay_venv_path }}/bin/python3 {{ replay_app_root }}/replay_partition_wrapper.py serve
+
+{% if replay_cpuset %}
+AllowedCPUs={{ replay_cpuset }}
+{% endif %}
+{% if replay_memory_high %}
+MemoryHigh={{ replay_memory_high }}
+{% endif %}
+{% if replay_memory_max %}
+MemoryMax={{ replay_memory_max }}
+{% endif %}
+
+Restart=on-failure
+RestartSec=5s
+
+# No ProtectSystem hardening: this unit writes under log_root through the
+# NODES_ROOT symlink and reads /root/.aws/credentials, both outside a strict
+# allowance.
+
+[Install]
+WantedBy=multi-user.target

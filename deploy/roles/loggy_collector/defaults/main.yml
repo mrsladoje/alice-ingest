@@ -1,0 +1,210 @@
+collector_repo_baseurl: "https://packages.fluentbit.io/centos/$releasever/"
+collector_repo_gpgkey: "https://packages.fluentbit.io/fluentbit.key"
+
+# Pinned. 5.x loses bytes appended to a file after logrotate renames it away,
+# which is what a long-running writer that keeps its own descriptor produces
+# every night; 4.x keeps them.
+fluent_bit_version: "4.0.14"
+
+# Versions this deployment refuses to install, by prefix. Not advice in a
+# comment: a version that loses data at rotation should not be reachable by
+# forgetting to set a variable. Set collector_allow_blocked_version to override
+# deliberately.
+collector_blocked_version_prefixes:
+  - "5."
+collector_allow_blocked_version: false
+
+collector_service_name: fluent-bit
+collector_binary_path: /opt/fluent-bit/bin/fluent-bit
+collector_config_dir: /etc/fluent-bit
+collector_systemd_dropin_dir: /etc/systemd/system/fluent-bit.service.d
+
+# One root for everything this role installs on a worker: the health sampler,
+# the stamper and the modules it imports.
+collector_app_root: /opt/loggy
+
+collector_health_script: "{{ collector_app_root }}/fb_health.py"
+collector_health_interval_seconds: "{{ cockpit_metrics_interval_seconds }}"
+
+# The one file that tells this machine which machine it is.
+collector_env_dir: /etc/loggy
+collector_env_file: "{{ collector_env_dir }}/node.env"
+
+# Run as ExecStartPre, so a node registers itself at every boot.
+collector_register_script: "{{ collector_app_root }}/register_node.sh"
+
+# ExecStartPre counts against the unit's start timeout, and register_node.sh
+# waits for the local OpenSearch. This must stay above that wait's worst case:
+# REGISTER_WAIT_ATTEMPTS x (REGISTER_WAIT_MAX_TIME + REGISTER_WAIT_SLEEP).
+collector_start_timeout_seconds: 600
+
+# Written by loggy_opensearch, read by register_node.sh through the unit's
+# second EnvironmentFile. Not optional: a missing file would send a worker back
+# to register_node.sh's own built-in defaults without saying so.
+collector_opensearch_env_file: /etc/loggy/opensearch-node.env
+
+fluent_bit_storage_path: /var/log/flb-storage
+fluent_bit_http_port: 2020
+fluent_bit_http_listen: 127.0.0.1
+
+# Service-level, so this also delays the live lane by the same 1 second. A
+# short flush holds less data in flight, which is what bounds the collector's
+# memory.
+fluent_bit_flush_seconds: 1
+
+# NFS gives the tail no inotify, so this poll is the only thing that finds a
+# process log that appeared since the last sweep. It is not a tuning detail.
+collector_stdout_refresh_interval: 5
+
+# infologger_daemon_log_path is in group_vars/all.yml: the loggy_replay role
+# writes the replayed daemon log into the same file this role tails, and the
+# two run in different plays.
+
+# Slot, channel and launched-task extraction on the DDS message. Each runs
+# unanchored over `message` only, so the envelope is parsed once. Set to an
+# empty list to drop them.
+collector_dds_extractors:
+  - dds_slot
+  - dds_channel
+  - dds_task
+
+# Numeric extraction on the process-tree message. Each runs unanchored over
+# `message` only. The tree is the largest family by a long way, so measure the
+# cost of anything before adding it here.
+collector_dpl_extractors:
+  - mft_decoder_error
+
+# Whether we WANT the journal, not whether this machine can give it. The role
+# probes the binary and can only turn this OFF, never on, so the default must
+# be true or the journal is never collected at all.
+collector_journald_enabled: true
+
+# Journal matches, OR-ed. EMPTY means every unit. A worker writes a few thousand
+# journal entries a day against millions of lines from the process tree, so
+# collecting all of it is cheap, and an allow-list only creates blind spots:
+# which units carry the volume differs from node to node.
+#
+# Volume is bounded by the priority routing, not by this list: informational
+# entries stay on the node and only warnings and worse cross the network.
+collector_journald_filters: []
+
+# Empty means this machine's own journal, which is what a real EPN wants. On a
+# staging VM there is nothing interesting in the local journal and the EPN
+# journal is the point, so this is set to the shipped bundle when one exists.
+# `replay_bundle_src` and `replay_bundle_root` are the loggy_replay role's
+# variables; they are read rather than duplicated so the two roles cannot
+# disagree about whether a bundle is present. Both default to empty here so
+# the role also runs where loggy_replay is absent.
+collector_journald_path: "{{ (replay_bundle_src | default('') | length > 0)
+  | ternary((replay_bundle_root | default('')) ~ '/journal', '') }}"
+
+# --- the run orchestrator ---------------------------------------------------
+#
+# odc-grpc-server writes /var/log/odc/staging/odc_<date>.<n>.log on the storage
+# node. An off switch, not a probe: the tail reads one directory through a glob
+# and a glob that matches nothing costs a directory scan every ten seconds.
+#
+# Idle the file is a status poll; during a run its `fat` and `err` lines name
+# the transitions that timed out and the collections that failed. That is the
+# orchestration signal, and nothing else on the farm carries it.
+collector_odc_enabled: true
+
+# A glob, because the file is dated and rolls at midnight. The tail follows the
+# new one on its next refresh; nothing here has to know the date.
+#
+# The real path, on the farm and under replay alike. The replay engine writes
+# the captured files into this same directory at a paced rate, keeping their own
+# names, exactly as the daemon log replay writes to
+# infologger_daemon_log_path. Pointing the tail at the shipped bundle instead
+# would read a file that is complete from the first second, which is not a
+# replay of anything.
+collector_odc_log_path: /var/log/odc/staging/*.log
+
+
+fluent_bit_log_buffer_limit: "256M"
+fluent_bit_log_retry_limit: 10
+
+# Reference value only, read by nobody. The farm figure for the line above,
+# recorded here so the staging figure is never mistaken for the design figure.
+fluent_bit_log_farm_buffer_limit: "2G"
+
+# The same reservation the worker's OpenSearch node holds — see
+# opensearch_cpuset. The two share one set on purpose.
+fluent_bit_cpuset: ""
+
+fluent_bit_memory_high: "384M"
+fluent_bit_memory_max: "768M"
+
+# false leaves the metrics endpoint loopback-only and removes the firewall rule.
+collector_metrics_scrape_open: false
+
+# Repeated in every role that writes a firewalld rule, so each role still
+# stands on its own and one inventory line can switch the whole stack. See
+# roles/common/defaults/main.yml for why the EPN farm sets this false.
+alice_manage_firewalld: true
+
+# --- the stamper -------------------------------------------------------------
+#
+# In-band template stamping on the worker, between Fluent Bit's filters and its
+# OpenSearch outputs.
+
+stamper_script: "{{ collector_app_root }}/stamper.py"
+stamper_templating_dir: "{{ collector_app_root }}/templating"
+stamper_venv: "{{ collector_app_root }}/stamper-venv"
+stamper_service_name: alice-stamper
+
+# The mining library is pinned because the stamping path calls reviewed
+# internal methods of this release; an unpinned upgrade changes the template
+# text a worker stamps without changing a line of this repository.
+stamper_drain3_version: "0.9.11"
+stamper_msgpack_version: "1.1.2"
+
+# The socket contract, named once. Fluent Bit creates the return socket and
+# connects to the listening one; alice-stamper does the mirror image.
+#
+# The directory is created by a tmpfiles.d entry in tasks/collector.yml,
+# because the stamper's RuntimeDirectory= alone would not survive the
+# collector's own restarts.
+stamper_socket_dir: /run/alice
+stamper_listen_socket: "{{ stamper_socket_dir }}/stamper.sock"
+stamper_return_socket: "{{ stamper_socket_dir }}/stamped.sock"
+stamper_socket_mode: "0660"
+stamper_status_file: "{{ stamper_socket_dir }}/stamper-status.json"
+
+# The ledger checkpoint, the journal since it and the drain trees per family.
+# systemd creates it through StateDirectory=, so it must stay under /var/lib.
+stamper_state_dir: /var/lib/alice-stamper
+
+# A ceiling on how many distinct templates one worker holds, across every
+# family. Depth and max_children bound the SHAPE of the tree; neither caps how
+# many clusters it holds. Past the ceiling the least recently stamped cluster
+# is evicted; a template that comes back is learned again under the same
+# version identifier.
+stamper_max_templates: 20000
+stamper_max_message_length: 4096
+
+# The publication cycle for bucket documents, definitions and the watermark.
+stamper_publish_seconds: 300
+
+# The ledger checkpoint. It sets the journal size against the replay time on
+# start; the journal is replayed line by line and a line is one chunk.
+stamper_checkpoint_seconds: 600
+
+# How long a returned chunk may wait for the Forward input's acknowledgement
+# before the origin chunk is refused and Fluent Bit resends it.
+stamper_ack_timeout_seconds: 30
+
+stamper_request_timeout: 60
+stamper_bulk_timeout: 120
+stamper_bulk_documents: 500
+stamper_clock_tolerance_ms: 300000
+stamper_ledger_hours: 48
+stamper_chunk_hold_ms: 3600000
+
+# The worker-side half of the stamped-against-indexed check reads this node's
+# own local index once an hour.
+stamper_local_check: true
+
+# The same memory limits as Fluent Bit.
+stamper_memory_high: "{{ fluent_bit_memory_high }}"
+stamper_memory_max: "{{ fluent_bit_memory_max }}"

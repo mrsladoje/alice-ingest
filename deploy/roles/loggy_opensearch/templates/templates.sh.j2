@@ -1,0 +1,378 @@
+#!/bin/sh
+set -eu
+
+OS="${OS_URL:-http://opensearch:9200}"
+
+WORKER_NODES="{{ opensearch_cluster_config_worker_node_ids | join(' ') }}"
+MIGRATE_EXISTING="{{ log_rollover_migrate_existing | bool | ternary('true', 'false') }}"
+SEED_EMPTY_INDICES="${SEED_EMPTY_INDICES:-true}"
+
+CURL_TIMEOUTS="--connect-timeout ${OS_CONNECT_TIMEOUT:-5} --max-time ${OS_MAX_TIME:-120}"
+
+# The schema itself lives beside this script, one JSON document per object, and
+# Ansible renders it there. Nothing below builds a body inline.
+SCHEMA="$(dirname "$0")/schema"
+
+load() {
+  if [ ! -f "$SCHEMA/$1" ]; then
+    echo "[os-init] FATAL: schema document missing: $SCHEMA/$1" >&2
+    exit 1
+  fi
+  cat "$SCHEMA/$1"
+}
+
+wait_os() {
+  echo "[os-init] waiting for OpenSearch at $OS ..."
+  i=1
+  while [ "$i" -le 60 ]; do
+    code=$(curl -s --connect-timeout 5 --max-time "${OS_HEALTH_MAX_TIME:-15}" \
+      -o /dev/null -w '%{http_code}' \
+      "$OS/_cluster/health?wait_for_status=yellow&timeout=5s" || echo 000)
+    if [ "$code" = "200" ]; then
+      echo "[os-init] OpenSearch ready (attempt $i)"
+      return 0
+    fi
+    echo "[os-init] not ready (HTTP $code), retry $i/60"
+    i=$((i + 1))
+    sleep 3
+  done
+  echo "[os-init] FATAL: OpenSearch never became ready"
+  return 1
+}
+
+put() {
+  path="$1"; body="$2"; name="$3"
+  i=1
+  while [ "$i" -le 5 ]; do
+    code=$(curl -s $CURL_TIMEOUTS -o /tmp/resp -w '%{http_code}' \
+      -XPUT "$OS$path" -H 'Content-Type: application/json' -d "$body" || echo 000)
+    case "$code" in
+      200|201) echo "[os-init] applied: $name"; return 0 ;;
+      *) echo "[os-init] WARN: $name -> HTTP $code: $(cat /tmp/resp 2>/dev/null); retry $i/5" ;;
+    esac
+    i=$((i + 1)); sleep 2
+  done
+  echo "[os-init] FATAL: could not apply $name"
+  return 1
+}
+
+del() {
+  path="$1"; name="$2"
+  code=$(curl -s $CURL_TIMEOUTS -o /tmp/resp -w '%{http_code}' -XDELETE "$OS$path" || echo 000)
+  case "$code" in
+    200|404) echo "[os-init] removed (or absent): $name" ;;
+    *) echo "[os-init] WARN: delete $name -> HTTP $code: $(cat /tmp/resp 2>/dev/null)" ;;
+  esac
+}
+
+ensure_rollover_index() {
+  alias="$1"; extra="$2"
+  existing=$(curl -s $CURL_TIMEOUTS "$OS/_cat/aliases/$alias?h=index" 2>/dev/null || true)
+  if [ -n "$existing" ]; then
+    echo "[os-init] write alias already present (skip): $alias -> $existing"
+    return 0
+  fi
+  icode=$(curl -s $CURL_TIMEOUTS -o /dev/null -w '%{http_code}' "$OS/$alias" || echo 000)
+  if [ "$icode" = "200" ]; then
+    if [ "$MIGRATE_EXISTING" = "true" ]; then
+      echo "[os-init] MIGRATING: '$alias' is a legacy concrete index; deleting so the write alias can take the name"
+      del "/$alias" "legacy concrete index $alias"
+    else
+      echo "[os-init] FATAL: '$alias' is a concrete index, not a rollover write alias."
+      echo "[os-init] FATAL: Ingest auto-created it before the alias existed, so its fields"
+      echo "[os-init] FATAL: come from dynamic mapping instead of the component template:"
+      echo "[os-init] FATAL: collector_time lands as long instead of date, host as text"
+      echo "[os-init] FATAL: instead of keyword. That breaks the dual-clock mapping applied"
+      echo "[os-init] FATAL: later in this script and every terms aggregation on host, and"
+      echo "[os-init] FATAL: rollover is inactive for the family. This used to be a warning,"
+      echo "[os-init] FATAL: which meant the deploy limped on and died further down with an"
+      echo "[os-init] FATAL: unrelated-looking mapper error. Fix it once with:"
+      echo "[os-init] FATAL:"
+      echo "[os-init] FATAL:   make deploy-migrate-rollover"
+      echo "[os-init] FATAL:"
+      echo "[os-init] FATAL: which deletes '$alias' and rebuilds it properly. The data in it"
+      echo "[os-init] FATAL: is replayable, so this is safe. A fresh replay also self-heals"
+      echo "[os-init] FATAL: this now — reset_derived.py drops any log family that is a"
+      echo "[os-init] FATAL: concrete index before templates.sh runs."
+      return 1
+    fi
+  fi
+  body=$(printf '{"aliases":{"%s":{"is_write_index":true}}%s}' "$alias" "$extra")
+  put "/$alias-000001" "$body" "first rollover index $alias-000001 (write alias $alias)"
+}
+
+ensure_alert_actions_alias() {
+  alias="alice-alert-actions"
+  first="$alias-000001"
+  existing=$(curl -s $CURL_TIMEOUTS "$OS/_cat/aliases/$alias?h=index" 2>/dev/null || true)
+  if [ -n "$existing" ]; then
+    echo "[os-init] write alias already present (skip): $alias -> $existing"
+    return 0
+  fi
+  icode=$(curl -s $CURL_TIMEOUTS -o /dev/null -w '%{http_code}' "$OS/$alias" || echo 000)
+  if [ "$icode" != "200" ]; then
+    ensure_rollover_index "$alias" ""
+    return 0
+  fi
+  echo "[os-init] MIGRATING: '$alias' is a legacy concrete index and nothing bounds its size"
+  fcode=$(curl -s $CURL_TIMEOUTS -o /dev/null -w '%{http_code}' "$OS/$first" || echo 000)
+  if [ "$fcode" = "200" ]; then
+    echo "[os-init] $first already exists (resuming an interrupted migration)"
+  else
+    put "/$first" '{}' "first rollover index $first"
+  fi
+  code=$(curl -s --connect-timeout "${OS_CONNECT_TIMEOUT:-5}" \
+    --max-time "${ALERT_ACTIONS_REINDEX_MAX_TIME:-600}" \
+    -o /tmp/os-alert-reindex -w '%{http_code}' \
+    -XPOST "$OS/_reindex?wait_for_completion=true&refresh=true" \
+    -H 'Content-Type: application/json' \
+    -d "{\"source\":{\"index\":\"$alias\"},\"dest\":{\"index\":\"$first\"}}" || echo 000)
+  moved=$(python3 -c '
+import json,sys
+try:
+    r=json.load(open("/tmp/os-alert-reindex"))
+except Exception:
+    print("-1"); raise SystemExit
+if r.get("failures") or r.get("timed_out"):
+    print("-1")
+else:
+    print(int(r.get("created",0))+int(r.get("updated",0)))
+' 2>/dev/null || echo -1)
+  if [ "$code" != "200" ] || [ "$moved" = "-1" ]; then
+    echo "[os-init] FATAL: reindex $alias -> $first HTTP $code: $(cat /tmp/os-alert-reindex 2>/dev/null)"
+    echo "[os-init] FATAL: the legacy index is untouched, and re-running this is safe"
+    echo "[os-init] FATAL: because reindex keeps document ids. Retry, or delete the"
+    echo "[os-init] FATAL: legacy index by hand if its history is not worth keeping."
+    return 1
+  fi
+  echo "[os-init] reindexed $alias -> $first ($moved documents)"
+  del "/$alias" "legacy concrete index $alias (its records now live in $first)"
+  code=$(curl -s $CURL_TIMEOUTS -o /tmp/os-alert-alias -w '%{http_code}' \
+    -XPOST "$OS/_aliases" -H 'Content-Type: application/json' \
+    -d "{\"actions\":[{\"add\":{\"index\":\"$first\",\"alias\":\"$alias\",\"is_write_index\":true}}]}" \
+    || echo 000)
+  case "$code" in
+    200|201) echo "[os-init] applied: write alias $alias -> $first" ;;
+    *)
+      echo "[os-init] FATAL: alias $alias -> $first HTTP $code: $(cat /tmp/os-alert-alias 2>/dev/null)"
+      return 1
+      ;;
+  esac
+}
+
+seed_if_empty() {
+  alias="$1"
+  if [ "$SEED_EMPTY_INDICES" != "true" ]; then
+    return 0
+  fi
+  cnt=$(curl -s $CURL_TIMEOUTS "$OS/$alias/_count?ignore_unavailable=true&allow_no_indices=true" \
+    | python3 -c '
+import json,sys
+try:
+    print(int(json.load(sys.stdin).get("count", 0)))
+except Exception:
+    print(-1)
+')
+  if [ "$cnt" = "-1" ]; then
+    echo "[os-init] FATAL: could not count documents in $alias"
+    return 1
+  fi
+  if [ "$cnt" != "0" ]; then
+    echo "[os-init] $alias holds $cnt documents (no bootstrap seed needed)"
+    return 0
+  fi
+  now=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+  body=$(printf '{"@timestamp":"%s","collector_time":"%s","log_source":"bootstrap","message":"loggy bootstrap seed. The anomaly-detection plugin refuses to create or update a detector over an index holding zero documents, and the log indices stay empty until the first replay. This document exists only for the moment between index creation and detector provisioning, and the deploy deletes it again once every detector is up. It carries no host, node or severity field, so it forms no entity in any detector or trend-rollup bucket."}' "$now" "$now")
+  code=$(curl -s $CURL_TIMEOUTS -o /tmp/os-seed -w '%{http_code}' \
+    -XPUT "$OS/$alias/_doc/alice-bootstrap-seed?refresh=true" \
+    -H 'Content-Type: application/json' -d "$body" || echo 000)
+  case "$code" in
+    200|201) echo "[os-init] seeded 1 bootstrap document into $alias" ;;
+    *)
+      echo "[os-init] FATAL: seed $alias -> HTTP $code: $(cat /tmp/os-seed)"
+      return 1
+      ;;
+  esac
+}
+
+ensure_index() {
+  idx="$1"; body="$2"
+  code=$(curl -s $CURL_TIMEOUTS -o /dev/null -w '%{http_code}' "$OS/$idx" || echo 000)
+  if [ "$code" = "200" ]; then
+    echo "[os-init] index already present (skip create): $idx"
+    return 0
+  fi
+  put "/$idx" "$body" "index $idx"
+}
+
+
+APPLICATION_MAPPINGS=$(load component-logs-application-mappings.json)
+INFOLOGGER_MAPPINGS=$(load component-logs-infologger-mappings.json)
+
+APPLICATION_CENTRAL_TPL=$(load index-logs-application-central.json)
+INFOLOGGER_INDEX_TPL=$(load index-logs-infologger.json)
+COCKPIT_METRICS_TPL=$(load index-cockpit-metrics.json)
+TREND_ROLLUP_TPL=$(load index-trend-rollup.json)
+TEMPLATE_CATALOG_TPL=$(load index-template-catalog.json)
+TEMPLATE_BUCKETS_FINE_TPL=$(load index-template-buckets-5m.json)
+TEMPLATE_BUCKETS_COARSE_TPL=$(load index-template-buckets-1h.json)
+TEMPLATE_TRIAGE_TPL=$(load index-template-triage.json)
+SHIFTER_QUERIES_TPL=$(load index-shifter-queries.json)
+FLEET_ROSTER_TPL=$(load index-fleet-roster.json)
+LANE_STATE_TPL=$(load index-lane-state.json)
+SIGNALS_TPL=$(load index-signals.json)
+INCIDENTS_TPL=$(load index-incidents.json)
+NOTIFICATIONS_TPL=$(load index-notifications.json)
+ALERT_ACTIONS_TPL=$(load index-alert-actions.json)
+
+INGEST_PIPELINE=$(load pipeline-add-ingest-time.json)
+
+QUERY_INSIGHTS_SETTINGS=$(load settings-query-insights.json)
+DETECTION_COST_SETTINGS=$(load settings-detection-cost.json)
+
+COCKPIT_IDENTITY_FIELDS=$(load patch-cockpit-identity-fields.json)
+TREND_COMMIT_FIELDS=$(load patch-trend-commit-fields.json)
+LAG_MAPPING=$(load patch-dual-clock-lag-fields.json)
+NORM_MAPPING=$(load patch-severity-norm-fields.json)
+SOURCE_FILE_MAPPING=$(load patch-source-file-field.json)
+ADMISSION_MAPPING=$(load patch-admission-counters.json)
+RETRIES_FAILED_DELTA_MAPPING=$(load patch-output-retries-failed-delta.json)
+POISON_MAPPING=$(load patch-poison-replay-evidence.json)
+
+wait_os
+
+# Forbid OpenSearch from auto-creating an index named exactly after a log
+# family. Those names belong to rollover write aliases. If ingest reaches one
+# while its alias is briefly absent — the seconds between a fresh reload's
+# DELETE and this script recreating the aliases, during which Fluent Bit is
+# still flushing whatever it had buffered — OpenSearch would helpfully create a
+# concrete index with dynamic mapping, which then blocks the alias forever,
+# turns collector_time into a long and host into text, and fails the next
+# deploy. Rejecting those writes loses a few seconds of records and is strictly
+# better. The backing indices (family-000001) are unaffected: they carry a
+# suffix so they do not match these exact patterns, and explicit index creation
+# is never governed by this setting anyway.
+AUTO_CREATE="-infologger,-application-logs-central,-alice-alert-actions"
+for wn in $WORKER_NODES; do
+  AUTO_CREATE="$AUTO_CREATE,-application-logs-local-$wn"
+done
+AUTO_CREATE="$AUTO_CREATE,+*"
+put "/_cluster/settings" \
+  "{\"persistent\":{\"action.auto_create_index\":\"$AUTO_CREATE\"}}" \
+  "auto-create guard on the log family alias names ($AUTO_CREATE)"
+
+del "/_index_template/alice-logs"             "legacy index template alice-logs"
+del "/_index_template/alice-logs-generic"     "superseded index template alice-logs-generic"
+del "/_index_template/alice-anomaly-digest"   "legacy index template alice-anomaly-digest"
+
+put "/_ingest/pipeline/alice-add-ingest-time" "$INGEST_PIPELINE" "ingest pipeline alice-add-ingest-time"
+
+put "/_component_template/alice-logs-application-mappings"    "$APPLICATION_MAPPINGS"    "component alice-logs-application-mappings"
+put "/_component_template/alice-logs-infologger-mappings" "$INFOLOGGER_MAPPINGS" "component alice-logs-infologger-mappings"
+
+put "/_index_template/alice-logs-application-central" "$APPLICATION_CENTRAL_TPL"    "index template alice-logs-application-central"
+put "/_index_template/alice-logs-infologger"    "$INFOLOGGER_INDEX_TPL" "index template alice-logs-infologger"
+put "/_index_template/alice-cockpit-metrics"    "$COCKPIT_METRICS_TPL"  "index template alice-cockpit-metrics"
+put "/_index_template/alice-trend-rollup"       "$TREND_ROLLUP_TPL"     "index template alice-trend-rollup"
+put "/_index_template/alice-template-catalog"   "$TEMPLATE_CATALOG_TPL" "index template alice-template-catalog"
+put "/_index_template/alice-template-buckets-5m" "$TEMPLATE_BUCKETS_FINE_TPL" "index template alice-template-buckets-5m"
+put "/_index_template/alice-template-buckets-1h" "$TEMPLATE_BUCKETS_COARSE_TPL" "index template alice-template-buckets-1h"
+put "/_index_template/alice-template-triage"    "$TEMPLATE_TRIAGE_TPL"  "index template alice-template-triage"
+put "/_index_template/alice-shifter-queries"    "$SHIFTER_QUERIES_TPL"  "index template alice-shifter-queries"
+put "/_index_template/alice-fleet-roster"       "$FLEET_ROSTER_TPL"     "index template alice-fleet-roster"
+put "/_index_template/alice-lane-state"         "$LANE_STATE_TPL"       "index template alice-lane-state"
+put "/_index_template/alice-signals"            "$SIGNALS_TPL"          "index template alice-signals"
+put "/_index_template/alice-incidents"          "$INCIDENTS_TPL"        "index template alice-incidents"
+put "/_index_template/alice-notifications"      "$NOTIFICATIONS_TPL"    "index template alice-notifications"
+put "/_index_template/alice-alert-actions"      "$ALERT_ACTIONS_TPL"    "index template alice-alert-actions"
+
+put "/_cluster/settings" "$QUERY_INSIGHTS_SETTINGS" "query insights top-n settings"
+put "/_cluster/settings" "$DETECTION_COST_SETTINGS" "anomaly-detection batch pacing and admission control"
+
+# Per-worker objects, from the same schema file the worker's own boot-time
+# self-heal reads: its index template, then its write alias and first backing
+# index. ensure_rollover_index carries the MIGRATE_EXISTING decision, which is
+# never a boot-time one. ism.sh is the authoritative retention attach later.
+for wn in $WORKER_NODES; do
+  put "/_index_template/alice-logs-application-local-$wn" \
+    "$(load index-logs-application-local-$wn.json)" \
+    "index template alice-logs-application-local-$wn"
+  ensure_rollover_index "application-logs-local-$wn" ""
+done
+
+ensure_rollover_index "infologger" ""
+ensure_rollover_index "application-logs-central" ""
+ensure_alert_actions_alias
+ensure_index "{{ cockpit_metrics_index }}" '{}'
+ensure_index "{{ trend_rollup_index }}" '{}'
+ensure_index "{{ template_catalog_index }}" '{}'
+ensure_index "{{ template_triage_index }}" '{}'
+ensure_index "{{ shifter_queries_index }}" '{}'
+ensure_index "{{ fleet_roster_index }}" '{}'
+ensure_index "{{ lane_state_index }}" '{}'
+ensure_index "{{ signals_index }}" '{}'
+ensure_index "{{ incidents_index }}" '{}'
+ensure_index "{{ notifications_index }}" '{}'
+
+put "/{{ cockpit_metrics_index }}/_mapping" "$COCKPIT_IDENTITY_FIELDS" "live mapping: collector_id/os_node + fleet/projector fields on {{ cockpit_metrics_index }}"
+put "/{{ trend_rollup_index }}/_mapping" "$TREND_COMMIT_FIELDS" "live mapping: bucket-commit and silence-imputation fields on {{ trend_rollup_index }}"
+
+for idx_tpl in \
+  "{{ template_catalog_index }}:alice-template-catalog" \
+  "{{ template_triage_index }}:alice-template-triage" \
+  "{{ shifter_queries_index }}:alice-shifter-queries" \
+  "{{ fleet_roster_index }}:alice-fleet-roster" \
+  "{{ lane_state_index }}:alice-lane-state" \
+  "{{ signals_index }}:alice-signals" \
+  "{{ incidents_index }}:alice-incidents" \
+  "{{ notifications_index }}:alice-notifications"; do
+  idx="${idx_tpl%%:*}"
+  tpl="${idx_tpl##*:}"
+  props=$(curl -s $CURL_TIMEOUTS "$OS/_index_template/$tpl" | python3 -c '
+import json,sys
+try:
+    tpl=json.load(sys.stdin)["index_templates"][0]["index_template"]["template"]
+    print(json.dumps({"properties": tpl["mappings"]["properties"]}))
+except Exception:
+    print("")
+')
+  if [ -n "$props" ]; then
+    put "/$idx/_mapping" "$props" "live mapping: $tpl fields on $idx"
+  else
+    echo "[os-init] FATAL: could not read $tpl to apply its live mapping on $idx"
+    exit 1
+  fi
+done
+
+put "/infologger*/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on infologger"
+put "/application-logs-central*/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on application-logs-central"
+for wn in $WORKER_NODES; do
+  put "/application-logs-local-$wn*/_mapping" "$LAG_MAPPING" "mapping dual-clock lag fields on application-logs-local-$wn"
+done
+
+put "/infologger*/_mapping" "$NORM_MAPPING" "mapping severity_norm/origin_host on infologger"
+put "/application-logs-central*/_mapping" "$NORM_MAPPING" "mapping severity_norm/origin_host on application-logs-central"
+for wn in $WORKER_NODES; do
+  put "/application-logs-local-$wn*/_mapping" "$NORM_MAPPING" "mapping severity_norm/origin_host on application-logs-local-$wn"
+done
+put "/application-logs-central*/_mapping" "$SOURCE_FILE_MAPPING" "mapping source_file on application-logs-central"
+for wn in $WORKER_NODES; do
+  put "/application-logs-local-$wn*/_mapping" "$SOURCE_FILE_MAPPING" "mapping source_file on application-logs-local-$wn"
+done
+
+put "/{{ cockpit_metrics_index }}/_mapping" "$RETRIES_FAILED_DELTA_MAPPING" "mapping output_retries_failed_delta on cockpit-metrics"
+put "/{{ cockpit_metrics_index }}/_mapping" "$ADMISSION_MAPPING" "mapping admission-control rejection counters on cockpit-metrics"
+put "/infologger*/_mapping" "$POISON_MAPPING" "mapping labelled poison-replay evidence on infologger"
+put "/application-logs-central*/_mapping" "$POISON_MAPPING" "mapping labelled poison-replay evidence on application-logs-central"
+for wn in $WORKER_NODES; do
+  put "/application-logs-local-$wn*/_mapping" "$POISON_MAPPING" "mapping labelled poison-replay evidence on application-logs-local-$wn"
+done
+put "/{{ cockpit_metrics_index }}/_mapping" "$POISON_MAPPING" "mapping labelled poison-replay evidence on cockpit-metrics"
+
+seed_if_empty "infologger"
+seed_if_empty "application-logs-central"
+for wn in $WORKER_NODES; do
+  seed_if_empty "application-logs-local-$wn"
+done
+
+echo "[os-init] DONE — tier-aware mappings, rollover write aliases and all indices in place before first write"

@@ -9,11 +9,11 @@ The role installs and starts one long-running service, `alice-ops`. The other
 two units are installed and left stopped. An operator starts them from the page
 or from a `make` target; nothing in this role starts them.
 
-It was split out of the `sweet_os_dashboards` role because it is a different machine
+It was split out of the `loggy_os_dashboards` role because it is a different machine
 talking to different machines. `alice-ops` reaches the worker VMs — their replay
 triggers and their fault agents — and it reaches OpenSearch. It never talks to
 OpenSearch Dashboards. Its page is served by the same nginx instance the
-`sweet_os_dashboards` role configures, which is the only thing the two share.
+`loggy_os_dashboards` role configures, which is the only thing the two share.
 
 ## What it does
 
@@ -21,7 +21,7 @@ OpenSearch Dashboards. Its page is served by the same nginx instance the
                             CONTROL HOST ONLY
 
 ┌─ 1. THE OPS SERVER — one long-running service ─────────────────────────────┐
-│  /opt/sweet/ops_server.py     0755 root:root      --> restart       │
+│  /opt/loggy/ops_server.py     0755 root:root      --> restart       │
 │  alice-ops.service                   binds 127.0.0.1:8090                  │
 │  nine actions: replay, replay-fresh, stop, wipe, clear,                    │
 │                poison-replay, poison-stop, inject, inject-stop             │
@@ -30,20 +30,20 @@ OpenSearch Dashboards. Its page is served by the same nginx instance the
                                      v
 ┌─ 2. POISON REPLAY — armed, never started ──────────────────────────────────┐
 │  /var/lib/alice-poison-replay       0750, status.json + runs/              │
-│  /opt/sweet/poison_replay.py 0755                                   │
+│  /opt/loggy/poison_replay.py 0755                                   │
 │  alice-poison-replay.service        Restart=no, one shot, ProtectSystem    │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 3. FAULT INJECTION — armed, never started ────────────────────────────────┐
 │  /var/lib/alice-inject              0750, request.json, status.json, runs/ │
-│  /opt/sweet/inject_run.py    0755                                   │
+│  /opt/loggy/inject_run.py    0755                                   │
 │  alice-inject.service               Restart=no, one shot                   │
 │  daemon-reload when that unit changed                                      │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 4. THE TWO HELPER SCRIPTS ────────────────────────────────────────────────┐
-│  /opt/sweet/reset_derived.py    0755  fresh-replay reset            │
-│  /opt/sweet/score_injection.py  0755  --> restart alice-metrics     │
+│  /opt/loggy/reset_derived.py    0755  fresh-replay reset            │
+│  /opt/loggy/score_injection.py  0755  --> restart alice-metrics     │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -51,7 +51,7 @@ OpenSearch Dashboards. Its page is served by the same nginx instance the
 
 - **`alice-ops` binds loopback, not the network.** `ops_server.py` listens on
   `127.0.0.1:{{ ops_internal_port }}`. The page reaches an operator only because
-  the nginx vhost in the `sweet_os_dashboards` role proxies `/ops/` to that port, and that
+  the nginx vhost in the `loggy_os_dashboards` role proxies `/ops/` to that port, and that
   vhost carries the TLS and the basic authentication. Nothing in this role opens
   a firewall port.
 - **The two one-shot units are installed and left stopped.** `alice-inject` and
@@ -67,7 +67,7 @@ OpenSearch Dashboards. Its page is served by the same nginx instance the
   read by the one-shot injection run, never by a long-running unit, so there is
   no process to restart.
 - **The first task creates the app root from `alice_ops_script | dirname`.**
-  It derives `/opt/sweet` from the script path instead of naming it. Other roles
+  It derives `/opt/loggy` from the script path instead of naming it. Other roles
   on the control host create the same directory with the same owner, group and
   mode, so the role stays runnable on a host none of them has reached.
 - **`os_cursor.py` and `causal_edges.json` are vendored copies.** The signal
@@ -84,11 +84,11 @@ site-wide, or in `inventory.yml` for one group or host.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `alice_ops_script` | `/opt/sweet/ops_server.py` | The installed ops server. The app root is derived from its directory. |
-| `alice_ops_templates_script` | `/opt/sweet/init/templates.sh` | The index-template script the page re-applies. A literal — see couplings. |
-| `alice_ops_score_injection_script` | `/opt/sweet/score_injection.py` | The scoring module `inject_run.py` calls after a run. |
+| `alice_ops_script` | `/opt/loggy/ops_server.py` | The installed ops server. The app root is derived from its directory. |
+| `alice_ops_templates_script` | `/opt/loggy/init/templates.sh` | The index-template script the page re-applies. A literal — see couplings. |
+| `alice_ops_score_injection_script` | `/opt/loggy/score_injection.py` | The scoring module `inject_run.py` calls after a run. |
 | `alice_ops_poison_replay_state_dir` | `/var/lib/alice-poison-replay` | Holds the poison status file and the run reports. `0750`. |
-| `alice_ops_inject_script` | `/opt/sweet/inject_run.py` | The injection engine, used by `make inject` and by the page button. |
+| `alice_ops_inject_script` | `/opt/loggy/inject_run.py` | The injection engine, used by `make inject` and by the page button. |
 | `alice_ops_inject_state_dir` | `/var/lib/alice-inject` | Holds the injection request, status and reports. `0750`. |
 | `alice_ops_inject_report_dir` | `{{ alice_ops_inject_state_dir }}/runs` | One report per injection run. |
 | `alice_ops_inject_default_observe_minutes` | `45` | How long an injection run watches before it scores, when the request does not say. |
@@ -114,7 +114,7 @@ nobody, which is why the play must set them.
 | `worker_replay_endpoints` | `[]` | The same, prefixed `<inventory_hostname>=`. Joined into `INJECT_WORKER_REPLAY`. |
 | `worker_fault_agent_endpoints` | `[]` | `<inventory_hostname>=http://<ansible_host>:<fault_agent_port>` per worker. Joined into `INJECT_WORKER_AGENTS`. |
 | `worker_inventory_names` | `[]` | The worker inventory names. Joined into `OPS_INJECT_WORKERS`. |
-| `fleet_collector_node_ids` | `[]` | Each worker's `node_id`. Joined into `OPS_WORKER_INFO_NODES`. Shared with `sweet_cockpit_metrics` and `sweet_anomaly_detection`. |
+| `fleet_collector_node_ids` | `[]` | Each worker's `node_id`. Joined into `OPS_WORKER_INFO_NODES`. Shared with `loggy_cockpit_metrics` and `loggy_anomaly_detection`. |
 | `signal_projector_address` | `""` | The projector host's `ansible_host`. Becomes `INJECT_PROJECTOR_AGENT`. |
 
 ### Variables the role requires but does not own
@@ -137,7 +137,7 @@ defaults, because a second copy is a second place to change one value.
 | `alice_os_cursor_script` | `group_vars/all.yml` | Where this role stages `os_cursor.py`, beside the injection scorer that imports it. |
 | `signal_projector_service_name` | `group_vars/all.yml` | The service an injection stops and restarts. |
 | `cockpit_metrics_service_name` | `group_vars/all.yml` | The same, for the metrics poller. Also the poison unit's `After=`. |
-| `ops_internal_port` | `group_vars/all.yml` | The loopback port. The nginx vhost in `sweet_os_dashboards` proxies to it. |
+| `ops_internal_port` | `group_vars/all.yml` | The loopback port. The nginx vhost in `loggy_os_dashboards` proxies to it. |
 | `opensearch_http_port` | `group_vars/all.yml` | `OS_URL` on all three units. |
 | `replay_http_port` | `group_vars/all.yml` | Only inside the worker URL lists above. Not read by any template here. |
 | `fault_agent_port` | `group_vars/all.yml` | The projector agent URL, and the worker list above. |
@@ -154,8 +154,8 @@ services it installs do anything useful.
 
 | Prerequisite | Provided by | What breaks without it |
 |---|---|---|
-| nginx installed, with the `/ops/` proxy in its vhost | `sweet_os_dashboards` role | The page is unreachable. `alice-ops` binds loopback only, so nothing outside the control host can open it. |
-| `templates.sh` present at `alice_ops_templates_script`, with its `schema/` directory beside it | `sweet_opensearch` role | The page's fresh-replay and wipe buttons cannot rebuild the aliases. The unit still starts. |
+| nginx installed, with the `/ops/` proxy in its vhost | `loggy_os_dashboards` role | The page is unreachable. `alice-ops` binds loopback only, so nothing outside the control host can open it. |
+| `templates.sh` present at `alice_ops_templates_script`, with its `schema/` directory beside it | `loggy_opensearch` role | The page's fresh-replay and wipe buttons cannot rebuild the aliases. The unit still starts. |
 | Fault agents running on the workers and the projector | `faults` role | An injection has nothing to inject. The `faults` play runs after this one in `site.yml`, which is safe because no run starts at deploy time. |
 
 ## How to use it
@@ -177,24 +177,24 @@ In a playbook, against the control host:
 - **`make contract` runs `files/test_poison_replay.py`.** That test loads
   `poison_replay.py` and `ops_server.py` from this directory, and reads
   `templates/alice-poison-replay.service.j2`, the `Makefile` and the detector
-  definitions in `sweet_anomaly_detection`.
+  definitions in `loggy_anomaly_detection`.
 
 ## Couplings
 
 - **`ops_internal_port` is one decision in two roles.** This role puts it in
-  `OPS_PORT`; `dashboards.conf.j2` in the `sweet_os_dashboards` role proxies to the same
+  `OPS_PORT`; `dashboards.conf.j2` in the `loggy_os_dashboards` role proxies to the same
   number. Change one and the page 502s.
 - **`alice_ops_templates_script` must equal
   `opensearch_cluster_config_templates_script`.** It is written here as a literal on
   purpose. A default that interpolates another role's variable resolves lazily,
   so this role could not run without that role's defaults loaded. The price is
   two places to change one path.
-- **`restart alice-metrics` is notified here but defined in `sweet_cockpit_metrics`.**
+- **`restart alice-metrics` is notified here but defined in `loggy_cockpit_metrics`.**
   Both roles must appear in the same play. A static `roles:` list loads every
   handler in the play before the first task runs, so the notify resolves from
   any position in that list. A second copy of the handler here would restart the
   poller twice. The real ordering rule for this role is a different one: it must
-  run after `sweet_os_dashboards`.
+  run after `loggy_os_dashboards`.
 - **`fault_agent_token` is a shared secret.** The injection unit sends it to the
   agents the `faults` role installed. Rotating it means both roles, in one
   deploy.
@@ -205,7 +205,7 @@ In a playbook, against the control host:
 - **The units name three services they stop and start:
   `signal_projector_service_name`,
   `cockpit_metrics_service_name` and `fluent-bit`.** `fluent-bit` is a
-  literal in `alice-inject.service.j2`, matching the `sweet_collector` role's unit
+  literal in `alice-inject.service.j2`, matching the `loggy_collector` role's unit
   name. A variable here would only let one end of the pair move.
 
 ## What is frozen
@@ -219,8 +219,8 @@ In a playbook, against the control host:
 ## What this role does not do
 
 - **It does not install nginx, TLS material or the basic-auth file.** The
-  `sweet_os_dashboards` role does, and its vhost is what exposes this page.
-- **It does not create `/opt/sweet/init`.** It only names
+  `loggy_os_dashboards` role does, and its vhost is what exposes this page.
+- **It does not create `/opt/loggy/init`.** It only names
   `templates.sh` inside it, which reads its request bodies from `schema/`
   beside itself.
 - **It does not start an injection or a calibration run.** Only an operator
@@ -240,10 +240,10 @@ for this fleet, driving this replay pipeline.
 
 ## Used by
 
-- `playbooks/site.yml`, the control-host play that today runs the `sweet_os_dashboards`
+- `playbooks/site.yml`, the control-host play that today runs the `loggy_os_dashboards`
   role — "Control plane — Dashboards, nginx, ops page, monitors, roster,
   metrics and detectors (control host only)". This role must be listed after
-  `sweet_os_dashboards`, because the nginx vhost that exposes the page is written there.
+  `loggy_os_dashboards`, because the nginx vhost that exposes the page is written there.
 - `playbooks/inject.yml`, `poison_replay.yml`, `poison_status.yml`,
   `poison_stop.yml`, `replay.yml`, `clear.yml` and `status.yml` all drive what
   this role installed. None of them include the role.

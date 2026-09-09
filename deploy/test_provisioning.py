@@ -73,20 +73,20 @@ BOOTSTRAP_VARS = {
 
 
 def render_bootstrap(primaries=1):
-    values = dict(role_defaults("sweet_opensearch"))
+    values = dict(role_defaults("loggy_opensearch"))
     values.update(group_vars())
     values.update(BOOTSTRAP_VARS)
     values["log_primary_shards_storage"] = primaries
-    return _environment("sweet_opensearch").get_template(
+    return _environment("loggy_opensearch").get_template(
         "templates.sh.j2").render(**values)
 
 
 def schema_documents(primaries=1):
-    values = dict(role_defaults("sweet_opensearch"))
+    values = dict(role_defaults("loggy_opensearch"))
     values.update(group_vars())
     values.update(BOOTSTRAP_VARS)
     values["log_primary_shards_storage"] = primaries
-    environment = _environment("sweet_opensearch")
+    environment = _environment("loggy_opensearch")
     found = {}
     for name in environment.list_templates():
         if not name.startswith("schema/") or not name.endswith(".json.j2"):
@@ -133,7 +133,7 @@ def test_every_schema_document_the_script_loads_exists():
     dynamic = {name for name in loaded if "$" in name}
     assert dynamic == {"index-logs-application-local-$wn"}, dynamic
     assert os.path.exists(os.path.join(
-        ROLES, "sweet_opensearch", "templates", "schema-per-worker",
+        ROLES, "loggy_opensearch", "templates", "schema-per-worker",
         "index-logs-application-local.json.j2"))
     assert loaded - dynamic == set(schema_documents()), \
         (loaded - dynamic) ^ set(schema_documents())
@@ -163,7 +163,7 @@ def test_the_fixed_indices_never_roll_over_and_the_buckets_age_out():
         settings = templates[pattern]["template"]["settings"]
         assert "*" not in pattern
         assert "index.plugins.index_state_management.rollover_alias" not in settings
-    ism = open(os.path.join(ROLES, "sweet_opensearch", "templates",
+    ism = open(os.path.join(ROLES, "loggy_opensearch", "templates",
                             "ism.sh.j2")).read()
     for index in ("template-triage", "shifter-queries", "template-catalog"):
         assert index not in ism
@@ -176,7 +176,7 @@ def test_the_fixed_indices_never_roll_over_and_the_buckets_age_out():
     assert "alice-template-buckets-1h-retention" in ism
     assert 'age_delete_policy "delete $BUCKETS_5M day indices' in ism
     assert 'age_delete_policy "delete $BUCKETS_1H month indices' in ism
-    retention = role_defaults("sweet_opensearch")
+    retention = role_defaults("loggy_opensearch")
     assert retention["ism_retention_template_buckets_5m"] == "4d"
     assert retention["ism_retention_template_buckets_1h"] == "66d"
 
@@ -205,10 +205,10 @@ def test_the_three_existing_log_routes_are_unchanged():
         assert settings["number_of_replicas"] == 2
         assert settings["index.plugins.index_state_management.rollover_alias"]
     worker = open(os.path.join(
-        ROLES, "sweet_opensearch", "templates", "schema-per-worker",
+        ROLES, "loggy_opensearch", "templates", "schema-per-worker",
         "index-logs-application-local.json.j2")).read()
     assert '"index_patterns": ["application-logs-local-{{ node }}-*"]' in worker
-    registration = open(os.path.join(ROLES, "sweet_opensearch",
+    registration = open(os.path.join(ROLES, "loggy_opensearch",
                                      "files", "register_node.sh")).read()
     assert "application-logs-local-%s-*" not in registration
 
@@ -399,40 +399,40 @@ def test_farm_storage_tier_fits_its_heap_shard_budget():
 
 def _stamper_unit(**overrides):
     values = dict(group_vars())
-    values.update(role_defaults("sweet_collector"))
+    values.update(role_defaults("loggy_collector"))
     values.update({"node_id": "node-01", "opensearch_http_port": 9200,
                    "ansible_managed": "managed",
                    "stamper_listen_socket": "/run/alice/stamper.sock",
                    "stamper_return_socket": "/run/alice/stamped.sock",
                    "stamper_status_file": "/run/alice/stamper-status.json",
-                   "stamper_templating_dir": "/opt/sweet/templating",
-                   "stamper_script": "/opt/sweet/stamper.py",
-                   "stamper_venv": "/opt/sweet/stamper-venv",
+                   "stamper_templating_dir": "/opt/loggy/templating",
+                   "stamper_script": "/opt/loggy/stamper.py",
+                   "stamper_venv": "/opt/loggy/stamper-venv",
                    "stamper_memory_high": "384M",
                    "stamper_memory_max": "768M"})
     values.update(overrides)
-    env = _environment("sweet_collector")
+    env = _environment("loggy_collector")
     env.filters["basename"] = os.path.basename
     return env.get_template("alice-stamper.service.j2").render(**values)
 
 
 def _shifter_unit(**overrides):
     values = dict(group_vars())
-    values.update(role_defaults("sweet_shifter_view"))
+    values.update(role_defaults("loggy_shifter_view"))
     values.update({"ansible_managed": "managed", "opensearch_http_port": 9200,
                    "shifter_port": 8092, "shifter_ingest_path": "/ingest",
                    "shifter_opensearch_url": "http://control:9200"})
     values.update(overrides)
-    return _environment("sweet_shifter_view").get_template(
+    return _environment("loggy_shifter_view").get_template(
         "alice-shifter.service.j2").render(**values)
 
 
 def _collector_config(**overrides):
     values = dict(group_vars())
-    values.update(role_defaults("sweet_collector"))
+    values.update(role_defaults("loggy_collector"))
     values.update({"ansible_managed": "managed",
                    "collector_config_dir": "/etc/fluent-bit",
-                   "collector_health_script": "/opt/sweet/fb_health.py",
+                   "collector_health_script": "/opt/loggy/fb_health.py",
                    "collector_health_interval_seconds": 10,
                    "collector_journald_path": "/var/log/journal",
                    "stamper_listen_socket": "/run/alice/stamper.sock",
@@ -440,7 +440,7 @@ def _collector_config(**overrides):
                    "stamper_status_file": "/run/alice/stamper-status.json",
                    "shifter_enabled": True, "shifter_host": "lane"})
     values.update(overrides)
-    return yaml.safe_load(_environment("sweet_collector").get_template(
+    return yaml.safe_load(_environment("loggy_collector").get_template(
         "collector.yaml.j2").render(**values))
 
 
@@ -474,7 +474,7 @@ def test_the_stamper_unit_exports_every_variable_its_python_reads():
     wanted = set()
     for name in ("stamper.py", "forward.py"):
         wanted |= _python_environment_names(
-            os.path.join(ROLES, "sweet_collector", "files", name))
+            os.path.join(ROLES, "loggy_collector", "files", name))
     wanted.discard("PATH")
     missing = wanted - exported
     assert missing == {"STAMPER_TICK_SECONDS"}, sorted(missing)
@@ -503,9 +503,9 @@ def test_the_stamper_unit_carries_the_plan_limits_and_the_collector_ceiling():
 
 
 def test_the_stamper_pins_drain3_and_msgpack():
-    defaults = role_defaults("sweet_collector")
+    defaults = role_defaults("loggy_collector")
     assert defaults["stamper_drain3_version"] == "0.9.11"
-    tasks = role_tasks("sweet_collector", "stamper.yml")
+    tasks = role_tasks("loggy_collector", "stamper.yml")
     pins = [task for task in tasks if "ansible.builtin.pip" in task]
     assert pins
     for task in pins:
@@ -555,14 +555,14 @@ def _plays_for(role_name):
 
 
 def test_the_stamper_runs_beside_the_collector_and_before_it():
-    plays = _plays_for("sweet_collector")
+    plays = _plays_for("loggy_collector")
     assert len(plays) == 1
     play, role = plays[0]
     assert play["hosts"] == "workers"
-    assert role == "sweet_collector"
+    assert role == "loggy_collector"
 
     imported = [task["ansible.builtin.import_tasks"]
-                for task in role_tasks("sweet_collector")]
+                for task in role_tasks("loggy_collector")]
     assert imported == ["stamper.yml", "collector.yml"]
 
 
@@ -576,7 +576,7 @@ def test_the_socket_contract_is_declared_exactly_once():
     at a socket nobody listened on: no error at deploy time, no records
     stamped.
     """
-    defaults = role_defaults("sweet_collector")
+    defaults = role_defaults("loggy_collector")
     contract = ("stamper_socket_dir", "stamper_listen_socket",
                 "stamper_return_socket", "stamper_socket_mode",
                 "stamper_status_file")
@@ -584,7 +584,7 @@ def test_the_socket_contract_is_declared_exactly_once():
         assert name in defaults, name
         assert "collector_" + name not in defaults
 
-    role = os.path.join(ROLES, "sweet_collector")
+    role = os.path.join(ROLES, "loggy_collector")
     for directory in ("tasks", "templates"):
         for name in sorted(os.listdir(os.path.join(role, directory))):
             source = open(os.path.join(role, directory, name)).read()
@@ -602,16 +602,16 @@ def test_the_socket_contract_is_declared_exactly_once():
 
 def test_the_maintenance_unit_resolves_against_the_role_defaults():
     values = dict(group_vars())
-    values.update(role_defaults("sweet_template_catalog"))
+    values.update(role_defaults("loggy_template_catalog"))
     values.update({"ansible_managed": "managed", "opensearch_http_port": 9200})
-    env = _environment("sweet_template_catalog")
+    env = _environment("loggy_template_catalog")
     env.filters["basename"] = os.path.basename
     env.filters["int"] = int
     unit = env.get_template(
         "alice-catalog-maintenance.service.j2").render(**values)
     exported = _unit_environment(unit)
     wanted = _python_environment_names(
-        os.path.join(ROLES, "sweet_template_catalog", "files",
+        os.path.join(ROLES, "loggy_template_catalog", "files",
                      "catalog_maintenance.py"))
     assert exported["CATALOG_RETENTION_DAYS"] == "90"
     assert exported["CATALOG_CHECK_RETENTION_DAYS"] == "35"
@@ -626,22 +626,22 @@ def test_the_maintenance_unit_resolves_against_the_role_defaults():
 
 def test_the_maintenance_unit_carries_the_query_history_expiry():
     values = dict(group_vars())
-    values.update(role_defaults("sweet_template_catalog"))
+    values.update(role_defaults("loggy_template_catalog"))
     values.update({"ansible_managed": "managed", "opensearch_http_port": 9200})
-    env = _environment("sweet_template_catalog")
+    env = _environment("loggy_template_catalog")
     env.filters["basename"] = os.path.basename
     env.filters["int"] = int
     unit = env.get_template(
         "alice-catalog-maintenance.service.j2").render(**values)
     exported = _unit_environment(unit)
-    defaults = role_defaults("sweet_template_catalog")
+    defaults = role_defaults("loggy_template_catalog")
     assert exported["QUERIES_INDEX"] == group_vars()["shifter_queries_index"]
     assert exported["CATALOG_QUERY_RETENTION_DAYS"] == str(
         defaults["template_catalog_query_retention_days"])
     assert exported["CATALOG_QUERY_CLEANUP_INTERVAL_HOURS"] == str(
         defaults["template_catalog_query_cleanup_interval_hours"])
     assert defaults["template_catalog_query_retention_days"] == 365
-    source = open(os.path.join(ROLES, "sweet_template_catalog", "files",
+    source = open(os.path.join(ROLES, "loggy_template_catalog", "files",
                                "catalog_maintenance.py")).read()
     for name in ("QUERIES_INDEX", "CATALOG_QUERY_RETENTION_DAYS",
                  "CATALOG_QUERY_CLEANUP_INTERVAL_HOURS"):
@@ -650,7 +650,7 @@ def test_the_maintenance_unit_carries_the_query_history_expiry():
 
 
 def test_the_maintenance_pass_expires_the_query_history_and_runs_the_checks():
-    source = open(os.path.join(ROLES, "sweet_template_catalog", "files",
+    source = open(os.path.join(ROLES, "loggy_template_catalog", "files",
                                "catalog_maintenance.py")).read()
     assert "def expire_queries(" in source
     assert "def run_checks(" in source
@@ -672,18 +672,18 @@ def test_the_maintenance_timer_lands_on_exactly_one_host():
     an hourly delete-by-query on a machine whose job is ingesting, and needed a
     host guard on every task to keep the fleet-wide pass to one host.
     """
-    plays = _plays_for("sweet_template_catalog")
+    plays = _plays_for("loggy_template_catalog")
     assert len(plays) == 1
     play, role = plays[0]
     assert play["hosts"] == "control"
-    assert role == "sweet_template_catalog"
-    for task in role_tasks("sweet_template_catalog"):
+    assert role == "loggy_template_catalog"
+    for task in role_tasks("loggy_template_catalog"):
         assert "when" not in task, json.dumps(task)
     assert "template_catalog_maintenance_host" not in group_vars()
 
 
 def test_the_stamper_ships_the_shared_contract_the_recipe_and_its_modules():
-    tasks = role_tasks("sweet_collector", "stamper.yml")
+    tasks = role_tasks("loggy_collector", "stamper.yml")
     copied = []
     for task in tasks:
         copy = task.get("ansible.builtin.copy")
@@ -694,7 +694,7 @@ def test_the_stamper_ships_the_shared_contract_the_recipe_and_its_modules():
     loops = [task.get("loop") for task in tasks if task.get("loop")]
     assert ["stamper.py", "forward.py"] in loops
     assert ["drainbench.py", "masking.py"] in loops
-    files = os.listdir(os.path.join(ROLES, "sweet_template_catalog", "files"))
+    files = os.listdir(os.path.join(ROLES, "loggy_template_catalog", "files"))
     assert "template_catalog.py" not in files
     assert "snapshot.py" not in files
     assert "ledger.py" not in files
@@ -703,7 +703,7 @@ def test_the_stamper_ships_the_shared_contract_the_recipe_and_its_modules():
 VENDORED_TEMPLATING = ("drainbench.py", "masking.py")
 
 
-@pytest.mark.parametrize("role", ("sweet_collector", "sweet_shifter_view"))
+@pytest.mark.parametrize("role", ("loggy_collector", "loggy_shifter_view"))
 @pytest.mark.parametrize("name", VENDORED_TEMPLATING)
 def test_the_vendored_templating_copy_matches_its_source(role, name):
     source = os.path.join(DEPLOY, os.pardir, "tools", "templating", name)
@@ -718,7 +718,7 @@ def test_the_vendored_templating_copy_matches_its_source(role, name):
         f"Edit tools/templating and copy it into both roles.")
 
 
-@pytest.mark.parametrize("role", ["sweet_shifter_view", "sweet_collector"])
+@pytest.mark.parametrize("role", ["loggy_shifter_view", "loggy_collector"])
 def test_the_vendored_contract_copy_matches_its_source(role):
     source = os.path.join(DEPLOY, "shared", "template_contract.py")
     with open(source, "rb") as handle:
@@ -738,16 +738,16 @@ def test_the_vendored_replay_engine_matches_its_source():
         pytest.skip("images/replay is not present in this tree")
     with open(source, "rb") as handle:
         expected = handle.read()
-    with open(os.path.join(ROLES, "sweet_replay", "files", "replay.py"), "rb") as handle:
+    with open(os.path.join(ROLES, "loggy_replay", "files", "replay.py"), "rb") as handle:
         got = handle.read()
     assert got == expected, (
-        "roles/sweet_replay/files/replay.py has drifted from images/replay/replay.py. "
+        "roles/loggy_replay/files/replay.py has drifted from images/replay/replay.py. "
         "Edit images/replay and copy it into the role.")
 
 
 @pytest.mark.parametrize("role,name", [
-    ("sweet_collector", "stamper.yml"), ("sweet_collector", "collector.yml"),
-    ("sweet_template_catalog", "main.yml"), ("sweet_shifter_view", "main.yml"),
+    ("loggy_collector", "stamper.yml"), ("loggy_collector", "collector.yml"),
+    ("loggy_template_catalog", "main.yml"), ("loggy_shifter_view", "main.yml"),
 ])
 def test_no_role_task_reaches_outside_its_own_directory(role, name):
     for task in role_tasks(role, name):
@@ -764,7 +764,7 @@ def test_no_role_task_reaches_outside_its_own_directory(role, name):
 
 def test_the_shifter_unit_carries_the_new_serving_limits():
     exported = _unit_environment(_shifter_unit())
-    defaults = role_defaults("sweet_shifter_view")
+    defaults = role_defaults("loggy_shifter_view")
     shared = group_vars()
     assert exported["ALICE_SHARED_PATH"] == shared["alice_shared_dir"]
     assert "SHIFTER_METRICS_INDEX" not in exported
@@ -797,7 +797,7 @@ def test_the_shifter_unit_carries_the_new_serving_limits():
 
 
 def test_semantic_search_ships_on_and_names_the_measured_revision():
-    defaults = role_defaults("sweet_shifter_view")
+    defaults = role_defaults("loggy_shifter_view")
     assert defaults["shifter_semantic_enabled"] is True
     assert defaults["shifter_semantic_backend"] == "model2vec"
     assert defaults["shifter_semantic_model_repo"] == \
@@ -815,11 +815,11 @@ def test_semantic_search_ships_on_and_names_the_measured_revision():
 
 
 def test_the_unit_runs_the_venv_interpreter_whenever_it_needs_a_library():
-    assert "ExecStart=/opt/sweet/shifter-venv/bin/python" in \
+    assert "ExecStart=/opt/loggy/shifter-venv/bin/python" in \
         _shifter_unit()
     off = _shifter_unit(shifter_semantic_enabled=False,
                         shifter_semantic_backend="none")
-    assert "ExecStart=/opt/sweet/shifter-venv/bin/python" in off
+    assert "ExecStart=/opt/loggy/shifter-venv/bin/python" in off
     bare = _shifter_unit(shifter_semantic_enabled=False,
                          shifter_semantic_backend="none",
                          shifter_templates_enabled=False)
@@ -839,7 +839,7 @@ def test_a_host_that_turns_semantic_off_keeps_the_small_ceiling():
 
 
 def test_the_shifter_caches_fit_inside_the_service_ceiling():
-    defaults = role_defaults("sweet_shifter_view")
+    defaults = role_defaults("loggy_shifter_view")
     caches = (defaults["shifter_vector_cache_bytes"]
               + defaults["shifter_catalog_cache_bytes"]
               + defaults["shifter_response_cache_bytes"]
@@ -854,7 +854,7 @@ def test_the_shifter_caches_fit_inside_the_service_ceiling():
 
 
 def test_the_unit_hands_the_page_every_number_its_budget_check_needs():
-    defaults = role_defaults("sweet_shifter_view")
+    defaults = role_defaults("loggy_shifter_view")
     exported = _unit_environment(_shifter_unit())
     assert exported["SHIFTER_MEMORY_MAX"] == defaults["shifter_memory_max"]
     assert int(exported["SHIFTER_LIVE_LANE_BYTES"]) == defaults[
@@ -867,7 +867,7 @@ MODEL_LOAD_PEAK_BYTES = 341311488
 
 
 def test_the_declared_serving_peak_fits_the_service_ceiling():
-    defaults = role_defaults("sweet_shifter_view")
+    defaults = role_defaults("loggy_shifter_view")
     peak = (defaults["shifter_process_base_bytes"]
             + defaults["shifter_live_lane_bytes"]
             + defaults["shifter_vector_cache_bytes"]
@@ -882,25 +882,25 @@ def test_the_declared_serving_peak_fits_the_service_ceiling():
 
 
 def test_the_ceiling_the_page_is_told_matches_the_unit():
-    defaults = role_defaults("sweet_shifter_view")
+    defaults = role_defaults("loggy_shifter_view")
     exported = _unit_environment(_shifter_unit())
     assert exported["SHIFTER_MEMORY_MAX"] == defaults["shifter_memory_max"]
     assert exported["SHIFTER_MEMORY_MAX"] == "2G"
 
 
 def test_one_vector_per_canonical_group_fits_the_vector_cache():
-    defaults = role_defaults("sweet_shifter_view")
+    defaults = role_defaults("loggy_shifter_view")
     assert 5301 * 512 * 4 == 10856448
     assert defaults["shifter_vector_cache_bytes"] >= 10856448
 
 
 def test_the_templates_page_is_off_when_the_query_lane_is_off():
     values = dict(group_vars())
-    values.update(role_defaults("sweet_shifter_view"))
+    values.update(role_defaults("loggy_shifter_view"))
     values.update({"ansible_managed": "managed", "shifter_port": 8092,
                    "shifter_ingest_path": "/ingest",
                    "shifter_opensearch_url": ""})
-    unit = _environment("sweet_shifter_view").get_template(
+    unit = _environment("loggy_shifter_view").get_template(
         "alice-shifter.service.j2").render(**values)
     assert "SHIFTER_CATALOG_INDEX" not in unit
 
@@ -916,26 +916,26 @@ TEMPLATE_SUPPLIED = {
 
 SCHEMA_TEMPLATES = sorted(
     "schema/" + name
-    for name in os.listdir(os.path.join(ROLES, "sweet_opensearch",
+    for name in os.listdir(os.path.join(ROLES, "loggy_opensearch",
                                         "templates", "schema"))
     if name.endswith(".json.j2"))
 
 
 @pytest.mark.parametrize("role,template", [
-    ("sweet_opensearch", "templates.sh.j2"),
-] + [("sweet_opensearch", name) for name in SCHEMA_TEMPLATES] + [
-    ("sweet_collector", "alice-stamper.service.j2"),
-    ("sweet_template_catalog", "alice-catalog-maintenance.service.j2"),
-    ("sweet_template_catalog", "alice-catalog-maintenance.timer.j2"),
-    ("sweet_shifter_view", "alice-shifter.service.j2"),
+    ("loggy_opensearch", "templates.sh.j2"),
+] + [("loggy_opensearch", name) for name in SCHEMA_TEMPLATES] + [
+    ("loggy_collector", "alice-stamper.service.j2"),
+    ("loggy_template_catalog", "alice-catalog-maintenance.service.j2"),
+    ("loggy_template_catalog", "alice-catalog-maintenance.timer.j2"),
+    ("loggy_shifter_view", "alice-shifter.service.j2"),
 ])
 def test_every_variable_a_template_names_is_declared_somewhere(role, template):
     source = open(os.path.join(ROLES, role, "templates", template)).read()
     source = re.sub(r"\{%\s*raw\s*%\}.*?\{%\s*endraw\s*%\}", "", source,
                     flags=re.S)
     known = set(group_vars()) | set(role_defaults(role)) | TEMPLATE_SUPPLIED
-    for other in ("sweet_collector", "sweet_template_catalog", "sweet_shifter_view",
-                  "sweet_opensearch"):
+    for other in ("loggy_collector", "loggy_template_catalog", "loggy_shifter_view",
+                  "loggy_opensearch"):
         known |= set(role_defaults(other))
     used = set()
     for expression in re.findall(r"\{\{(.*?)\}\}", source, re.S):

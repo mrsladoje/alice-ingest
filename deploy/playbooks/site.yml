@@ -135,7 +135,7 @@
 
     - name: Remove the leftover anomaly digest script
       ansible.builtin.file:
-        path: /opt/sweet/anomaly_digest.py
+        path: /opt/loggy/anomaly_digest.py
         state: absent
       failed_when: false
 
@@ -154,7 +154,7 @@
   hosts: alice_nodes
   become: true
   roles:
-    - sweet_opensearch
+    - loggy_opensearch
 
 - name: OpenSearch cluster — rolling-safety gate (one node at a time)
   hosts: alice_nodes
@@ -188,14 +188,14 @@
   roles:
     # Same role as the bring-up play above, in its other mode. The flag is what
     # keeps the cluster-wide calls to one host instead of all five.
-    - role: sweet_opensearch
+    - role: loggy_opensearch
       opensearch_configure_cluster: true
 
 - name: Alertmanager (control host only, behind the existing nginx seam)
   hosts: control
   become: true
   roles:
-    - sweet_alertmanager
+    - loggy_alertmanager
 
 - name: Control plane — Dashboards, nginx, ops page, monitors, roster, metrics and detectors (control host only)
   hosts: control
@@ -205,22 +205,22 @@
 
   # The order of this list is the order the single dashboards role used to run
   # its task files in, and every step of it is load-bearing:
-  #   sweet_os_dashboards installs Dashboards and nginx, then creates the index
+  #   loggy_os_dashboards installs Dashboards and nginx, then creates the index
   #                      patterns before it imports the cockpit saved objects
   #                      that reference them.
   #   alice_ops          serves the ops page behind the nginx seam above.
-  #   sweet_cockpit_metrics
+  #   loggy_cockpit_metrics
   #                      publishes the immutable roster, then starts the poller
   #                      that reads it.
-  #   sweet_anomaly_detection
+  #   loggy_anomaly_detection
   #                      upserts the channels and the monitors, waits for the
   #                      poller's first documents, then upserts the detectors
   #                      and the forecaster and verifies the whole set.
   roles:
-    - sweet_os_dashboards
+    - loggy_os_dashboards
     - alice_ops
-    - sweet_cockpit_metrics
-    - sweet_anomaly_detection
+    - loggy_cockpit_metrics
+    - loggy_anomaly_detection
 
 - name: Notification receiver on the control host the Alertmanager webhook points at — before the projector, so it is up while the projector starts
   hosts: control
@@ -228,14 +228,14 @@
   tasks:
     - name: Install and start the notification receiver
       ansible.builtin.include_role:
-        name: sweet_signal_projector
+        name: loggy_signal_projector
         tasks_from: receiver.yml
 
 - name: Signal projector on its own node — after the monitors and detectors whose signals it normalizes, and after Alertmanager, which it must reach before it starts
   hosts: projector
   become: true
   roles:
-    - sweet_signal_projector
+    - loggy_signal_projector
 
 - name: Signal contract and the signal-layer re-verify, on the control host the Alertmanager webhook points at
   hosts: control
@@ -245,14 +245,14 @@
   tasks:
     - name: Assert the receiver stayed up and re-verify the signal layer now the projector exists
       ansible.builtin.include_role:
-        name: sweet_signal_projector
+        name: loggy_signal_projector
         tasks_from: control.yml
 
 - name: Background analytics services (off the control host, distributed across storage nodes)
   hosts: background
   become: true
   roles:
-    - role: sweet_trend_rollup
+    - role: loggy_trend_rollup
       when: "'rollup' in background_services"
 
 - name: Shifter view — the standalone log console, off the control host
@@ -274,7 +274,7 @@
         state: absent
       loop:
         - /etc/systemd/system/alice-live-lane.service
-        - /opt/sweet/live_lane.py
+        - /opt/loggy/live_lane.py
       register: _live_lane_removed
 
     - name: Reload systemd so the retired unit is forgotten
@@ -282,14 +282,14 @@
         daemon_reload: true
       when: _live_lane_removed is changed
   roles:
-    - role: sweet_shifter_view
+    - role: loggy_shifter_view
       when: shifter_enabled | bool
 
 - name: Fluent Bit collector and the template stamper (worker VMs only)
   hosts: workers
   become: true
   roles:
-    - sweet_collector
+    - loggy_collector
 
 # Definition expiry, query-history expiry and the two counting checks. It runs
 # after the collector play because a pass reads bucket documents that every
@@ -299,7 +299,7 @@
   hosts: control
   become: true
   roles:
-    - sweet_template_catalog
+    - loggy_template_catalog
 
 - name: Post-collector detection gate (control host only)
   hosts: control
@@ -307,7 +307,7 @@
   tasks:
     - name: Verify pushed heartbeats and roster-derived absence after collector cutover
       ansible.builtin.include_role:
-        name: sweet_cockpit_metrics
+        name: loggy_cockpit_metrics
         tasks_from: post_collector.yml
 
 - name: S3-replay engine (worker VMs only)
@@ -316,7 +316,7 @@
   vars_files:
     - "{{ playbook_dir }}/../group_vars/vault.yml"
   roles:
-    - sweet_replay
+    - loggy_replay
 
 - name: Fault agents — the nodes an injection has to reach (workers + the projector host)
   hosts: workers:projector

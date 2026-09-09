@@ -463,7 +463,7 @@ def wait_for_cluster(port, nodes, seconds):
 
 
 def apply_bootstrap(run_dir, args):
-    """Run the real `sweet_opensearch` script against the rig's cluster.
+    """Run the real `loggy_opensearch` script against the rig's cluster.
 
     Round 1's single bare container had no templates and no rollover aliases,
     collapsed at 2,000 records a second, and produced a number `docs/SOAK.md`
@@ -478,7 +478,7 @@ def apply_bootstrap(run_dir, args):
     # beside it. It is a plain file, not a template.
     shutil.copyfile(
         os.path.join(REPO, "deploy", "roles",
-                     "sweet_opensearch", "files",
+                     "loggy_opensearch", "files",
                      "register_node.sh"),
         os.path.join(run_dir, "register_node.sh"))
     os.chmod(os.path.join(run_dir, "register_node.sh"), 0o755)
@@ -860,7 +860,7 @@ def cmd_run(args):
         "OS_STORAGE2_PORT": str(args.os_storage2_port),
         "SINK2_PORT": str(args.sink2_port),
         "SOAK_NODE_ID": args.node_id,
-        "SOAK_LIVE_LANE": os.path.join(REPO, "deploy", "roles", "sweet_shifter_view",
+        "SOAK_LIVE_LANE": os.path.join(REPO, "deploy", "roles", "loggy_shifter_view",
                                        "files"),
         "LANE_PORT": str(args.lane_port),
         "VIEWERS_CPUSET": args.viewers_cpuset,

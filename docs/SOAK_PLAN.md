@@ -405,7 +405,7 @@ read a report, and the safety guards. The pieces that matter here:
 | File | Role |
 |---|---|
 | `soak.py` | Runs a whole profile end to end and writes the report. `soak.py profiles` lists them, `soak.py run <profile>` runs one, `soak.py down` tears the rig down |
-| `mkconfig.py` | Renders the **real** `deploy/roles/sweet_collector/templates/collector.yaml.j2`, then patches the knob under test. This is what stops the rig drifting from production — **never hand-write a collector config** |
+| `mkconfig.py` | Renders the **real** `deploy/roles/loggy_collector/templates/collector.yaml.j2`, then patches the knob under test. This is what stops the rig drifting from production — **never hand-write a collector config** |
 | `logburst.py` | The load generator. `--mode selftest` measures its own ceiling |
 | `soakrec.py` | The recorder, one row a second |
 | `sink.py` | The fake sink; can stall, answer 429, or be stopped |
@@ -437,7 +437,7 @@ the stages beside it.
 | 4 | **Arm configurations in `mkconfig.py`:** `t1` (`threaded: on`), `t2` (filters moved to per-input `processors`), `lt` (lane on its own tag through `rewrite_tag`) | Stage B |
 | 5 | **The InfoLogger appender** for `s1` — a thin service that accepts the socket and appends to a file the collector tails | Stage B spool arm |
 | 6 | **The second collector process** for `t3` — its own unit, config and buffer, both inside the 4 cores | Stage B threading arm |
-| 7 | **The cluster sink** — worker node plus two storage containers, joined, `sweet_opensearch` templates applied, replicas and rollover per the control, indices pre-created. A new `--sink cluster` beside `null`, `http` and `opensearch` | Stages C–G |
+| 7 | **The cluster sink** — worker node plus two storage containers, joined, `loggy_opensearch` templates applied, replicas and rollover per the control, indices pre-created. A new `--sink cluster` beside `null`, `http` and `opensearch` | Stages C–G |
 | 8 | **Profiles for stages A–G** in `soak.py`'s `PROFILES` | Convenience; the CLI overrides below work without them |
 
 **What the rig already has**, and does not need building: `--flush`, `--os-heap`,
@@ -675,7 +675,7 @@ stated in core-seconds per million records.**
 and forwards over the transport layer.
 
 **So the rig needs a real cluster — the worker's own node plus two storage
-containers, joined, with `sweet_opensearch`'s templates applied.** Round 1's single bare container had no templates and no
+containers, joined, with `loggy_opensearch`'s templates applied.** Round 1's single bare container had no templates and no
 rollover aliases; it collapsed at 2,000 records a second, and `docs/SOAK.md` says
 plainly: do not quote that number.
 
@@ -784,7 +784,7 @@ trusted. **If the live lane × flush check flips a ranking, stage C's winner is
 re-opened**, because that is the least safe of the three assumptions.
 
 **What round 2 hands over:** the `flush`, heap, `AllowedCPUs` and `MemoryMax` values
-the `collector` and `sweet_opensearch` roles should carry on an EPN worker. That is the
+the `collector` and `loggy_opensearch` roles should carry on an EPN worker. That is the
 deliverable, not a chart.
 
 ---

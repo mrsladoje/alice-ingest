@@ -24,10 +24,10 @@ document is a defect.
 
 The repository path is `deploy/shared/template_contract.py`.
 
-Ansible stages it to `/opt/sweet/shared/template_contract.py` on every
+Ansible stages it to `/opt/loggy/shared/template_contract.py` on every
 worker and on the Shifter host. Both services read the directory from the
 environment variable `ALICE_SHARED_PATH`, which defaults to
-`/opt/sweet/shared`. This mirrors `ALICE_TEMPLATING_PATH` in the template
+`/opt/loggy/shared`. This mirrors `ALICE_TEMPLATING_PATH` in the template
 catalog role.
 
 The module imports the standard library only. It does not import drain3, does
@@ -107,7 +107,7 @@ string. `decode_int(value)` reads both forms and returns an exact Python
 integer. `sum_counts(entries)` adds the `count` of each entry exactly.
 
 The browser must not assume a number. Add one helper to
-`deploy/roles/sweet_shifter_view/files/live/shifter.js` and call it everywhere a count is
+`deploy/roles/loggy_shifter_view/files/live/shifter.js` and call it everywhere a count is
 read:
 
 ```js
@@ -616,7 +616,7 @@ Cleanup: daily, delete-by-query on `issued_at < now-365d`.
 
 ### 7.5 How the cluster configuration applies these
 
-Notes moved here from the `sweet_opensearch` role README, because they describe
+Notes moved here from the `loggy_opensearch` role README, because they describe
 the schema rather than the role.
 
 - **The three fixed Templates-page indices appear in no ISM policy; the two
