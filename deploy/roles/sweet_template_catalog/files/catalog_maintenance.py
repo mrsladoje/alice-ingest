@@ -10,7 +10,7 @@ import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.environ.get(
-    "ALICE_SHARED_PATH", "/opt/alice-ingest/shared"))
+    "ALICE_SHARED_PATH", "/opt/sweet/shared"))
 
 import template_contract as contract                          # noqa: E402
 

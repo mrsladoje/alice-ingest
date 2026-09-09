@@ -21,8 +21,8 @@ roster is decided.
                               CONTROL HOST
 
 ┌─ 1. STAGE — beside os_cursor.py, which both scripts import ────────────────┐
-│  roster_publish.py      /opt/alice-ingest/    0755 root  --> alice-metrics │
-│  discover_roster.py     /opt/alice-ingest/    0755 root  --> alice-metrics │
+│  roster_publish.py      /opt/sweet/    0755 root  --> alice-metrics │
+│  discover_roster.py     /opt/sweet/    0755 root  --> alice-metrics │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 2. ROSTER — content-addressed, append-only ───────────────────────────────┐
@@ -33,7 +33,7 @@ roster is decided.
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 3. POLLER — the cockpit health source ────────────────────────────────────┐
-│  metrics_poller.py      /opt/alice-ingest/    0755 root  --> alice-metrics │
+│  metrics_poller.py      /opt/sweet/    0755 root  --> alice-metrics │
 │  alice-metrics.service  DynamicUser, memory-capped        --> alice-metrics │
 │  systemd enable + start                                                    │
 │  _delete_by_query       drops kind=fluentbit samples for collectors that   │
@@ -70,7 +70,7 @@ pass once Fluent Bit is shipping.
   the task reports changed only when the string `published topology_version`
   appears.
 - **Both staged scripts import `os_cursor`.** Each inserts its own directory on
-  `sys.path`, so they must land in `/opt/alice-ingest` beside `os_cursor.py`.
+  `sys.path`, so they must land in `/opt/sweet` beside `os_cursor.py`.
   The `alice_runtime` role owns that file and that directory.
 - **The staging task keeps the name of the five-file loop it was split from.**
   Three roles now carry a task with that name, each staging its own two or one
@@ -86,8 +86,8 @@ site-wide, or in `inventory.yml` for one group or host.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `cockpit_metrics_script` | `/opt/alice-ingest/metrics_poller.py` | Where the poller is installed. The unit's `ExecStart`. |
-| `cockpit_metrics_roster_publish_script` | `/opt/alice-ingest/roster_publish.py` | Where the roster publisher is installed. Run once per deploy, not a service. |
+| `cockpit_metrics_script` | `/opt/sweet/metrics_poller.py` | Where the poller is installed. The unit's `ExecStart`. |
+| `cockpit_metrics_roster_publish_script` | `/opt/sweet/roster_publish.py` | Where the roster publisher is installed. Run once per deploy, not a service. |
 | `fleet_collector_node_ids` | `[]` | The `node_id` of every Fluent Bit collector the cluster expects. The playbook supplies it. See couplings. |
 | `roster_assignments` | `[]` | Explicit `origin_host` to `collector_id` rows written into the snapshot. Empty means the roster claims no assignment. `playbooks/roster_discover.yml` prints candidate rows to commit here. |
 | `cockpit_metrics_retention_days` | `7` | `RETENTION_DAYS` on the unit. The poller prunes its own index. |
@@ -128,7 +128,7 @@ own. Five things must be true first, all satisfied by the role order in
 |---|---|---|
 | OpenSearch answering on `localhost:9200` | `sweet_opensearch` role | Every task here is a REST call. The roster publish fails first. |
 | `cockpit-metrics` and `cockpit-fleet` index templates | `sweet_opensearch` role | The roster and the samples land with guessed field types, and the absence monitors match nothing. |
-| `/opt/alice-ingest` and `os_cursor.py` | `alice_runtime` role | The two staged scripts have nowhere to land, and both fail on `import os_cursor`. |
+| `/opt/sweet` and `os_cursor.py` | `alice_runtime` role | The two staged scripts have nowhere to land, and both fail on `import os_cursor`. |
 | Dashboards answering on `dashboards_internal_port` | `dashboards` role | The poller starts, but every Dashboards sample is an error until the port opens. |
 | Fluent Bit shipping on every worker | `sweet_collector` role | `post_collector.yml` only. The heartbeat wait times out after 2 minutes per collector. |
 
@@ -179,7 +179,7 @@ The post-collector gate is a separate include, later in the same playbook:
   resolves from any position. Dropping the `notify` instead would leave the
   poller running old code.
 - **`alice_runtime` must run before this role.** This role copies
-  `roster_publish.py` into `/opt/alice-ingest`, which only `alice_runtime`
+  `roster_publish.py` into `/opt/sweet`, which only `alice_runtime`
   creates, and `ansible.builtin.copy` does not create a missing parent
   directory. `roster_publish.py` then imports `os_cursor`, which `alice_runtime`
   stages beside it. The reverse order fails on a fresh node at the copy, and on

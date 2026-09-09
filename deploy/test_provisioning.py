@@ -402,9 +402,9 @@ def _stamper_unit(**overrides):
                    "stamper_listen_socket": "/run/alice/stamper.sock",
                    "stamper_return_socket": "/run/alice/stamped.sock",
                    "stamper_status_file": "/run/alice/stamper-status.json",
-                   "stamper_templating_dir": "/opt/alice-ingest/templating",
-                   "stamper_script": "/opt/alice-ingest/stamper.py",
-                   "stamper_venv": "/opt/alice-ingest/stamper-venv",
+                   "stamper_templating_dir": "/opt/sweet/templating",
+                   "stamper_script": "/opt/sweet/stamper.py",
+                   "stamper_venv": "/opt/sweet/stamper-venv",
                    "stamper_memory_high": "384M",
                    "stamper_memory_max": "768M"})
     values.update(overrides)
@@ -429,7 +429,7 @@ def _collector_config(**overrides):
     values.update(role_defaults("sweet_collector"))
     values.update({"ansible_managed": "managed",
                    "collector_config_dir": "/etc/fluent-bit",
-                   "collector_health_script": "/opt/alice-ingest/fb_health.py",
+                   "collector_health_script": "/opt/sweet/fb_health.py",
                    "collector_health_interval_seconds": 10,
                    "collector_journald_path": "/var/log/journal",
                    "stamper_listen_socket": "/run/alice/stamper.sock",
@@ -798,11 +798,11 @@ def test_semantic_search_ships_on_and_names_the_measured_revision():
 
 
 def test_the_unit_runs_the_venv_interpreter_whenever_it_needs_a_library():
-    assert "ExecStart=/opt/alice-ingest/shifter-venv/bin/python" in \
+    assert "ExecStart=/opt/sweet/shifter-venv/bin/python" in \
         _shifter_unit()
     off = _shifter_unit(shifter_semantic_enabled=False,
                         shifter_semantic_backend="none")
-    assert "ExecStart=/opt/alice-ingest/shifter-venv/bin/python" in off
+    assert "ExecStart=/opt/sweet/shifter-venv/bin/python" in off
     bare = _shifter_unit(shifter_semantic_enabled=False,
                          shifter_semantic_backend="none",
                          shifter_templates_enabled=False)

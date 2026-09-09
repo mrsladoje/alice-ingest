@@ -151,7 +151,7 @@ infologger_daemon_log_path: /var/log/o2-infologger-daemon.log
 # Empty means no bundle, which is the ordinary case: the replay engine skips
 # both families and says so rather than failing.
 replay_bundle_src: "{{ lookup('env', 'REPLAY_BUNDLE_SRC') | default('', true) }}"
-replay_bundle_root: /var/lib/alice-ingest/bundle
+replay_bundle_root: /var/lib/sweet/bundle
 
 # The live lane. README section 9, Item 7.
 shifter_enabled: true
@@ -221,7 +221,7 @@ shifter_queries_index: shifter-queries
 # the storage tier is the binding constraint (see log_primary_shards_storage).
 template_buckets_replicas: 1
 
-alice_shared_dir: /opt/alice-ingest/shared
+alice_shared_dir: /opt/sweet/shared
 alice_shared_contract_file: "{{ playbook_dir }}/../shared/template_contract.py"
 
 # The volume window and the default activity view. 28 days is the working
@@ -330,19 +330,19 @@ alert_actions_rollover_max_size: "1gb"
 # Shared with the sweet_opensearch role, which writes templates.sh, ism.sh
 # and register_node.sh into the same directory and creates it with the same
 # owner, group and mode.
-alice_bootstrap_root: /opt/alice-ingest/init
-alice_app_root: /opt/alice-ingest
+alice_bootstrap_root: /opt/sweet/init
+alice_app_root: /opt/sweet
 
 alice_bootstrap_signal_catalog: "{{ alice_bootstrap_root }}/signal_catalog.json"
 alice_bootstrap_causal_edges: "{{ alice_bootstrap_root }}/causal_edges.json"
 alice_bootstrap_verify_script: "{{ alice_bootstrap_root }}/verify_detection.py"
 
-alice_os_cursor_script: /opt/alice-ingest/os_cursor.py
-alice_signal_identity_script: /opt/alice-ingest/signal_identity.py
-cockpit_metrics_discover_roster_script: /opt/alice-ingest/discover_roster.py
-anomaly_detection_backtest_script: /opt/alice-ingest/backtest.py
-alice_ops_reset_derived_script: /opt/alice-ingest/reset_derived.py
-alice_ops_poison_replay_script: /opt/alice-ingest/poison_replay.py
+alice_os_cursor_script: /opt/sweet/os_cursor.py
+alice_signal_identity_script: /opt/sweet/signal_identity.py
+cockpit_metrics_discover_roster_script: /opt/sweet/discover_roster.py
+anomaly_detection_backtest_script: /opt/sweet/backtest.py
+alice_ops_reset_derived_script: /opt/sweet/reset_derived.py
+alice_ops_poison_replay_script: /opt/sweet/poison_replay.py
 
 cockpit_metrics_service_name: alice-metrics
 trend_rollup_service_name: alice-trend-rollup
@@ -423,8 +423,8 @@ replay_loop_pause_seconds: 30
 # here because playbooks/poison_replay.yml prints it.
 poison_warmup_timeout_seconds: 4200
 
-replay_venv_path: /opt/alice-ingest/venv
-replay_app_root: /opt/alice-ingest/app
+replay_venv_path: /opt/sweet/venv
+replay_app_root: /opt/sweet/app
 
 # Site override: this repository holds the one PRESERVED copy of the replay
 # engine at images/replay/replay.py, which docker-compose.yml also builds from.

@@ -9,7 +9,7 @@ import threading
 import time
 
 sys.path.insert(0, os.environ.get("ALICE_SHARED_PATH",
-                                  "/opt/alice-ingest/shared"))
+                                  "/opt/sweet/shared"))
 
 import template_contract as contract                        # noqa: E402
 

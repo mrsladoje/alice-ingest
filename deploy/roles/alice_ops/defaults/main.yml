@@ -1,16 +1,16 @@
-alice_ops_script: /opt/alice-ingest/ops_server.py
+alice_ops_script: /opt/sweet/ops_server.py
 
 # The ops page re-applies the index templates. A literal, not a reference to the
 # sweet_opensearch role's variable: a default that reads another role's
 # variable resolves lazily and makes this role unrunnable alone. It must match
 # opensearch_cluster_config_templates_script.
-alice_ops_templates_script: /opt/alice-ingest/init/templates.sh
+alice_ops_templates_script: /opt/sweet/init/templates.sh
 
-alice_ops_score_injection_script: /opt/alice-ingest/score_injection.py
+alice_ops_score_injection_script: /opt/sweet/score_injection.py
 
 alice_ops_poison_replay_state_dir: /var/lib/alice-poison-replay
 
-alice_ops_inject_script: /opt/alice-ingest/inject_run.py
+alice_ops_inject_script: /opt/sweet/inject_run.py
 alice_ops_inject_state_dir: /var/lib/alice-inject
 alice_ops_inject_report_dir: "{{ alice_ops_inject_state_dir }}/runs"
 alice_ops_inject_default_observe_minutes: 45

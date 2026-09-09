@@ -21,7 +21,7 @@ replaces.
                         HOSTS IN GROUP background
 
 ┌─ 1. THE SCRIPT ────────────────────────────────────────────────────────────┐
-│  trend_rollup.py -> /opt/alice-ingest/trend_rollup.py   0755 root:root      │
+│  trend_rollup.py -> /opt/sweet/trend_rollup.py   0755 root:root      │
 │                                                         --> restart        │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
@@ -81,7 +81,7 @@ site-wide, or in `inventory.yml` for one group or host.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `trend_rollup_script` | `/opt/alice-ingest/trend_rollup.py` | Where the script is installed and what `ExecStart` runs. |
+| `trend_rollup_script` | `/opt/sweet/trend_rollup.py` | Where the script is installed and what `ExecStart` runs. |
 | `trend_rollup_bucket_seconds` | `600` | Width of one aggregate row, in seconds. Also the loop period. See non-obvious settings. |
 | `trend_rollup_settle_seconds` | `120` | How far behind the clock the service stays, so that late-arriving documents land before their bucket is rolled. |
 | `trend_rollup_backfill_buckets` | `3` | How many earlier buckets are re-rolled on each pass, to repair a bucket the service missed while it was down. |
@@ -116,7 +116,7 @@ first, all satisfied by the play order in `playbooks/site.yml`.
 
 | Prerequisite | Provided by | What breaks without it |
 |---|---|---|
-| `/opt/alice-ingest` exists on the background host | `alice_runtime` | The copy of the script fails. `ansible.builtin.copy` does not create a missing parent directory. |
+| `/opt/sweet` exists on the background host | `alice_runtime` | The copy of the script fails. `ansible.builtin.copy` does not create a missing parent directory. |
 | An OpenSearch node answers on `localhost:9200` on this host | `sweet_opensearch` | The service starts, fails every query, and `Restart=on-failure` cycles it. The assertion at the end of the role then fails the deploy. |
 | The `trend-rollup` index and its mapping exist | `sweet_opensearch` | Rows land in a dynamically mapped index. The bucket-commit and silence-imputation fields get the wrong types, and the trend monitors read them wrong. |
 

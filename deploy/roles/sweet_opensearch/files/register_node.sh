@@ -24,7 +24,7 @@ WAIT_SLEEP="${REGISTER_WAIT_SLEEP:-3}"
 WAIT_MAX_TIME="${REGISTER_WAIT_MAX_TIME:-10}"
 
 RETENTION_POLICY="${ALICE_LOCAL_RETENTION_POLICY:-alice-application-local-retention}"
-LOCAL_INDEX_TEMPLATE="${ALICE_LOCAL_INDEX_TEMPLATE:-/etc/alice-ingest/local-index-template.json}"
+LOCAL_INDEX_TEMPLATE="${ALICE_LOCAL_INDEX_TEMPLATE:-/etc/sweet/local-index-template.json}"
 
 CURL="curl -s --connect-timeout ${OS_CONNECT_TIMEOUT:-5} --max-time ${OS_MAX_TIME:-60}"
 
@@ -36,7 +36,7 @@ say() { echo "[register-node] $*"; }
 if [ -z "$NODE" ]; then
   echo "[register-node] FATAL: ALICE_NODE_ID is empty or unset." >&2
   echo "[register-node] FATAL: This node cannot know which index is its own." >&2
-  echo "[register-node] FATAL: Ansible writes it into /etc/alice-ingest/node.env" >&2
+  echo "[register-node] FATAL: Ansible writes it into /etc/sweet/node.env" >&2
   echo "[register-node] FATAL: from the inventory's node_id. Re-run the collector role." >&2
   exit 1
 fi

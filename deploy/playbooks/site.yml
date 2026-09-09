@@ -135,7 +135,7 @@
 
     - name: Remove the leftover anomaly digest script
       ansible.builtin.file:
-        path: /opt/alice-ingest/anomaly_digest.py
+        path: /opt/sweet/anomaly_digest.py
         state: absent
       failed_when: false
 
@@ -208,7 +208,7 @@
 
   # The order of this list is the order the single dashboards role used to run
   # its task files in, and every step of it is load-bearing:
-  #   alice_runtime      creates /opt/alice-ingest and /opt/alice-ingest/init and
+  #   alice_runtime      creates /opt/sweet and /opt/sweet/init and
   #                      stages the catalogs and the shared modules that every
   #                      role below imports.
   #   dashboards         installs Dashboards and nginx, then creates the index
@@ -286,7 +286,7 @@
         state: absent
       loop:
         - /etc/systemd/system/alice-live-lane.service
-        - /opt/alice-ingest/live_lane.py
+        - /opt/sweet/live_lane.py
       register: _live_lane_removed
 
     - name: Reload systemd so the retired unit is forgotten

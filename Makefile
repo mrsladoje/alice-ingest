@@ -68,7 +68,7 @@ CHECKOUT_ON_AFS := $(filter /afs/%,$(CURDIR))
 ifeq (,$(CHECKOUT_ON_AFS))
 VENV ?= $(CURDIR)/.venv
 else
-LOCAL_SCRATCH := $(shell printf '%s/alice-ingest-%s' "$${TMPDIR:-/tmp}" "$$(id -un)" | tr -s /)
+LOCAL_SCRATCH := $(shell printf '%s/sweet-%s' "$${TMPDIR:-/tmp}" "$$(id -un)" | tr -s /)
 VENV ?= $(LOCAL_SCRATCH)/venv
 export ANSIBLE_LOCAL_TEMP := $(LOCAL_SCRATCH)/ansible-tmp
 export ANSIBLE_COLLECTIONS_PATH := $(LOCAL_SCRATCH)/collections

@@ -129,14 +129,14 @@ opensearch_systemd_dropin_dir: "/etc/systemd/system/{{ opensearch_service_name }
 # created by name in the sweet_opensearch role (ism.sh.j2) and asserted by
 # name in verify_detection.py, and register_node.sh falls back to the same
 # literal. A variable would only let this end of the pair move.
-opensearch_node_env_dir: /etc/alice-ingest
+opensearch_node_env_dir: /etc/sweet
 opensearch_node_env_file: "{{ opensearch_node_env_dir }}/opensearch-node.env"
 
 # The worker's own boot-time self-heal, and the rendered index template it reads.
 # Installed by the install mode on workers; fluent-bit.service names the script as
 # its ExecStartPre, the way its unit already names opensearch-node.env.
-opensearch_register_script: /opt/alice-ingest/register_node.sh
-opensearch_register_script_dir: /opt/alice-ingest
+opensearch_register_script: /opt/sweet/register_node.sh
+opensearch_register_script_dir: /opt/sweet
 opensearch_local_index_template_file: "{{ opensearch_node_env_dir }}/local-index-template.json"
 
 opensearch_required_plugins:
@@ -160,7 +160,7 @@ alice_manage_firewalld: true
 # The shared script directory. The alice_runtime role writes its own
 # scripts into the same directory and creates it with the same owner, group and
 # mode, so neither role owns it and the two cannot drift.
-opensearch_cluster_config_root: /opt/alice-ingest/init
+opensearch_cluster_config_root: /opt/sweet/init
 
 opensearch_cluster_config_templates_script: "{{ opensearch_cluster_config_root }}/templates.sh"
 

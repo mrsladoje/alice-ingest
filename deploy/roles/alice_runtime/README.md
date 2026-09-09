@@ -24,7 +24,7 @@ one decision is three places for it to drift. This role is the one copy.
                  EVERY HOST THAT RUNS AN alice-* SERVICE
 
 ┌─ 1. THE CATALOG DIRECTORY ────────────────────────────────────────────────┐
-│  /opt/alice-ingest/init      0755 root:root — traversable, see below      │
+│  /opt/sweet/init      0755 root:root — traversable, see below      │
 └───────────────────────────────────┬───────────────────────────────────────┘
                                     v
 ┌─ 2. THE TWO CATALOGS, EACH WITH ITS PROOF ────────────────────────────────┐
@@ -35,7 +35,7 @@ one decision is three places for it to drift. This role is the one copy.
 └───────────────────────────────────┬───────────────────────────────────────┘
                                     v
 ┌─ 3. THE APP ROOT AND THE SHARED MODULES ──────────────────────────────────┐
-│  /opt/alice-ingest           0755 root:root                               │
+│  /opt/sweet           0755 root:root                               │
 │  os_cursor.py          0755   point-in-time + search_after paging         │
 │  signal_identity.py    0755   signal naming and classification            │
 │                        --> notify alice_runtime_stage_notify              │
@@ -53,7 +53,7 @@ one decision is three places for it to drift. This role is the one copy.
   causal-edge completeness check run on every deploy. A catalog that a sandboxed
   service cannot read fails here, not three plays later inside a service that
   restarts in a loop.
-- **The role does not own `/opt/alice-ingest/init`.** `sweet_opensearch`
+- **The role does not own `/opt/sweet/init`.** `sweet_opensearch`
   creates the same directory with the same owner, group and mode, and runs
   first. Both creations are deliberate. See couplings.
 - **The module staging task notifies whatever `alice_runtime_stage_notify`
@@ -79,10 +79,10 @@ would be a second place to change one value.
 
 | Variable | Owner | Used for |
 |---|---|---|
-| `alice_bootstrap_root` | `group_vars/all.yml` | The catalog directory, `/opt/alice-ingest/init`. Shared with `sweet_opensearch`. |
+| `alice_bootstrap_root` | `group_vars/all.yml` | The catalog directory, `/opt/sweet/init`. Shared with `sweet_opensearch`. |
 | `alice_bootstrap_signal_catalog` | `group_vars/all.yml` | Destination of `signal_catalog.json`. |
 | `alice_bootstrap_causal_edges` | `group_vars/all.yml` | Destination of `causal_edges.json`. |
-| `alice_app_root` | `group_vars/all.yml` | The application root, `/opt/alice-ingest`. |
+| `alice_app_root` | `group_vars/all.yml` | The application root, `/opt/sweet`. |
 | `alice_os_cursor_script` | `group_vars/all.yml` | Destination of `os_cursor.py`. |
 | `alice_signal_identity_script` | `group_vars/all.yml` | Destination of `signal_identity.py`. |
 | `cockpit_metrics_service_name` | `group_vars/all.yml` | The unit the `cockpit_metrics` handler restarts. |
@@ -123,7 +123,7 @@ service:
 
 ## Couplings
 
-- **`/opt/alice-ingest/init` is created twice on the control host, on purpose.**
+- **`/opt/sweet/init` is created twice on the control host, on purpose.**
   `sweet_opensearch` creates it, this role creates it. The owner, group and
   mode are identical in both, so the two cannot drift, and each role stays
   runnable without the other. Change one, change the other.

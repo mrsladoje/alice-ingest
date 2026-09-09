@@ -21,7 +21,7 @@ OpenSearch Dashboards. Its page is served by the same nginx instance the
                             CONTROL HOST ONLY
 
 ┌─ 1. THE OPS SERVER — one long-running service ─────────────────────────────┐
-│  /opt/alice-ingest/ops_server.py     0755 root:root      --> restart       │
+│  /opt/sweet/ops_server.py     0755 root:root      --> restart       │
 │  alice-ops.service                   binds 127.0.0.1:8090                  │
 │  nine actions: replay, replay-fresh, stop, wipe, clear,                    │
 │                poison-replay, poison-stop, inject, inject-stop             │
@@ -30,20 +30,20 @@ OpenSearch Dashboards. Its page is served by the same nginx instance the
                                      v
 ┌─ 2. POISON REPLAY — armed, never started ──────────────────────────────────┐
 │  /var/lib/alice-poison-replay       0750, status.json + runs/              │
-│  /opt/alice-ingest/poison_replay.py 0755                                   │
+│  /opt/sweet/poison_replay.py 0755                                   │
 │  alice-poison-replay.service        Restart=no, one shot, ProtectSystem    │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 3. FAULT INJECTION — armed, never started ────────────────────────────────┐
 │  /var/lib/alice-inject              0750, request.json, status.json, runs/ │
-│  /opt/alice-ingest/inject_run.py    0755                                   │
+│  /opt/sweet/inject_run.py    0755                                   │
 │  alice-inject.service               Restart=no, one shot                   │
 │  daemon-reload when that unit changed                                      │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 4. THE TWO HELPER SCRIPTS ────────────────────────────────────────────────┐
-│  /opt/alice-ingest/reset_derived.py    0755  fresh-replay reset            │
-│  /opt/alice-ingest/score_injection.py  0755  --> restart alice-metrics     │
+│  /opt/sweet/reset_derived.py    0755  fresh-replay reset            │
+│  /opt/sweet/score_injection.py  0755  --> restart alice-metrics     │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -69,7 +69,7 @@ OpenSearch Dashboards. Its page is served by the same nginx instance the
   out of. Dropping it would change the restart graph. The handler itself lives
   in the `cockpit_metrics` role — see couplings.
 - **The first task creates the app root from `alice_ops_script | dirname`.**
-  It derives `/opt/alice-ingest` from the script path instead of naming it. The
+  It derives `/opt/sweet` from the script path instead of naming it. The
   `alice_runtime` role creates the same directory with the same owner, group and
   mode, so the task is redundant once that role has run. It is kept because it
   makes this role runnable on a host `alice_runtime` has not reached.
@@ -84,11 +84,11 @@ site-wide, or in `inventory.yml` for one group or host.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `alice_ops_script` | `/opt/alice-ingest/ops_server.py` | The installed ops server. The app root is derived from its directory. |
-| `alice_ops_templates_script` | `/opt/alice-ingest/init/templates.sh` | The index-template script the page re-applies. A literal — see couplings. |
-| `alice_ops_score_injection_script` | `/opt/alice-ingest/score_injection.py` | The scoring module `inject_run.py` calls after a run. |
+| `alice_ops_script` | `/opt/sweet/ops_server.py` | The installed ops server. The app root is derived from its directory. |
+| `alice_ops_templates_script` | `/opt/sweet/init/templates.sh` | The index-template script the page re-applies. A literal — see couplings. |
+| `alice_ops_score_injection_script` | `/opt/sweet/score_injection.py` | The scoring module `inject_run.py` calls after a run. |
 | `alice_ops_poison_replay_state_dir` | `/var/lib/alice-poison-replay` | Holds the poison status file and the run reports. `0750`. |
-| `alice_ops_inject_script` | `/opt/alice-ingest/inject_run.py` | The injection engine, used by `make inject` and by the page button. |
+| `alice_ops_inject_script` | `/opt/sweet/inject_run.py` | The injection engine, used by `make inject` and by the page button. |
 | `alice_ops_inject_state_dir` | `/var/lib/alice-inject` | Holds the injection request, status and reports. `0750`. |
 | `alice_ops_inject_report_dir` | `{{ alice_ops_inject_state_dir }}/runs` | One report per injection run. |
 | `alice_ops_inject_default_observe_minutes` | `45` | How long an injection run watches before it scores, when the request does not say. |
@@ -155,7 +155,7 @@ services it installs do anything useful.
 |---|---|---|
 | nginx installed, with the `/ops/` proxy in its vhost | `dashboards` role | The page is unreachable. `alice-ops` binds loopback only, so nothing outside the control host can open it. |
 | `templates.sh` present at `alice_ops_templates_script`, with its `schema/` directory beside it | `sweet_opensearch` role | The page's fresh-replay and wipe buttons cannot rebuild the aliases. The unit still starts. |
-| `os_cursor.py` in `/opt/alice-ingest` | `alice_runtime` role | `score_injection.py` fails its import, so an injection run produces no score. |
+| `os_cursor.py` in `/opt/sweet` | `alice_runtime` role | `score_injection.py` fails its import, so an injection run produces no score. |
 | `causal_edges.json` staged | `alice_runtime` role | An injection run cannot explain a symptom by its cause. |
 | Fault agents running on the workers and the projector | `faults` role | An injection has nothing to inject. The `faults` play runs after this one in `site.yml`, which is safe because no run starts at deploy time. |
 
@@ -221,7 +221,7 @@ In a playbook, against the control host:
 
 - **It does not install nginx, TLS material or the basic-auth file.** The
   `dashboards` role does, and its vhost is what exposes this page.
-- **It does not create `/opt/alice-ingest/init`.** It only names
+- **It does not create `/opt/sweet/init`.** It only names
   `templates.sh` inside it, which reads its request bodies from `schema/`
   beside itself.
 - **It does not install `os_cursor.py` or `causal_edges.json`,** although two of

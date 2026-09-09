@@ -21,13 +21,13 @@ collector_systemd_dropin_dir: /etc/systemd/system/fluent-bit.service.d
 
 # One root for everything this role installs on a worker: the health sampler,
 # the stamper and the modules it imports.
-collector_app_root: /opt/alice-ingest
+collector_app_root: /opt/sweet
 
 collector_health_script: "{{ collector_app_root }}/fb_health.py"
 collector_health_interval_seconds: "{{ cockpit_metrics_interval_seconds }}"
 
 # The one file that tells this machine which machine it is.
-collector_env_dir: /etc/alice-ingest
+collector_env_dir: /etc/sweet
 collector_env_file: "{{ collector_env_dir }}/node.env"
 
 # Run as ExecStartPre, so a node registers itself at every boot.
@@ -41,7 +41,7 @@ collector_start_timeout_seconds: 600
 # Written by sweet_opensearch, read by register_node.sh through the unit's
 # second EnvironmentFile. Not optional: a missing file would send a worker back
 # to register_node.sh's own built-in defaults without saying so.
-collector_opensearch_env_file: /etc/alice-ingest/opensearch-node.env
+collector_opensearch_env_file: /etc/sweet/opensearch-node.env
 
 fluent_bit_storage_path: /var/log/flb-storage
 fluent_bit_http_port: 2020

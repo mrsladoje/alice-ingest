@@ -105,7 +105,7 @@ class ConfigTest(unittest.TestCase):
         cfg = semantic.Config.from_environment({
             "SHIFTER_SEMANTIC_ENABLED": "true",
             "SHIFTER_SEMANTIC_BACKEND": "model2vec",
-            "SHIFTER_SEMANTIC_MODEL_PATH": "/opt/alice-ingest/model",
+            "SHIFTER_SEMANTIC_MODEL_PATH": "/opt/sweet/model",
             "SHIFTER_SEMANTIC_MAX_GROUPS": "20000",
             "SHIFTER_VECTOR_CACHE_BYTES": "16777216",
             "SHIFTER_TEMPLATE_PAGE_ROWS": "50",

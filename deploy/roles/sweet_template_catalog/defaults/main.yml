@@ -1,7 +1,7 @@
 # Maintenance of the template catalog. One oneshot unit on an hourly timer, on
 # the control host.
 
-template_catalog_app_root: /opt/alice-ingest
+template_catalog_app_root: /opt/sweet
 
 template_catalog_maintenance_service_name: alice-catalog-maintenance
 template_catalog_maintenance_script: "{{ template_catalog_app_root }}/catalog_maintenance.py"

@@ -9,9 +9,9 @@ import time
 import urllib.request
 
 sys.path.insert(0, os.environ.get(
-    "ALICE_SHARED_PATH", "/opt/alice-ingest/shared"))
+    "ALICE_SHARED_PATH", "/opt/sweet/shared"))
 sys.path.insert(0, os.environ.get(
-    "ALICE_TEMPLATING_PATH", "/opt/alice-ingest/templating"))
+    "ALICE_TEMPLATING_PATH", "/opt/sweet/templating"))
 
 import template_contract as contract                          # noqa: E402
 

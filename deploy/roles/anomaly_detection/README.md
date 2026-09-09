@@ -30,12 +30,12 @@ run the same installed copy — see couplings.
 ```
                           CONTROL HOST ONLY
 
-┌─ 1. STAGE — into /opt/alice-ingest/init, which it does not create ─────────┐
+┌─ 1. STAGE — into /opt/sweet/init, which it does not create ─────────┐
 │  detectors.sh          0750 root   rendered from detectors.sh.j2           │
 │  forecasters.sh        0750 root   rendered from forecasters.sh.j2         │
 │  detectors/            0640 root   17 detector definitions                 │
 │  forecasters/          0640 root   1 forecaster definition                 │
-│  backtest.py           0755 root   into /opt/alice-ingest, historical run  │
+│  backtest.py           0755 root   into /opt/sweet, historical run  │
 │  verify_detection.py   0750 root   the detection-layer gate                │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
@@ -100,10 +100,10 @@ site-wide, or in `inventory.yml` for one group or host.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `anomaly_detection_detectors_script` | `/opt/alice-ingest/init/detectors.sh` | Where `detectors.sh.j2` is rendered. A literal — see couplings. |
-| `anomaly_detection_forecasters_script` | `/opt/alice-ingest/init/forecasters.sh` | Where `forecasters.sh.j2` is rendered. A literal — see couplings. |
-| `anomaly_detection_detectors_dir` | `/opt/alice-ingest/init/detectors` | Staged detector definitions. `detectors.sh` reads every `*.json` here. |
-| `anomaly_detection_forecasters_dir` | `/opt/alice-ingest/init/forecasters` | Staged forecaster definitions. Same pattern. |
+| `anomaly_detection_detectors_script` | `/opt/sweet/init/detectors.sh` | Where `detectors.sh.j2` is rendered. A literal — see couplings. |
+| `anomaly_detection_forecasters_script` | `/opt/sweet/init/forecasters.sh` | Where `forecasters.sh.j2` is rendered. A literal — see couplings. |
+| `anomaly_detection_detectors_dir` | `/opt/sweet/init/detectors` | Staged detector definitions. `detectors.sh` reads every `*.json` here. |
+| `anomaly_detection_forecasters_dir` | `/opt/sweet/init/forecasters` | Staged forecaster definitions. Same pattern. |
 | `ad_metrics_window_delay_minutes` | `1` | `window_delay` for the three metric detectors. |
 | `ad_log_window_delay_minutes` | `2` | `window_delay` for the fourteen log detectors. |
 | `forecast_interval_minutes` | `60` | `forecast_interval` of the disk-fill forecaster. |
@@ -144,8 +144,8 @@ all satisfied by the play order in `playbooks/site.yml`.
 
 | Prerequisite | Provided by | What breaks without it |
 |---|---|---|
-| `/opt/alice-ingest/init` exists, 0755 root:root | `alice_runtime` | Every staging task fails. This role writes into that directory and never creates it. |
-| `/opt/alice-ingest` exists, 0755 root:root | `alice_runtime` | Staging `backtest.py` fails. |
+| `/opt/sweet/init` exists, 0755 root:root | `alice_runtime` | Every staging task fails. This role writes into that directory and never creates it. |
+| `/opt/sweet` exists, 0755 root:root | `alice_runtime` | Staging `backtest.py` fails. |
 | `signal_catalog.json` staged | `alice_runtime` | `verify_detection.py` exits non-zero on a missing catalog. |
 | The indices, templates and ISM policy exist | `sweet_opensearch` | The detectors have no source indices and `verify_detection.py` fails its ISM check. |
 | `cockpit-metrics` holds `kind=node` and `kind=osd` documents | `cockpit_metrics` | The wait step burns 20 attempts and then fails the play. |
@@ -229,7 +229,7 @@ Pairs of values that must change together.
 - **It does not create the alerting monitors.** `alerting_monitors` does.
 - **It does not create indices, templates or ISM policies.**
   `sweet_opensearch` does.
-- **It does not create `/opt/alice-ingest/init`.** `alice_runtime` does, and
+- **It does not create `/opt/sweet/init`.** `alice_runtime` does, and
   `sweet_opensearch` creates the same directory with the same owner, group
   and mode. Neither owns it. This role only writes files into it.
 - **It does not run the detection verify after the collector cutover.**

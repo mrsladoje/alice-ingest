@@ -3,7 +3,7 @@
   become: true
   gather_facts: false
   vars:
-    bootstrap_root: /opt/alice-ingest/init
+    bootstrap_root: /opt/sweet/init
   tasks:
     - name: Delete the backing indices of every log family (the family names are rollover write aliases, not indices)
       ansible.builtin.uri:

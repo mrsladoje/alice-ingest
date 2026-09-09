@@ -1,6 +1,6 @@
 shifter_service_name: alice-shifter
-shifter_script: /opt/alice-ingest/shifter.py
-shifter_static_dir: /opt/alice-ingest/live
+shifter_script: /opt/sweet/shifter.py
+shifter_static_dir: /opt/sweet/live
 shifter_cockpit_url: "/app/dashboards"
 
 shifter_bind: 0.0.0.0
@@ -49,7 +49,7 @@ shifter_templates_enabled: true
 # local-index names the Templates page reads. The patterns default to what
 # the contract publishes; the prefix is what the collector names its
 # per-worker local index.
-shifter_templating_dir: /opt/alice-ingest/templating
+shifter_templating_dir: /opt/sweet/templating
 shifter_drain3_version: "0.9.11"
 shifter_buckets_5m_pattern: "template-buckets-5m-*"
 shifter_buckets_1h_pattern: "template-buckets-1h-*"
@@ -75,9 +75,9 @@ shifter_semantic_max_groups: 20000
 
 shifter_semantic_model_repo: "minishlab/potion-retrieval-32M"
 shifter_semantic_model_revision: "6fc8051fab2a1e0ee76689cf08c853792ac285e7"
-shifter_semantic_model_path: /opt/alice-ingest/models/potion-retrieval-32M
+shifter_semantic_model_path: /opt/sweet/models/potion-retrieval-32M
 
-shifter_semantic_venv: /opt/alice-ingest/shifter-venv
+shifter_semantic_venv: /opt/sweet/shifter-venv
 shifter_semantic_pythons: [python3.13, python3.12, python3.11, python3.10]
 shifter_semantic_model2vec_version: "0.9.0"
 

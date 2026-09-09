@@ -36,7 +36,7 @@ role that exists to break it.
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 2. INSTALL ───────────────────────────────────────────────────────────────┐
-│  /opt/alice-ingest              0755 root  — shared with other roles       │
+│  /opt/sweet              0755 root  — shared with other roles       │
 │  fault_agent.py                 0755 root  --> restart alice-fault-agent   │
 │  alice-fault-agent.service      0644 root  --> restart alice-fault-agent   │
 │    the unit carries the allowlist as FAULT_AGENT_SERVICES                  │
@@ -124,8 +124,8 @@ uses `/cpu-stress`, and the restore pass uses the matching start or stop call.
 | Variable | Default | Meaning |
 |---|---|---|
 | `fault_agent_service_name` | `alice-fault-agent` | Unit name. Used by the handler and the unit file path. |
-| `fault_agent_app_root` | `/opt/alice-ingest` | Directory the script lands in. Shared with other `alice-*` roles, which is why the role creates it rather than assuming it. |
-| `fault_agent_script` | `/opt/alice-ingest/fault_agent.py` | `ExecStart` target. |
+| `fault_agent_app_root` | `/opt/sweet` | Directory the script lands in. Shared with other `alice-*` roles, which is why the role creates it rather than assuming it. |
+| `fault_agent_script` | `/opt/sweet/fault_agent.py` | `ExecStart` target. |
 | `fault_agent_services` | `[]` | The allowlist. Empty here so the role is runnable alone; **the playbook supplies the real per-host list** — `fluent-bit` on a worker, `alice-signal-projector` on the projector host. |
 | `fault_agent_allowed_client_addresses` | `[]` | Addresses permitted through the firewall to `fault_agent_port`. Empty for the same reason; the playbook supplies the control host. |
 

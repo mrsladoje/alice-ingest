@@ -2,7 +2,7 @@ import json
 import os
 
 DEFAULT_PATH = os.environ.get(
-    "SIGNAL_CATALOG", "/opt/alice-ingest/init/signal_catalog.json")
+    "SIGNAL_CATALOG", "/opt/sweet/init/signal_catalog.json")
 
 _cache = {}
 

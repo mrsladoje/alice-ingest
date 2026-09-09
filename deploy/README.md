@@ -1,4 +1,4 @@
-# alice-ingest — Distributed Deployment (5-VM two-tier, native, no Docker)
+# sweet — Distributed Deployment (5-VM two-tier, native, no Docker)
 
 This tree takes the ALICE O2 logging paper-airplane from "Docker Compose on
 one machine" to **5 CERN OpenStack VMs, native systemd services, one 5-node
@@ -229,7 +229,7 @@ an already-activated venv on `PATH` if it is absent), so after
 
 **On lxplus the toolchain is kept off AFS, and that is deliberate.** When the
 checkout is under `/afs/...` the Makefile puts the venv in
-`$TMPDIR/alice-ingest-$USER/venv` (so `/tmp/alice-ingest-masladoj/venv`) and points
+`$TMPDIR/sweet-$USER/venv` (so `/tmp/sweet-masladoj/venv`) and points
 `ANSIBLE_LOCAL_TEMP` and `ANSIBLE_COLLECTIONS_PATH` at siblings of it. A checkout
 anywhere else is untouched: still `./.venv`, still Ansible's own defaults.
 
@@ -494,7 +494,7 @@ What each dependency is:
 
 - `sweet_opensearch` creates the indices and the write aliases. Every
   cockpit pattern, monitor and detector below reads them.
-- `alice_runtime` creates `/opt/alice-ingest` and `/opt/alice-ingest/init`, and
+- `alice_runtime` creates `/opt/sweet` and `/opt/sweet/init`, and
   stages the signal catalog, the causal edges and the two shared Python modules
   (`os_cursor.py`, `signal_identity.py`). Every service that imports them runs
   after it, on the same host.
@@ -1762,7 +1762,7 @@ stays. Our pipeline already parses per source before it routes per severity, so
 a ported parser chain attaches at that point and never changes output routing.
 
 **R3 — per-node values come from the environment, not from Ansible.** Ansible
-writes `/etc/alice-ingest/node.env` once, at install time, and the collector
+writes `/etc/sweet/node.env` once, at install time, and the collector
 reads `${ALICE_NODE_ID}`, `${ALICE_LOG_ROOT}` and the ports from it. The
 original reason was portability to Kubernetes, which is off the table; the
 surviving reason is self-registration below — a machine cannot register itself

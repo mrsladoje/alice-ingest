@@ -159,7 +159,7 @@ carries one node, or as a podman container when it carries several, chosen by
 │  /var/lib/opensearch        0750, owned by opensearch                      │
 │    .../<node_id> per instance and owned by uid 1000 on the container path  │
 │  /var/log/opensearch        0750, owned by opensearch                      │
-│  /etc/alice-ingest          0755, root — shared with the collector         │
+│  /etc/sweet          0755, root — shared with the collector         │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 4. CONFIGURATION ─────────────────────────────────────────────────────────┐
@@ -291,10 +291,10 @@ Start-up checks. Sixty attempts at five seconds is five minutes for a first
 boot. The plugin list is a gate, not a preference.
 
 ```yaml
-opensearch_node_env_dir: /etc/alice-ingest
+opensearch_node_env_dir: /etc/sweet
 opensearch_node_env_file: "{{ opensearch_node_env_dir }}/opensearch-node.env"
-opensearch_register_script: /opt/alice-ingest/register_node.sh
-opensearch_register_script_dir: /opt/alice-ingest
+opensearch_register_script: /opt/sweet/register_node.sh
+opensearch_register_script_dir: /opt/sweet
 opensearch_local_index_template_file: "{{ opensearch_node_env_dir }}/local-index-template.json"
 alice_manage_firewalld: true
 ```
@@ -357,7 +357,7 @@ is cluster-wide.
 │  worker node identity list     must not be empty, or there is no info tier │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
-┌─ 2. STAGE — /opt/alice-ingest/init ────────────────────────────────────────┐
+┌─ 2. STAGE — /opt/sweet/init ────────────────────────────────────────┐
 │  templates.sh, ism.sh   rendered from the .j2 of the same name             │
 │  schema/*.json          28 documents, plus one per worker rendered from    │
 │                         templates/schema-per-worker/                       │
@@ -415,7 +415,7 @@ line, and `load` fails the run before any REST call if a file is missing.
 
 ```yaml
 opensearch_configure_cluster: false
-opensearch_cluster_config_root: /opt/alice-ingest/init
+opensearch_cluster_config_root: /opt/sweet/init
 opensearch_cluster_config_templates_script: "{{ opensearch_cluster_config_root }}/templates.sh"
 opensearch_cluster_config_schema_root: "{{ opensearch_cluster_config_root }}/schema"
 opensearch_cluster_config_ism_script: "{{ opensearch_cluster_config_root }}/ism.sh"
@@ -481,7 +481,7 @@ These scripts are the schema.
   `opensearch_service_enabled` is false there and the role only starts it.
 - **`opensearch_cluster_hosts` only ever adds.** firewalld keeps a permanent
   rule; removing an address does not close the port on a node that already ran.
-- **`/etc/alice-ingest` has no single owner.** This role and `sweet_collector`
+- **`/etc/sweet` has no single owner.** This role and `sweet_collector`
   both create it with the same owner, group and mode, because this role also
   runs on storage nodes where the collector never does.
 - **A change to `opensearch-node.env` does not restart the collector.** That

@@ -24,10 +24,10 @@ document is a defect.
 
 The repository path is `deploy/shared/template_contract.py`.
 
-Ansible stages it to `/opt/alice-ingest/shared/template_contract.py` on every
+Ansible stages it to `/opt/sweet/shared/template_contract.py` on every
 worker and on the Shifter host. Both services read the directory from the
 environment variable `ALICE_SHARED_PATH`, which defaults to
-`/opt/alice-ingest/shared`. This mirrors `ALICE_TEMPLATING_PATH` in the template
+`/opt/sweet/shared`. This mirrors `ALICE_TEMPLATING_PATH` in the template
 catalog role.
 
 The module imports the standard library only. It does not import drain3, does

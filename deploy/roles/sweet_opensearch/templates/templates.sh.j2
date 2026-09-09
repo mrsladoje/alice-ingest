@@ -182,7 +182,7 @@ except Exception:
     return 0
   fi
   now=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
-  body=$(printf '{"@timestamp":"%s","collector_time":"%s","log_source":"bootstrap","message":"alice-ingest bootstrap seed. The anomaly-detection plugin refuses to create or update a detector over an index holding zero documents, and the log indices stay empty until the first replay. This document exists only for the moment between index creation and detector provisioning, and the deploy deletes it again once every detector is up. It carries no host, node or severity field, so it forms no entity in any detector or trend-rollup bucket."}' "$now" "$now")
+  body=$(printf '{"@timestamp":"%s","collector_time":"%s","log_source":"bootstrap","message":"sweet bootstrap seed. The anomaly-detection plugin refuses to create or update a detector over an index holding zero documents, and the log indices stay empty until the first replay. This document exists only for the moment between index creation and detector provisioning, and the deploy deletes it again once every detector is up. It carries no host, node or severity field, so it forms no entity in any detector or trend-rollup bucket."}' "$now" "$now")
   code=$(curl -s $CURL_TIMEOUTS -o /tmp/os-seed -w '%{http_code}' \
     -XPUT "$OS/$alias/_doc/alice-bootstrap-seed?refresh=true" \
     -H 'Content-Type: application/json' -d "$body" || echo 000)

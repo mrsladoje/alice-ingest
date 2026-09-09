@@ -13,7 +13,7 @@ from io import StringIO
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# On the control host every module below is staged flat in /opt/alice-ingest,
+# On the control host every module below is staged flat in /opt/sweet,
 # so the line above is enough. In the repository they are split across the
 # roles that own them, so each of those files/ directories joins the path too.
 _ROLES = os.path.dirname(os.path.dirname(os.path.dirname(
@@ -1779,7 +1779,7 @@ def test_every_local_import_survives_the_on_vm_layout():
     for declaration in declarations:
         with open(declaration) as fh:
             beside |= set(re.findall(
-                r":\s*/opt/alice-ingest/(\w+)\.py\s*$", fh.read(), re.M))
+                r":\s*/opt/sweet/(\w+)\.py\s*$", fh.read(), re.M))
     with open(source) as fh:
         tree = ast.parse(fh.read())
 
@@ -1796,7 +1796,7 @@ def test_every_local_import_survives_the_on_vm_layout():
         n for n in tree.body if isinstance(n, ast.Import)) - beside
     check(not stranded,
           f"{sorted(stranded)} is imported at module scope but is not staged "
-          f"in /opt/alice-ingest, so this file cannot even load on the control "
+          f"in /opt/sweet, so this file cannot even load on the control "
           f"host where projector.yml runs it")
 
     for fn in tree.body:

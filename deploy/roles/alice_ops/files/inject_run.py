@@ -38,9 +38,9 @@ STATUS_PATH = os.environ.get(
 REPORT_DIR = os.environ.get(
     "INJECT_REPORT_DIR", "/var/lib/alice-inject/runs")
 SCORE_SCRIPT = os.environ.get(
-    "INJECT_SCORE_SCRIPT", "/opt/alice-ingest/score_injection.py")
+    "INJECT_SCORE_SCRIPT", "/opt/sweet/score_injection.py")
 CAUSAL_EDGES = os.environ.get(
-    "CAUSAL_EDGES", "/opt/alice-ingest/init/causal_edges.json")
+    "CAUSAL_EDGES", "/opt/sweet/init/causal_edges.json")
 
 FAULT_TOKEN = os.environ.get("INJECT_FAULT_TOKEN", "")
 METRICS_SERVICE = os.environ.get("INJECT_METRICS_SERVICE", "alice-metrics")

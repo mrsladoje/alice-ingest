@@ -336,8 +336,8 @@ file, no service and no handler with the Dashboards stack.
                             HOSTS: shifter
 
 ┌─ 1. DIRECTORIES ───────────────────────────────────────────────────────────┐
-│  /opt/alice-ingest          0755 root — also created by other roles         │
-│  /opt/alice-ingest/live     0755 root — the static document root            │
+│  /opt/sweet          0755 root — also created by other roles         │
+│  /opt/sweet/live     0755 root — the static document root            │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 2. SHRINK, on the control node, never on the target ──────────────────────┐
@@ -460,8 +460,8 @@ site-wide, or in `inventory.yml` for one group or host.
 | Variable | Default | Meaning |
 |---|---|---|
 | `shifter_service_name` | `alice-shifter` | systemd unit name. |
-| `shifter_script` | `/opt/alice-ingest/shifter.py` | Installed server. See couplings. |
-| `shifter_static_dir` | `/opt/alice-ingest/live` | Document root. Passed to the unit as `SHIFTER_STATIC_DIR`. |
+| `shifter_script` | `/opt/sweet/shifter.py` | Installed server. See couplings. |
+| `shifter_static_dir` | `/opt/sweet/live` | Document root. Passed to the unit as `SHIFTER_STATIC_DIR`. |
 | `shifter_cockpit_url` | `/app/dashboards` | The "back to the cockpit" link in the page. Relative on purpose — the reverse proxy in front of Dashboards is on another host and another scheme. |
 | `shifter_bind` | `0.0.0.0` | `SHIFTER_BIND`. All interfaces, because the collectors reach it across the network. |
 | `shifter_token` | `""` | `SHIFTER_TOKEN`. Empty means no shared secret on the ingest path. |
@@ -482,7 +482,7 @@ site-wide, or in `inventory.yml` for one group or host.
 | `shifter_template_page_rows` | `50` | `SHIFTER_TEMPLATE_PAGE_ROWS`. Template rows in one page. |
 | `shifter_template_lines_rows` | `50` | `SHIFTER_TEMPLATE_LINES_ROWS`. Lines one request returns when it names no limit. |
 | `shifter_template_lines_ceiling` | `500` | `SHIFTER_TEMPLATE_LINES_CEILING`. The most lines one request may ask for. |
-| `shifter_templating_dir` | `/opt/alice-ingest/templating` | `ALICE_TEMPLATING_PATH`. Where the vendored `drainbench.py` and `masking.py` land, for the token-wise re-match. |
+| `shifter_templating_dir` | `/opt/sweet/templating` | `ALICE_TEMPLATING_PATH`. Where the vendored `drainbench.py` and `masking.py` land, for the token-wise re-match. |
 | `shifter_drain3_version` | `0.9.11` | The drain3 the shifter venv gets, the same pin as the stamper. |
 | `shifter_buckets_5m_pattern`, `shifter_buckets_1h_pattern` | `template-buckets-5m-*`, `template-buckets-1h-*` | `SHIFTER_BUCKETS_5M_PATTERN`, `SHIFTER_BUCKETS_1H_PATTERN`. The date-named bucket indices the stamper publishes to. |
 | `shifter_local_index_prefix` | `application-logs-local-` | `SHIFTER_LOCAL_INDEX_PREFIX`. A routed line search names `<prefix><node>` for each routed node. |
@@ -522,7 +522,7 @@ defaults, because a second copy is a second place to change one value.
 | `template_catalog_index`, `template_triage_index`, `shifter_queries_index` | `group_vars/all.yml` | The three Templates-page indices in the catalog family. Shared with `sweet_opensearch`, which creates them. The bucket indices are date-named and come from the role defaults above. |
 | `incidents_index` | `group_vars/all.yml` | `SHIFTER_INCIDENTS_INDEX`. The incident index gives the episode summary beside a template. Shared with `signal_projector`, which writes the incidents. |
 | `template_catalog_active_days`, `template_catalog_definition_retention_days` | `group_vars/all.yml` | `SHIFTER_ACTIVE_DAYS` and `SHIFTER_DEFINITION_RETENTION_DAYS`. The first is the volume window, 28 days; the inactive history stops at the second. Shared with `template_catalog`, whose maintenance unit deletes at the same deadline. |
-| `alice_app_root` | `group_vars/all.yml` | `/opt/alice-ingest`, the parent of the static directory. Shared with every other alice service. |
+| `alice_app_root` | `group_vars/all.yml` | `/opt/sweet`, the parent of the static directory. Shared with every other alice service. |
 
 ## Why the memory ceiling moved, and where the cost is
 
@@ -582,7 +582,7 @@ with semantic search off; only the nearest-neighbour lane goes away.
 exact search on 99 percent of the top ten over 112 queries. A different revision
 is a different model and its evaluation numbers do not carry over.
 
-The role builds `/opt/alice-ingest/shifter-venv` on the newest of
+The role builds `/opt/sweet/shifter-venv` on the newest of
 `python3.13`, `python3.12`, `python3.11`, `python3.10` that the host carries,
 because model2vec needs 3.10 or newer and AlmaLinux 9 ships 3.9 as
 `/usr/bin/python3`. When a host has none of them and semantic search is on, the
@@ -590,7 +590,7 @@ deploy stops and names the reason rather than installing a service that cannot
 start. The unit runs that interpreter only while semantic search is on;
 otherwise it runs `/usr/bin/python3` as before.
 
-The model is fetched once into `/opt/alice-ingest/models/potion-retrieval-32M`,
+The model is fetched once into `/opt/sweet/models/potion-retrieval-32M`,
 without the ONNX copy the static encoder never reads, and the task is skipped
 when `model.safetensors` is already there. At run time the unit sets
 `HF_HUB_OFFLINE`, so the service never reaches for the network to serve a query.

@@ -126,9 +126,9 @@ site-wide, or in `inventory.yml` for one group or host.
 | `signal_projector_bulk_documents` | `500` | Documents per bulk write. |
 | `signal_projector_pit_keep_alive` | `10m` | Point-in-time keep-alive for a paged read. |
 | `signal_projector_mass_silence_fraction` | `0.5` | Fraction of the fleet that must go silent before the projector calls it one mass-silence incident instead of many. |
-| `signal_projector_script` | `/opt/alice-ingest/signal_projector.py` | Installed path, on both hosts. |
-| `signal_projector_notification_ingest_script` | `/opt/alice-ingest/notification_ingest.py` | Installed path, control host. |
-| `signal_projector_contract_test` | `/opt/alice-ingest/test_signal_contract.py` | Installed path, control host. |
+| `signal_projector_script` | `/opt/sweet/signal_projector.py` | Installed path, on both hosts. |
+| `signal_projector_notification_ingest_script` | `/opt/sweet/notification_ingest.py` | Installed path, control host. |
+| `signal_projector_contract_test` | `/opt/sweet/test_signal_contract.py` | Installed path, control host. |
 | `projector_gate_retries` | `36` | Attempts to find a successful-cycle heartbeat. |
 | `projector_gate_delay` | `5` | Seconds between those attempts. The two give 3 minutes. |
 | `alertmanager_host_address` | `""` | Address of the host running Alertmanager. **The playbook supplies it.** Replaces the inline `hostvars[groups['control'][0]].ansible_host`. |
@@ -170,7 +170,7 @@ The role does not bootstrap either machine. Six things must be true first.
 
 | Prerequisite | Provided by | What breaks without it |
 |---|---|---|
-| `/opt/alice-ingest` and `/opt/alice-ingest/init` exist on the projector host | `alice_runtime` | Every copy task fails — the destination directory is missing. |
+| `/opt/sweet` and `/opt/sweet/init` exist on the projector host | `alice_runtime` | Every copy task fails — the destination directory is missing. |
 | `os_cursor.py` and `signal_identity.py` on the projector host | `alice_runtime` | The service starts and dies on import. Nothing in this role would notice until the cycle gate times out three minutes later. |
 | `signal_catalog.json` and `causal_edges.json` on the projector host, mode 0644 | `alice_runtime` | The projector runs `DynamicUser=true`. At 0640 or 0600 it cannot read either file. |
 | The projector's four indices exist | `sweet_opensearch` | The first cycle creates them with dynamic mappings, which is not the mapping the cockpit queries expect. |

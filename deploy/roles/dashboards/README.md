@@ -133,7 +133,7 @@ site-wide, or in `inventory.yml` for one group or host.
 | `dashboards_nginx_vhost_file` | `/etc/nginx/conf.d/dashboards.conf` | The rendered vhost. |
 | `dashboards_basic_auth_user` | `alice` | The one basic-auth account. |
 | `dashboards_basic_auth_password` | `{{ vault_dashboards_basic_auth_password }}` | Its password. See couplings. |
-| `alice_bootstrap_root` | `/opt/alice-ingest/init` | Where the bootstrap scripts are staged. Also declared in `group_vars/all.yml` — see couplings. |
+| `alice_bootstrap_root` | `/opt/sweet/init` | Where the bootstrap scripts are staged. Also declared in `group_vars/all.yml` — see couplings. |
 | `dashboards_bootstrap_patterns_script` | `{{ alice_bootstrap_root }}/patterns.sh` | The rendered index-pattern script. |
 | `dashboards_bootstrap_cockpit_ndjson` | `{{ alice_bootstrap_root }}/cockpit.ndjson` | The staged saved objects. |
 | `dashboards_bootstrap_hydrate_script` | `{{ alice_bootstrap_root }}/hydrate_patterns.py` | The staged field-catalog hydration script. |
@@ -207,8 +207,8 @@ Against the control host only:
   `group_vars` value outranks the default and stays the site source of truth,
   shared with `sweet_opensearch`, `alerting_monitors`, `anomaly_detection`,
   `alice_ops` and `signal_projector`, which stage their own files into the same
-  directory. Both values must stay `/opt/alice-ingest/init`.
-- **This role does not create `/opt/alice-ingest/init`.** It only writes into it.
+  directory. Both values must stay `/opt/sweet/init`.
+- **This role does not create `/opt/sweet/init`.** It only writes into it.
   the `sweet_opensearch` cluster bootstrap creates it, root:root 0755,
   and runs first.
 - **`dashboards_basic_auth_password` and the vault entry change together.** The

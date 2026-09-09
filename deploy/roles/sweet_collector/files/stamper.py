@@ -14,9 +14,9 @@ import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.environ.get(
-    "ALICE_SHARED_PATH", "/opt/alice-ingest/shared"))
+    "ALICE_SHARED_PATH", "/opt/sweet/shared"))
 sys.path.insert(0, os.environ.get(
-    "ALICE_TEMPLATING_PATH", "/opt/alice-ingest/templating"))
+    "ALICE_TEMPLATING_PATH", "/opt/sweet/templating"))
 
 from drain3.persistence_handler import PersistenceHandler     # noqa: E402
 

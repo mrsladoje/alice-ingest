@@ -112,7 +112,7 @@ severity routing, the health sampler and the stamper are the role.
 ## Requirements
 
 `sweet_opensearch` must have run on the same host first. It writes
-`/etc/alice-ingest/opensearch-node.env`, installs `register_node.sh` and starts
+`/etc/sweet/opensearch-node.env`, installs `register_node.sh` and starts
 the OpenSearch node on `localhost` that every output writes to. The stamper
 also needs `template_contract.py` at `alice_shared_contract_file`.
 

@@ -17,7 +17,7 @@ NOTIFICATIONS_INDEX = os.environ.get(
     "NOTIFICATIONS_INDEX", "alice-notifications")
 LANE_STATE_INDEX = os.environ.get("LANE_STATE_INDEX", "alice-lane-state")
 CATALOG_PATH = os.environ.get(
-    "SIGNAL_CATALOG", "/opt/alice-ingest/init/signal_catalog.json")
+    "SIGNAL_CATALOG", "/opt/sweet/init/signal_catalog.json")
 # Staged beside this script by bootstrap.yml, so the default needs no variable.
 COCKPIT_NDJSON = os.environ.get(
     "COCKPIT_NDJSON",

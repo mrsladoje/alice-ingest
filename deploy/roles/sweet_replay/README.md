@@ -20,13 +20,13 @@ downstream has anything to show until it has run.
 ┌─ RUNTIME ────────────────────────────────────────────────────────────────────┐
 │  dnf python3, python3-pip                                                    │
 │  firewalld: :8088/tcp, one rich rule per replay_allowed_client_addresses     │
-│  venv /opt/alice-ingest/venv + boto3                    --> restart          │
+│  venv /opt/sweet/venv + boto3                    --> restart          │
 └──────────────────────────────────────┬───────────────────────────────────────┘
                                        v
 ┌─ INSTALL: three things, two of them files ───────────────────────────────────┐
-│  files/replay.py                  --> /opt/alice-ingest/app/replay.py        │
-│  files/replay_partition_wrapper.py --> /opt/alice-ingest/app/  (imports it)  │
-│  the captured bundle, rsync       --> /var/lib/alice-ingest/bundle           │
+│  files/replay.py                  --> /opt/sweet/app/replay.py        │
+│  files/replay_partition_wrapper.py --> /opt/sweet/app/  (imports it)  │
+│  the captured bundle, rsync       --> /var/lib/sweet/bundle           │
 │      only when replay_bundle_src is set; otherwise one message               │
 │  each --> restart                                                            │
 └──────────────────────────────────────┬───────────────────────────────────────┘
@@ -63,7 +63,7 @@ downstream has anything to show until it has run.
   bundle              [odc]         paced 200/s, the capture's own file names
       --> /var/log/odc/staging/<file>.log
   bundle              [journald]    not paced: journal files read in place
-      --> /var/lib/alice-ingest/bundle/journal/
+      --> /var/lib/sweet/bundle/journal/
 ```
 
 - **Each worker replays only its own slice.** A host belongs to partition
