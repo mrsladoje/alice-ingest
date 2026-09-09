@@ -15,17 +15,17 @@
 - name: Assert the worker roster reached this role
   ansible.builtin.assert:
     that:
-      - opensearch_bootstrap_worker_node_ids | length > 0
+      - opensearch_cluster_config_worker_node_ids | length > 0
     fail_msg: >-
-      opensearch_bootstrap_worker_node_ids is empty. templates.sh and ism.sh
+      opensearch_cluster_config_worker_node_ids is empty. templates.sh and ism.sh
       write one index template, one write alias and one retention policy per
-      worker node identity, so an empty list bootstraps a cluster with no info
+      worker node identity, so an empty list configures a cluster with no info
       tier at all. The playbook supplies this list; see group_vars/all.yml.
     quiet: true
 
-- name: Ensure the bootstrap scripts directory exists
+- name: Ensure the cluster configuration scripts directory exists
   ansible.builtin.file:
-    path: "{{ opensearch_bootstrap_root }}"
+    path: "{{ opensearch_cluster_config_root }}"
     state: directory
     owner: root
     group: root
@@ -36,7 +36,7 @@
 
 - name: Ensure the schema directory exists beside the scripts
   ansible.builtin.file:
-    path: "{{ opensearch_bootstrap_schema_root }}"
+    path: "{{ opensearch_cluster_config_schema_root }}"
     state: directory
     owner: root
     group: root
@@ -45,16 +45,16 @@
 - name: Render the schema — one JSON document per OpenSearch object
   ansible.builtin.template:
     src: "{{ item }}"
-    dest: "{{ opensearch_bootstrap_schema_root }}/{{ item | basename | regex_replace('\\.j2$', '') }}"
+    dest: "{{ opensearch_cluster_config_schema_root }}/{{ item | basename | regex_replace('\\.j2$', '') }}"
     owner: root
     group: root
     mode: "0640"
   loop: "{{ query('ansible.builtin.fileglob', role_path ~ '/templates/schema/*.json.j2') | sort }}"
 
-- name: Render the tier-aware OpenSearch index-template bootstrap script
+- name: Render the tier-aware index-template script
   ansible.builtin.template:
     src: templates.sh.j2
-    dest: "{{ opensearch_bootstrap_templates_script }}"
+    dest: "{{ opensearch_cluster_config_templates_script }}"
     owner: root
     group: root
     mode: "0750"
@@ -62,32 +62,32 @@
 - name: Render one local index template per worker into the schema directory
   ansible.builtin.template:
     src: schema-per-worker/index-logs-application-local.json.j2
-    dest: "{{ opensearch_bootstrap_schema_root }}/index-logs-application-local-{{ item }}.json"
+    dest: "{{ opensearch_cluster_config_schema_root }}/index-logs-application-local-{{ item }}.json"
     owner: root
     group: root
     mode: "0640"
-  loop: "{{ opensearch_bootstrap_worker_node_ids }}"
+  loop: "{{ opensearch_cluster_config_worker_node_ids }}"
   vars:
     node: "{{ item }}"
 
-- name: Render the ISM retention bootstrap script
+- name: Render the ISM retention script
   ansible.builtin.template:
     src: ism.sh.j2
-    dest: "{{ opensearch_bootstrap_ism_script }}"
+    dest: "{{ opensearch_cluster_config_ism_script }}"
     owner: root
     group: root
     mode: "0750"
 
 - name: Apply index templates, ingest pipeline and pre-create all indices (idempotent, every run)
   ansible.builtin.command:
-    cmd: "{{ opensearch_bootstrap_templates_script }}"
+    cmd: "{{ opensearch_cluster_config_templates_script }}"
   environment:
     OS_URL: "http://localhost:{{ opensearch_http_port }}"
   changed_when: true
 
 - name: Apply ISM retention policies (idempotent, every run)
   ansible.builtin.command:
-    cmd: "{{ opensearch_bootstrap_ism_script }}"
+    cmd: "{{ opensearch_cluster_config_ism_script }}"
   environment:
     OS_URL: "http://localhost:{{ opensearch_http_port }}"
   changed_when: true

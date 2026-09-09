@@ -79,7 +79,7 @@ opensearch_instance_id: "{{ node_id }}"
 # The worker node identities the bootstrap writes a per-node index template and
 # retention policy for. Resolved here so sweet_opensearch names no inventory
 # group of its own.
-opensearch_bootstrap_worker_node_ids: "{{ groups['workers'] | map('extract', hostvars, 'node_id') | list }}"
+opensearch_cluster_config_worker_node_ids: "{{ groups['workers'] | map('extract', hostvars, 'node_id') | list }}"
 
 # The same worker node identities, under the name the cockpit_metrics,
 # anomaly_detection and alice_ops roles read. Resolved here for the same reason:

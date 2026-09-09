@@ -615,6 +615,41 @@ Rules:
 
 Cleanup: daily, delete-by-query on `issued_at < now-365d`.
 
+### 7.5 How the cluster configuration applies these
+
+Notes moved here from the `sweet_opensearch` role README, because they describe
+the schema rather than the role.
+
+- **The three fixed Templates-page indices appear in no ISM policy; the two
+  bucket families do.** `template-catalog`, `template-triage` and
+  `shifter-queries` never roll over. Their retention is document expiry through
+  a bounded delete-by-query, the `cockpit-metrics` and `trend-rollup` pattern.
+  The stamper's bucket documents go into date-named indices,
+  `template-buckets-5m-<day>` and `template-buckets-1h-<month>`, that an ISM age
+  policy on the pattern deletes. They are not rolled over, because a bucket is
+  republished in place while it is inside the worker's ledger and a rollover
+  alias would put the republication in a new index beside the old document. The
+  age is padded by one index period because `min_index_age` counts from
+  creation.
+- **`template-catalog` gets its mapping pushed onto the live index on every
+  bootstrap.** `ensure_index` skips an existing index, and the mapping changed.
+  Without the PUT, `last_observed` stays unmapped under `dynamic: false`, the
+  90-day expiry matches nothing and the inactive history comes back empty, both
+  without an error.
+- **The `template-catalog` mapping holds three kinds of document.** Template
+  definitions (`kind: template`), keyed by the version identifier and upserted
+  by every stamper that observed the version; one watermark per node
+  (`kind: watermark`); and the check results (`kind: check`). It carries no
+  count: volume is a nested aggregation over the hourly bucket documents.
+- **The bucket mappings index `versions` flat and `counts` nested.** A search
+  expands a version to its descendants and routes by the `versions` keyword;
+  the 28-day sum is one nested aggregation on `counts.version_id` and
+  `counts.count`. The total beside the counts is what the conservation check
+  compares them against.
+- **Both log component mappings carry `template_version`, `template_id` and
+  `template_status`.** The InfoLogger mapping is `dynamic: strict`, so the
+  stamper's fields are not optional there.
+
 ## 8. HTTP responses the Shifter server serves
 
 All Templates requests use `POST` with a JSON body, except the two named `GET`.

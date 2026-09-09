@@ -122,6 +122,9 @@ the call site instead of thirty tasks.
   names. Changing this means deleting the old file by hand, on every node.
 - **`common_vm_max_map_count` belongs to OpenSearch.** Set here only because it
   must precede the `sweet_opensearch` role. Lowering it breaks that role, not this one.
+  `sweet_opensearch` writes the same key to the same file from its own
+  `opensearch_vm_max_map_count`, and runs later, so its value is the one that
+  holds. Change the two together.
 - **`common_swapfile_path` is used twice.** As a path to create, and as a string
   matched against `swapon --show=NAME` to decide whether swap is already active.
   A path the kernel normalises differently makes that task run every pass.

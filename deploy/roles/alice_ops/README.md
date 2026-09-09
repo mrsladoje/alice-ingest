@@ -186,7 +186,7 @@ In a playbook, against the control host:
   `OPS_PORT`; `dashboards.conf.j2` in the `dashboards` role proxies to the same
   number. Change one and the page 502s.
 - **`alice_ops_templates_script` must equal
-  `opensearch_bootstrap_templates_script`.** It is written here as a literal on
+  `opensearch_cluster_config_templates_script`.** It is written here as a literal on
   purpose. A default that interpolates another role's variable resolves lazily,
   so this role could not run without that role's defaults loaded. The price is
   two places to change one path.

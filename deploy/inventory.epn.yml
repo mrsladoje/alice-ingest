@@ -163,7 +163,7 @@ all:
             # container cannot start — see the heap-ceiling defect in
             # docs/SOAK_RESULTS.md.
             opensearch_heap_size: "8g"
-            opensearch_container_memory_max: "16G"
+            opensearch_memory_max: "16G"
             # epn-infra13 is ours alone: one socket, 64 logical processors,
             # sibling n and n+32. Sixteen physical cores for the whole storage
             # tier, which the three containers share.

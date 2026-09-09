@@ -64,7 +64,7 @@ def _environment(role):
 
 
 BOOTSTRAP_VARS = {
-    "opensearch_bootstrap_worker_node_ids": ["node-01", "node-02"],
+    "opensearch_cluster_config_worker_node_ids": ["node-01", "node-02"],
     "log_rollover_migrate_existing": False,
     "opensearch_info_search_idle_after": "10s",
     "opensearch_info_translog_sync_interval": "30s",
@@ -878,7 +878,7 @@ def test_the_templates_page_is_off_when_the_query_lane_is_off():
 TEMPLATE_SUPPLIED = {
     "ansible_managed", "node_id", "opensearch_http_port", "shifter_port",
     "shifter_ingest_path", "log_primary_shards_storage",
-    "opensearch_bootstrap_worker_node_ids", "log_rollover_migrate_existing",
+    "opensearch_cluster_config_worker_node_ids", "log_rollover_migrate_existing",
     "opensearch_info_search_idle_after", "opensearch_info_translog_sync_interval",
     "opensearch_info_merge_threads", "item", "wn",
 }

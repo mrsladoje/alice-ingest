@@ -188,7 +188,7 @@ The post-collector gate is a separate include, later in the same playbook:
   together.** It was `groups['workers'] | map('extract', hostvars, 'node_id')`
   inline, in three places in this role. It is now a plain list resolved in
   `group_vars/all.yml`, the same pattern as
-  `opensearch_bootstrap_worker_node_ids`, which carries the identical
+  `opensearch_cluster_config_worker_node_ids`, which carries the identical
   expression. A host that runs the `sweet_collector` role but is missing from this
   list has its samples purged on every deploy.
 - **`heartbeat_grace_seconds` and `cockpit_metrics_interval_seconds` are one

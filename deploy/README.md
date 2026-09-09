@@ -413,8 +413,8 @@ Two consequences of three hosts on one machine, both deliberate:
 
 What this does **not** rehearse is fault tolerance. Three replicas on one disk
 survive nothing. The layout exists so that the design does not have to change
-when the storage tier grows onto a second machine — see "What the container
-path does not simulate" in `roles/sweet_opensearch/README.md`.
+when the storage tier grows onto a second machine — see "Derived on the
+container path" in `roles/sweet_opensearch/README.md`.
 
 ### 4.1 Two auth paths
 
@@ -2115,7 +2115,7 @@ its own failure mode.
    other name, so OpenSearch answers 400 to the *whole* persistent settings
    body — including the anomaly-detection batch pacing that shares the call —
    and `templates.sh` exits non-zero under `set -eu`. The mode is therefore
-   asserted in `roles/sweet_opensearch/tasks/cluster_bootstrap.yml` before anything
+   asserted in `roles/sweet_opensearch/tasks/configure_cluster.yml` before anything
    renders.
    An earlier revision shipped `shadow`, which is the word the OpenSearch source
    comments use for this mode but not the name the enum accepts; it failed the

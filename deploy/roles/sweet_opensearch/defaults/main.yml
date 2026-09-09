@@ -1,6 +1,6 @@
 # Which of the role's two jobs this host does. site.yml turns it on for the one
 # play that runs against the control host, after the rolling health gate.
-opensearch_cluster_bootstrap: false
+opensearch_configure_cluster: false
 
 # The version is declared here as well as in group_vars/all.yml, because the two
 # defaults below interpolate it. A role whose own defaults reference a variable
@@ -29,7 +29,6 @@ opensearch_quadlet_dir: /etc/containers/systemd
 opensearch_container_runtime_packages:
   - podman
 opensearch_container_min_podman_version: "4.4"
-opensearch_container_memory_max: ""
 opensearch_container_start_timeout_seconds: 900
 
 opensearch_service_name: "{{ 'opensearch' if opensearch_install_method == 'native' else opensearch_container_name }}"
@@ -62,11 +61,9 @@ opensearch_dir_group: "{{ opensearch_group if opensearch_install_method == 'nati
 # from inside the inventory file.
 opensearch_heap_size: "1g"
 
-# Reference only, read by nobody. The EPN-farm worker value, written down beside
-# the staging value rather than guessed at later. Soak round 2 swept 1, 2 and 3
-# GB over two burst shapes and found no difference the noise floor could see:
-# the queue that absorbs a burst is Fluent Bit's, upstream of this heap. 1 GB
-# stands, and the worker gives back the gigabyte. See docs/SOAK_RESULTS.md.
+# Reference only, read by nobody. The measured EPN-farm worker value: a soak
+# swept 1, 2 and 3 GB over two burst shapes and found no difference, because
+# the queue that absorbs a burst is Fluent Bit's, upstream of this heap.
 opensearch_worker_heap_size: "1g"
 
 # A cap, never a floor — opensearch.yml.j2 takes the smaller of this and the
@@ -77,23 +74,20 @@ opensearch_worker_index_buffer_size: "5%"
 opensearch_limit_nofile: 65536
 
 # A cpuset, written as systemd writes it: logical processor numbers, both
-# threads of every physical core. Empty means no reservation, which is what the
-# OpenStack rehearsal wants — a 2-processor VM has nothing to reserve away
-# from. docs/SOAK_RESULTS.md requires the real thing on the farm: every
-# core-second it reports assumes the stack holds four cores that no other
-# process can take, and it asks for a reservation rather than a share weight
-# because a weight limits the average and lets a neighbour win the burst.
+# threads of every physical core. Empty means no reservation. The farm needs a
+# reservation rather than a share weight, because a weight limits the average
+# and lets a neighbour win the burst.
 #
 # On a worker this holds the collector AND this node together. The soak
 # measured splitting them apart and found no effect, so they share one set.
 opensearch_cpuset: ""
 
-# Native installs had no memory bound at all. docs/EPN-ACCESS.md requires a
-# hard MemoryMax on every service placed on epn146 and epn323, which carry
-# staging work. Empty leaves the unit unbounded, as before. Keep MemoryMax well
-# above the heap: the JVM needs direct buffers and metaspace on top of it, and
-# a container that cannot fit its heap does not start — see the heap-ceiling
-# defect in docs/SOAK_RESULTS.md.
+# The cgroup memory bounds on the unit, the same two names on both install
+# paths: the RPM's drop-in and the quadlet unit each read them.
+# The farm requires a hard MemoryMax on every service placed on a shared EPN
+# node. Empty leaves the unit unbounded. Keep MemoryMax well above the heap:
+# the JVM needs direct buffers and metaspace on top of it, and a container
+# that cannot fit its heap does not start.
 opensearch_memory_high: ""
 opensearch_memory_max: ""
 
@@ -104,7 +98,7 @@ opensearch_memory_max: ""
 opensearch_security_disabled: true
 
 # Addresses the node binds. _local_ keeps the loopback listener the collector
-# and the bootstrap scripts use; ansible_host is added by the template.
+# and the cluster configuration scripts use; ansible_host is added by the template.
 opensearch_network_host:
   - _local_
 
@@ -139,7 +133,7 @@ opensearch_node_env_dir: /etc/alice-ingest
 opensearch_node_env_file: "{{ opensearch_node_env_dir }}/opensearch-node.env"
 
 # The worker's own boot-time self-heal, and the rendered index template it reads.
-# Installed by the node mode on workers; fluent-bit.service names the script as
+# Installed by the install mode on workers; fluent-bit.service names the script as
 # its ExecStartPre, the way its unit already names opensearch-node.env.
 opensearch_register_script: /opt/alice-ingest/register_node.sh
 opensearch_register_script_dir: /opt/alice-ingest
@@ -160,24 +154,20 @@ opensearch_required_plugins:
 alice_manage_firewalld: true
 
 # ---------------------------------------------------------------------------
-# Cluster bootstrap — read only when opensearch_cluster_bootstrap is true.
+# Configure the cluster — read only when opensearch_configure_cluster is true.
 # ---------------------------------------------------------------------------
 
-# The shared bootstrap script directory. The alice_runtime role writes its own
+# The shared script directory. The alice_runtime role writes its own
 # scripts into the same directory and creates it with the same owner, group and
 # mode, so neither role owns it and the two cannot drift.
-opensearch_bootstrap_root: /opt/alice-ingest/init
+opensearch_cluster_config_root: /opt/alice-ingest/init
 
-opensearch_bootstrap_templates_script: "{{ opensearch_bootstrap_root }}/templates.sh"
+opensearch_cluster_config_templates_script: "{{ opensearch_cluster_config_root }}/templates.sh"
 
 # templates.sh reads every request body from here, as "$(dirname "$0")/schema".
 # One file per OpenSearch object; the name prefix is the kind.
-opensearch_bootstrap_schema_root: "{{ opensearch_bootstrap_root }}/schema"
-opensearch_bootstrap_ism_script: "{{ opensearch_bootstrap_root }}/ism.sh"
-
-# templates.sh resolves this as "$(dirname "$0")/register_node.sh", so the two
-# files must land in the same directory.
-opensearch_bootstrap_register_node_script: "{{ opensearch_bootstrap_root }}/register_node.sh"
+opensearch_cluster_config_schema_root: "{{ opensearch_cluster_config_root }}/schema"
+opensearch_cluster_config_ism_script: "{{ opensearch_cluster_config_root }}/ism.sh"
 
 # Supplied by the playbook. The role names no inventory group of its own.
-opensearch_bootstrap_worker_node_ids: []
+opensearch_cluster_config_worker_node_ids: []

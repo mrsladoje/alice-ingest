@@ -182,14 +182,14 @@
       retries: 60
       delay: 5
 
-- name: OpenSearch cluster bootstrap — index templates, ingest pipeline, cluster settings, retention (control host only)
+- name: OpenSearch cluster configuration — index templates, ingest pipeline, cluster settings, retention (control host only)
   hosts: control
   become: true
   roles:
     # Same role as the bring-up play above, in its other mode. The flag is what
     # keeps the cluster-wide calls to one host instead of all five.
     - role: sweet_opensearch
-      opensearch_cluster_bootstrap: true
+      opensearch_configure_cluster: true
 
 - name: Alertmanager (control host only, behind the existing nginx seam)
   hosts: control

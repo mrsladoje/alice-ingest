@@ -1,19 +1,19 @@
-# Two disjoint jobs, and a host does exactly one of them.
+# Two disjoint jobs, and a host does exactly one of them per play.
 #
-#   node             configures this machine and starts its OpenSearch. Runs on
-#                    all five, and site.yml gates the batch behind a rolling
-#                    health check before anything reads the cluster.
-#   cluster_bootstrap applies the schema and the retention policies. Cluster-wide
-#                    and idempotent, so it must run once, on the control host,
-#                    and only after that gate.
+#   install            installs and starts OpenSearch on this machine. Runs on
+#                      every node; the playbook gates the batch behind a rolling
+#                      health check before anything reads the cluster.
+#   configure_cluster  applies the cluster-wide state: pipeline, templates,
+#                      settings, indices, retention. Idempotent, so it runs
+#                      once, on the control host, and only after that gate.
 #
-# The two cannot share a play: the bootstrap needs a cluster that already
-# answers, which is not true while the batch is still coming up.
+# The two cannot share a play: configuring the cluster needs a cluster that
+# already answers, which is not true while the batch is still coming up.
 
-- name: Configure this node and start its OpenSearch
-  ansible.builtin.include_tasks: node.yml
-  when: not (opensearch_cluster_bootstrap | bool)
+- name: Install and start OpenSearch on this machine
+  ansible.builtin.include_tasks: install.yml
+  when: not (opensearch_configure_cluster | bool)
 
-- name: Apply the cluster-wide schema, settings and retention (control host, once)
-  ansible.builtin.include_tasks: cluster_bootstrap.yml
-  when: opensearch_cluster_bootstrap | bool
+- name: Configure the cluster — pipeline, templates, settings, indices, retention (control host, once)
+  ansible.builtin.include_tasks: configure_cluster.yml
+  when: opensearch_configure_cluster | bool

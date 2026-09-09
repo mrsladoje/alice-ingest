@@ -121,7 +121,7 @@
     mode: "0640"
   notify: restart opensearch
 
-- name: Template JVM heap options (trimmed for m2.medium — see opensearch_heap_size in this role's defaults)
+- name: Template JVM heap options
   ansible.builtin.template:
     src: heap.options.j2
     dest: "{{ opensearch_jvm_options_d }}/heap.options"
@@ -191,5 +191,5 @@
       anomaly-detection REST API answers
       ({{ 'config index present' if _ad_api_check.status == 200
           else '.opendistro-anomaly-detectors not created yet — the plugin
-                creates it with the first detector, during the dashboards
-                bootstrap' }})
+                creates it with the first detector, in the anomaly_detection
+                role' }})
