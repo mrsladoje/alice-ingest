@@ -1,24 +1,15 @@
-# Managed by Ansible (deploy/roles/sweet_replay) — local edits will be overwritten.
-# Native port of images/replay/replay.py's default container CMD
-# (`python replay.py serve`) — the HTTP trigger stub (GET /health,
-# POST /replay?family=...) which also fires the AUTOSTART_REPLAY-guarded
-# one-shot load on first boot, exactly like docker-compose.yml's `replay`
-# service. Runs through files/replay_partition_wrapper.py so this VM only
-# ever replays its own epn_partition slice — see that file's docstring.
-#
-# Restarting this unit is SAFE and will NOT re-ingest: replay.py's own
-# AUTOSTART_MARKER guard (below) persists on disk in log_root and is checked
-# before any autostart load runs again.
+# Managed by Ansible (sweet_replay) — local edits will be overwritten.
+# Runs the replay engine's HTTP trigger (GET /health, POST /replay?family=...)
+# through the single-partition wrapper, so this machine only ever replays its
+# own epn_partition slice. A restart never re-ingests: the AUTOSTART_MARKER
+# guard persists in log_root and is checked before any autostart load.
 
 [Unit]
 Description=ALICE S3 log replay — single-partition wrapper ({{ node_id }}, epn_partition {{ epn_partition }})
 Documentation=file://{{ replay_app_root }}/replay_partition_wrapper.py
-# Soft ordering only: InfoLogger rows retry-connect forever inside replay.py
-# (il_connect) and the DDS/stdout tail files are picked up by Fluent Bit's
-# `tail` input whenever it next polls, so this unit tolerates starting
-# before Fluent Bit is up. If the collector role's unit is named
-# differently, this After= is simply a no-op (systemd does not fail on an
-# After= referencing an unknown unit).
+# Soft ordering only: InfoLogger rows retry-connect forever inside the engine
+# and the tail files are picked up whenever Fluent Bit next polls, so this
+# unit tolerates starting before Fluent Bit is up.
 After=network-online.target fluent-bit.service
 Wants=network-online.target
 
@@ -40,8 +31,8 @@ Environment=NODE_COUNT={{ node_count }}
 Environment=NODES_ROOT={{ replay_nodes_root }}
 Environment=DDS_REPLAY_RATE={{ dds_replay_rate }}
 Environment=IL_REPLAY_RATE={{ il_replay_rate }}
-# The three families with no S3 archive behind them. Empty bundle root means the
-# replay engine skips all of them and says so.
+# The three families with no S3 archive behind them. An empty bundle root means
+# the engine skips all of them and says so.
 Environment=REPLAY_BUNDLE_ROOT={{ (replay_bundle_src | length > 0) | ternary(replay_bundle_root, '') }}
 Environment=ILDAEMON_LOG_PATH={{ infologger_daemon_log_path }}
 Environment=ILDAEMON_REPLAY_RATE={{ ildaemon_replay_rate }}
@@ -78,12 +69,9 @@ MemoryMax={{ replay_memory_max }}
 Restart=on-failure
 RestartSec=5s
 
-# No NODES_ROOT/, log_root, or /root/.aws hardening (ProtectSystem etc.)
-# beyond what's needed: this unit writes under log_root (via the NODES_ROOT
-# symlink) and reads /root/.aws/credentials, both outside typical
-# ProtectSystem=strict allowances, and it runs as root to match the
-# preserved container behavior (compose mounted the AWS credentials at
-# /root/.aws/credentials because the replay container ran as root).
+# No ProtectSystem hardening: this unit writes under log_root through the
+# NODES_ROOT symlink and reads /root/.aws/credentials, both outside a strict
+# allowance.
 
 [Install]
 WantedBy=multi-user.target

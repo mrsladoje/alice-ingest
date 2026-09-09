@@ -1,11 +1,9 @@
-# authored by the replay unit agent
-# =============================================================================
 # A restart is data-safe because the replay is repeatable, but it terminates an
-# in-flight pass and does not re-trigger it.  The replay role therefore never
-# rewrites playbooks/replay.yml's runtime drop-in merely because make deploy ran.  A real
-# binary/unit/credential change can still require this handler; make status
-# reports the resulting idle worker so the operator knows to trigger it again.
-# =============================================================================
+# in-flight pass and does not re-trigger it. The role therefore never rewrites
+# the replay playbook's runtime drop-in on an ordinary deployment. A real
+# engine, unit or credential change still requires this handler; the status
+# playbook reports the resulting idle worker so the operator knows to trigger
+# it again.
 ---
 
 - name: Restart alice-replay

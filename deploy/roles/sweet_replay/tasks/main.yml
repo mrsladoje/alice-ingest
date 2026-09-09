@@ -1,44 +1,9 @@
-# authored by the replay unit agent
-# =============================================================================
-# roles/sweet_replay — native (venv + systemd) S3-replay engine, one per VM.
-#
-# SCOPE (quality bar #2, native fidelity — determined by reading
-# images/node/Dockerfile, images/node/supervisord-collector.conf vs.
-# supervisord-self-contained.conf, and docker-compose.yml vs.
-# docker-compose.mocks.yaml):
-#   - docker-compose.yml (the REAL 'make run' stack) starts node-01/02/03
-#     with NO command: override, so the Dockerfile's default CMD applies —
-#     `supervisord -c /etc/supervisord-collector.conf`, which runs ONLY
-#     Fluent Bit. images/node/producers/*.py (dds/stdout/infologger mock
-#     generators) are started ONLY by supervisord-self-contained.conf, which
-#     is exclusively docker-compose.mocks.yaml's command: override.
-#   - The real stack's only producer is the separate `replay` service
-#     (images/replay/replay.py, `python replay.py serve`), which streams
-#     real CERN S3 logs into the shared node volumes / TCP :5170.
-#   - Therefore THIS role ports images/replay/replay.py only. The mock
-#     producers under images/node/producers/ are mocks-stack-only and are
-#     deliberately NOT deployed here — porting them would drift from what
-#     'make run' (the real stack) actually runs.
-#
-# SINGLE-PARTITION DESIGN (LOCKED topology: each VM replays ONLY its own
-# epn_partition slice, InfoLogger strictly to localhost): replay.py's own
-# NODE_COUNT/NODES_ROOT/COLLECTOR_HOSTS fan-out assumes ONE process serving
-# ALL collectors. files/replay_partition_wrapper.py imports the engine and
-# monkeypatches its list_objects()/il_connect() extension points to narrow the
-# SAME fan-out logic to this VM's slice — see that file's module docstring for
-# the full reasoning (why a directory/symlink trick alone can't handle
-# InfoLogger, whose per-collector routing is row-level, not object-level).
-#
-# The engine was treated as PRESERVED — deployed byte-for-byte, with every
-# divergence pushed into the wrapper — until the source-coverage work of
-# 4 Sep 2026. It could not stay that way: the engine flattened every process
-# log of a node into one stdout file, which destroyed the program name before
-# Fluent Bit ever read a line, and no monkeypatch seam reaches that loop. The
-# engine now writes one file per process under stdout/<host>/ and rebuilds a
-# real per-line event time. The rule that replaced PRESERVED: the wrapper still
-# owns every deployment-shaped divergence, and the engine is edited only for
-# defects in what the archive itself produces.
-# =============================================================================
+# Installs the S3 log replay engine on one worker, as a venv plus a systemd
+# unit, and narrows it to this machine's own partition through
+# files/replay_partition_wrapper.py. The engine owns what the archive
+# produces; the wrapper owns every deployment-shaped divergence: the
+# partition filter, InfoLogger strictly to localhost, the shifted clock and
+# the loop. See the wrapper's module docstring.
 ---
 
 # --- Python runtime ----------------------------------------------------------
@@ -70,7 +35,7 @@
     group: root
     mode: "0755"
 
-- name: Copy the replay engine (the same file the mocks stack runs)
+- name: Copy the replay engine
   ansible.builtin.copy:
     src: "{{ replay_engine_source }}"
     dest: "{{ replay_app_root }}/replay.py"
@@ -79,7 +44,7 @@
     mode: "0644"
   notify: restart alice-replay
 
-- name: Copy the single-partition wrapper (imports replay.py, see its docstring)
+- name: Copy the single-partition wrapper
   ansible.builtin.copy:
     src: replay_partition_wrapper.py
     dest: "{{ replay_app_root }}/replay_partition_wrapper.py"
@@ -98,10 +63,11 @@
     mode: "0755"
   when: replay_bundle_src | length > 0
 
-# Ships the InfoLogger daemon log and the journal captured from a real EPN.
-# Neither is in S3 and neither can be synthesised: the daemon log is the only
-# saturation signal on a node, and libsystemd reads journal FILES, so an export
-# would have to be re-parsed by something that is not the production input.
+# Ships the InfoLogger daemon log, the journal and the run orchestrator's log
+# captured from a live EPN. None is in S3 and none can be synthesised: the
+# daemon log is the only saturation signal on a machine, and libsystemd reads
+# journal files, so an export would have to be re-parsed by something that is
+# not the production input.
 - name: Ship the captured EPN bundle
   ansible.posix.synchronize:
     src: "{{ replay_bundle_src }}/"
@@ -116,10 +82,9 @@
   ansible.builtin.debug:
     msg: >-
       No REPLAY_BUNDLE_SRC, so the InfoLogger daemon log, the journal and the
-      run orchestrator's log are not
-      replayed on this VM. Both are live-node sources with no S3 archive behind
-      them; capture one with tools/epnsurvey/mkbundle.sh <epn> <dir> and deploy
-      with REPLAY_BUNDLE_SRC=<dir>.
+      run orchestrator's log are not replayed on this machine. All three are
+      live-node sources with no S3 archive behind them; capture a bundle on a
+      live EPN and deploy with REPLAY_BUNDLE_SRC=<dir>.
   when: replay_bundle_src | length == 0
 
 - name: Create/update the replay venv and install boto3 into it
@@ -130,7 +95,7 @@
     virtualenv_command: /usr/bin/python3 -m venv
   notify: restart alice-replay
 
-# --- S3 credentials (vault-only, quality bar #5) ------------------------------
+# --- S3 credentials, vault-only --------------------------------------------
 - name: Ensure /root/.aws exists
   ansible.builtin.file:
     path: "{{ replay_aws_dir }}"
@@ -149,17 +114,14 @@
   no_log: true
   notify: restart alice-replay
 
-# --- Local log_root + this VM's slice of replay.py's NODES_ROOT layout -------
-# replay.py writes DDS under NODES_ROOT/<collector-name>/dds/<host>.log and
-# each process log under NODES_ROOT/<collector-name>/stdout/<host>/<file>.log
-# via os.makedirs(exist_ok=True). Pointing NODES_ROOT/<our node_id> at log_root
-# via a symlink means those writes land exactly where the LOCAL Fluent Bit tails
-# (log_root/dds/*.log, log_root/stdout/*/*.log — see
-# images/node/fluent-bit/collector.yaml), with zero code changes and zero
-# extra disk usage for the two partitions this VM never touches (the
-# wrapper's list_objects() filter means no other collector name is ever
-# resolved here, so os.makedirs() for one never happens).
-- name: Ensure the local Fluent Bit log_root exists (defensive — collector role also owns this)
+# --- Local log_root and this machine's slice of the engine's NODES_ROOT ------
+# The engine writes DDS under NODES_ROOT/<collector>/dds/<host>.log and each
+# process log under NODES_ROOT/<collector>/stdout/<host>/<file>.log. Pointing
+# NODES_ROOT/<node_id> at log_root through a symlink lands those writes where
+# the local Fluent Bit tails, with no engine change. The wrapper filters every
+# foreign tarball before the engine resolves a collector name, so no other
+# collector's directory is ever created.
+- name: Ensure the local Fluent Bit log_root exists (the collector role owns it too)
   ansible.builtin.file:
     path: "{{ log_root }}/{{ item }}"
     state: directory
@@ -178,7 +140,7 @@
     group: root
     mode: "0755"
 
-- name: Symlink this VM's replay partition-root to the local log_root
+- name: Symlink this machine's replay partition-root to the local log_root
   ansible.builtin.file:
     src: "{{ log_root }}"
     dest: "{{ replay_nodes_root }}/{{ node_id }}"
@@ -210,10 +172,10 @@
     state: absent
   when: replay_clock | default('preserved') != 'shifted'
 
-# clock.conf is operational runtime state owned by playbooks/replay.yml.  An ordinary
-# deployment must not replace REPLAY_LOOP=true (or the selected pace) with the
-# group default and restart an active soak.  Fresh hosts already receive every
-# default in replay.service.j2; operators change them through make replay*.
+# clock.conf is runtime state owned by the replay playbook. A deployment must
+# not replace REPLAY_LOOP=true, or the selected pace, with the group default
+# and restart an active run. Fresh hosts already receive every default from
+# replay.service.j2; operators change them through the replay playbook.
 
 - name: Apply any pending restart now, before the one-shot autostart can be interrupted
   ansible.builtin.meta: flush_handlers

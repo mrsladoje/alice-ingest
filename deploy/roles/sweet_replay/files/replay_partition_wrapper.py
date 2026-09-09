@@ -1,72 +1,58 @@
 #!/usr/bin/env python3
-"""Single-partition wrapper around images/replay/replay.py (deployed as-is,
-copied to the VM byte-for-byte — this file never imports a modified copy).
+"""Single-partition wrapper around replay.py, which is deployed unchanged.
 
-LOCKED topology (deploy/playbooks/site.yml / group_vars/all.yml): each VM replays ONLY
-its own epn_partition slice (epn_num % NODE_COUNT == EPN_PARTITION) into its
-LOCAL log_root, and ships InfoLogger strictly to 127.0.0.1:INFOLOGGER_TCP_PORT
-— never to another VM's collector.
+Each machine replays only its own epn_partition slice
+(epn_num % NODE_COUNT == EPN_PARTITION) into its local log_root, and ships
+InfoLogger strictly to 127.0.0.1:INFOLOGGER_TCP_PORT, never to another
+machine's collector.
 
-WHY A WRAPPER (not an edit to replay.py, not env/dir tricks alone):
-replay.py's own fan-out (NODE_COUNT / NODES_ROOT / COLLECTOR_HOSTS) assumes
-ONE process serving ALL collectors: it partitions the ~31 real EPN hosts by
+WHY A WRAPPER, and not an engine edit or a directory trick alone:
+the engine's own fan-out (NODE_COUNT / NODES_ROOT / COLLECTOR_HOSTS) assumes
+one process serving every collector. It partitions the EPN hosts by
 `epn_num % NODE_COUNT` and, per family, either
-  - DDS: writes into NODES_ROOT/<collector-name>/dds/<host>.log, and stdout:
-    one file per process under NODES_ROOT/<collector-name>/stdout/<host>/
-    (an object-level decision — one whole S3 tarball belongs to exactly one
-    host, hence exactly one collector), or
-  - InfoLogger: opens a TCP connection to <collector-name>:INFOLOGGER_TCP_PORT
-    per record (a ROW-level decision — one mysqldump object interleaves rows
-    for MANY hosts/collectors; the object itself can't be pre-filtered).
-A pure directory/symlink arrangement (route NODES_ROOT/<name> for every OTHER
-collector into a black hole) would still make the DDS/stdout side correct, but
-CANNOT filter InfoLogger, whose collector target is chosen per-row deep inside
+  - DDS and stdout: writes NODES_ROOT/<collector>/dds/<host>.log and one file
+    per process under NODES_ROOT/<collector>/stdout/<host>/ (an object-level
+    decision: one S3 tarball belongs to exactly one host), or
+  - InfoLogger: opens a TCP connection to <collector>:INFOLOGGER_TCP_PORT per
+    record (a row-level decision: one dump object interleaves rows for many
+    hosts, so the object cannot be pre-filtered).
+A symlink arrangement alone makes the DDS and stdout side correct and leaves
+InfoLogger broken, because its target is chosen per row inside
 replay_infologger(). The engine owns what the archive produces; this wrapper
-owns every deployment-shaped divergence, and that boundary is why the partition
-narrowing lives here rather than in the engine. So we import the module and
-monkeypatch its two extension points:
+owns every deployment-shaped divergence. It imports the module and
+monkeypatches its two extension points:
 
-  1. list_objects(s3, prefix) — wrapped so any S3 key that IS a per-host DDS/
-     stdout tarball (matches replay._HOST_RE) for a host NOT in our partition
-     is dropped before the S3 GET (no wasted bandwidth downloading other
-     partitions). Keys that are NOT a per-host tarball (e.g. the InfoLogger
-     dump objects, which don't match _HOST_RE) pass through untouched — every
-     surviving DDS/stdout key now belongs to OUR partition, so replay.py's own
-     _family_dir()/node_index_for() always resolve to OUR OWN collector name,
-     and files land under NODES_ROOT/<our node_id>/... (see the sweet_replay
-     role's tasks/main.yml: NODES_ROOT/<node_id> is a symlink straight at this
-     VM's log_root — no other collector's directory is ever created).
+  1. list_objects(s3, prefix): any key that is a per-host DDS or stdout
+     tarball (matches replay._HOST_RE) for a host outside this partition is
+     dropped before the S3 GET, as is any object above REPLAY_MAX_OBJECT_BYTES.
+     Every surviving tarball belongs to this partition, so the engine's
+     _family_dir() always resolves to this machine's own collector name, and
+     NODES_ROOT/<node_id> is a symlink at this machine's log_root.
 
-  2. il_connect(host) — wrapped so that when `host` is OUR OWN collector name
-     (node_id) we connect for real, to 127.0.0.1 (never a DNS name — LOCKED:
-     strictly localhost), and for any OTHER collector's name we hand back an
-     inert socket-like object whose sendall()/close() are no-ops. Rows destined
-     for another VM's partition are silently dropped locally instead of
-     replay.py's il_connect() retrying forever against a hostname ("node-02"
-     etc.) that doesn't resolve on this VM.
+  2. il_connect(host): when `host` is this machine's own collector name the
+     connection goes to 127.0.0.1; for any other name an inert socket-like
+     object is returned whose sendall() and close() do nothing. Rows for
+     another partition are dropped locally instead of the engine retrying
+     forever against a hostname that does not resolve here.
 
-Cardboard-only REPLAY_LOOP is applied here too: run_replay is wrapped so that
-when it is set, each completed pass is followed by another one (the HTTP
-handler's _active lock stays held for the whole loop, so a second POST /replay
-still gets 409). Every pass re-samples the shifted-clock offset, so each pass
-ships with fresh collector_time. Pass RATE knobs stay replay.py's own
-(IL_REPLAY_RATE / DDS_REPLAY_RATE / STDOUT_REPLAY_RATE) — pacing is
-configuration, not code.
+REPLAY_LOOP: run_replay is wrapped so that a finished pass is followed by
+another one. The HTTP handler's _active lock stays held for the whole loop, so
+a second POST /replay still gets 409. Every pass re-samples the shifted-clock
+offset. The rate knobs stay the engine's own; pacing is configuration.
 
-Cardboard-only REPLAY_CLOCK=shifted is also applied here (never in images/):
-offset = now − sampled earliest event time; IL timestamps, DDS line prefixes,
-and stdout filename-derived times are slid forward. Default preserved leaves
-replay.py behaviour unchanged.
+REPLAY_CLOCK=shifted: offset = now - sampled earliest event time; InfoLogger
+timestamps, DDS line prefixes and stdout filename-derived times are slid
+forward by it. The default, preserved, leaves the engine untouched.
 
-Everything else (rates, pacing, autostart-marker guard, the HTTP trigger
-stub/serve loop, argument parsing) is exactly replay.py's own — this wrapper
-only narrows WHICH host/collector each already-existing code path targets.
+Two endpoints are added: GET /replay-status and POST /replay-stop.
 
-Configuration is via environment only (systemd Environment=, see
-templates/replay.service.j2): EPN_PARTITION (this VM's 0-based slice) plus
-every env var replay.py itself already reads (NODE_COUNT, NODES_ROOT,
-S3_*, RUN_TAG, *_REPLAY_RATE, INFOLOGGER_TCP_PORT, AUTOSTART_*, ...), plus
-REPLAY_CLOCK (preserved|shifted).
+Everything else (rates, pacing, the autostart-marker guard, the HTTP trigger
+and serve loop, argument parsing) is the engine's own; this wrapper only
+narrows which host or collector each existing code path targets.
+
+Configuration is by environment only, from the systemd unit: EPN_PARTITION
+(this machine's 0-based slice) plus every variable the engine already reads,
+plus REPLAY_CLOCK (preserved|shifted), REPLAY_LOOP and REPLAY_LOOP_PAUSE_SECONDS.
 """
 
 import gzip
@@ -79,15 +65,15 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import replay  # noqa: E402  -- images/replay/replay.py, copied to the VM
+import replay  # noqa: E402
 
 try:
     EPN_PARTITION = int(os.environ["EPN_PARTITION"])
 except (KeyError, ValueError) as exc:
     raise SystemExit(
-        "replay_partition_wrapper: EPN_PARTITION must be set to this VM's "
-        "0-based epn_partition (see inventory.yml) — refusing to guess and "
-        "risk replaying someone else's slice."
+        "replay_partition_wrapper: EPN_PARTITION must be set to this machine's "
+        "0-based epn_partition from the inventory; refusing to guess and "
+        "replay another machine's slice."
     ) from exc
 
 if not (0 <= EPN_PARTITION < replay.NODE_COUNT):
@@ -149,7 +135,7 @@ def _partition_filtered_list_objects(s3, prefix):
 
 
 class _NullSocket:
-    """Stand-in for a socket to a collector that isn't this VM. Silently
+    """Stand-in for a socket to a collector that is not this machine. Silently
     discards InfoLogger rows destined for another partition."""
 
     def sendall(self, *_args, **_kwargs):

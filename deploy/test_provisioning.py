@@ -715,6 +715,19 @@ def test_the_vendored_templating_copy_matches_its_source(role, name):
         f"Edit tools/templating and copy it into both roles.")
 
 
+def test_the_vendored_replay_engine_matches_its_source():
+    source = os.path.join(DEPLOY, os.pardir, "images", "replay", "replay.py")
+    if not os.path.exists(source):
+        pytest.skip("images/replay is not present in this tree")
+    with open(source, "rb") as handle:
+        expected = handle.read()
+    with open(os.path.join(ROLES, "sweet_replay", "files", "replay.py"), "rb") as handle:
+        got = handle.read()
+    assert got == expected, (
+        "roles/sweet_replay/files/replay.py has drifted from images/replay/replay.py. "
+        "Edit images/replay and copy it into the role.")
+
+
 @pytest.mark.parametrize("role,name", [
     ("sweet_collector", "stamper.yml"), ("sweet_collector", "collector.yml"),
     ("sweet_template_catalog", "main.yml"), ("shifter", "main.yml"),

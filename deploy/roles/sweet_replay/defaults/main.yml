@@ -1,94 +1,74 @@
-# authored by the replay unit agent
-# Role-local defaults ONLY (lowest precedence). Cross-cutting parameters
-# (s3_*, run_tag, *_replay_rate, *_max_objects, infologger_tcp_port, log_root,
-# replay_http_port, node_count, replay_venv_path, replay_app_root,
-# vault-backed secrets, ...) live in group_vars/all.yml and are referenced
-# directly — NOT duplicated here.
-#
-# Everything below is purely internal plumbing for THIS role: filesystem
-# paths and a service/unit name that only the replay role cares about.
+# Role-local defaults. The cross-cutting parameters (s3_*, run_tag,
+# *_replay_rate, *_max_objects, infologger_tcp_port, log_root,
+# replay_http_port, node_count, replay_venv_path, replay_app_root, the
+# vault-backed secrets) live in group_vars/all.yml and are read directly.
 ---
 
-# Parent directory that stands in for replay.py's own NODES_ROOT concept.
-# The role creates exactly ONE symlink under here, "<node_id>" -> log_root,
-# so replay.py's unmodified _family_dir()/os.makedirs() calls land straight
-# in this VM's local Fluent Bit log_root with zero code changes (see
-# files/replay_partition_wrapper.py's module docstring for the full reasoning
-# and roles/sweet_replay/tasks/main.yml for the task that creates the symlink).
-# No other collector's subdirectory is ever created — the wrapper's
-# list_objects() filter means replay.py never resolves a foreign collector
-# name for a DDS/stdout file, so os.makedirs() is never called for one.
+# Stands in for the engine's NODES_ROOT. The role creates exactly one symlink
+# under it, "<node_id>" -> log_root, so the engine's per-collector writes land
+# in this machine's log_root. No other collector's directory is ever created:
+# the wrapper filters every foreign tarball before the engine resolves a name.
 replay_nodes_root: /var/log/alice-replay-root
 
 # Addresses permitted through the firewall to replay_http_port. Empty here so
 # the role never names an inventory group; group_vars resolves it to the
-# control host, which is what drives the /ops replay button.
+# control host, which drives the replay button on the ops page.
 replay_allowed_client_addresses: []
 
-# systemd unit + AWS credentials plumbing.
 replay_service_name: alice-replay
 replay_aws_dir: /root/.aws
 replay_aws_credentials_file: "{{ replay_aws_dir }}/credentials"
 
-# Where replay.py + the partition wrapper record that AUTOSTART_REPLAY has
-# already run once (ported 1:1 from docker-compose.yml's
-# AUTOSTART_MARKER=/var/log/nodes/node-01/.replay-autostart-done — same
-# guard, same semantics: a service restart must NOT re-ingest). Lives
-# directly in log_root since, on this VM, log_root IS this partition's
-# NODES_ROOT/<collector> directory (via the symlink above).
+# Where the engine records that AUTOSTART_REPLAY has already run once, so a
+# restart never re-ingests. Lives in log_root because, on this machine,
+# log_root is this partition's NODES_ROOT/<collector> directory.
 replay_autostart_marker: "{{ log_root }}/.replay-autostart-done"
 
-# Families to auto-load once at first boot — matches replay.py's own default
-# (AUTOSTART_FAMILIES) and docker-compose.yml's AUTOSTART_REPLAY=true.
+# Families a first-boot autostart loads. The deploy arms the engine and leaves
+# it idle; the operator fires it.
 replay_autostart_families: "infologger,dds,stdout"
 replay_autostart: false
 
-# The replay engine this role installs, read from the controller. It defaults
-# to a copy bundled with the role so the role stands on its own. THIS
-# repository keeps exactly one copy, at images/replay/replay.py, because
-# docker-compose.yml builds the container from the same file — so
-# group_vars/all.yml overrides this to point there.
+# The replay engine this role installs, read from the controller. The role
+# carries its own copy in files/, so it stands on its own.
 replay_engine_source: "{{ role_path }}/files/replay.py"
 
-# Repeated in every role that writes a firewalld rule, so each role still
-# stands on its own and one inventory line can switch the whole stack. See
-# roles/common/defaults/main.yml for why the EPN farm sets this false.
+# Repeated in every role that writes a firewalld rule, so each role stands on
+# its own and one inventory line can switch the whole stack.
 alice_manage_firewalld: true
 
-# The replay engine is not part of the logging stack's four-core budget. In
+# The replay engine is not part of the logging stack's core budget. In
 # production the logs arrive on their own and nothing like this runs; here it
 # stands in for them, so it gets its own processors and must not take the
-# collector's. docs/SOAK_RESULTS.md pinned the rig's generator to separate
-# cores for exactly this reason and subtracts it from every figure it reports.
+# collector's. Empty leaves it unpinned.
 replay_cpuset: ""
 
-# This unit had no memory bound. docs/EPN-ACCESS.md requires a hard MemoryMax
-# on every service placed on epn146 and epn323. Empty leaves it unbounded.
+# Empty leaves the unit unbounded.
 replay_memory_high: ""
 replay_memory_max: ""
 
-# --- the two farm-captured families -----------------------------------------
+# --- the captured families ---------------------------------------------------
 #
 # InfoLogger, DDS and the process tree come out of the S3 archive. The
-# InfoLogger daemon log and the journal do not: they are written on a live EPN
-# and nothing backs them up. A bundle captured with tools/epnsurvey/mkbundle.sh
-# is the only way a staging VM can carry either.
+# InfoLogger daemon log, the journal and the run orchestrator's log do not:
+# they are written on a live EPN and nothing backs them up. A bundle captured
+# on a live EPN is the only way a machine with no live stream can carry them.
 #
 # replay_bundle_src and replay_bundle_root live in group_vars/all.yml, because
-# the collector role needs them too: it points its systemd input at the shipped
-# journal. A role default would be invisible to the other role.
-# The daemon log grows by about 930 lines a day on the real farm. Replaying it
-# at the speed of the disk would put months of connection churn into one second
+# the collector role reads them too: it points its systemd input at the shipped
+# journal.
+#
+# The daemon log grows by about 930 lines a day on the farm. Replaying it at
+# the speed of the disk would put months of connection churn into one second
 # and make every saturation figure meaningless.
 ildaemon_replay_rate: 20
 
 # The run orchestrator writes about 100,000 lines a day, roughly one a second.
-# Replaying at the speed of the disk would compress a day of run transitions
-# into a moment, for the same reason the daemon log is paced.
+# Paced for the same reason as the daemon log.
 odc_replay_rate: 200
 
 # Where the replay writes it, which must be what the collector's
-# collector_odc_log_path globs over. The capture's own file names are kept, so a
-# bundle holding two days replays as two files and the rotation the tail has to
-# follow is reproduced rather than flattened.
+# collector_odc_log_path globs over. The capture's own file names are kept, so
+# a bundle holding two days replays as two files and the tail follows the same
+# rotation it would see on the farm.
 odc_replay_log_dir: /var/log/odc/staging
