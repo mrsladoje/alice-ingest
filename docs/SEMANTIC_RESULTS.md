@@ -1026,7 +1026,7 @@ facts, and they remove a candidate at Stage S10.
 | Heap per node | 1 GB | `roles/sweet_opensearch/defaults/main.yml` |
 | Worker processors | 4 | `roles/sweet_opensearch/defaults/main.yml` |
 | ALICE service memory ceiling | 512 MB | `deploy/group_vars/all.yml` |
-| Template catalog memory ceiling | 512 MB | `roles/sweet_collector/defaults/main.yml` |
+| Template catalog memory ceiling | 512 MB | `roles/sweet_template_catalog/defaults/main.yml` |
 | Template catalog ceiling | 20,000 templates | `roles/sweet_collector/defaults/main.yml` |
 
 **Provisional latency targets, authored by machine, approved by nobody.** Query
