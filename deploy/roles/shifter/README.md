@@ -468,7 +468,7 @@ site-wide, or in `inventory.yml` for one group or host.
 | `shifter_buffer_rows` | `10000` | Rows one browser tab holds and filters over. Rendered into the page as `bufferRows`; also passed to the unit as `SHIFTER_BUFFER_ROWS`, which the server does not act on. |
 | `shifter_replay_rows` | `500` | The server's whole in-memory buffer, and therefore what a viewer who connects mid-stream is sent, so a fresh page is not blank. |
 | `shifter_client_queue_max` | `2000` | Per viewer. A full queue drops its **oldest** record, never the incoming one, so a viewer that falls behind stays at the live edge instead of lagging a fixed 2000 records forever. |
-| `shifter_opensearch_url` | control host, `opensearch_http_port` | `SHIFTER_OS_URL`. Empty disables the query lane; the live lane is unaffected. |
+| `shifter_opensearch_url` | control host's `ansible_host` and `opensearch_http_port` | `SHIFTER_OS_URL`. Empty disables the query lane; the live lane is unaffected. |
 | `shifter_opensearch_indices` | `infologger,application-logs-central` | `SHIFTER_OS_INDICES`. What the query lane searches. Matches what reaches the live lane, so both halves of the page show the same universe. |
 | `shifter_opensearch_user` / `_password` | `""` | `SHIFTER_OS_USER` / `SHIFTER_OS_PASSWORD`. Basic auth, omitted from the unit when the user is empty. |
 | `shifter_opensearch_verify` | `true` | `SHIFTER_OS_VERIFY`. Set false only for a self-signed cluster certificate. |

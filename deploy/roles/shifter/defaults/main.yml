@@ -24,7 +24,7 @@ shifter_hidden_grace_seconds: 120
 # credential and one origin. Leave shifter_opensearch_url empty and the
 # Query button reports that query mode is not configured; the live stream is
 # unaffected either way.
-shifter_opensearch_url: "http://{{ groups['control'][0] }}:{{ opensearch_http_port }}"
+shifter_opensearch_url: "http://{{ hostvars[groups['control'][0]].ansible_host }}:{{ hostvars[groups['control'][0]].opensearch_http_port }}"
 shifter_opensearch_indices: "infologger,application-logs-central"
 shifter_opensearch_user: ""
 shifter_opensearch_password: ""
