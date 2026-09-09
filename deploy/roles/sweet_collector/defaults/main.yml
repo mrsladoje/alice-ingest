@@ -1,8 +1,3 @@
-# Which of the role's two modes this host runs. false collects and stamps on a
-# worker; true runs the central catalog maintenance instead. site.yml sets it,
-# one line at the call site.
-collector_catalog_maintenance: false
-
 collector_repo_baseurl: "https://packages.fluentbit.io/centos/$releasever/"
 collector_repo_gpgkey: "https://packages.fluentbit.io/fluentbit.key"
 
@@ -31,8 +26,8 @@ collector_config_dir: /etc/fluent-bit
 collector_systemd_dropin_dir: /etc/systemd/system/fluent-bit.service.d
 
 # One root for everything this role installs on a worker: the health sampler,
-# the stamper and the modules it imports, the maintenance job. It was three
-# variables holding the same string while these were three roles.
+# the stamper and the modules it imports. It was two variables holding the same
+# string while the collector and the stamper were two roles.
 collector_app_root: /opt/alice-ingest
 
 collector_health_script: "{{ collector_app_root }}/fb_health.py"
@@ -240,42 +235,3 @@ stamper_local_check: true
 # rather than another role's default read across a play.
 stamper_memory_high: "{{ fluent_bit_memory_high }}"
 stamper_memory_max: "{{ fluent_bit_memory_max }}"
-
-
-# --- the central catalog maintenance -----------------------------------------
-#
-# Runs in the role's other mode, on one host: definition expiry, query-history
-# expiry and the two counting checks.
-
-# template_catalog_index is owned by group_vars/all.yml: the stamper writes the
-# definitions, this job expires them and the Shifter reads them, so no role
-# declares it.
-template_catalog_maintenance_service_name: alice-catalog-maintenance
-template_catalog_maintenance_script: "{{ collector_app_root }}/catalog_maintenance.py"
-template_catalog_maintenance_state_dir: /var/lib/alice-catalog-maintenance
-template_catalog_maintenance_interval: "1h"
-template_catalog_maintenance_calendar: "hourly"
-template_catalog_maintenance_memory_max: "256M"
-template_catalog_maintenance_page: 1000
-template_catalog_maintenance_requests_per_second: 500
-template_catalog_maintenance_max_docs: 50000
-template_catalog_maintenance_timeout: 300
-template_catalog_maintenance_bulk_documents: 500
-template_catalog_query_retention_days: 365
-template_catalog_query_cleanup_interval_hours: 24
-
-# The check results live in the catalog index beside the definitions and are
-# expired on their own clock, matched to the hourly bucket retention.
-template_catalog_check_retention_days: 35
-
-# The shared indices the central stamped-against-indexed check reads. The
-# worker-local index is checked on the worker by alice-stamper.
-template_catalog_shared_indices: "application-logs-central,infologger"
-
-# How many completed hours each pass checks, and how far behind the current
-# hour it starts, so the last publication of a bucket has landed before it is
-# compared against the index.
-template_catalog_check_hours: 1
-template_catalog_check_lag_hours: 1
-template_catalog_check_page: 200
-template_catalog_check_max_buckets: 5000

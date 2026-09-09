@@ -303,17 +303,15 @@
   roles:
     - sweet_collector
 
-# The same role in its other mode: definition expiry, query-history expiry and
-# the two counting checks. The flag is what keeps a fleet-wide pass to one host
-# instead of every worker, and the play carries the host condition so no task in
-# the role repeats it.
-- name: Template catalog maintenance (one worker)
-  hosts: workers
+# Definition expiry, query-history expiry and the two counting checks. It runs
+# after the collector play because a pass reads bucket documents that every
+# worker publishes. On the control host, not a worker: nothing it touches is
+# worker-local, and a worker's job is ingesting.
+- name: Template catalog maintenance (control host only)
+  hosts: control
   become: true
   roles:
-    - role: sweet_collector
-      collector_catalog_maintenance: true
-      when: inventory_hostname == template_catalog_maintenance_host
+    - sweet_template_catalog
 
 - name: Post-collector detection gate (control host only)
   hosts: control

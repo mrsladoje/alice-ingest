@@ -2,15 +2,16 @@
 # query-history expiry, and the two counting checks.
 #
 # The worker half of the old catalog producer is gone. Every record is stamped
-# in-band by tasks/stamper.yml, which also publishes the definitions, the bucket
-# counts and the watermarks.
+# in-band by roles/sweet_collector, which also publishes the definitions, the
+# bucket counts and the watermarks. This role only expires and audits them.
 #
-# site.yml runs this file on one host. The play carries the condition, so no
-# task here repeats it.
+# Nothing here is worker-local. Every index it touches lives on the storage
+# tier, so the job runs on the control host and reaches the cluster through that
+# host's own OpenSearch node.
 ---
 - name: Ensure the app root exists
   ansible.builtin.file:
-    path: "{{ collector_app_root }}"
+    path: "{{ template_catalog_app_root }}"
     state: directory
     owner: root
     group: root

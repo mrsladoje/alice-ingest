@@ -540,33 +540,27 @@ def test_the_collector_runs_every_log_record_through_the_stamper_loop():
         health["command"]
 
 
-def _worker_plays():
+def _plays_for(role_name):
     site = _load_yaml(os.path.join(DEPLOY, "playbooks", "site.yml"))
     found = []
     for play in site:
         for role in play.get("roles") or []:
             name = role["role"] if isinstance(role, dict) else role
-            if name == "sweet_collector":
+            if name == role_name:
                 found.append((play, role))
     return found
 
 
 def test_the_stamper_runs_beside_the_collector_and_before_it():
-    plays = _worker_plays()
-    assert len(plays) == 2
-    for play, _ in plays:
-        assert play["hosts"] == "workers"
+    plays = _plays_for("sweet_collector")
+    assert len(plays) == 1
+    play, role = plays[0]
+    assert play["hosts"] == "workers"
+    assert role == "sweet_collector"
 
-    node_play, node_role = plays[0]
-    assert node_role == "sweet_collector"
-
-    dispatch = role_tasks("sweet_collector")
-    included = [task["ansible.builtin.include_tasks"] for task in dispatch]
-    assert included == ["stamper.yml", "collector.yml",
-                        "catalog_maintenance.yml"]
-    for task in dispatch[:2]:
-        assert task["when"] == "not (collector_catalog_maintenance | bool)"
-    assert dispatch[2]["when"] == "collector_catalog_maintenance | bool"
+    imported = [task["ansible.builtin.import_tasks"]
+                for task in role_tasks("sweet_collector")]
+    assert imported == ["stamper.yml", "collector.yml"]
 
 
 def test_the_socket_contract_is_declared_exactly_once():
@@ -605,16 +599,16 @@ def test_the_socket_contract_is_declared_exactly_once():
 
 def test_the_maintenance_unit_resolves_against_the_role_defaults():
     values = dict(group_vars())
-    values.update(role_defaults("sweet_collector"))
+    values.update(role_defaults("sweet_template_catalog"))
     values.update({"ansible_managed": "managed", "opensearch_http_port": 9200})
-    env = _environment("sweet_collector")
+    env = _environment("sweet_template_catalog")
     env.filters["basename"] = os.path.basename
     env.filters["int"] = int
     unit = env.get_template(
         "alice-catalog-maintenance.service.j2").render(**values)
     exported = _unit_environment(unit)
     wanted = _python_environment_names(
-        os.path.join(ROLES, "sweet_collector", "files",
+        os.path.join(ROLES, "sweet_template_catalog", "files",
                      "catalog_maintenance.py"))
     assert exported["CATALOG_RETENTION_DAYS"] == "90"
     assert exported["CATALOG_CHECK_RETENTION_DAYS"] == "35"
@@ -629,22 +623,22 @@ def test_the_maintenance_unit_resolves_against_the_role_defaults():
 
 def test_the_maintenance_unit_carries_the_query_history_expiry():
     values = dict(group_vars())
-    values.update(role_defaults("sweet_collector"))
+    values.update(role_defaults("sweet_template_catalog"))
     values.update({"ansible_managed": "managed", "opensearch_http_port": 9200})
-    env = _environment("sweet_collector")
+    env = _environment("sweet_template_catalog")
     env.filters["basename"] = os.path.basename
     env.filters["int"] = int
     unit = env.get_template(
         "alice-catalog-maintenance.service.j2").render(**values)
     exported = _unit_environment(unit)
-    defaults = role_defaults("sweet_collector")
+    defaults = role_defaults("sweet_template_catalog")
     assert exported["QUERIES_INDEX"] == group_vars()["shifter_queries_index"]
     assert exported["CATALOG_QUERY_RETENTION_DAYS"] == str(
         defaults["template_catalog_query_retention_days"])
     assert exported["CATALOG_QUERY_CLEANUP_INTERVAL_HOURS"] == str(
         defaults["template_catalog_query_cleanup_interval_hours"])
     assert defaults["template_catalog_query_retention_days"] == 365
-    source = open(os.path.join(ROLES, "sweet_collector", "files",
+    source = open(os.path.join(ROLES, "sweet_template_catalog", "files",
                                "catalog_maintenance.py")).read()
     for name in ("QUERIES_INDEX", "CATALOG_QUERY_RETENTION_DAYS",
                  "CATALOG_QUERY_CLEANUP_INTERVAL_HOURS"):
@@ -653,7 +647,7 @@ def test_the_maintenance_unit_carries_the_query_history_expiry():
 
 
 def test_the_maintenance_pass_expires_the_query_history_and_runs_the_checks():
-    source = open(os.path.join(ROLES, "sweet_collector", "files",
+    source = open(os.path.join(ROLES, "sweet_template_catalog", "files",
                                "catalog_maintenance.py")).read()
     assert "def expire_queries(" in source
     assert "def run_checks(" in source
@@ -667,15 +661,22 @@ def test_the_maintenance_pass_expires_the_query_history_and_runs_the_checks():
 
 
 def test_the_maintenance_timer_lands_on_exactly_one_host():
-    """The play carries the condition, so no task in the role repeats it."""
-    _, maintenance_role = _worker_plays()[1]
-    assert maintenance_role["collector_catalog_maintenance"] is True
-    assert maintenance_role["when"] == \
-        "inventory_hostname == template_catalog_maintenance_host"
-    for task in role_tasks("sweet_collector", "catalog_maintenance.yml"):
+    """One play, one host group, and not a worker.
+
+    Nothing the pass touches is worker-local: it expires documents in
+    template-catalog and shifter-queries and aggregates over the shared log
+    indices, all of which live on the storage tier. Running it on a worker put
+    an hourly delete-by-query on a machine whose job is ingesting, and needed a
+    host guard on every task to keep the fleet-wide pass to one host.
+    """
+    plays = _plays_for("sweet_template_catalog")
+    assert len(plays) == 1
+    play, role = plays[0]
+    assert play["hosts"] == "control"
+    assert role == "sweet_template_catalog"
+    for task in role_tasks("sweet_template_catalog"):
         assert "when" not in task, json.dumps(task)
-    assert group_vars()["template_catalog_maintenance_host"] == \
-        "{{ groups['workers'][0] }}"
+    assert "template_catalog_maintenance_host" not in group_vars()
 
 
 def test_the_stamper_ships_the_shared_contract_the_recipe_and_its_modules():
@@ -690,7 +691,7 @@ def test_the_stamper_ships_the_shared_contract_the_recipe_and_its_modules():
     loops = [task.get("loop") for task in tasks if task.get("loop")]
     assert ["stamper.py", "forward.py"] in loops
     assert ["drainbench.py", "masking.py"] in loops
-    files = os.listdir(os.path.join(ROLES, "sweet_collector", "files"))
+    files = os.listdir(os.path.join(ROLES, "sweet_template_catalog", "files"))
     assert "template_catalog.py" not in files
     assert "snapshot.py" not in files
     assert "ledger.py" not in files
@@ -716,7 +717,7 @@ def test_the_vendored_templating_copy_matches_its_source(role, name):
 
 @pytest.mark.parametrize("role,name", [
     ("sweet_collector", "stamper.yml"), ("sweet_collector", "collector.yml"),
-    ("sweet_collector", "catalog_maintenance.yml"), ("shifter", "main.yml"),
+    ("sweet_template_catalog", "main.yml"), ("shifter", "main.yml"),
 ])
 def test_no_role_task_reaches_outside_its_own_directory(role, name):
     for task in role_tasks(role, name):
@@ -894,8 +895,8 @@ SCHEMA_TEMPLATES = sorted(
     ("sweet_opensearch", "templates.sh.j2"),
 ] + [("sweet_opensearch", name) for name in SCHEMA_TEMPLATES] + [
     ("sweet_collector", "alice-stamper.service.j2"),
-    ("sweet_collector", "alice-catalog-maintenance.service.j2"),
-    ("sweet_collector", "alice-catalog-maintenance.timer.j2"),
+    ("sweet_template_catalog", "alice-catalog-maintenance.service.j2"),
+    ("sweet_template_catalog", "alice-catalog-maintenance.timer.j2"),
     ("shifter", "alice-shifter.service.j2"),
 ])
 def test_every_variable_a_template_names_is_declared_somewhere(role, template):
@@ -903,7 +904,8 @@ def test_every_variable_a_template_names_is_declared_somewhere(role, template):
     source = re.sub(r"\{%\s*raw\s*%\}.*?\{%\s*endraw\s*%\}", "", source,
                     flags=re.S)
     known = set(group_vars()) | set(role_defaults(role)) | TEMPLATE_SUPPLIED
-    for other in ("sweet_collector", "shifter", "sweet_opensearch"):
+    for other in ("sweet_collector", "sweet_template_catalog", "shifter",
+                  "sweet_opensearch"):
         known |= set(role_defaults(other))
     used = set()
     for expression in re.findall(r"\{\{(.*?)\}\}", source, re.S):

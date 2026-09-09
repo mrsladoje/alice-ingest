@@ -483,8 +483,8 @@ declares, and each step depends on the one above it.
 | 7 | `control` | `signal_projector` (`tasks_from: control.yml`) |
 | 8 | `background` | `alice_runtime`, `trend_rollup` |
 | 9 | `shifter` | `shifter` |
-| 10 | `workers` | `sweet_collector` (node mode: the stamper, then Fluent Bit) |
-| 11 | `workers` | `sweet_collector` (`collector_catalog_maintenance: true`, on one worker) |
+| 10 | `workers` | `sweet_collector` (the stamper, then Fluent Bit) |
+| 11 | `control` | `sweet_template_catalog` |
 | 12 | `control` | `cockpit_metrics` (`tasks_from: post_collector.yml`) |
 | 13 | `workers` | `producer` |
 | 14 | `workers` + `projector` | `faults` |
@@ -511,15 +511,15 @@ What each dependency is:
   starts, which is why play 4 is above it.
 - `cockpit_metrics`'s post-collector gate runs after `sweet_collector`, because
   it waits for each collector's pushed Fluent Bit heartbeat.
-- `sweet_collector`'s catalog-maintenance mode runs after its node mode,
-  because a maintenance pass reads the bucket documents every worker publishes.
+- `sweet_template_catalog` runs after `sweet_collector`, because a maintenance
+  pass reads the bucket documents every worker publishes. It runs on `control`,
+  not a worker: nothing it touches is worker-local.
 
-Three roles run in more than one play. `alice_runtime` runs wherever an
+Two roles run in more than one play. `alice_runtime` runs wherever an
 alice service imports its modules: control, projector and background.
 `signal_projector` runs on the projector host for the projector itself, and on
 the control host for the notification receiver — the receiver binds
 `127.0.0.1` and Alertmanager, which runs on control, posts its webhooks there.
-`sweet_collector` runs twice against `workers`, once per mode.
 
 ---
 

@@ -1,17 +1,10 @@
 # `sweet_collector`
 
-Everything the worker tier does to a log line, and the fleet-wide upkeep of what
-that produces. Two modes, chosen by `collector_catalog_maintenance`.
-
-**Node mode** (the default) installs two services on every worker. `alice-stamper`
-stamps every record with its template identity. Fluent Bit tails the local log
-tree, accepts InfoLogger records over TCP, parses and routes into three log
-families, hands every record through the stamper and back, samples its own
-health, and writes everything to the OpenSearch node on the same machine.
-
-**Catalog-maintenance mode** runs on one worker, named by
-`template_catalog_maintenance_host`: definition expiry, query-history expiry and
-the two counting checks, as a oneshot unit on an hourly timer.
+Everything the worker tier does to a log line. Two services on every worker.
+`alice-stamper` stamps every record with its template identity. Fluent Bit tails
+the local log tree, accepts InfoLogger records over TCP, parses and routes into
+three log families, hands every record through the stamper and back, samples its
+own health, and writes everything to the OpenSearch node on the same machine.
 
 This is the only role that decides what a log line means. Everything downstream
 — index templates, detectors, monitors, the cockpit — depends on the fields it
@@ -30,10 +23,9 @@ on: no error at deploy time, and no records stamped. The collector also owned th
 stamper's memory limits were read out of the collector's defaults across a play.
 One namespace removes all of that.
 
-The maintenance job joins them because it owns nothing of its own. It expires and
-checks the definitions, the bucket documents and the watermarks that the stamper
-publishes, through the same `template_contract.py`. `sweet_opensearch` owns the
-shape of those indices; this role owns what the documents mean.
+The fleet-wide upkeep of what the stamping produces is `sweet_template_catalog`,
+and it is deliberately not here. It shares no socket, host, unit, file or
+variable with this role — only a subject.
 
 ## How it is wired
 
@@ -281,8 +273,7 @@ site-wide.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `collector_catalog_maintenance` | `false` | Which mode this host runs. `true` skips Fluent Bit and the stamper entirely and installs the maintenance timer instead. |
-| `collector_app_root` | `/opt/alice-ingest` | One root for everything the role installs on a worker. It was three variables holding this same string while these were three roles. |
+| `collector_app_root` | `/opt/alice-ingest` | One root for everything the role installs on a worker. It was two variables holding this same string while the collector and the stamper were two roles. |
 | `fluent_bit_version` | `4.0.14` | Pinned RPM version. **Was 5.0.8.** 5.x loses bytes appended to a file after `logrotate` renames it away — docs/SOAK_RESULTS.md round 10. The farm workers pin 4.x in the inventory; `epn-infra13` does not, and it is the node that would collect the one source that rotates daily. |
 | `collector_blocked_version_prefixes` | `["5."]` | Versions the role refuses to install. Checked before the package task, not documented in a comment and hoped for. |
 | `collector_allow_blocked_version` | `false` | Deliberate override, for someone who has re-tested rotation on that build. |
@@ -420,17 +411,11 @@ is a collector that does nothing.
 
 ## Used by
 
-`playbooks/site.yml`, in two plays against the `workers` group. The first runs
-node mode on every worker. The second runs the same role with
-`collector_catalog_maintenance: true`, and carries
-`when: inventory_hostname == template_catalog_maintenance_host`, so the
-fleet-wide pass happens once. The two cannot share a play: a maintenance pass
-reads bucket documents that every worker publishes, so it must follow the whole
-fleet.
+`playbooks/site.yml`, in one play against the `workers` group.
 
-Within node mode, `tasks/stamper.yml` runs before `tasks/collector.yml`. The
-listening socket must exist when Fluent Bit starts; a collector that starts first
-only buffers and retries.
+`tasks/main.yml` imports `stamper.yml` before `collector.yml`. The listening
+socket must exist when Fluent Bit starts; a collector that starts first only
+buffers and retries.
 
 ## Includes
 
@@ -613,84 +598,3 @@ line and proves the counts and the delivered records agree afterwards.
 |---|---|
 | `template_catalog_index`, `alice_shared_dir`, `alice_shared_contract_file`, `stamper_ledger_hours` | `group_vars/all.yml` |
 | `node_id`, `opensearch_http_port` | inventory and `group_vars/all.yml` |
-
-## The central catalog maintenance
-The central maintenance of the template catalog. One oneshot unit on a timer,
-on one worker.
-
-### What it does
-
-The worker half of the old catalog producer is gone. Every record is stamped
-in-band by `tasks/stamper.yml` above, which also publishes the template
-definitions, the exact bucket counts and the per-node watermarks. See
-`docs/TEMPLATES_FIX_PLAN.md`.
-
-What stays runs on exactly one host, named by
-`template_catalog_maintenance_host` in `group_vars/all.yml`:
-
-- **Definition expiry.** A template definition is deleted 90 days after its
-  last observation (`kind: template`, by `last_observed`).
-- **Check expiry.** Check results are deleted after the hourly bucket
-  retention (`kind: check`, by `checked_at`).
-- **Query-history expiry.** `shifter-queries` documents older than one year
-  are deleted. The unit runs hourly; this section skips a pass until 24 hours
-  have passed since its last clean run.
-- **The two counting checks** (plan section 4). Both read the hourly bucket
-  documents of the last completed hour behind a one-hour lag.
-  - *Conservation.* For every bucket document, the nested counts must sum to
-    the total. A mismatch is a ledger bug.
-  - *Stamped against indexed.* A terms aggregation on `template_version` over
-    each shared index (`application-logs-central`, `infologger`), scoped to the
-    node and the hour, must be at or below the stamped count for every
-    version. The worker-local index is checked on the worker by the stamper
-    itself, once an hour, with the same document shape.
-
-  Failing conservation checks and every stamped-against-indexed result are
-  written into `template-catalog` as `kind: check`
-  (`contract.check_document`), so the Shifter can show them. The
-  `template-count-check` monitor fires on any `ok: false` check in the last
-  two hours.
-
-### Every pass publishes what it did
-
-Each pass writes three documents into `template-catalog` at the fixed
-identifiers `maintenance:catalog`, `maintenance:queries` and
-`maintenance:checks`, `kind: catalog_maintenance`. Each carries the age of that
-section's last clean run, what it deleted or found, its failure count, and the
-whole section report under `detail`.
-
-### Maintenance variables
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `template_catalog_maintenance_calendar` | `hourly` | `OnCalendar` on the timer. |
-| `template_catalog_maintenance_memory_max` | `256M` | `MemoryMax` on the unit. |
-| `template_catalog_maintenance_page` | `1000` | Documents per delete-by-query batch. |
-| `template_catalog_maintenance_requests_per_second` | `500` | The delete-by-query throttle. |
-| `template_catalog_maintenance_max_docs` | `50000` | Documents one pass may delete per section. |
-| `template_catalog_maintenance_timeout` | `300` | Deadline on one request. |
-| `template_catalog_query_retention_days` | `365` | Expiry of `shifter-queries` by `issued_at`. |
-| `template_catalog_query_cleanup_interval_hours` | `24` | The query section's own clock. |
-| `template_catalog_check_retention_days` | `35` | Expiry of `kind: check` documents. |
-| `template_catalog_shared_indices` | `application-logs-central,infologger` | The indices the central stamped-against-indexed check reads. |
-| `template_catalog_check_hours` | `1` | Completed hours checked per pass. |
-| `template_catalog_check_lag_hours` | `1` | Hours behind the current hour the checked window ends. |
-| `template_catalog_check_page` | `200` | Bucket documents per listing page. |
-| `template_catalog_check_max_buckets` | `5000` | Bucket documents one pass may check. |
-
-### Variables the maintenance mode requires but does not own
-
-| Variable | Owner | Used for |
-|---|---|---|
-| `template_catalog_index`, `template_buckets_1h_prefix`, `shifter_queries_index` | `group_vars/all.yml` | The catalog, the hourly bucket pattern and the query history. |
-| `alice_shared_dir`, `alice_shared_contract_file` | `group_vars/all.yml` | The shared contract module. |
-| `template_catalog_maintenance_host` | `group_vars/all.yml` | Derived from the `workers` group, so it cannot be a role default. `site.yml` puts the condition on the play, so no task in this role repeats it. |
-| `template_catalog_definition_retention_days` | `group_vars/all.yml` | The 90-day definition retention. |
-| `opensearch_http_port` | `group_vars/all.yml` | The local cluster endpoint. |
-
-### Maintenance tests
-
-`files/test_catalog_maintenance.py` drives the pass against a fake cluster:
-the check window, conservation, stamped-against-indexed in both directions, an
-unreadable index, a partial listing, the bucket ceiling, the three expiry
-sections and their clocks, and the state file.

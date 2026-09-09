@@ -1,6 +1,6 @@
 # `deploy/roles`
 
-Fifteen roles. Each one owns a single lifecycle: one package, one service,
+Sixteen roles. Each one owns a single lifecycle: one package, one service,
 one closed set of REST objects, or one shared file set. A role never installs a
 thing it does not also configure, start and prove.
 
@@ -23,7 +23,8 @@ the wiring diagram, the variables it reads and the couplings it carries.
 | `signal_projector` | projector (+ control) | Runs the projector that turns raw alerts, anomaly results and monitor output into named signals, incidents and lane state. Its notification receiver runs on the control host. |
 | `trend_rollup` | background | Runs `alice-trend-rollup`, which turns raw log indices into 10-minute per-entity rows. Twelve monitors read those rows instead of a full day of raw logs. |
 | `shifter` | shifter | Installs the shifter view: a single-file Python server, the query proxy, and a vendored Preact page whose live lane tails logs over Server-Sent Events. Keeps working while the cluster is red. |
-| `sweet_collector` | workers, then one worker | Two modes, chosen by `collector_catalog_maintenance`. **Node:** installs `alice-stamper`, which stamps every record with its template identity, then Fluent Bit, which tails the local log tree, accepts InfoLogger over TCP, routes into three log families and hands every record through the stamper and back before writing to this VM's own OpenSearch node. **Catalog maintenance:** the fleet-wide upkeep of what the stamping produces — definition expiry, query-history expiry and the two counting checks, as one oneshot unit on a timer, on the host named by `template_catalog_maintenance_host`. |
+| `sweet_collector` | workers | Installs `alice-stamper`, which stamps every record with its template identity, then Fluent Bit, which tails the local log tree, accepts InfoLogger over TCP, routes into three log families and hands every record through the stamper and back before writing to this VM's own OpenSearch node. One socket contract, one namespace. |
+| `sweet_template_catalog` | control | The fleet-wide upkeep of what the stamping produces: definition expiry, query-history expiry and the two counting checks, as one oneshot unit on an hourly timer. A cluster API client — nothing it touches is worker-local. |
 | `producer` | workers | Installs the S3-replay engine under a venv and systemd. Each VM replays only its own `epn_partition` slice; the wrapper narrows the preserved upstream `replay.py` to that slice. |
 | `faults` | workers + projector | Installs the fault-injection agent the control host calls. A node may fault only the service it owns — a worker its Fluent Bit, the projector host its projector. |
 
@@ -42,9 +43,9 @@ dependency chain, not a preference:
    `anomaly_detection` can train on them.
 4. **Off the control host last.** The projector, the rollup and the live lane
    each run on their own VM, after the control-plane objects they normalize.
-5. **Ingest last of all.** `sweet_collector` in its node mode on every worker —
-   the stamper's socket must exist before Fluent Bit starts, which is why the
-   two are one role — then the same role in its catalog-maintenance mode, then
-   `producer` and `faults`. The firehose starts only once everything that reads
-   it exists. Maintenance follows collection because a pass reads bucket
-   documents every worker publishes.
+5. **Ingest last of all.** `sweet_collector` on every worker — the stamper's
+   socket must exist before Fluent Bit starts, which is why the two are one
+   role — then `sweet_template_catalog`, `producer` and `faults`. The firehose
+   starts only once everything that reads it exists. The catalog maintenance
+   follows collection because a pass reads bucket documents every worker
+   publishes.
