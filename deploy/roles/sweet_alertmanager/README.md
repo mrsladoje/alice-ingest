@@ -80,7 +80,7 @@ route   receiver alice-notification-ingest
 │   group_by [cluster_id, alertname, notification_scope]     inherited
 │   └── severity = "page"                                    30s / 2m / 4h
 └── severity = "page"                                        30s / 2m / 4h
-        timers: group_wait / group_interval / repeat_interval, from group_vars
+        timers: group_wait / group_interval / repeat_interval, role defaults
 
 inhibit_rules   one rule per proven cause, cause severity and equal set,
                 matching every symptom of those edges as its targets;
@@ -143,7 +143,9 @@ service names.
 ```yaml
 alertmanager_version: "0.28.1"
 alertmanager_arch: linux-amd64
-alertmanager_download_url: "https://github.com/prometheus/alertmanager/releases/download/v{{ alertmanager_version }}/alertmanager-{{ alertmanager_version }}.{{ alertmanager_arch }}.tar.gz"
+alertmanager_download_url: >-
+  {{ 'https://github.com/prometheus/alertmanager/releases/download/v' ~ alertmanager_version
+     ~ '/alertmanager-' ~ alertmanager_version ~ '.' ~ alertmanager_arch ~ '.tar.gz' }}
 ```
 
 The version string is what the install probe searches for in the output of
@@ -169,12 +171,25 @@ alertmanager_system_user: alertmanager
 The data directory holds the silences and the notification log, so a
 reinstall keeps both. `amtool` is found under the install root.
 
+```yaml
+alertmanager_resolve_timeout: 5m
+alertmanager_group_wait: 5m
+alertmanager_group_interval: 10m
+alertmanager_repeat_interval: 4h
+alertmanager_page_group_wait: 30s
+alertmanager_page_group_interval: 2m
+alertmanager_page_wait_covers_inhibition: false
+```
+
+The route timers and the inhibition gate. The default tier batches the
+ten-minute trend monitors into one notification; the page tier leaves after
+30 s. The gate stays false until the page wait covers the measured
+cause-to-symptom delay.
+
 From `group_vars` and the inventory: `alertmanager_port`,
-`alertmanager_resolve_timeout`, `alertmanager_group_wait`,
-`alertmanager_group_interval`, `alertmanager_repeat_interval`,
-`alertmanager_page_group_wait`, `alertmanager_page_group_interval`,
-`alertmanager_page_wait_covers_inhibition`, `notification_ingest_port`,
-`notification_ingest_token`, `dashboards_external_port`.
+`notification_ingest_port`, `notification_ingest_token`,
+`dashboards_external_port`; per host `ansible_host`, the address in the
+external URL.
 
 - `--web.route-prefix=/` while the external URL ends in `/alertmanager/`:
   nginx strips the prefix before the request arrives, so a matching route

@@ -1,6 +1,8 @@
 alertmanager_version: "0.28.1"
 alertmanager_arch: linux-amd64
-alertmanager_download_url: "https://github.com/prometheus/alertmanager/releases/download/v{{ alertmanager_version }}/alertmanager-{{ alertmanager_version }}.{{ alertmanager_arch }}.tar.gz"
+alertmanager_download_url: >-
+  {{ 'https://github.com/prometheus/alertmanager/releases/download/v' ~ alertmanager_version
+     ~ '/alertmanager-' ~ alertmanager_version ~ '.' ~ alertmanager_arch ~ '.tar.gz' }}
 alertmanager_install_root: /opt/alertmanager
 alertmanager_binary: "{{ alertmanager_install_root }}/alertmanager"
 alertmanager_config_dir: /etc/alertmanager
@@ -10,6 +12,19 @@ alertmanager_service_name: alertmanager
 alertmanager_system_user: alertmanager
 
 alertmanager_allowed_client_addresses: []
+
+# The route timers. The default tier batches the ten-minute trend monitors
+# into one notification; the page tier leaves after 30 s.
+alertmanager_resolve_timeout: 5m
+alertmanager_group_wait: 5m
+alertmanager_group_interval: 10m
+alertmanager_repeat_interval: 4h
+alertmanager_page_group_wait: 30s
+alertmanager_page_group_interval: 2m
+
+# The gate on generated inhibition. Set true only after the page wait above
+# has been raised to cover the measured cause-to-symptom delay.
+alertmanager_page_wait_covers_inhibition: false
 
 # Repeated in every role that writes a firewalld rule, so each role still
 # stands on its own and one inventory line can switch the whole stack. The

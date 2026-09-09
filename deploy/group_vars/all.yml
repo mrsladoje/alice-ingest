@@ -234,17 +234,6 @@ alertmanager_allowed_client_addresses:
 notification_ingest_port: 8091
 notification_ingest_token: ""
 
-alertmanager_resolve_timeout: 5m
-
-alertmanager_group_wait: 5m
-alertmanager_group_interval: 10m
-alertmanager_repeat_interval: 4h
-
-alertmanager_page_group_wait: 30s
-alertmanager_page_group_interval: 2m
-
-alertmanager_page_wait_covers_inhibition: false
-
 # The alice-service paths and unit names that more than one role, or a playbook
 # under playbooks/, has to agree on. A name is here only when a second reader
 # exists; everything read by exactly one role is that role's own default.

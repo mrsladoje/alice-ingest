@@ -1,5 +1,6 @@
-- name: restart alertmanager
+- name: Restart alertmanager
   ansible.builtin.systemd:
     name: "{{ alertmanager_service_name }}"
     state: restarted
     daemon_reload: true
+  listen: restart alertmanager
