@@ -211,7 +211,7 @@
   #   alice_runtime      creates /opt/sweet and /opt/sweet/init and
   #                      stages the catalogs and the shared modules that every
   #                      role below imports.
-  #   dashboards         installs Dashboards and nginx, then creates the index
+  #   sweet_os_dashboards installs Dashboards and nginx, then creates the index
   #                      patterns before it imports the cockpit saved objects
   #                      that reference them.
   #   alice_ops          serves the ops page behind the nginx seam above.
@@ -224,7 +224,7 @@
   #                      and the forecaster and verifies the whole set.
   roles:
     - alice_runtime
-    - dashboards
+    - sweet_os_dashboards
     - alice_ops
     - sweet_cockpit_metrics
     - sweet_anomaly_detection

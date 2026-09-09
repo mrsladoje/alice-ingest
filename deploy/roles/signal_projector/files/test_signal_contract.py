@@ -383,7 +383,7 @@ def test_every_signal_has_an_operator_diagnosis():
 
 def test_cockpit_headlines_episodes_not_raw_detector_exhaust():
     generator = _checkout_file(
-        "roles", "dashboards", "files", "gen_cockpit.py")
+        "roles", "sweet_os_dashboards", "files", "gen_cockpit.py")
     if not generator:
         print("[signal-contract] "
               "test_cockpit_headlines_episodes_not_raw_detector_exhaust: "
@@ -516,7 +516,7 @@ def test_cockpit_headlines_episodes_not_raw_detector_exhaust():
     prior_path = verify.COCKPIT_NDJSON
     try:
         verify.COCKPIT_NDJSON = _checkout_file(
-            "roles", "dashboards", "files", "cockpit.ndjson")
+            "roles", "sweet_os_dashboards", "files", "cockpit.ndjson")
         body, prop = verify.board_query()
     finally:
         verify.COCKPIT_NDJSON = prior_path
@@ -1432,7 +1432,7 @@ def test_monitor_execution_error_is_the_monitors_own_incident():
 
 
 def test_the_deploy_gate_fails_on_a_board_query_opensearch_rejects():
-    fixture = _checkout_file("roles", "dashboards", "files", "cockpit.ndjson")
+    fixture = _checkout_file("roles", "sweet_os_dashboards", "files", "cockpit.ndjson")
     if not fixture:
         print("[signal-contract] "
               "test_the_deploy_gate_fails_on_a_board_query_opensearch_rejects: "

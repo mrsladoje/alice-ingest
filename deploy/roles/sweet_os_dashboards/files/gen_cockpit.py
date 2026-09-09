@@ -1472,7 +1472,7 @@ def build():
             "alice-search-ildaemon", "InfoLogger daemon saturation",
             "Connected clients against the ceiling in infoLoggerD.cfg. "
             "Nothing else on a node reports how close the farm is to running "
-            "out of log sockets; epn146 has been seen at 1025 of 2048.",
+            "out of log sockets.",
             "log_source:ildaemon",
             columns=["origin_host", "clients", "client_limit", "message"]),
         saved_search(

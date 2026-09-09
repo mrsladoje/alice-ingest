@@ -12,9 +12,9 @@ receiver answers a probe.
 
 ## Why it is a separate role
 
-The projector was the last part of the `dashboards` role that did not run where
+The projector was the last part of the `sweet_os_dashboards` role that did not run where
 the play ran. It lives on `alice-ingest-4`, alone, because it holds a working
-set the control host cannot spare. Inside `dashboards` that meant fourteen
+set the control host cannot spare. Inside `sweet_os_dashboards` that meant fourteen
 `delegate_to: "{{ signal_projector_host }}"` lines, one per task, and a role
 that silently did nothing useful if the delegation target changed.
 

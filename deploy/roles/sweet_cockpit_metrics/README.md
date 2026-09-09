@@ -16,7 +16,7 @@ indices.
 
 | Hosts | Mode | Gate |
 |---|---|---|
-| `control`, after `alice_runtime`, `dashboards` and `alice_ops` | publish and poll (`tasks/main.yml`) | the newest roster names exactly the rostered collectors; `alice-metrics` is enabled and started |
+| `control`, after `alice_runtime`, `sweet_os_dashboards` and `alice_ops` | publish and poll (`tasks/main.yml`) | the newest roster names exactly the rostered collectors; `alice-metrics` is enabled and started |
 | `control`, after `sweet_collector` has run on `workers` | the collector gate (`tasks_from: post_collector.yml`) | every rostered collector pushed a sample in the last 5 minutes; `verify_detection.py` exits 0 |
 
 ## How it works: publish and poll
@@ -124,7 +124,7 @@ knows the roster or writes `kind: fleet`.
 and stages `os_cursor.py`, which both roster scripts import. `sweet_opensearch`
 must have configured the cluster, because the `cockpit-metrics` and
 `cockpit-fleet` index templates come from it and the roster is published into
-the running cluster on localhost. The Dashboards samples need the `dashboards`
+the running cluster on localhost. The Dashboards samples need the `sweet_os_dashboards`
 role's instance on `dashboards_internal_port`. The gate additionally needs
 `sweet_collector` on every worker and `sweet_anomaly_detection` on this host,
 which stages the `verify_detection.py` it runs.

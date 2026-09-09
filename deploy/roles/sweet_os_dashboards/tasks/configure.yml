@@ -94,8 +94,7 @@
       systemd drop-in ({{ dashboards_memory_dropin }}) nor node.options reached
       Node. Any other number means the launcher passes its own
       --max-old-space-size on the command line, which beats NODE_OPTIONS; set
-      that value in {{ dashboards_node_options_file }} instead. Until this
-      passes, node 3 has not gained the memory this change is supposed to free.
+      that value in {{ dashboards_node_options_file }} instead.
     success_msg: >-
       Dashboards is bounded at {{ dashboards_node_max_old_space_mb }} MB of V8
       old-space.

@@ -9,11 +9,11 @@ The role installs and starts one long-running service, `alice-ops`. The other
 two units are installed and left stopped. An operator starts them from the page
 or from a `make` target; nothing in this role starts them.
 
-It was split out of the `dashboards` role because it is a different machine
+It was split out of the `sweet_os_dashboards` role because it is a different machine
 talking to different machines. `alice-ops` reaches the worker VMs — their replay
 triggers and their fault agents — and it reaches OpenSearch. It never talks to
 OpenSearch Dashboards. Its page is served by the same nginx instance the
-`dashboards` role configures, which is the only thing the two share.
+`sweet_os_dashboards` role configures, which is the only thing the two share.
 
 ## What it does
 
@@ -51,7 +51,7 @@ OpenSearch Dashboards. Its page is served by the same nginx instance the
 
 - **`alice-ops` binds loopback, not the network.** `ops_server.py` listens on
   `127.0.0.1:{{ ops_internal_port }}`. The page reaches an operator only because
-  the nginx vhost in the `dashboards` role proxies `/ops/` to that port, and that
+  the nginx vhost in the `sweet_os_dashboards` role proxies `/ops/` to that port, and that
   vhost carries the TLS and the basic authentication. Nothing in this role opens
   a firewall port.
 - **The two one-shot units are installed and left stopped.** `alice-inject` and
@@ -136,7 +136,7 @@ defaults, because a second copy is a second place to change one value.
 | `alice_bootstrap_causal_edges` | `group_vars/all.yml` | Passed to the injection run as `CAUSAL_EDGES`. The `alice_runtime` role installs the file. |
 | `signal_projector_service_name` | `group_vars/all.yml` | The service an injection stops and restarts. |
 | `cockpit_metrics_service_name` | `group_vars/all.yml` | The same, for the metrics poller. Also the poison unit's `After=`. |
-| `ops_internal_port` | `group_vars/all.yml` | The loopback port. The nginx vhost in `dashboards` proxies to it. |
+| `ops_internal_port` | `group_vars/all.yml` | The loopback port. The nginx vhost in `sweet_os_dashboards` proxies to it. |
 | `opensearch_http_port` | `group_vars/all.yml` | `OS_URL` on all three units. |
 | `replay_http_port` | `group_vars/all.yml` | Only inside the worker URL lists above. Not read by any template here. |
 | `fault_agent_port` | `group_vars/all.yml` | The projector agent URL, and the worker list above. |
@@ -153,7 +153,7 @@ services it installs do anything useful.
 
 | Prerequisite | Provided by | What breaks without it |
 |---|---|---|
-| nginx installed, with the `/ops/` proxy in its vhost | `dashboards` role | The page is unreachable. `alice-ops` binds loopback only, so nothing outside the control host can open it. |
+| nginx installed, with the `/ops/` proxy in its vhost | `sweet_os_dashboards` role | The page is unreachable. `alice-ops` binds loopback only, so nothing outside the control host can open it. |
 | `templates.sh` present at `alice_ops_templates_script`, with its `schema/` directory beside it | `sweet_opensearch` role | The page's fresh-replay and wipe buttons cannot rebuild the aliases. The unit still starts. |
 | `os_cursor.py` in `/opt/sweet` | `alice_runtime` role | `score_injection.py` fails its import, so an injection run produces no score. |
 | `causal_edges.json` staged | `alice_runtime` role | An injection run cannot explain a symptom by its cause. |
@@ -183,7 +183,7 @@ In a playbook, against the control host:
 ## Couplings
 
 - **`ops_internal_port` is one decision in two roles.** This role puts it in
-  `OPS_PORT`; `dashboards.conf.j2` in the `dashboards` role proxies to the same
+  `OPS_PORT`; `dashboards.conf.j2` in the `sweet_os_dashboards` role proxies to the same
   number. Change one and the page 502s.
 - **`alice_ops_templates_script` must equal
   `opensearch_cluster_config_templates_script`.** It is written here as a literal on
@@ -195,7 +195,7 @@ In a playbook, against the control host:
   handler in the play before the first task runs, so the notify resolves from
   any position in that list. A second copy of the handler here would restart the
   poller twice. The real ordering rule for this role is a different one: it must
-  run after `dashboards`.
+  run after `sweet_os_dashboards`.
 - **`fault_agent_token` is a shared secret.** The injection unit sends it to the
   agents the `faults` role installed. Rotating it means both roles, in one
   deploy.
@@ -220,7 +220,7 @@ In a playbook, against the control host:
 ## What this role does not do
 
 - **It does not install nginx, TLS material or the basic-auth file.** The
-  `dashboards` role does, and its vhost is what exposes this page.
+  `sweet_os_dashboards` role does, and its vhost is what exposes this page.
 - **It does not create `/opt/sweet/init`.** It only names
   `templates.sh` inside it, which reads its request bodies from `schema/`
   beside itself.
@@ -243,10 +243,10 @@ for this fleet, driving this replay pipeline.
 
 ## Used by
 
-- `playbooks/site.yml`, the control-host play that today runs the `dashboards`
+- `playbooks/site.yml`, the control-host play that today runs the `sweet_os_dashboards`
   role — "Control plane — Dashboards, nginx, ops page, monitors, roster,
   metrics and detectors (control host only)". This role must be listed after
-  `dashboards`, because the nginx vhost that exposes the page is written there.
+  `sweet_os_dashboards`, because the nginx vhost that exposes the page is written there.
 - `playbooks/inject.yml`, `poison_replay.yml`, `poison_status.yml`,
   `poison_stop.yml`, `replay.yml`, `clear.yml` and `status.yml` all drive what
   this role installed. None of them include the role.

@@ -228,7 +228,7 @@ opensearch_install_method: native
 
 The version is declared here **and** in `group_vars`, because two defaults
 interpolate it and a role must run on its own defaults. `group_vars` outranks
-the default and is the site value, shared with the `dashboards` role so both
+the default and is the site value, shared with the `sweet_os_dashboards` role so both
 products stay on one version. `native` installs the RPM: one node per machine.
 `container` runs podman instances: several nodes on one machine, since a
 second RPM cannot give a second service, data directory and port pair.
@@ -511,7 +511,7 @@ Required from `group_vars`, read by the two scripts and the schema:
 ### Configure-the-cluster couplings
 
 - **`opensearch_cluster_config_root` is shared with `alice_runtime`.** Both create
-  the directory with the same owner, group and mode; `dashboards` and
+  the directory with the same owner, group and mode; `sweet_os_dashboards` and
   `sweet_anomaly_detection` only write into it. It is `0755`
   because `alice_runtime` stages a world-readable signal catalog there.
 - **`alice_ops_templates_script` must match
@@ -538,7 +538,7 @@ These scripts are the schema.
   silently stop winning.
 - **`vm.max_map_count` is set by this role.** If a site baseline role sets it
   too, keep the two values equal; whichever runs last wins.
-- **`opensearch_version` is shared with `dashboards`.** Change it in
+- **`opensearch_version` is shared with `sweet_os_dashboards`.** Change it in
   `group_vars`.
 - **The retention policy name in `opensearch-node.env.j2` is a literal.**
   `ism.sh.j2` creates it, `verify_detection.py` asserts it and

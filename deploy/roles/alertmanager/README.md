@@ -193,8 +193,8 @@ controller** through `playbook_dir`, not on the target host.
   would duplicate every notification and share no silence state.
 - **Run it before `signal_projector`.** That role's readiness gate retries twelve
   times, five seconds apart, and then fails the play.
-- **Run it after `dashboards`** if you want the `/alertmanager/` path to answer,
-  since `dashboards` owns the nginx vhost that proxies it. The daemon itself does
+- **Run it after `sweet_os_dashboards`** if you want the `/alertmanager/` path to answer,
+  since `sweet_os_dashboards` owns the nginx vhost that proxies it. The daemon itself does
   not depend on nginx.
 - **Silences go through nginx**, at `/alertmanager/` behind the same basic-auth as
   Dashboards. Place one — matching e.g. `cluster_id="alice-logs"` — before a
@@ -207,7 +207,7 @@ controller** through `playbook_dir`, not on the target host.
 ## Couplings
 
 - **`alertmanager_port` is read in four places.** This role's bind address and
-  firewall rule, the `dashboards` nginx vhost `proxy_pass`, and the
+  firewall rule, the `sweet_os_dashboards` nginx vhost `proxy_pass`, and the
   `signal_projector` readiness probe and `ALERTMANAGER_URL`. It lives in
   `group_vars/all.yml` for that reason.
 - **The bind address and the firewall rule are one decision.** Opening
@@ -298,4 +298,4 @@ the one webhook. Neither is planned.
 
 - `ansible.posix` for `firewalld`, already in `requirements.yml`.
 - `alice_runtime`'s `files/causal_edges.json`, read from the controller.
-- The `dashboards` role's nginx vhost, for browser access at `/alertmanager/`.
+- The `sweet_os_dashboards` role's nginx vhost, for browser access at `/alertmanager/`.
