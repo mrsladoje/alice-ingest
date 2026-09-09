@@ -31,9 +31,8 @@ STAMP_FIELDS = (TEMPLATE_VERSION_FIELD, TEMPLATE_ID_FIELD,
 
 STAMP_MATCHED = "matched"
 STAMP_NEW = "new"
-STAMP_UNLEARNED = "unlearned"
 STAMP_NO_TEMPLATE = "no_template"
-STAMP_STATUSES = (STAMP_MATCHED, STAMP_NEW, STAMP_UNLEARNED, STAMP_NO_TEMPLATE)
+STAMP_STATUSES = (STAMP_MATCHED, STAMP_NEW, STAMP_NO_TEMPLATE)
 
 SECOND_MS = 1000
 MINUTE_MS = 60000
@@ -120,8 +119,8 @@ GAP_REASONS = (GAP_MISSING_TIME, GAP_INVALID_TIME, GAP_CLOCK_TOLERANCE,
 
 STAMPER_COUNTERS = (
     "records", "chunks", "duplicate_chunks", "returned_chunks",
-    "return_failures", "matched_records", "new_records", "unlearned_records",
-    "no_template_records", "oversize_records", "late_records", "missing_time_records",
+    "return_failures", "matched_records", "new_records", "no_template_records",
+    "oversize_records", "late_records", "missing_time_records",
     "invalid_time_records", "journal_bytes", "journal_lines", "clusters",
     "ledger_buckets", "ledger_versions", "publications",
     "publication_failures", "peak_rss_bytes", "socket_backlog",

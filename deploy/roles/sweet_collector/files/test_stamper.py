@@ -295,19 +295,55 @@ class Stamping(unittest.TestCase):
         self.assertEqual(machine.counters["no_template_records"], 1)
         self.assertEqual(machine.counters["clusters"], 1)
 
-    def test_the_state_limit_stops_learning_and_marks_records_unlearned(self):
-        machine = make(self.tmp, max_templates=1)
-        entries = [(NOW, record("[1:0:0][INFO] one thing here", 0,
-                                log_time="x")),
-                   (NOW, record("[1:0:0][INFO] completely different words "
-                                "now", 1, log_time="x"))]
+    def test_the_ceiling_evicts_the_least_recently_used_cluster(self):
+        machine = make(self.tmp, max_templates=2)
+        first = record("[1:0:0][INFO] one thing here", 0, log_time="x")
+        second = record("[1:0:0][INFO] completely different words now", 1,
+                        log_time="x")
+        third = record("[1:0:0][INFO] a third unrelated shape", 2,
+                       log_time="x")
         ret = machine.client
-        machine.handle("family.local", entries, {"chunk": "u"})
-        statuses = [r[contract.TEMPLATE_STATUS_FIELD] for r in ret.sent[0][1]]
-        self.assertEqual(statuses, [contract.STAMP_NEW,
-                                    contract.STAMP_UNLEARNED])
-        self.assertNotIn(contract.TEMPLATE_VERSION_FIELD, ret.sent[0][1][1])
-        self.assertEqual(machine.counters["unlearned_records"], 1)
+        machine.handle("family.local", [(NOW, first), (NOW, second)],
+                       {"chunk": "u"})
+        machine.handle("family.local", [(NOW, dict(first))], {"chunk": "v"})
+        machine.handle("family.local", [(NOW, third)], {"chunk": "w"})
+        statuses = [r[contract.TEMPLATE_STATUS_FIELD]
+                    for sent in ret.sent for r in sent[1]]
+        self.assertEqual(statuses, [contract.STAMP_NEW, contract.STAMP_NEW,
+                                    contract.STAMP_MATCHED,
+                                    contract.STAMP_NEW])
+        self.assertEqual(machine.counters["clusters"], 2)
+        held = machine.trees.clusters[next(iter(machine.trees.clusters))]
+        self.assertEqual(len(held), 2)
+        machine.handle("family.local", [(NOW, dict(second))], {"chunk": "x"})
+        self.assertEqual(ret.sent[-1][1][0][contract.TEMPLATE_STATUS_FIELD],
+                         contract.STAMP_NEW)
+        self.assertEqual(ret.sent[-1][1][0][contract.TEMPLATE_VERSION_FIELD],
+                         ret.sent[0][1][1][contract.TEMPLATE_VERSION_FIELD])
+        self.assertEqual(machine.counters["clusters"], 2)
+
+    def test_recency_survives_the_checkpoint(self):
+        machine = make(self.tmp, max_templates=2)
+        first = record("[1:0:0][INFO] one thing here", 0, log_time="x")
+        second = record("[1:0:0][INFO] completely different words now", 1,
+                        log_time="x")
+        machine.handle("family.local", [(NOW, first), (NOW, second)],
+                       {"chunk": "u"})
+        machine.handle("family.local", [(NOW, dict(first))], {"chunk": "v"})
+        machine.checkpoint()
+        machine.trees.prune()
+        self.assertEqual(len(machine.trees.identity), 2)
+        machine.journal.close()
+        again = make(self.tmp, ret=FakeReturn(), max_templates=2)
+        self.assertEqual(again.trees.recent_list(),
+                         machine.trees.recent_list())
+        third = record("[1:0:0][INFO] a third unrelated shape", 2,
+                       log_time="x")
+        again.handle("family.local", [(NOW, third)], {"chunk": "w"})
+        self.assertEqual(again.trees.learned, 2)
+        held = again.trees.clusters[next(iter(again.trees.clusters))]
+        self.assertNotIn(
+            machine.trees.recent_list()[0][1], held)
 
 
 class Publishing(unittest.TestCase):

@@ -136,6 +136,14 @@ MONITOR_PRESENTATION = {
         "Read the kind=check documents in template-catalog with ok=false: "
         "they name the node, family, hour and index; then inspect that "
         "worker's alice-stamper journal and ledger."),
+    "template-new": (
+        "A new template was catalogued",
+        "A template definition entered template-catalog for the first time "
+        "during the last hour: a message shape not seen on the farm before, "
+        "or not seen since its definition expired.",
+        "Open the Templates page in the Shifter sorted by first catalogued "
+        "and read the new shapes; decide whether they need a label or an "
+        "operator."),
     "alertmanager-down": (
         "Alertmanager is unreachable",
         "The projector reported Alertmanager unavailable during the last "

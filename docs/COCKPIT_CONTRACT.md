@@ -302,7 +302,6 @@ uses no spaces, so the checksum is stable across processes and hosts.
     "invalid_time_records": 0,
     "missing_time_records": 0,
     "out_of_tolerance_records": 0,
-    "unlearned_records": 0,
     "backlog_records": 0,
     "pass_duration_ms": 0,
     "peak_rss_bytes": 0,

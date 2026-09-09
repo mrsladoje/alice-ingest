@@ -13,7 +13,10 @@ Shifter shows and the `template-count-check` monitor fires on.
 
 Nothing here is worker-local. The pass reads and writes only indices on the
 storage tier, through the OpenSearch node on the control host, so the host it
-runs on is a scheduling choice. Staging runs the same layout on fewer machines.
+runs on is a scheduling choice. A template whose definition expired here is
+catalogued afresh when a worker stamps it again, so `first_catalogued` is the
+farm's record of a new template and the `template-new` monitor fires on it.
+Staging runs the same layout on fewer machines.
 
 ## How it works
 

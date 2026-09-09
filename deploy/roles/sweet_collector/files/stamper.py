@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import base64
+import collections
 import json
 import os
 import resource
@@ -220,9 +221,10 @@ class Trees(object):
         self.miners = {}
         self.clusters = {}
         self.identity = {}
+        self.recent = collections.OrderedDict()
         self.learned = 0
 
-    def load(self, trees, clusters):
+    def load(self, trees, clusters, recent=None):
         for family, raw in (trees or {}).items():
             handler = _Buffered(base64.b64decode(raw))
             miner = drainbench.recipe_miner(family, persistence=handler)
@@ -237,8 +239,14 @@ class Trees(object):
                                                               {}).items():
                 held.setdefault(int(cluster_id), identity)
             self.clusters[family] = held
-        self.learned = sum(len(m.drain.id_to_cluster)
-                           for m in self.miners.values())
+        for family, cluster_id in recent or []:
+            miner = self.miners.get(family)
+            if miner is not None and cluster_id in miner.drain.id_to_cluster:
+                self.recent[(family, cluster_id)] = None
+        for family, miner in self.miners.items():
+            for cluster_id in miner.drain.id_to_cluster:
+                self.recent.setdefault((family, cluster_id), None)
+        self.learned = len(self.recent)
 
     def dump(self):
         out = {}
@@ -257,6 +265,23 @@ class Trees(object):
         return {family: {str(k): v for k, v in held.items()}
                 for family, held in self.clusters.items()}
 
+    def recent_list(self):
+        return [[family, cluster_id] for family, cluster_id in self.recent]
+
+    def evict(self):
+        (family, cluster_id), _ = self.recent.popitem(last=False)
+        self.miners[family].drain.id_to_cluster.pop(cluster_id, None)
+        self.clusters[family].pop(cluster_id, None)
+        self.learned -= 1
+        return family, cluster_id
+
+    def prune(self):
+        live = set()
+        for held in self.clusters.values():
+            live.update(held.values())
+        for key in [k for k, v in self.identity.items() if v not in live]:
+            del self.identity[key]
+
     def miner(self, family):
         miner = self.miners.get(family)
         if miner is None:
@@ -270,16 +295,15 @@ class Trees(object):
 
     def stamp(self, family, tokens):
         miner = self.miner(family)
-        if self.learned >= self.max_templates:
-            cluster = miner.drain.match(" ".join(tokens))
-            if cluster is None:
-                return None, None, contract.STAMP_UNLEARNED, None
-            cluster.size += 1
-            update = "none"
+        cluster, update = miner.drain.add_tokens(list(tokens))
+        key = (family, cluster.cluster_id)
+        if update == "cluster_created":
+            self.learned += 1
+            self.recent[key] = None
+            while self.learned > self.max_templates:
+                self.evict()
         else:
-            cluster, update = miner.drain.add_tokens(list(tokens))
-            if update == "cluster_created":
-                self.learned += 1
+            self.recent.move_to_end(key)
         template = cluster.get_template()
         identity = self.identity.get((family, template))
         if identity is None:
@@ -513,7 +537,8 @@ class Stamper(object):
             state = None
         after = 0
         if state and state.get("version") == STATE_VERSION:
-            self.trees.load(state.get("trees"), state.get("clusters"))
+            self.trees.load(state.get("trees"), state.get("clusters"),
+                            state.get("recent"))
             self.ledger.load_state(state.get("ledger") or {})
             self.chunks = {k: int(v) for k, v in
                            (state.get("chunks") or {}).items()}
@@ -553,6 +578,7 @@ class Stamper(object):
         now = self.clock() if now is None else now
         with self.lock:
             self.ledger.prune_versions()
+            self.trees.prune()
             state = {
                 "version": STATE_VERSION,
                 "node": self.node,
@@ -561,6 +587,7 @@ class Stamper(object):
                 "published_through": self.published_through,
                 "trees": self.trees.dump(),
                 "clusters": self.trees.cluster_map(),
+                "recent": self.trees.recent_list(),
                 "ledger": self.ledger.to_state(),
                 "chunks": self.chunks,
                 "counters": self.counters,
@@ -586,8 +613,6 @@ class Stamper(object):
             return None
         identity, template, status, previous = self.trees.stamp(family, tokens)
         record[contract.TEMPLATE_STATUS_FIELD] = status
-        if identity is None:
-            return None
         canonical = self.ledger.canonical.get(identity)
         if canonical is None:
             canonical = contract.canonical_id(template)
@@ -636,11 +661,7 @@ class Stamper(object):
             self.counters["clusters"] = self.trees.learned
 
     def _count_unstamped(self, record):
-        status = record.get(contract.TEMPLATE_STATUS_FIELD)
-        if status == contract.STAMP_UNLEARNED:
-            self.counters["unlearned_records"] += 1
-        else:
-            self.counters["no_template_records"] += 1
+        self.counters["no_template_records"] += 1
 
     def _count(self, record, family, identity, template, status, previous,
                now, deltas, defs):

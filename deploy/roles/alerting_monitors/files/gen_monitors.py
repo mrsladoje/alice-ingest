@@ -812,6 +812,24 @@ monitors.append(query_monitor(
     "3", 60, "alice-stamper"))
 
 monitors.append(query_monitor(
+    "template-new",
+    "Fire when a template definition was catalogued for the first time in the "
+    "last hour: a message shape no worker has published before, or one whose "
+    "definition alice-catalog-maintenance had already expired. The catalog is "
+    "the only farm-wide record of what is known; a worker's own new/matched "
+    "stamp only says whether that worker's tree held the shape.",
+    "template-catalog",
+    {"size": 0,
+     "query": {"bool": {"filter": [
+         {"term": {"kind": "template"}},
+         {"range": {"first_catalogued": {
+             "gte": "{{period_end}}||-1h",
+             "lte": "{{period_end}}",
+             "format": "epoch_millis"}}}]}}},
+    "ctx.results[0].hits.total.value > 0",
+    "4", 60, "alice-stamper"))
+
+monitors.append(query_monitor(
     "alertmanager-down",
     "Page when the projector cannot reach Alertmanager. Alertmanager does not "
     "persist alerts, so a dead one loses every active notification until the "

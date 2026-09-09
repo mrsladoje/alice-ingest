@@ -173,10 +173,11 @@ stamper_status_file: "{{ stamper_socket_dir }}/stamper-status.json"
 # systemd creates it through StateDirectory=, so it must stay under /var/lib.
 stamper_state_dir: /var/lib/alice-stamper
 
-# A ceiling on how many distinct templates one worker learns, across every
+# A ceiling on how many distinct templates one worker holds, across every
 # family. Depth and max_children bound the SHAPE of the tree; neither caps how
-# many clusters it holds. At the ceiling the worker stops LEARNING and keeps
-# STAMPING: a record that matches no cluster is stamped `unlearned`.
+# many clusters it holds. Past the ceiling the least recently stamped cluster
+# is evicted; a template that comes back is learned again under the same
+# version identifier.
 stamper_max_templates: 20000
 stamper_max_message_length: 4096
 

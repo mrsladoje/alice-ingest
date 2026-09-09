@@ -172,8 +172,9 @@ stamper_local_check: true
 ```
 
 `drain3` is pinned because the stamping path calls internal methods of that
-release. At `stamper_max_templates` the tree stops learning and stamps
-`unlearned`.
+release. Past `stamper_max_templates` the least recently stamped cluster is
+evicted, and a template that comes back is learned again under the same
+version identifier.
 
 From `group_vars` and the inventory: `node_id`, `log_root`,
 `infologger_tcp_port`, `infologger_daemon_log_path`, `opensearch_http_port`,
@@ -192,7 +193,7 @@ time from the log line and an HTTP hop would replace it with arrival time.
 |---|---|
 | `template_version` | The exact template text the tree returned. Never rewritten. |
 | `template_id` | The mask-class-collapsed text. |
-| `template_status` | `matched`, `new`, `unlearned` (tree at its limit) or `no_template` (nothing left after masking). |
+| `template_status` | `matched`, `new` (new to this worker's tree) or `no_template` (nothing left after masking). |
 
 Per chunk: stamp every record, send the chunk back and wait for the Forward
 input's acknowledgement, count into the ledger and append one journal line,

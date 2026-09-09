@@ -232,6 +232,14 @@
       "family": "none",
       "notification_scope": "fleet",
       "feed": "control-plane"
+    },
+    "template-new": {
+      "entity_kind": "service",
+      "entity_source": "constant",
+      "entity_id": "alice-stamper",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane"
     }
   },
   "detectors": {

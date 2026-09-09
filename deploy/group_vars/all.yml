@@ -367,7 +367,7 @@ alice_ops_poison_replay_report_dir: /var/lib/alice-poison-replay/runs
 # and signal_projector roles, but they count JSON files owned by the
 # alerting_monitors and anomaly_detection roles: add a monitor or a detector
 # there and the matching number here has to change with it.
-expected_monitors: 29
+expected_monitors: 30
 expected_detectors: 17
 expected_forecasters: 1
 
