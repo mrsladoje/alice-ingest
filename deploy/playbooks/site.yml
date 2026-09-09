@@ -297,25 +297,23 @@
     - role: shifter
       when: shifter_enabled | bool
 
-# The stamper runs in the same play as the collector: Fluent Bit hands every
-# record through it and back before the OpenSearch outputs, and its unit
-# reads the collector's memory limits. The stamper is installed
-# first so its socket exists when the collector starts; a collector that
-# starts first only buffers and retries.
 - name: Fluent Bit collector and the template stamper (worker VMs only)
   hosts: workers
   become: true
   roles:
-    - stamper
-    - collector
+    - sweet_collector
 
-# The central maintenance job: definition expiry, query-history expiry and the
-# two counting checks. One host, named by template_catalog_maintenance_host.
+# The same role in its other mode: definition expiry, query-history expiry and
+# the two counting checks. The flag is what keeps a fleet-wide pass to one host
+# instead of every worker, and the play carries the host condition so no task in
+# the role repeats it.
 - name: Template catalog maintenance (one worker)
   hosts: workers
   become: true
   roles:
-    - template_catalog
+    - role: sweet_collector
+      collector_catalog_maintenance: true
+      when: inventory_hostname == template_catalog_maintenance_host
 
 - name: Post-collector detection gate (control host only)
   hosts: control

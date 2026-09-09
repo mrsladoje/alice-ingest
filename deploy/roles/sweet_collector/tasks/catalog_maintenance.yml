@@ -1,18 +1,20 @@
-# roles/template_catalog — the central maintenance job, on one worker.
+# The central maintenance of the template catalog: definition expiry,
+# query-history expiry, and the two counting checks.
 #
-# The worker half of the old catalog producer is gone: every record is stamped
-# in-band by roles/stamper, which also publishes the definitions, the bucket
-# counts and the watermarks. What is left here runs on exactly one host:
-# definition expiry, query-history expiry, and the two counting checks.
+# The worker half of the old catalog producer is gone. Every record is stamped
+# in-band by tasks/stamper.yml, which also publishes the definitions, the bucket
+# counts and the watermarks.
+#
+# site.yml runs this file on one host. The play carries the condition, so no
+# task here repeats it.
 ---
 - name: Ensure the app root exists
   ansible.builtin.file:
-    path: "{{ template_catalog_app_root }}"
+    path: "{{ collector_app_root }}"
     state: directory
     owner: root
     group: root
     mode: "0755"
-  when: inventory_hostname == template_catalog_maintenance_host
 
 - name: Ensure the shared contract directory exists
   ansible.builtin.file:
@@ -21,7 +23,6 @@
     owner: root
     group: root
     mode: "0755"
-  when: inventory_hostname == template_catalog_maintenance_host
 
 - name: Ship the template contract the maintenance job imports
   ansible.builtin.copy:
@@ -30,7 +31,6 @@
     owner: root
     group: root
     mode: "0644"
-  when: inventory_hostname == template_catalog_maintenance_host
   notify: restart alice-catalog-maintenance timer
 
 - name: Install the central catalog maintenance task on the one host that runs it
@@ -40,7 +40,6 @@
     owner: root
     group: root
     mode: "0755"
-  when: inventory_hostname == template_catalog_maintenance_host
   notify: restart alice-catalog-maintenance timer
 
 - name: Template the catalog maintenance systemd unit
@@ -50,7 +49,6 @@
     owner: root
     group: root
     mode: "0644"
-  when: inventory_hostname == template_catalog_maintenance_host
   notify: restart alice-catalog-maintenance timer
 
 - name: Template the catalog maintenance systemd timer
@@ -60,7 +58,6 @@
     owner: root
     group: root
     mode: "0644"
-  when: inventory_hostname == template_catalog_maintenance_host
   notify: restart alice-catalog-maintenance timer
 
 - name: Enable the catalog maintenance timer
@@ -69,4 +66,3 @@
     enabled: true
     state: started
     daemon_reload: true
-  when: inventory_hostname == template_catalog_maintenance_host

@@ -45,7 +45,7 @@ The 29 monitors read five indices:
 | `cockpit-metrics` | 14 | 1 min | `cockpit_metrics` |
 | `trend-rollup` | 12 | 10 min | `trend_rollup` |
 | `.opendistro-anomaly-results*` | 1 (`ad-high-grade`) | 1 min | `anomaly_detection` |
-| `template-catalog` | 1 (`template-count-check`) | 60 min | `stamper`, `template_catalog` |
+| `template-catalog` | 1 (`template-count-check`) | 60 min | `sweet_collector` (both modes) |
 | `opensearch-forecast-results*` | 1 (`disk-fill-forecast`) | 10 min | `anomaly_detection` |
 
 ## Non-obvious settings

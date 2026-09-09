@@ -183,15 +183,15 @@ pipeline:
     # the stamper count a chunk exactly once: it counts, journals, and only
     # then acknowledges its own origin.
     - name: forward
-      unix_path: {{ collector_stamper_return_socket }}
-      unix_perm: {{ collector_stamper_socket_mode }}
+      unix_path: {{ stamper_return_socket }}
+      unix_perm: {{ stamper_socket_mode }}
       tag_prefix: stamped.
       threaded: on
       storage.type: filesystem
 
     - name: exec
       tag: health
-      command: COLLECTOR_ID=${ALICE_NODE_ID} FB_HTTP_PORT=${ALICE_FB_HTTP_PORT} STAMPER_STATUS_FILE={{ collector_stamper_status_file }} FB_EMIT_LEGACY_NODE={{ health_metrics_emit_legacy_node | bool | ternary('true', 'false') }} /usr/bin/python3 {{ collector_health_script }}
+      command: COLLECTOR_ID=${ALICE_NODE_ID} FB_HTTP_PORT=${ALICE_FB_HTTP_PORT} STAMPER_STATUS_FILE={{ stamper_status_file }} FB_EMIT_LEGACY_NODE={{ health_metrics_emit_legacy_node | bool | ternary('true', 'false') }} /usr/bin/python3 {{ collector_health_script }}
       interval_sec: {{ collector_health_interval_seconds }}
       parser: fb_health_json
       buf_size: 32k
@@ -594,7 +594,7 @@ pipeline:
     # replace it with arrival time. Forward carries it intact.
     - name: forward
       match_regex: ^(infologger|ildaemon|family\.local|family\.central)$
-      unix_path: {{ collector_stamper_listen_socket }}
+      unix_path: {{ stamper_listen_socket }}
       require_ack_response: on
       workers: 1
       retry_limit: no_limits

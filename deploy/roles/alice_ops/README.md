@@ -206,7 +206,7 @@ In a playbook, against the control host:
 - **The units name three services they stop and start:
   `signal_projector_service_name`,
   `cockpit_metrics_service_name` and `fluent-bit`.** `fluent-bit` is a
-  literal in `alice-inject.service.j2`, matching the `collector` role's unit
+  literal in `alice-inject.service.j2`, matching the `sweet_collector` role's unit
   name. A variable here would only let one end of the pair move.
 
 ## What is frozen

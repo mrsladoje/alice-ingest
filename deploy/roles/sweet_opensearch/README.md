@@ -170,7 +170,7 @@ site-wide, or in `inventory.yml` for one group or host.
 | `opensearch_quadlet_dir` | `/etc/containers/systemd` | Where quadlet reads `.container` unit files from. |
 | `opensearch_jvm_options_d` | `/etc/opensearch/jvm.options.d` | Holds `heap.options`. |
 | `opensearch_systemd_dropin_dir` | `/etc/systemd/system/opensearch.service.d` | Holds `resource-limits.conf`. |
-| `opensearch_node_env_dir` | `/etc/alice-ingest` | Shared with the `collector` role. |
+| `opensearch_node_env_dir` | `/etc/alice-ingest` | Shared with the `sweet_collector` role. |
 | `opensearch_node_env_file` | `/etc/alice-ingest/opensearch-node.env` | The info-tier index settings. See below. |
 | `opensearch_required_plugins` | 7 names | Asserted present after start. Not a setting — a gate. |
 
@@ -284,7 +284,7 @@ is a cluster with no design.
   retention policies.** The `sweet_opensearch` role does, once, on the
   control host.
 - **It does not install OpenSearch Dashboards.** The `dashboards` role does.
-- **It does not own `/etc/alice-ingest`.** Both this role and `collector` create
+- **It does not own `/etc/alice-ingest`.** Both this role and `sweet_collector` create
   it, deliberately: the directory has no single owner, each role writes its own
   file into it, and this role also runs on storage nodes where the collector
   never does. Both use the same owner, group and mode, so the two cannot drift.

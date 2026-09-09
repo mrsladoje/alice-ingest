@@ -108,10 +108,10 @@ defaults, because a second copy is a second place to change one value.
 | `cockpit_metrics_discover_roster_script` | `group_vars/all.yml` | Install path of `discover_roster.py`. `playbooks/roster_discover.yml` runs that path. |
 | `alice_bootstrap_verify_script` | `group_vars/all.yml` | The detection verify `post_collector.yml` runs. The file belongs to `anomaly_detection`. See couplings. |
 | `cockpit_metrics_index` | `group_vars/all.yml` | The index the poller writes and the purge cleans. |
-| `cockpit_metrics_interval_seconds` | `group_vars/all.yml` | `INTERVAL` on the unit. Shared with the `collector` role, which pushes on the same beat. |
+| `cockpit_metrics_interval_seconds` | `group_vars/all.yml` | `INTERVAL` on the unit. Shared with the `sweet_collector` role, which pushes on the same beat. |
 | `fleet_roster_index` | `group_vars/all.yml` | The roster index. |
 | `cluster_id` | `group_vars/all.yml` | Stamped into every roster snapshot. |
-| `health_metrics_emit_legacy_node` | `group_vars/all.yml` | `EMIT_LEGACY_NODE` on the unit. Shared with the `collector` role. |
+| `health_metrics_emit_legacy_node` | `group_vars/all.yml` | `EMIT_LEGACY_NODE` on the unit. Shared with the `sweet_collector` role. |
 | `alice_service_memory_high` / `alice_service_memory_max` | `group_vars/all.yml` | `MemoryHigh` and `MemoryMax` on the unit. Shared by all the thin control-host services. |
 | `expected_monitors`, `expected_detectors`, `expected_forecasters` | `group_vars/all.yml` | Counts asserted by the verify in `post_collector.yml`. |
 | `trend_rollup_index`, `signals_index`, `incidents_index`, `notifications_index`, `lane_state_index` | `group_vars/all.yml` | Index names the same verify checks. |
@@ -130,7 +130,7 @@ own. Five things must be true first, all satisfied by the role order in
 | `cockpit-metrics` and `cockpit-fleet` index templates | `sweet_opensearch` role | The roster and the samples land with guessed field types, and the absence monitors match nothing. |
 | `/opt/alice-ingest` and `os_cursor.py` | `alice_runtime` role | The two staged scripts have nowhere to land, and both fail on `import os_cursor`. |
 | Dashboards answering on `dashboards_internal_port` | `dashboards` role | The poller starts, but every Dashboards sample is an error until the port opens. |
-| Fluent Bit shipping on every worker | `collector` role | `post_collector.yml` only. The heartbeat wait times out after 2 minutes per collector. |
+| Fluent Bit shipping on every worker | `sweet_collector` role | `post_collector.yml` only. The heartbeat wait times out after 2 minutes per collector. |
 
 `post_collector.yml` additionally needs `anomaly_detection`, `alerting_monitors`
 and `signal_projector` to have run, because the verify it calls counts their
@@ -189,14 +189,14 @@ The post-collector gate is a separate include, later in the same playbook:
   inline, in three places in this role. It is now a plain list resolved in
   `group_vars/all.yml`, the same pattern as
   `opensearch_bootstrap_worker_node_ids`, which carries the identical
-  expression. A host that runs the `collector` role but is missing from this
+  expression. A host that runs the `sweet_collector` role but is missing from this
   list has its samples purged on every deploy.
 - **`heartbeat_grace_seconds` and `cockpit_metrics_interval_seconds` are one
   decision.** The grace must stay comfortably above the push interval. At 90 and
   30 a collector may miss two pushes before it is called absent. Raising the
   interval without raising the grace turns normal jitter into a page.
 - **`collector_health_push_enabled` and the collector's own push
-  configuration.** The switch is read here and in the `collector` role. Turning
+  configuration.** The switch is read here and in the `sweet_collector` role. Turning
   it off here only skips the wait and relaxes the verify; it does not stop
   anything pushing.
 - **`alice_bootstrap_verify_script` names a file `anomaly_detection`
@@ -210,7 +210,7 @@ The post-collector gate is a separate include, later in the same playbook:
 - **`collector_health_push_enabled` is declared in this role's defaults and in
   `group_vars/all.yml`.** Both values are `true`, and the group variable
   outranks the default. The default exists so the role can run outside this
-  repository; the site value stays where the `collector` role can see it too.
+  repository; the site value stays where the `sweet_collector` role can see it too.
 
 ## Upstream roles rejected
 

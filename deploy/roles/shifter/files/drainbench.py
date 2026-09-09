@@ -37,7 +37,7 @@ from masking import REFERENCE as MASKING, mask as fast_mask
 RECIPE_DEPTH = 8
 RECIPE_MAX_CHILDREN = 100
 # What the collector removes before a line ever reaches the miner. Each entry
-# mirrors one parser in deploy/roles/collector/templates/parsers.yaml.j2, and it
+# mirrors one parser in deploy/roles/sweet_collector/templates/parsers.yaml.j2, and it
 # has to: mining the envelope again turns a clock into template tokens and makes
 # every minute its own template.
 #

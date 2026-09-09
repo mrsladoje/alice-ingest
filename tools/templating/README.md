@@ -11,7 +11,7 @@ their cost.
 
 ## drainbench.py and masking.py ship to nodes
 
-These two are not benchmark-only. `deploy/roles/stamper` and
+These two are not benchmark-only. `deploy/roles/sweet_collector` and
 `deploy/roles/shifter` each carry a byte-identical copy in their own `files/`
 directory and install it on the node, so a stamp written in production and a
 template mined here are the same string. Ansible roles have to stand on their

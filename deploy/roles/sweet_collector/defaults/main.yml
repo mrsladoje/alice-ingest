@@ -1,3 +1,8 @@
+# Which of the role's two modes this host runs. false collects and stamps on a
+# worker; true runs the central catalog maintenance instead. site.yml sets it,
+# one line at the call site.
+collector_catalog_maintenance: false
+
 collector_repo_baseurl: "https://packages.fluentbit.io/centos/$releasever/"
 collector_repo_gpgkey: "https://packages.fluentbit.io/fluentbit.key"
 
@@ -25,7 +30,12 @@ collector_binary_path: /opt/fluent-bit/bin/fluent-bit
 collector_config_dir: /etc/fluent-bit
 collector_systemd_dropin_dir: /etc/systemd/system/fluent-bit.service.d
 
-collector_health_script: /opt/alice-ingest/fb_health.py
+# One root for everything this role installs on a worker: the health sampler,
+# the stamper and the modules it imports, the maintenance job. It was three
+# variables holding the same string while these were three roles.
+collector_app_root: /opt/alice-ingest
+
+collector_health_script: "{{ collector_app_root }}/fb_health.py"
 collector_health_interval_seconds: "{{ cockpit_metrics_interval_seconds }}"
 
 # Rule R3 — the one file that tells this machine which machine it is.
@@ -33,7 +43,7 @@ collector_env_dir: /etc/alice-ingest
 collector_env_file: "{{ collector_env_dir }}/node.env"
 
 # Item 3 — run as ExecStartPre, so a node registers itself at every boot.
-collector_register_script: /opt/alice-ingest/register_node.sh
+collector_register_script: "{{ collector_app_root }}/register_node.sh"
 
 # ExecStartPre counts against the unit's start timeout, and register_node.sh
 # waits for the local OpenSearch. This must stay above that wait's worst case:
@@ -162,12 +172,110 @@ collector_metrics_scrape_open: false
 # roles/common/defaults/main.yml for why the EPN farm sets this false.
 alice_manage_firewalld: true
 
-# The stamper loop. alice-stamper listens on the first socket and returns every
-# stamped chunk through the second, which the forward input above creates. The
-# directory is owned here, by a tmpfiles.d entry, because Fluent Bit creates
-# one socket and connects to the other; the stamper role names the same paths.
-collector_stamper_socket_dir: /run/alice
-collector_stamper_listen_socket: "{{ collector_stamper_socket_dir }}/stamper.sock"
-collector_stamper_return_socket: "{{ collector_stamper_socket_dir }}/stamped.sock"
-collector_stamper_socket_mode: "0660"
-collector_stamper_status_file: "{{ collector_stamper_socket_dir }}/stamper-status.json"
+# --- the stamper -------------------------------------------------------------
+#
+# In-band template stamping on the worker, between Fluent Bit's filters and its
+# OpenSearch outputs.
+
+stamper_script: "{{ collector_app_root }}/stamper.py"
+stamper_templating_dir: "{{ collector_app_root }}/templating"
+stamper_venv: "{{ collector_app_root }}/stamper-venv"
+stamper_service_name: alice-stamper
+
+# The mining library is pinned because the stamping path calls reviewed
+# internal methods of this release; an unpinned upgrade changes the template
+# text a worker stamps without changing a line of this repository.
+stamper_drain3_version: "0.9.11"
+stamper_msgpack_version: "1.1.2"
+
+# The socket contract, named once. Fluent Bit creates the return socket and
+# connects to the listening one; alice-stamper does the mirror image. While
+# these were two roles the same four strings were declared twice, in two
+# namespaces, with nothing asserting they matched — a rename on one side sent
+# the Forward output to a socket nobody listened on, with no error at deploy
+# time and no records stamped.
+#
+# The directory is created by a tmpfiles.d entry in tasks/collector.yml,
+# because the stamper's RuntimeDirectory= alone would not survive the
+# collector's own restarts.
+stamper_socket_dir: /run/alice
+stamper_listen_socket: "{{ stamper_socket_dir }}/stamper.sock"
+stamper_return_socket: "{{ stamper_socket_dir }}/stamped.sock"
+stamper_socket_mode: "0660"
+stamper_status_file: "{{ stamper_socket_dir }}/stamper-status.json"
+
+# The ledger checkpoint, the journal since it and the drain trees per family.
+# systemd creates it through StateDirectory=, so it must stay under /var/lib.
+stamper_state_dir: /var/lib/alice-stamper
+
+# A ceiling on how many distinct templates one worker learns, across every
+# family. Depth and max_children bound the SHAPE of the tree; neither caps how
+# many clusters it holds. At the ceiling the worker stops LEARNING and keeps
+# STAMPING: a record that matches no cluster is stamped `unlearned`.
+stamper_max_templates: 20000
+
+# The publication cycle for bucket documents, definitions and the watermark.
+stamper_publish_seconds: 300
+
+# The ledger checkpoint. It sets the journal size against the replay time on
+# start; the journal is replayed line by line and a line is one chunk.
+stamper_checkpoint_seconds: 600
+
+# How long a returned chunk may wait for the Forward input's acknowledgement
+# before the origin chunk is refused and Fluent Bit resends it.
+stamper_ack_timeout_seconds: 30
+
+stamper_request_timeout: 60
+stamper_bulk_timeout: 120
+stamper_bulk_documents: 500
+stamper_clock_tolerance_ms: 300000
+stamper_ledger_hours: 48
+stamper_chunk_hold_ms: 3600000
+
+# The worker-side half of the stamped-against-indexed check reads this node's
+# own local index once an hour.
+stamper_local_check: true
+
+# The same memory limits as Fluent Bit, which is now a value in this same file
+# rather than another role's default read across a play.
+stamper_memory_high: "{{ fluent_bit_memory_high }}"
+stamper_memory_max: "{{ fluent_bit_memory_max }}"
+
+
+# --- the central catalog maintenance -----------------------------------------
+#
+# Runs in the role's other mode, on one host: definition expiry, query-history
+# expiry and the two counting checks.
+
+# template_catalog_index is owned by group_vars/all.yml: the stamper writes the
+# definitions, this job expires them and the Shifter reads them, so no role
+# declares it.
+template_catalog_maintenance_service_name: alice-catalog-maintenance
+template_catalog_maintenance_script: "{{ collector_app_root }}/catalog_maintenance.py"
+template_catalog_maintenance_state_dir: /var/lib/alice-catalog-maintenance
+template_catalog_maintenance_interval: "1h"
+template_catalog_maintenance_calendar: "hourly"
+template_catalog_maintenance_memory_max: "256M"
+template_catalog_maintenance_page: 1000
+template_catalog_maintenance_requests_per_second: 500
+template_catalog_maintenance_max_docs: 50000
+template_catalog_maintenance_timeout: 300
+template_catalog_maintenance_bulk_documents: 500
+template_catalog_query_retention_days: 365
+template_catalog_query_cleanup_interval_hours: 24
+
+# The check results live in the catalog index beside the definitions and are
+# expired on their own clock, matched to the hourly bucket retention.
+template_catalog_check_retention_days: 35
+
+# The shared indices the central stamped-against-indexed check reads. The
+# worker-local index is checked on the worker by alice-stamper.
+template_catalog_shared_indices: "application-logs-central,infologger"
+
+# How many completed hours each pass checks, and how far behind the current
+# hour it starts, so the last publication of a bucket has landed before it is
+# compared against the index.
+template_catalog_check_hours: 1
+template_catalog_check_lag_hours: 1
+template_catalog_check_page: 200
+template_catalog_check_max_buckets: 5000

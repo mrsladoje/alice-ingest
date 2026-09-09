@@ -1,0 +1,24 @@
+- name: Daemon-reload fluent-bit
+  ansible.builtin.systemd:
+    daemon_reload: true
+  listen: daemon-reload fluent-bit
+
+- name: Restart fluent-bit
+  ansible.builtin.systemd:
+    name: "{{ collector_service_name }}"
+    state: restarted
+  listen: restart fluent-bit
+
+- name: restart alice-stamper
+  ansible.builtin.systemd:
+    name: "{{ stamper_service_name }}"
+    state: restarted
+    daemon_reload: true
+    enabled: true
+
+- name: restart alice-catalog-maintenance timer
+  ansible.builtin.systemd:
+    name: "{{ template_catalog_maintenance_service_name }}.timer"
+    state: restarted
+    daemon_reload: true
+    enabled: true

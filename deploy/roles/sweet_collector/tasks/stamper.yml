@@ -1,10 +1,13 @@
-# roles/stamper — one long-running service per worker. Fluent Bit hands every
+# alice-stamper — one long-running service per worker. Fluent Bit hands every
 # log record through it over a Unix socket and takes it back stamped with its
 # template identity, before the record reaches OpenSearch.
+#
+# This file runs before tasks/collector.yml so the listening socket exists when
+# Fluent Bit starts. A collector that starts first only buffers and retries.
 ---
 - name: Ensure the app root exists
   ansible.builtin.file:
-    path: "{{ stamper_app_root }}"
+    path: "{{ collector_app_root }}"
     state: directory
     owner: root
     group: root
@@ -58,7 +61,7 @@
 - name: Install the stamper and the Forward codec it imports beside it
   ansible.builtin.copy:
     src: "{{ item }}"
-    dest: "{{ stamper_app_root }}/{{ item }}"
+    dest: "{{ collector_app_root }}/{{ item }}"
     owner: root
     group: root
     mode: "0755"

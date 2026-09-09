@@ -507,7 +507,7 @@ behave exactly like the three that were already there.
 ## Routing decision records
 
 Written 4 September 2026, against the configuration in
-`deploy/roles/collector/templates/`. Every source the collector reads has a row
+`deploy/roles/sweet_collector/templates/`. Every source the collector reads has a row
 here. A source with no row is not collected.
 
 Volume shares are measured on the 45,596,613-line archive corpus, not on a day
@@ -710,7 +710,7 @@ collector routes raw logs and decides nothing about the catalog; a tag in the
 collector has no effect on which templates exist.
 
 That separation left a gap, and the gap is now closed by
-`deploy/roles/template_catalog`. Informational lines stay on the node, so a
+`deploy/roles/sweet_collector`. Informational lines stay on the node, so a
 catalog built from the durable tier alone would never see the templates of
 96.9 % of the process tree. The role mines templates **on the worker**, from
 that worker's own records, and sends only the canonical template text and its

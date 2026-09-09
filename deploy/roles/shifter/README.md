@@ -60,7 +60,7 @@ control host.
 | **Delivery** | Best-effort, deliberately. The collector's HTTP output gets a 1 MB buffer and one retry, so a lane that is down or a viewer that is slow can never push back on the OpenSearch path. |
 | **Enrichment** | The lane does its own. Field normalization lives in the `alice-add-ingest-time` ingest pipeline, which only records going to OpenSearch pass through. `shifter.py` therefore carries its own copy of the severity table and its own `origin_host` fallback. |
 
-The producing end is the `collector` role: one `http` output, gzip-compressed,
+The producing end is the `sweet_collector` role: one `http` output, gzip-compressed,
 matching those two tags. Turning `shifter_enabled` off removes that output
 entirely.
 
@@ -514,10 +514,10 @@ defaults, because a second copy is a second place to change one value.
 
 | Variable | Owner | Used for |
 |---|---|---|
-| `shifter_port` | `group_vars/all.yml` | The listen port, the firewall rule and both health probes. The `collector` role writes the same number into its output. |
-| `shifter_ingest_path` | `group_vars/all.yml` | `SHIFTER_INGEST_PATH`. The `collector` role writes the same path into its output. |
-| `shifter_enabled` | `group_vars/all.yml` | Read by the play that calls this role and by the `collector` role. The role itself never reads it. |
-| `shifter_host` | `group_vars/all.yml` | Read by the `collector` role only. It names the `shifter` inventory group, so it cannot be a role default. |
+| `shifter_port` | `group_vars/all.yml` | The listen port, the firewall rule and both health probes. The `sweet_collector` role writes the same number into its output. |
+| `shifter_ingest_path` | `group_vars/all.yml` | `SHIFTER_INGEST_PATH`. The `sweet_collector` role writes the same path into its output. |
+| `shifter_enabled` | `group_vars/all.yml` | Read by the play that calls this role and by the `sweet_collector` role. The role itself never reads it. |
+| `shifter_host` | `group_vars/all.yml` | Read by the `sweet_collector` role only. It names the `shifter` inventory group, so it cannot be a role default. |
 | `alice_shared_dir`, `alice_shared_contract_file` | `group_vars/all.yml` | Where `template_contract.py` is staged and where it is shipped from. The `template_catalog` role stages the same file on every worker. |
 | `template_catalog_index`, `template_triage_index`, `shifter_queries_index` | `group_vars/all.yml` | The three Templates-page indices in the catalog family. Shared with `sweet_opensearch`, which creates them. The bucket indices are date-named and come from the role defaults above. |
 | `incidents_index` | `group_vars/all.yml` | `SHIFTER_INCIDENTS_INDEX`. The incident index gives the episode summary beside a template. Shared with `signal_projector`, which writes the incidents. |
@@ -628,7 +628,7 @@ In a playbook, against the live lane host:
              | map('extract', hostvars, 'ansible_host') | unique | list }}
 ```
 
-- **Run it before the `collector` role.** The collectors are configured to push
+- **Run it before the `sweet_collector` role.** The collectors are configured to push
   to this port. The two health proofs at the end of this role are what make that
   order safe.
 - **The role is idempotent.** It restarts the service only when the server, the
@@ -637,7 +637,7 @@ In a playbook, against the live lane host:
 ## Couplings
 
 - **`shifter_port` and `shifter_ingest_path` are shared with the
-  `collector` role.** The collector's HTTP output writes both numbers into
+  `sweet_collector` role.** The collector's HTTP output writes both numbers into
   `collector.yaml`. Change them in `group_vars/all.yml`, which both roles read.
   Changing them here alone gives a lane that listens where nothing pushes.
 - **The severity table is a second copy of the collector's normalization.**

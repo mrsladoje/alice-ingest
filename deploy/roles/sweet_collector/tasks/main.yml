@@ -1,0 +1,27 @@
+# Two disjoint jobs, and a host does exactly one of them.
+#
+#   node                 collects and stamps. Fluent Bit tails this worker's log
+#                        tree and hands every record through alice-stamper and
+#                        back before the OpenSearch outputs, so the two are
+#                        installed together, stamper first: a collector that
+#                        starts against a missing socket only buffers and
+#                        retries.
+#   catalog_maintenance  expires definitions, expires the query history and runs
+#                        the two counting checks. Cluster-wide and idempotent, so
+#                        it must run once, on the host named by
+#                        template_catalog_maintenance_host.
+#
+# The two cannot share a play: the maintenance pass reads bucket documents that
+# every worker publishes, so it runs after the whole fleet is collecting.
+
+- name: Stamp and collect on this worker
+  ansible.builtin.include_tasks: stamper.yml
+  when: not (collector_catalog_maintenance | bool)
+
+- name: Install and configure Fluent Bit on this worker
+  ansible.builtin.include_tasks: collector.yml
+  when: not (collector_catalog_maintenance | bool)
+
+- name: Maintain the template catalog for the whole fleet (one worker, once)
+  ansible.builtin.include_tasks: catalog_maintenance.yml
+  when: collector_catalog_maintenance | bool

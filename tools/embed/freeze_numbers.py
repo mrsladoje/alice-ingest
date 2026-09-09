@@ -29,8 +29,8 @@ Z_BETA = 0.8416212335729143
 HARD_CONSTRAINTS = {
     "source": ["deploy/group_vars/all.yml",
                "deploy/roles/sweet_opensearch/defaults/main.yml",
-               "deploy/roles/template_catalog/defaults/main.yml",
-               "deploy/roles/collector/defaults/main.yml"],
+               "deploy/roles/sweet_collector/defaults/main.yml",
+               "deploy/roles/sweet_collector/defaults/main.yml"],
     "read_on": "2026-09-08",
     "local_only": ("the deployment runs on the EPN farm with no external "
                    "inference service, so a candidate that needs a hosted API "

@@ -405,7 +405,7 @@ read a report, and the safety guards. The pieces that matter here:
 | File | Role |
 |---|---|
 | `soak.py` | Runs a whole profile end to end and writes the report. `soak.py profiles` lists them, `soak.py run <profile>` runs one, `soak.py down` tears the rig down |
-| `mkconfig.py` | Renders the **real** `deploy/roles/collector/templates/collector.yaml.j2`, then patches the knob under test. This is what stops the rig drifting from production — **never hand-write a collector config** |
+| `mkconfig.py` | Renders the **real** `deploy/roles/sweet_collector/templates/collector.yaml.j2`, then patches the knob under test. This is what stops the rig drifting from production — **never hand-write a collector config** |
 | `logburst.py` | The load generator. `--mode selftest` measures its own ceiling |
 | `soakrec.py` | The recorder, one row a second |
 | `sink.py` | The fake sink; can stall, answer 429, or be stopped |

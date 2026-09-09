@@ -14,7 +14,7 @@ fan-out process it was written to be.
 
 ## Why it is a separate role
 
-- **It produces; `collector` consumes.** They share a directory and a TCP port
+- **It produces; `sweet_collector` consumes.** They share a directory and a TCP port
   and nothing else. The replay can be reinstalled, re-triggered or left idle for
   a week without touching Fluent Bit's configuration, and the parsing rules can
   change without re-uploading an engine.
@@ -190,7 +190,7 @@ in step 1 admits, and why the page's button never goes through Ansible.
   `*_fast` rates are reachable only through `make replay-fast`.
 - **The credentials template is `no_log: true` and `0600`.** Values come only
   from `group_vars/vault.yml`, and the file is regenerated on every run.
-- **The `log_root` subdirectories are created defensively.** The `collector` role
+- **The `log_root` subdirectories are created defensively.** The `sweet_collector` role
   owns them, but this role must not depend on play ordering to have a place to
   write.
 
@@ -242,7 +242,7 @@ the role reads directly rather than re-declaring.
 - **The vault file is not optional.** Without `vault_s3_access_key_id` and its
   pair the credentials template fails, and `no_log` means the error will not tell
   you which variable was missing.
-- **Run it after `collector`.** Not for correctness — the ordering is soft — but
+- **Run it after `sweet_collector`.** Not for correctness — the ordering is soft — but
   so the first triggered pass has somewhere to be read from.
 - **Every worker needs a distinct `epn_partition`, numbered `0 .. node_count-1`.**
   Two workers sharing a partition replay the same hosts twice and every rate and
@@ -261,11 +261,11 @@ the role reads directly rather than re-declaring.
   local `application-logs-local-<node>` indices then hold a different set of EPN hosts
   than before, so a comparison across the change is not a comparison of like with
   like. Re-slicing means a `make replay-fresh`, not a `make replay`.
-- **`log_root` is shared with `collector`.** This role writes DDS and stdout
+- **`log_root` is shared with `sweet_collector`.** This role writes DDS and stdout
   files into it through the symlink; Fluent Bit tails them out of it. Changing it
   in one role and not the other produces a healthy producer, a healthy collector,
   and no data.
-- **`infologger_tcp_port` is shared with `collector`.** The wrapper connects to
+- **`infologger_tcp_port` is shared with `sweet_collector`.** The wrapper connects to
   `127.0.0.1` on it; Fluent Bit listens on it. Same failure mode as above.
 - **`replay_http_port` is read in four places.** The unit and the firewall rule
   here, `worker_replay_trigger_urls` and `worker_replay_endpoints` in
@@ -352,5 +352,5 @@ point this becomes an ordinary "install a daemon" role.
 - `common`, for firewalld and the baseline packages.
 - `group_vars/vault.yml`, decrypted, for the two S3 secrets.
 - `images/replay/replay.py`, on the controller — outside `deploy/`.
-- `collector`, in practice: it owns `log_root` and listens on
+- `sweet_collector`, in practice: it owns `log_root` and listens on
   `infologger_tcp_port`. The producer will run without it and write into a void.

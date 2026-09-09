@@ -10,9 +10,9 @@ from jinja2 import Environment, StrictUndefined
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 TEMPLATE = os.path.join(
-    REPO, "deploy", "roles", "collector", "templates", "collector.yaml.j2")
+    REPO, "deploy", "roles", "sweet_collector", "templates", "collector.yaml.j2")
 PARSERS = os.path.join(
-    REPO, "deploy", "roles", "collector", "templates", "parsers.yaml.j2")
+    REPO, "deploy", "roles", "sweet_collector", "templates", "parsers.yaml.j2")
 
 LOG_MATCHES = {"infologger", "ildaemon", "family.local", "family.central"}
 
@@ -66,11 +66,11 @@ def render(live_lane, flush, buffer_limit, retry_limit,
         shifter_host=lane_host,
         shifter_port=lane_port,
         shifter_ingest_path=lane_path,
-        collector_stamper_listen_socket=stamper_socket_dir + "/stamper.sock",
-        collector_stamper_return_socket=stamper_socket_dir + "/stamped.sock",
-        collector_stamper_status_file=stamper_socket_dir
+        stamper_listen_socket=stamper_socket_dir + "/stamper.sock",
+        stamper_return_socket=stamper_socket_dir + "/stamped.sock",
+        stamper_status_file=stamper_socket_dir
         + "/stamper-status.json",
-        collector_stamper_socket_mode="0660",
+        stamper_socket_mode="0660",
     )
 
 

@@ -1,13 +1,39 @@
-# `collector`
+# `sweet_collector`
 
-Installs and configures Fluent Bit on a worker node. It tails the local log
-tree, accepts InfoLogger records over TCP, parses and routes them into three
-log families, samples its own health, and writes everything to the OpenSearch
-node running on the same machine.
+Everything the worker tier does to a log line, and the fleet-wide upkeep of what
+that produces. Two modes, chosen by `collector_catalog_maintenance`.
+
+**Node mode** (the default) installs two services on every worker. `alice-stamper`
+stamps every record with its template identity. Fluent Bit tails the local log
+tree, accepts InfoLogger records over TCP, parses and routes into three log
+families, hands every record through the stamper and back, samples its own
+health, and writes everything to the OpenSearch node on the same machine.
+
+**Catalog-maintenance mode** runs on one worker, named by
+`template_catalog_maintenance_host`: definition expiry, query-history expiry and
+the two counting checks, as a oneshot unit on an hourly timer.
 
 This is the only role that decides what a log line means. Everything downstream
 — index templates, detectors, monitors, the cockpit — depends on the fields it
 produces here.
+
+## Why one role
+
+The collector and the stamper are one thing wearing two names. Fluent Bit's
+Forward output writes to a socket `alice-stamper` listens on, and its Forward
+input reads the socket the stamper writes back to. While these were two roles the
+same four strings — the socket directory, the two socket paths and the status
+file — were declared twice, in two namespaces, with nothing asserting they
+matched. A rename on one side sent the Forward output to a socket nobody listened
+on: no error at deploy time, and no records stamped. The collector also owned the
+`tmpfiles.d` entry that creates the stamper's runtime directory, and the
+stamper's memory limits were read out of the collector's defaults across a play.
+One namespace removes all of that.
+
+The maintenance job joins them because it owns nothing of its own. It expires and
+checks the definitions, the bucket documents and the watermarks that the stamper
+publishes, through the same `template_contract.py`. `sweet_opensearch` owns the
+shape of those indices; this role owns what the documents mean.
 
 ## How it is wired
 
@@ -248,13 +274,15 @@ ansible-playbook -i inventory.yml collector-only.yml
 - **The role is idempotent.** It restarts `fluent-bit` only when the config, the
   parsers, the health sampler, the identity file or the unit drop-in changed.
 
-## Role variables
+## Collector variables
 
 Values the role owns. Override any of them in `group_vars` to change them
 site-wide.
 
 | Variable | Default | Meaning |
 |---|---|---|
+| `collector_catalog_maintenance` | `false` | Which mode this host runs. `true` skips Fluent Bit and the stamper entirely and installs the maintenance timer instead. |
+| `collector_app_root` | `/opt/alice-ingest` | One root for everything the role installs on a worker. It was three variables holding this same string while these were three roles. |
 | `fluent_bit_version` | `4.0.14` | Pinned RPM version. **Was 5.0.8.** 5.x loses bytes appended to a file after `logrotate` renames it away — docs/SOAK_RESULTS.md round 10. The farm workers pin 4.x in the inventory; `epn-infra13` does not, and it is the node that would collect the one source that rotates daily. |
 | `collector_blocked_version_prefixes` | `["5."]` | Versions the role refuses to install. Checked before the package task, not documented in a comment and hoped for. |
 | `collector_allow_blocked_version` | `false` | Deliberate override, for someone who has re-tested rotation on that build. |
@@ -264,12 +292,12 @@ site-wide.
 | `collector_binary_path` | `/opt/fluent-bit/bin/fluent-bit` | What `ExecStart` runs. |
 | `collector_config_dir` | `/etc/fluent-bit` | Holds `collector.yaml` and `parsers.yaml`. |
 | `collector_systemd_dropin_dir` | `/etc/systemd/system/fluent-bit.service.d` | Where `override.conf` is written. |
-| `collector_health_script` | `/opt/alice-ingest/fb_health.py` | Health sampler, run by the `exec` input. |
+| `collector_health_script` | `{collector_app_root}/fb_health.py` | Health sampler, run by the `exec` input. |
 | `collector_health_interval_seconds` | `cockpit_metrics_interval_seconds` (30) | How often that sampler runs. |
 | `collector_env_dir` | `/etc/alice-ingest` | Directory for the node identity file. |
 | `collector_env_file` | `/etc/alice-ingest/node.env` | This machine's identity. See below. |
 | `collector_opensearch_env_file` | `/etc/alice-ingest/opensearch-node.env` | Written by the `sweet_opensearch` role. See below. |
-| `collector_register_script` | `/opt/alice-ingest/register_node.sh` | Installed by `sweet_opensearch` on every worker. This role only names the path. |
+| `collector_register_script` | `{collector_app_root}/register_node.sh` | Installed by `sweet_opensearch` on every worker. This role only names the path. |
 | `collector_start_timeout_seconds` | `600` | `TimeoutStartSec`. Coupled — see below. |
 | `collector_metrics_scrape_open` | `false` | `true` opens the metrics port to the scrape source. |
 | `collector_stdout_refresh_interval` | `5` | How often the process-tree tail sweeps for new files. `/scratch` is NFS and NFS has no inotify, so this is the only thing that finds a program that started since the last sweep. |
@@ -289,7 +317,7 @@ site-wide.
 | `fluent_bit_memory_high` | `384M` | `MemoryHigh` on the unit. |
 | `fluent_bit_memory_max` | `768M` | `MemoryMax` on the unit. The kernel kills the process above this. |
 
-### Variables the role requires but does not own
+### Variables the collector requires but does not own
 
 These are site-wide. They are deliberately **not** duplicated into this role's
 defaults, because a second copy is a second place to change one value.
@@ -392,10 +420,277 @@ is a collector that does nothing.
 
 ## Used by
 
-- `playbooks/site.yml`, against the `workers` group, in the same play as
-  `stamper`, which is installed first so its socket exists when Fluent Bit
-  starts.
+`playbooks/site.yml`, in two plays against the `workers` group. The first runs
+node mode on every worker. The second runs the same role with
+`collector_catalog_maintenance: true`, and carries
+`when: inventory_hostname == template_catalog_maintenance_host`, so the
+fleet-wide pass happens once. The two cannot share a play: a maintenance pass
+reads bucket documents that every worker publishes, so it must follow the whole
+fleet.
+
+Within node mode, `tasks/stamper.yml` runs before `tasks/collector.yml`. The
+listening socket must exist when Fluent Bit starts; a collector that starts first
+only buffers and retries.
 
 ## Includes
 
 Nothing. This role includes no other role.
+
+## The stamper
+Stamps every record with its template identity before it reaches OpenSearch.
+One long-running service per worker, in-band between Fluent Bit's filters and
+its outputs. `docs/TEMPLATES_FIX_PLAN.md` is the design.
+
+### The loop
+
+```
+tail / tcp / systemd
+  → parsers, doc_id, severity_norm, rewrite_tag                 (unchanged)
+  → out_forward   unix_path=/run/alice/stamper.sock  require_ack_response=on  workers=1
+  → alice-stamper (Python: family_of → recipe_tokens → drain3 → three fields)
+  → in_forward    unix_path=/run/alice/stamped.sock  tag_prefix=stamped.  storage.type=filesystem
+  → opensearch outputs, match stamped.family.local / stamped.family.central / stamped.infologger / stamped.ildaemon
+  → live lane,  match_regex ^stamped\.(infologger|ildaemon|family\.central)$
+```
+
+The `health` tag bypasses the stamper. Forward over a Unix socket and not HTTP
+because the parsers set the record time from the log line and an HTTP hop
+would replace it with arrival time; the acceptance test proves the time comes
+back intact.
+
+drain3 does the stamping, with the frozen recipe, the masker and the four
+Drain patches this role vendors in `files/`, copied onto the node and imported.
+Any port would be a second implementation of a masker whose byte-identical
+output is the identity.
+
+`files/drainbench.py` and `files/masking.py` are copies of the two files of the
+same name in `tools/templating`, which is where they are edited. `roles/shifter`
+holds a third copy, for the same reason: a role depends on nothing outside its
+own directory and can be lifted into another Ansible tree unchanged. `deploy/test_provisioning.py` fails
+if a copy and its source ever differ, and skips that check in a tree that has no
+`tools/`.
+
+### Three fields on every record
+
+| Field | Meaning |
+|---|---|
+| `template_version` | `version_id(family, template)`, the exact text the tree returned. Never rewritten. |
+| `template_id` | `canonical_id(template)`, the mask-class-collapsed text. |
+| `template_status` | `matched`; `new` when the record created the cluster; `unlearned` when the tree is at its state limit and refused a cluster; `no_template` when the recipe reduced the record to nothing. |
+
+Both component mappings carry them. The InfoLogger mapping is `dynamic:
+strict`, so an unmapped field would reject every document.
+
+### Exact counting
+
+Per chunk, in this order: stamp every record; send the chunk back through the
+second socket and wait for the Forward input's acknowledgement; count every
+record into the ledger and append one journal line; acknowledge the origin.
+
+Three mechanisms make the count exact.
+
+1. **Acknowledge after journaling.** Forward with `require_ack_response` is
+   at-least-once. A crash before the acknowledgement replays the chunk; a
+   crash after it loses nothing.
+2. **Deduplicate by chunk identifier.** The journal line holds the chunk
+   identifier Fluent Bit sends with every chunk. A resent chunk is stamped and
+   returned again, so the index side stays complete, and it is not counted
+   again. `create` with `doc_id` refuses the duplicate documents. The
+   identifier set covers the resend window: one hour.
+3. **Publish the bucket total beside the per-template counts**, so the storage
+   tier checks that the parts sum to the whole without trusting the worker.
+
+The observation clock is `collector_time`. A record whose collector time is
+older than the 48-hour ledger goes into a flagged late bucket at stamp time:
+the total stays exact, the attribution error is bounded and visible.
+
+The one window left open is stated in the plan: a crash after the return and
+before the journal line means the resent chunk is re-mined, and its count can
+go to a version that differs from the one the indexed records carry. It
+affects one chunk per crash and the stamped-against-indexed check shows it.
+
+### State on the worker
+
+Under `StateDirectory=alice-stamper`: a checkpoint (`stamper-state.json`: the
+drain tree per family, the ledger, the pending definitions, the chunk
+identifiers, the journal sequence) written atomically every
+`stamper_checkpoint_seconds`, and the journal since it. On start the journal
+is replayed into the ledger before a connection is accepted. The tree and the
+journal are independent: counts come from the journal alone, so a tree older
+than the journal costs a re-created cluster and never a count.
+
+After a restart every bucket in the ledger is dirty and republished.
+Overwrites make that safe.
+
+### What it publishes, every five minutes
+
+- **Bucket documents** into `template-buckets-5m-<day>` and
+  `template-buckets-1h-<month>`: one node, one family, one bucket start, one
+  resolution; the total and the nested per-version counts. The identifier is
+  those four keys, so a republication overwrites. The index is named from the
+  bucket's own start so the republication lands where the first write did.
+  Two resolutions from one ledger; summation is exact.
+- **Definitions** into `template-catalog`, keyed by the version identifier,
+  upserted with a union script: programs, origin hosts, log sources, nodes,
+  first and last observation, and the observed widening links as sets
+  (`widened_into`, `widened_from`).
+- **One watermark** per node into `template-catalog`: `published_through` is
+  the start of the open five-minute bucket at publication time, and the
+  stamper's counters ride along.
+- **The worker-side check.** Once an hour, for the previous completed hour
+  and each family: a terms aggregation on `template_version` over this node's
+  local index must be at or below the stamped count for every version. The
+  result is a `kind: check` document in the catalog.
+
+A failed publication keeps every bucket dirty and increments
+`publication_failures`; the next cycle retries.
+
+### Health
+
+The stamper writes its counters to `/run/alice/stamper-status.json` on every
+cycle. The collector's `fb_health.py` reads that file and merges every
+`stamper_*` field into the record it already pushes into `cockpit-metrics`, so
+the stamper rides the existing health path: records and chunks, duplicate
+chunks, return failures, unlearned and no-template records, late records,
+journal bytes and lines, clusters per process, ledger size, publications and
+failures, peak memory, socket backlog. Deltas for the counters that move are
+computed by the same Lua filter that computes Fluent Bit's own.
+
+### Failure semantics
+
+- **Stamper down.** Fluent Bit buffers to disk and retries without limit
+  (`retry_limit: no_limits` on the forward output), bounded by the storage
+  limit. Tailed files survive any outage because the tail database resumes.
+  The InfoLogger TCP input has no source to re-read, so its loss boundary is
+  the buffer cap, as before.
+- **Stamper slow.** The input pauses through the same buffer.
+- **Stamper crash mid-chunk.** The chunk was not acknowledged; Fluent Bit
+  resends it; the identifier makes the resend harmless.
+- **State limit.** At `stamper_max_templates` clusters the tree stops learning
+  and stamps `unlearned`; the count is in the health record.
+
+systemd restarts the service (`Restart=always`). The unit gets the same memory
+limits as the collector.
+
+### Tests
+
+`files/test_stamper.py` covers the Forward codec in every message mode, the
+acknowledge-after-handler rule, byte-identical stamps against the offline
+miner, widening links, exact counts and chunk deduplication, the failed return
+path, journal replay after a crash, late buckets, unstamped records, the state
+limit, bucket conservation at both resolutions, definitions and the watermark,
+failed publications, republication after restart, the local check and the
+cover relation.
+
+`files/test_acceptance_stamper.py` needs a real Fluent Bit binary (it looks in
+`/opt/fluent-bit/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, or `$FLUENT_BIT`)
+and skips otherwise. It runs the whole loop — tail → forward output → stamper
+→ forward input → file output — on a generated corpus and diffs every stamp
+against the offline miner: zero differences, the same bar the masker passed.
+It also proves the record time survives the loop and that the bucket totals
+conserve. A second test kills the stamper between the return and the journal
+line and proves the counts and the delivered records agree afterwards.
+
+### Stamper variables
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `stamper_drain3_version` | `0.9.11` | Pinned; the stamping path calls reviewed internal methods. |
+| `stamper_msgpack_version` | `1.1.2` | The Forward protocol codec. |
+| `stamper_socket_dir` | `/run/alice` | Both sockets and the status file. `tasks/collector.yml` creates the directory through a `tmpfiles.d` entry, because the stamper's own `RuntimeDirectory=` would not survive the collector's restarts. |
+| `stamper_state_dir` | `/var/lib/alice-stamper` | `StateDirectory=`. |
+| `stamper_max_templates` | `20000` | Learning ceiling across every family. |
+| `stamper_publish_seconds` | `300` | The publication cycle. |
+| `stamper_checkpoint_seconds` | `600` | The ledger checkpoint; sets the journal size against the replay time. |
+| `stamper_ack_timeout_seconds` | `30` | How long a returned chunk may wait for the Forward input's acknowledgement. |
+| `stamper_ledger_hours` | `48` | From `group_vars/all.yml`; the worker keeps this much and nothing older. |
+| `stamper_local_check` | `true` | The worker-side stamped-against-indexed check. |
+| `stamper_memory_high`, `stamper_memory_max` | `fluent_bit_memory_high`, `fluent_bit_memory_max` | Same limits as Fluent Bit, now a value in the same defaults file rather than another role's read across a play. |
+
+### Variables the stamper requires but does not own
+
+| Variable | Owner |
+|---|---|
+| `template_catalog_index`, `alice_shared_dir`, `alice_shared_contract_file`, `stamper_ledger_hours` | `group_vars/all.yml` |
+| `node_id`, `opensearch_http_port` | inventory and `group_vars/all.yml` |
+
+## The central catalog maintenance
+The central maintenance of the template catalog. One oneshot unit on a timer,
+on one worker.
+
+### What it does
+
+The worker half of the old catalog producer is gone. Every record is stamped
+in-band by `tasks/stamper.yml` above, which also publishes the template
+definitions, the exact bucket counts and the per-node watermarks. See
+`docs/TEMPLATES_FIX_PLAN.md`.
+
+What stays runs on exactly one host, named by
+`template_catalog_maintenance_host` in `group_vars/all.yml`:
+
+- **Definition expiry.** A template definition is deleted 90 days after its
+  last observation (`kind: template`, by `last_observed`).
+- **Check expiry.** Check results are deleted after the hourly bucket
+  retention (`kind: check`, by `checked_at`).
+- **Query-history expiry.** `shifter-queries` documents older than one year
+  are deleted. The unit runs hourly; this section skips a pass until 24 hours
+  have passed since its last clean run.
+- **The two counting checks** (plan section 4). Both read the hourly bucket
+  documents of the last completed hour behind a one-hour lag.
+  - *Conservation.* For every bucket document, the nested counts must sum to
+    the total. A mismatch is a ledger bug.
+  - *Stamped against indexed.* A terms aggregation on `template_version` over
+    each shared index (`application-logs-central`, `infologger`), scoped to the
+    node and the hour, must be at or below the stamped count for every
+    version. The worker-local index is checked on the worker by the stamper
+    itself, once an hour, with the same document shape.
+
+  Failing conservation checks and every stamped-against-indexed result are
+  written into `template-catalog` as `kind: check`
+  (`contract.check_document`), so the Shifter can show them. The
+  `template-count-check` monitor fires on any `ok: false` check in the last
+  two hours.
+
+### Every pass publishes what it did
+
+Each pass writes three documents into `template-catalog` at the fixed
+identifiers `maintenance:catalog`, `maintenance:queries` and
+`maintenance:checks`, `kind: catalog_maintenance`. Each carries the age of that
+section's last clean run, what it deleted or found, its failure count, and the
+whole section report under `detail`.
+
+### Maintenance variables
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `template_catalog_maintenance_calendar` | `hourly` | `OnCalendar` on the timer. |
+| `template_catalog_maintenance_memory_max` | `256M` | `MemoryMax` on the unit. |
+| `template_catalog_maintenance_page` | `1000` | Documents per delete-by-query batch. |
+| `template_catalog_maintenance_requests_per_second` | `500` | The delete-by-query throttle. |
+| `template_catalog_maintenance_max_docs` | `50000` | Documents one pass may delete per section. |
+| `template_catalog_maintenance_timeout` | `300` | Deadline on one request. |
+| `template_catalog_query_retention_days` | `365` | Expiry of `shifter-queries` by `issued_at`. |
+| `template_catalog_query_cleanup_interval_hours` | `24` | The query section's own clock. |
+| `template_catalog_check_retention_days` | `35` | Expiry of `kind: check` documents. |
+| `template_catalog_shared_indices` | `application-logs-central,infologger` | The indices the central stamped-against-indexed check reads. |
+| `template_catalog_check_hours` | `1` | Completed hours checked per pass. |
+| `template_catalog_check_lag_hours` | `1` | Hours behind the current hour the checked window ends. |
+| `template_catalog_check_page` | `200` | Bucket documents per listing page. |
+| `template_catalog_check_max_buckets` | `5000` | Bucket documents one pass may check. |
+
+### Variables the maintenance mode requires but does not own
+
+| Variable | Owner | Used for |
+|---|---|---|
+| `template_catalog_index`, `template_buckets_1h_prefix`, `shifter_queries_index` | `group_vars/all.yml` | The catalog, the hourly bucket pattern and the query history. |
+| `alice_shared_dir`, `alice_shared_contract_file` | `group_vars/all.yml` | The shared contract module. |
+| `template_catalog_maintenance_host` | `group_vars/all.yml` | Derived from the `workers` group, so it cannot be a role default. `site.yml` puts the condition on the play, so no task in this role repeats it. |
+| `template_catalog_definition_retention_days` | `group_vars/all.yml` | The 90-day definition retention. |
+| `opensearch_http_port` | `group_vars/all.yml` | The local cluster endpoint. |
+
+### Maintenance tests
+
+`files/test_catalog_maintenance.py` drives the pass against a fake cluster:
+the check window, conservation, stamped-against-indexed in both directions, an
+unreadable index, a partial listing, the bucket ceiling, the three expiry
+sections and their clocks, and the state file.

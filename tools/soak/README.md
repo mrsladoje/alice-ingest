@@ -31,7 +31,7 @@ of real-shaped records and writes them as fast as it is told to.
 |---|---|
 | `mkfixture.py` | Builds a fixture: DDS and stdout line bodies, InfoLogger JSON records. Synthetic by default, or harvested from real replayed logs with `--from-logs`. |
 | `logburst.py` | The load generator. Writes DDS and stdout lines into the tail directories and sends InfoLogger JSON to the TCP input. Steady, staircase or burst. |
-| `mkconfig.py` | Renders `deploy/roles/collector/templates/collector.yaml.j2` — the real production template — then patches the knobs under test. The rig therefore cannot drift from production. |
+| `mkconfig.py` | Renders `deploy/roles/sweet_collector/templates/collector.yaml.j2` — the real production template — then patches the knobs under test. The rig therefore cannot drift from production. |
 | `sink.py` | A fake OpenSearch. Counts every document it receives, and can be told to stall, to answer 429, or to be stopped outright. |
 | `soakrec.py` | The recorder. Samples Fluent Bit metrics, storage chunks, and — for **every** container in the rig — processor time, disk traffic and memory, every second. |
 | `vmprobe.py` | Reads the cgroup and `/proc` counters. Docker lives in a Colima machine, so one shell is opened there and held; a whole sample costs about a millisecond. |

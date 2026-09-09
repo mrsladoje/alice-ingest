@@ -204,8 +204,8 @@ replay_clock: preserved
 trend_rollup_index: trend-rollup
 
 # Template identity. Every record is stamped with its template version by
-# roles/stamper on the worker, before it reaches OpenSearch, so both tiers carry
-# the field and no raw informational line has to leave its node. The catalog
+# roles/sweet_collector on the worker, before it reaches OpenSearch, so both
+# tiers carry the field and no raw informational line has to leave its node. The catalog
 # holds one definition per template version, one watermark per node and the
 # check results; the two bucket index families hold the exact counts per node,
 # family and bucket at five-minute and one-hour resolution. Read by the
@@ -224,6 +224,9 @@ template_buckets_replicas: 1
 alice_shared_dir: /opt/alice-ingest/shared
 alice_shared_contract_file: "{{ playbook_dir }}/../shared/template_contract.py"
 
+# The one worker that runs sweet_collector in its catalog-maintenance mode. A
+# variable rather than an inventory group: it is derived from the workers group,
+# so an inventory that adds or renames a worker needs no second edit.
 template_catalog_maintenance_host: "{{ groups['workers'][0] }}"
 
 # The volume window and the default activity view. 28 days is the working

@@ -1,6 +1,0 @@
-- name: restart alice-catalog-maintenance timer
-  ansible.builtin.systemd:
-    name: "{{ template_catalog_maintenance_service_name }}.timer"
-    state: restarted
-    daemon_reload: true
-    enabled: true

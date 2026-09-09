@@ -49,8 +49,8 @@ def role_defaults(role):
     return _load_yaml(os.path.join(ROLES, role, "defaults", "main.yml"))
 
 
-def role_tasks(role):
-    return _load_yaml(os.path.join(ROLES, role, "tasks", "main.yml"))
+def role_tasks(role, name="main.yml"):
+    return _load_yaml(os.path.join(ROLES, role, "tasks", name))
 
 
 def _environment(role):
@@ -396,8 +396,7 @@ def test_farm_storage_tier_fits_its_heap_shard_budget():
 
 def _stamper_unit(**overrides):
     values = dict(group_vars())
-    values.update(role_defaults("collector"))
-    values.update(role_defaults("stamper"))
+    values.update(role_defaults("sweet_collector"))
     values.update({"node_id": "node-01", "opensearch_http_port": 9200,
                    "ansible_managed": "managed",
                    "stamper_listen_socket": "/run/alice/stamper.sock",
@@ -409,7 +408,7 @@ def _stamper_unit(**overrides):
                    "stamper_memory_high": "384M",
                    "stamper_memory_max": "768M"})
     values.update(overrides)
-    env = _environment("stamper")
+    env = _environment("sweet_collector")
     env.filters["basename"] = os.path.basename
     return env.get_template("alice-stamper.service.j2").render(**values)
 
@@ -427,21 +426,18 @@ def _shifter_unit(**overrides):
 
 def _collector_config(**overrides):
     values = dict(group_vars())
-    values.update(role_defaults("collector"))
+    values.update(role_defaults("sweet_collector"))
     values.update({"ansible_managed": "managed",
                    "collector_config_dir": "/etc/fluent-bit",
                    "collector_health_script": "/opt/alice-ingest/fb_health.py",
                    "collector_health_interval_seconds": 10,
                    "collector_journald_path": "/var/log/journal",
-                   "collector_stamper_listen_socket":
-                       "/run/alice/stamper.sock",
-                   "collector_stamper_return_socket":
-                       "/run/alice/stamped.sock",
-                   "collector_stamper_status_file":
-                       "/run/alice/stamper-status.json",
+                   "stamper_listen_socket": "/run/alice/stamper.sock",
+                   "stamper_return_socket": "/run/alice/stamped.sock",
+                   "stamper_status_file": "/run/alice/stamper-status.json",
                    "shifter_enabled": True, "shifter_host": "lane"})
     values.update(overrides)
-    return yaml.safe_load(_environment("collector").get_template(
+    return yaml.safe_load(_environment("sweet_collector").get_template(
         "collector.yaml.j2").render(**values))
 
 
@@ -475,7 +471,7 @@ def test_the_stamper_unit_exports_every_variable_its_python_reads():
     wanted = set()
     for name in ("stamper.py", "forward.py"):
         wanted |= _python_environment_names(
-            os.path.join(ROLES, "stamper", "files", name))
+            os.path.join(ROLES, "sweet_collector", "files", name))
     wanted.discard("PATH")
     missing = wanted - exported
     assert missing == {"STAMPER_TICK_SECONDS"}, sorted(missing)
@@ -504,9 +500,9 @@ def test_the_stamper_unit_carries_the_plan_limits_and_the_collector_ceiling():
 
 
 def test_the_stamper_pins_drain3_and_msgpack():
-    defaults = role_defaults("stamper")
+    defaults = role_defaults("sweet_collector")
     assert defaults["stamper_drain3_version"] == "0.9.11"
-    tasks = role_tasks("stamper")
+    tasks = role_tasks("sweet_collector", "stamper.yml")
     pins = [task for task in tasks if "ansible.builtin.pip" in task]
     assert pins
     for task in pins:
@@ -544,33 +540,81 @@ def test_the_collector_runs_every_log_record_through_the_stamper_loop():
         health["command"]
 
 
-def test_the_stamper_runs_beside_the_collector_and_before_it():
+def _worker_plays():
     site = _load_yaml(os.path.join(DEPLOY, "playbooks", "site.yml"))
-    plays = [play for play in site if play.get("hosts") == "workers"
-             and "collector" in (play.get("roles") or [])]
-    assert len(plays) == 1
-    assert plays[0]["roles"] == ["stamper", "collector"]
-    catalog = [play for play in site
-               if "template_catalog" in (play.get("roles") or [])]
-    assert len(catalog) == 1
-    tasks = role_tasks("template_catalog")
-    for task in tasks:
-        assert task.get("when") == \
-            "inventory_hostname == template_catalog_maintenance_host"
+    found = []
+    for play in site:
+        for role in play.get("roles") or []:
+            name = role["role"] if isinstance(role, dict) else role
+            if name == "sweet_collector":
+                found.append((play, role))
+    return found
+
+
+def test_the_stamper_runs_beside_the_collector_and_before_it():
+    plays = _worker_plays()
+    assert len(plays) == 2
+    for play, _ in plays:
+        assert play["hosts"] == "workers"
+
+    node_play, node_role = plays[0]
+    assert node_role == "sweet_collector"
+
+    dispatch = role_tasks("sweet_collector")
+    included = [task["ansible.builtin.include_tasks"] for task in dispatch]
+    assert included == ["stamper.yml", "collector.yml",
+                        "catalog_maintenance.yml"]
+    for task in dispatch[:2]:
+        assert task["when"] == "not (collector_catalog_maintenance | bool)"
+    assert dispatch[2]["when"] == "collector_catalog_maintenance | bool"
+
+
+def test_the_socket_contract_is_declared_exactly_once():
+    """The reason the two roles became one.
+
+    Fluent Bit's Forward output writes to the socket alice-stamper listens on,
+    and its Forward input reads the one the stamper writes back to. While these
+    were two roles the same four strings were declared in two namespaces with
+    nothing asserting they matched, so a rename on one side pointed the output
+    at a socket nobody listened on: no error at deploy time, no records
+    stamped.
+    """
+    defaults = role_defaults("sweet_collector")
+    contract = ("stamper_socket_dir", "stamper_listen_socket",
+                "stamper_return_socket", "stamper_socket_mode",
+                "stamper_status_file")
+    for name in contract:
+        assert name in defaults, name
+        assert "collector_" + name not in defaults
+
+    role = os.path.join(ROLES, "sweet_collector")
+    for directory in ("tasks", "templates"):
+        for name in sorted(os.listdir(os.path.join(role, directory))):
+            source = open(os.path.join(role, directory, name)).read()
+            assert "collector_stamper_" not in source, f"{directory}/{name}"
+
+    config = _collector_config()
+    unit = _unit_environment(_stamper_unit())
+    sends = [o for o in config["pipeline"]["outputs"]
+             if o["name"] == "forward"][0]
+    returns = [i for i in config["pipeline"]["inputs"]
+               if i["name"] == "forward"][0]
+    assert sends["unix_path"] == unit["STAMPER_LISTEN_SOCKET"]
+    assert returns["unix_path"] == unit["STAMPER_RETURN_SOCKET"]
 
 
 def test_the_maintenance_unit_resolves_against_the_role_defaults():
     values = dict(group_vars())
-    values.update(role_defaults("template_catalog"))
+    values.update(role_defaults("sweet_collector"))
     values.update({"ansible_managed": "managed", "opensearch_http_port": 9200})
-    env = _environment("template_catalog")
+    env = _environment("sweet_collector")
     env.filters["basename"] = os.path.basename
     env.filters["int"] = int
     unit = env.get_template(
         "alice-catalog-maintenance.service.j2").render(**values)
     exported = _unit_environment(unit)
     wanted = _python_environment_names(
-        os.path.join(ROLES, "template_catalog", "files",
+        os.path.join(ROLES, "sweet_collector", "files",
                      "catalog_maintenance.py"))
     assert exported["CATALOG_RETENTION_DAYS"] == "90"
     assert exported["CATALOG_CHECK_RETENTION_DAYS"] == "35"
@@ -585,22 +629,22 @@ def test_the_maintenance_unit_resolves_against_the_role_defaults():
 
 def test_the_maintenance_unit_carries_the_query_history_expiry():
     values = dict(group_vars())
-    values.update(role_defaults("template_catalog"))
+    values.update(role_defaults("sweet_collector"))
     values.update({"ansible_managed": "managed", "opensearch_http_port": 9200})
-    env = _environment("template_catalog")
+    env = _environment("sweet_collector")
     env.filters["basename"] = os.path.basename
     env.filters["int"] = int
     unit = env.get_template(
         "alice-catalog-maintenance.service.j2").render(**values)
     exported = _unit_environment(unit)
-    defaults = role_defaults("template_catalog")
+    defaults = role_defaults("sweet_collector")
     assert exported["QUERIES_INDEX"] == group_vars()["shifter_queries_index"]
     assert exported["CATALOG_QUERY_RETENTION_DAYS"] == str(
         defaults["template_catalog_query_retention_days"])
     assert exported["CATALOG_QUERY_CLEANUP_INTERVAL_HOURS"] == str(
         defaults["template_catalog_query_cleanup_interval_hours"])
     assert defaults["template_catalog_query_retention_days"] == 365
-    source = open(os.path.join(ROLES, "template_catalog", "files",
+    source = open(os.path.join(ROLES, "sweet_collector", "files",
                                "catalog_maintenance.py")).read()
     for name in ("QUERIES_INDEX", "CATALOG_QUERY_RETENTION_DAYS",
                  "CATALOG_QUERY_CLEANUP_INTERVAL_HOURS"):
@@ -609,7 +653,7 @@ def test_the_maintenance_unit_carries_the_query_history_expiry():
 
 
 def test_the_maintenance_pass_expires_the_query_history_and_runs_the_checks():
-    source = open(os.path.join(ROLES, "template_catalog", "files",
+    source = open(os.path.join(ROLES, "sweet_collector", "files",
                                "catalog_maintenance.py")).read()
     assert "def expire_queries(" in source
     assert "def run_checks(" in source
@@ -623,19 +667,19 @@ def test_the_maintenance_pass_expires_the_query_history_and_runs_the_checks():
 
 
 def test_the_maintenance_timer_lands_on_exactly_one_host():
-    tasks = role_tasks("template_catalog")
-    maintenance = [task for task in tasks
-                   if "maintenance" in json.dumps(task)]
-    assert maintenance
-    for task in maintenance:
-        assert task.get("when") == \
-            "inventory_hostname == template_catalog_maintenance_host"
+    """The play carries the condition, so no task in the role repeats it."""
+    _, maintenance_role = _worker_plays()[1]
+    assert maintenance_role["collector_catalog_maintenance"] is True
+    assert maintenance_role["when"] == \
+        "inventory_hostname == template_catalog_maintenance_host"
+    for task in role_tasks("sweet_collector", "catalog_maintenance.yml"):
+        assert "when" not in task, json.dumps(task)
     assert group_vars()["template_catalog_maintenance_host"] == \
         "{{ groups['workers'][0] }}"
 
 
 def test_the_stamper_ships_the_shared_contract_the_recipe_and_its_modules():
-    tasks = role_tasks("stamper")
+    tasks = role_tasks("sweet_collector", "stamper.yml")
     copied = []
     for task in tasks:
         copy = task.get("ansible.builtin.copy")
@@ -646,7 +690,7 @@ def test_the_stamper_ships_the_shared_contract_the_recipe_and_its_modules():
     loops = [task.get("loop") for task in tasks if task.get("loop")]
     assert ["stamper.py", "forward.py"] in loops
     assert ["drainbench.py", "masking.py"] in loops
-    files = os.listdir(os.path.join(ROLES, "template_catalog", "files"))
+    files = os.listdir(os.path.join(ROLES, "sweet_collector", "files"))
     assert "template_catalog.py" not in files
     assert "snapshot.py" not in files
     assert "ledger.py" not in files
@@ -655,7 +699,7 @@ def test_the_stamper_ships_the_shared_contract_the_recipe_and_its_modules():
 VENDORED_TEMPLATING = ("drainbench.py", "masking.py")
 
 
-@pytest.mark.parametrize("role", ("stamper", "shifter"))
+@pytest.mark.parametrize("role", ("sweet_collector", "shifter"))
 @pytest.mark.parametrize("name", VENDORED_TEMPLATING)
 def test_the_vendored_templating_copy_matches_its_source(role, name):
     source = os.path.join(DEPLOY, os.pardir, "tools", "templating", name)
@@ -670,9 +714,12 @@ def test_the_vendored_templating_copy_matches_its_source(role, name):
         f"Edit tools/templating and copy it into both roles.")
 
 
-@pytest.mark.parametrize("role", ("stamper", "shifter"))
-def test_no_role_task_reaches_outside_its_own_directory(role):
-    for task in role_tasks(role):
+@pytest.mark.parametrize("role,name", [
+    ("sweet_collector", "stamper.yml"), ("sweet_collector", "collector.yml"),
+    ("sweet_collector", "catalog_maintenance.yml"), ("shifter", "main.yml"),
+])
+def test_no_role_task_reaches_outside_its_own_directory(role, name):
+    for task in role_tasks(role, name):
         for action in ("ansible.builtin.copy", "ansible.builtin.template"):
             src = (task.get(action) or {}).get("src")
             if src:
@@ -846,9 +893,9 @@ SCHEMA_TEMPLATES = sorted(
 @pytest.mark.parametrize("role,template", [
     ("sweet_opensearch", "templates.sh.j2"),
 ] + [("sweet_opensearch", name) for name in SCHEMA_TEMPLATES] + [
-    ("stamper", "alice-stamper.service.j2"),
-    ("template_catalog", "alice-catalog-maintenance.service.j2"),
-    ("template_catalog", "alice-catalog-maintenance.timer.j2"),
+    ("sweet_collector", "alice-stamper.service.j2"),
+    ("sweet_collector", "alice-catalog-maintenance.service.j2"),
+    ("sweet_collector", "alice-catalog-maintenance.timer.j2"),
     ("shifter", "alice-shifter.service.j2"),
 ])
 def test_every_variable_a_template_names_is_declared_somewhere(role, template):
@@ -856,8 +903,7 @@ def test_every_variable_a_template_names_is_declared_somewhere(role, template):
     source = re.sub(r"\{%\s*raw\s*%\}.*?\{%\s*endraw\s*%\}", "", source,
                     flags=re.S)
     known = set(group_vars()) | set(role_defaults(role)) | TEMPLATE_SUPPLIED
-    for other in ("template_catalog", "shifter", "sweet_opensearch",
-                  "stamper", "collector"):
+    for other in ("sweet_collector", "shifter", "sweet_opensearch"):
         known |= set(role_defaults(other))
     used = set()
     for expression in re.findall(r"\{\{(.*?)\}\}", source, re.S):

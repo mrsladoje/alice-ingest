@@ -1,3 +1,6 @@
+# Fluent Bit itself. tasks/stamper.yml has already created the app root and
+# started alice-stamper, so the socket this configuration forwards to is
+# listening before the service below starts.
 - name: Add official Fluent Bit yum repository (packages.fluentbit.io)
   ansible.builtin.yum_repository:
     name: fluent-bit
@@ -46,14 +49,6 @@
     state: "{{ 'enabled' if collector_metrics_scrape_open else 'disabled' }}"
   when: alice_manage_firewalld
 
-- name: Ensure the collector app root exists
-  ansible.builtin.file:
-    path: "{{ collector_health_script | dirname }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-
 - name: Install the Fluent Bit self-health sampler (run by the exec input, not by a second daemon)
   ansible.builtin.copy:
     src: fb_health.py
@@ -99,7 +94,7 @@
 - name: Own the socket directory the stamper loop runs through
   ansible.builtin.copy:
     dest: /etc/tmpfiles.d/alice-stamper.conf
-    content: "d {{ collector_stamper_socket_dir }} 0755 root root -\n"
+    content: "d {{ stamper_socket_dir }} 0755 root root -\n"
     owner: root
     group: root
     mode: "0644"

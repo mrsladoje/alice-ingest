@@ -483,11 +483,12 @@ declares, and each step depends on the one above it.
 | 7 | `control` | `signal_projector` (`tasks_from: control.yml`) |
 | 8 | `background` | `alice_runtime`, `trend_rollup` |
 | 9 | `shifter` | `shifter` |
-| 10 | `workers` | `collector` |
-| 11 | `control` | `cockpit_metrics` (`tasks_from: post_collector.yml`) |
-| 12 | `workers` | `producer` |
-| 13 | `workers` + `projector` | `faults` |
-| 14 | `control` | the final verdict on the projector gate |
+| 10 | `workers` | `sweet_collector` (node mode: the stamper, then Fluent Bit) |
+| 11 | `workers` | `sweet_collector` (`collector_catalog_maintenance: true`, on one worker) |
+| 12 | `control` | `cockpit_metrics` (`tasks_from: post_collector.yml`) |
+| 13 | `workers` | `producer` |
+| 14 | `workers` + `projector` | `faults` |
+| 15 | `control` | the final verdict on the projector gate |
 
 What each dependency is:
 
@@ -508,14 +509,17 @@ What each dependency is:
 - `signal_projector` normalizes the signals the monitors and detectors emit, so
   both must exist first. It also proves it can reach Alertmanager before it
   starts, which is why play 4 is above it.
-- `cockpit_metrics`'s post-collector gate runs after `collector`, because it
-  waits for each collector's pushed Fluent Bit heartbeat.
+- `cockpit_metrics`'s post-collector gate runs after `sweet_collector`, because
+  it waits for each collector's pushed Fluent Bit heartbeat.
+- `sweet_collector`'s catalog-maintenance mode runs after its node mode,
+  because a maintenance pass reads the bucket documents every worker publishes.
 
-Two roles run in more than one play. `alice_runtime` runs wherever an
+Three roles run in more than one play. `alice_runtime` runs wherever an
 alice service imports its modules: control, projector and background.
 `signal_projector` runs on the projector host for the projector itself, and on
 the control host for the notification receiver — the receiver binds
 `127.0.0.1` and Alertmanager, which runs on control, posts its webhooks there.
+`sweet_collector` runs twice against `workers`, once per mode.
 
 ---
 
@@ -1960,7 +1964,7 @@ the real durability budget: about half a minute, on a tier whose whole job is no
 to lose logs during data taking.
 
 The new values are `fluent_bit_log_buffer_limit` and `fluent_bit_log_retry_limit`
-in `roles/collector/defaults/main.yml`. Ten retries is **50 seconds at best and about 109 minutes
+in `roles/sweet_collector/defaults/main.yml`. Ten retries is **50 seconds at best and about 109 minutes
 at worst** — the spread is wide because the backoff is jittered, and that is
 inherent, not a tuning mistake.
 
@@ -2027,7 +2031,7 @@ the failure the 384 MB / 768 MB pair was chosen to avoid.
 
 The protection window itself scales cleanly with the buffer — roughly four
 seconds per 100 MB at 20,000 records a second — but it buys time for the
-InfoLogger output alone. See `roles/collector/README.md`: the DDS and stdout
+InfoLogger output alone. See `roles/sweet_collector/README.md`: the DDS and stdout
 tiers lost nothing in either run, because their `tail` sources hold the backlog
 in the log files.
 

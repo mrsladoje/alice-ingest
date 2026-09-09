@@ -376,7 +376,7 @@ def main():
             manifest_tool.file_revision("tools/templating/masking.py"),
             manifest_tool.file_revision("tools/templating/corpus.py"),
             manifest_tool.file_revision("tools/templating/refamily.py"),
-            manifest_tool.file_revision("deploy/roles/collector/templates/parsers.yaml.j2"),
+            manifest_tool.file_revision("deploy/roles/sweet_collector/templates/parsers.yaml.j2"),
         ) if r],
         "sources": sources,
         "families": per_family,
