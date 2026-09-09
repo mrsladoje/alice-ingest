@@ -16,6 +16,15 @@ dashboards_nginx_tls_cert: "{{ dashboards_nginx_tls_dir }}/dashboards.crt"
 dashboards_nginx_tls_key: "{{ dashboards_nginx_tls_dir }}/dashboards.key"
 dashboards_nginx_tls_csr: "{{ dashboards_nginx_tls_dir }}/dashboards.csr"
 dashboards_nginx_tls_cert_days: 3650
+
+# The names on the self-signed certificate. A staging inventory addresses the
+# host by IP in ansible_host; the farm inventory sets no ansible_host, so
+# Ansible fills it with the hostname, a DNS name. The IP entry exists only
+# when the address is one.
+dashboards_tls_common_name: "{{ ansible_host }}"
+dashboards_tls_subject_alt_names: >-
+  {{ ((['IP:' ~ ansible_host] if ansible_host is match('^[0-9.]+$') else ['DNS:' ~ ansible_host])
+      + ['DNS:' ~ inventory_hostname]) | unique }}
 dashboards_nginx_htpasswd_file: /etc/nginx/dashboards.htpasswd
 dashboards_nginx_vhost_file: /etc/nginx/conf.d/dashboards.conf
 

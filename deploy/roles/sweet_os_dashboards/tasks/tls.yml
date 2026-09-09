@@ -25,10 +25,8 @@
   community.crypto.openssl_csr:
     path: "{{ dashboards_nginx_tls_csr }}"
     privatekey_path: "{{ dashboards_nginx_tls_key }}"
-    common_name: "{{ ansible_host }}"
-    subject_alt_name:
-      - "IP:{{ ansible_host }}"
-      - "DNS:{{ inventory_hostname }}"
+    common_name: "{{ dashboards_tls_common_name }}"
+    subject_alt_name: "{{ dashboards_tls_subject_alt_names }}"
     owner: root
     group: root
     mode: "0640"

@@ -46,7 +46,8 @@ Every page an operator opens on the farm passes through this role's proxy.
 ┌─ TLS: self-signed, for the proxy only ───────────────────────────────────┐
 │  /etc/nginx/tls  0750           RSA 2048 key, CSR, certificate for       │
 │                                 3650 days                --> restart     │
-│      CN = ansible_host, SAN = IP:ansible_host, DNS:inventory_hostname    │
+│      CN = the host's address, SAN = DNS:<hostname>, plus IP:<address>    │
+│      when the inventory addresses the host by IP                         │
 └────────────────────────────────────┬─────────────────────────────────────┘
                                      v
 ┌─ NGINX: the only door a person uses ─────────────────────────────────────┐
@@ -113,10 +114,10 @@ object deletion and the field-catalog hydration are the role.
 first. It creates the shared bootstrap directory this role writes into, and it
 loads the index templates, the ingest pipeline and the pre-created indices
 whose mappings the field-catalog hydration reads; without them the hydration
-fails on a missing required field. The play must load `group_vars/vault.yml`,
-which holds the basic-auth password. Alertmanager, the ops page and the live
-log lane are proxied, not required: their paths answer 502 until each service
-is up.
+fails on a missing required field. The basic-auth password must come from a
+vault: `vault_dashboards_basic_auth_password`, or `dashboards_basic_auth_password`
+set directly. Alertmanager, the ops page and the live log lane are proxied,
+not required: their paths answer 502 until each service is up.
 
 ## Role Variables
 
@@ -134,11 +135,15 @@ The V8 old-space bound, in megabytes, written to the systemd drop-in and to
 dashboards_basic_auth_user: alice
 dashboards_basic_auth_password: "{{ vault_dashboards_basic_auth_password }}"
 dashboards_nginx_tls_cert_days: 3650
+dashboards_tls_common_name: "{{ ansible_host | default(inventory_hostname) }}"
 ```
 
 One account for every path the proxy serves. The certificate is self-signed
 with the host's address as its common name, so a browser warns once per
-machine and then matches the address in the URL.
+machine and then matches the address in the URL. The address is `ansible_host`
+where the inventory sets one and the hostname where it does not; the subject
+alternative names carry the hostname and the address, as an IP entry when the
+address is one.
 
 ```yaml
 dashboards_index_patterns:
@@ -165,7 +170,8 @@ From `group_vars` and the inventory: `opensearch_version`,
 `dashboards_opensearch_hosts`, `opensearch_http_port`, `ops_internal_port`,
 `alertmanager_port`, `shifter_enabled`, `shifter_host`, `shifter_port`,
 `alice_bootstrap_root`; from the vault `vault_dashboards_basic_auth_password`;
-per host `ansible_host` and `inventory_hostname`, the certificate's names.
+per host `inventory_hostname` and, when the inventory sets it, `ansible_host`,
+the certificate's names.
 
 ## The nginx proxy
 
@@ -192,8 +198,6 @@ buffering off on `/live/`, nginx holds records back until its buffer fills.
 ```yaml
 - hosts: control
   become: true
-  vars_files:
-    - group_vars/vault.yml
   roles:
     - sweet_os_dashboards
 ```
