@@ -95,8 +95,7 @@ unit's environment block. An upstream role would hide that block.
 
 ## Requirements
 
-`alice_runtime` must have run on the same host first; it creates `/opt/sweet`,
-where the script is installed. `sweet_opensearch` must have installed a node
+`sweet_opensearch` must have installed a node
 on the same host, which the service queries over localhost, and must have
 configured the cluster, which creates `trend-rollup` with the mapping the
 commit and imputation fields need. `sweet_anomaly_detection` is a consumer,

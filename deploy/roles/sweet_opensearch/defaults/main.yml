@@ -189,9 +189,9 @@ alice_manage_firewalld: true
 # Configure the cluster — read only when opensearch_configure_cluster is true.
 # ---------------------------------------------------------------------------
 
-# The shared script directory. The alice_runtime role writes its own
-# scripts into the same directory and creates it with the same owner, group and
-# mode, so neither role owns it and the two cannot drift.
+# The shared script directory. The alice-service roles stage their catalogs
+# into the same directory and create it with the same owner, group and mode,
+# so no role owns it.
 opensearch_cluster_config_root: /opt/sweet/init
 
 opensearch_cluster_config_templates_script: "{{ opensearch_cluster_config_root }}/templates.sh"

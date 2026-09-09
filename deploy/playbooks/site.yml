@@ -202,15 +202,9 @@
   become: true
   vars_files:
     - "{{ playbook_dir }}/../group_vars/vault.yml"
-  vars:
-    alice_runtime_stage_notify:
-      - restart alice-metrics
 
   # The order of this list is the order the single dashboards role used to run
   # its task files in, and every step of it is load-bearing:
-  #   alice_runtime      creates /opt/sweet and /opt/sweet/init and
-  #                      stages the catalogs and the shared modules that every
-  #                      role below imports.
   #   sweet_os_dashboards installs Dashboards and nginx, then creates the index
   #                      patterns before it imports the cockpit saved objects
   #                      that reference them.
@@ -223,7 +217,6 @@
   #                      poller's first documents, then upserts the detectors
   #                      and the forecaster and verifies the whole set.
   roles:
-    - alice_runtime
     - sweet_os_dashboards
     - alice_ops
     - sweet_cockpit_metrics
@@ -242,7 +235,6 @@
   hosts: projector
   become: true
   roles:
-    - alice_runtime
     - sweet_signal_projector
 
 - name: Signal contract and the signal-layer re-verify, on the control host the Alertmanager webhook points at
@@ -260,8 +252,6 @@
   hosts: background
   become: true
   roles:
-    - role: alice_runtime
-
     - role: sweet_trend_rollup
       when: "'rollup' in background_services"
 

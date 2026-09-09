@@ -29,8 +29,8 @@
     state: directory
     owner: root
     group: root
-    # The alice_runtime role stages a world-readable signal catalog in the same
-    # directory for its DynamicUser services to traverse. Scripts and
+    # The alice-service roles stage a world-readable signal catalog in the same
+    # directory for their DynamicUser services to traverse. Scripts and
     # definitions keep their own root-only modes.
     mode: "0755"
 

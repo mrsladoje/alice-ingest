@@ -16,9 +16,8 @@ import json
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROLES = os.path.dirname(os.path.dirname(HERE))
 OUT = os.path.join(HERE, "monitors")
-CATALOG = json.load(open(os.path.join(ROLES, "alice_runtime", "files", "signal_catalog.json")))
+CATALOG = json.load(open(os.path.join(HERE, "signal_catalog.json")))
 
 ROLLUP = "trend-rollup"
 METRICS = "cockpit-metrics"

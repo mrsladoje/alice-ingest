@@ -1,3 +1,72 @@
+- name: Ensure the app root and the catalog directory exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ alice_app_root }}"
+    - "{{ alice_bootstrap_root }}"
+
+- name: Stage the signal identity catalog (one explicit per-monitor and per-detector classifier, never inferred from an index name)
+  ansible.builtin.copy:
+    src: signal_catalog.json
+    dest: "{{ alice_bootstrap_signal_catalog }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: _projector_remote_catalog
+
+- name: Prove a sandbox-style unprivileged service can read and parse the signal identity catalog
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/runuser
+      - -u
+      - nobody
+      - --
+      - /usr/bin/python3
+      - -c
+      - "import json; json.load(open('{{ alice_bootstrap_signal_catalog }}'))"
+  changed_when: false
+
+- name: Stage the causal edges (one declaration per edge; proven decides whether it explains or suppresses)
+  ansible.builtin.copy:
+    src: causal_edges.json
+    dest: "{{ alice_bootstrap_causal_edges }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: _projector_remote_edges
+
+- name: Verify the staged causal edges parse and every edge is complete
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - >-
+        import json,sys;
+        d=json.load(open('{{ alice_bootstrap_causal_edges }}'));
+        e=d['edges'];
+        bad=[x for x in e if not x.get('cause') or not x.get('symptom')
+             or not x.get('equal') or 'proven' not in x];
+        sys.exit('incomplete causal edges: %s' % bad[:3] if bad else 0)
+  changed_when: false
+
+- name: Stage the cursor and identity modules the projector imports
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - {src: os_cursor.py, dest: "{{ alice_os_cursor_script }}"}
+    - {src: signal_identity.py, dest: "{{ alice_signal_identity_script }}"}
+  loop_control:
+    label: "{{ item.dest }}"
+  register: _projector_remote_modules
+
 - name: Install the signal projector script on the projector host
   ansible.builtin.copy:
     src: signal_projector.py

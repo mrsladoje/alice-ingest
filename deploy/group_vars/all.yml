@@ -243,9 +243,6 @@ alertmanager_repeat_interval: 4h
 alertmanager_page_group_wait: 30s
 alertmanager_page_group_interval: 2m
 
-# One declaration per causal edge; its proven flag decides whether it explains
-# or suppresses. Replaced alertmanager_proven_inhibit_rules. README section 9.
-causal_edges_file: "{{ playbook_dir }}/../roles/alice_runtime/files/causal_edges.json"
 alertmanager_page_wait_covers_inhibition: false
 
 # The alice-service paths and unit names that more than one role, or a playbook

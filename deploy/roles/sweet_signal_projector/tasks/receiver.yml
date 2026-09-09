@@ -1,3 +1,35 @@
+- name: Ensure the app root and the catalog directory exist on the control host
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ alice_app_root }}"
+    - "{{ alice_bootstrap_root }}"
+
+- name: Stage the signal identity catalog the contract test reads
+  ansible.builtin.copy:
+    src: signal_catalog.json
+    dest: "{{ alice_bootstrap_signal_catalog }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Stage the cursor and identity modules the projector and its contract test import
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - {src: os_cursor.py, dest: "{{ alice_os_cursor_script }}"}
+    - {src: signal_identity.py, dest: "{{ alice_signal_identity_script }}"}
+  loop_control:
+    label: "{{ item.dest }}"
+
 - name: Stage the signal contract test on the control host
   ansible.builtin.copy:
     src: test_signal_contract.py

@@ -1,4 +1,12 @@
-- name: Stage the roster publisher and the roster discovery script beside os_cursor.py, which both import
+- name: Ensure the app root exists
+  ansible.builtin.file:
+    path: "{{ alice_app_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Stage the roster publisher, the roster discovery script and the cursor module both import
   ansible.builtin.copy:
     src: "{{ item.src }}"
     dest: "{{ item.dest }}"
@@ -6,6 +14,7 @@
     group: root
     mode: "0755"
   loop:
+    - {src: os_cursor.py, dest: "{{ alice_os_cursor_script }}"}
     - {src: roster_publish.py, dest: "{{ cockpit_metrics_roster_publish_script }}"}
     - {src: discover_roster.py, dest: "{{ cockpit_metrics_discover_roster_script }}"}
   loop_control:

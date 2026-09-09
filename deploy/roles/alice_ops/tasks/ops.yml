@@ -61,6 +61,22 @@
     group: root
     mode: "0755"
 
+- name: Ensure the catalog directory exists
+  ansible.builtin.file:
+    path: "{{ alice_bootstrap_causal_edges | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Stage the causal edges an injection run explains a symptom by
+  ansible.builtin.copy:
+    src: causal_edges.json
+    dest: "{{ alice_bootstrap_causal_edges }}"
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Template the one-shot fault-injection systemd unit
   ansible.builtin.template:
     src: alice-inject.service.j2

@@ -63,16 +63,16 @@ OpenSearch Dashboards. Its page is served by the same nginx instance the
   conditional reload right after it is templated, because the `alice-ops` unit
   is templated later and its reload would otherwise be the first one. The
   `alice-ops` handler and the final `systemd` task each reload as well.
-- **Staging `score_injection.py` notifies `restart alice-metrics`.** The module
-  is imported by the injection scorer, not by the metrics poller, but the notify
-  is inherited verbatim from the single five-file staging loop this line came
-  out of. Dropping it would change the restart graph. The handler itself lives
-  in the `sweet_cockpit_metrics` role — see couplings.
+- **Staging `score_injection.py` and `os_cursor.py` notifies nothing.** Both are
+  read by the one-shot injection run, never by a long-running unit, so there is
+  no process to restart.
 - **The first task creates the app root from `alice_ops_script | dirname`.**
-  It derives `/opt/sweet` from the script path instead of naming it. The
-  `alice_runtime` role creates the same directory with the same owner, group and
-  mode, so the task is redundant once that role has run. It is kept because it
-  makes this role runnable on a host `alice_runtime` has not reached.
+  It derives `/opt/sweet` from the script path instead of naming it. Other roles
+  on the control host create the same directory with the same owner, group and
+  mode, so the role stays runnable on a host none of them has reached.
+- **`os_cursor.py` and `causal_edges.json` are vendored copies.** The signal
+  projector role owns the source of both; the contract test fails when any
+  copy differs. Change the source, then re-copy it here.
 - **`alice_ops_templates_script` is a literal string, not a reference.**
   A default that reads another role's variable resolves lazily and makes this
   role unrunnable alone. See couplings.
@@ -133,7 +133,8 @@ defaults, because a second copy is a second place to change one value.
 | `alice_ops_inject_status` | `group_vars/all.yml` | Status file. `inject.yml` and `status.yml` read it. |
 | `alice_ops_inject_request` | `group_vars/all.yml` | Request file the page and `make inject` both write. |
 | `alice_ops_reset_derived_script` | `group_vars/all.yml` | Fresh-replay reset script. `replay.yml` runs it. |
-| `alice_bootstrap_causal_edges` | `group_vars/all.yml` | Passed to the injection run as `CAUSAL_EDGES`. The `alice_runtime` role installs the file. |
+| `alice_bootstrap_causal_edges` | `group_vars/all.yml` | Where this role stages `causal_edges.json`; passed to the injection run as `CAUSAL_EDGES`. |
+| `alice_os_cursor_script` | `group_vars/all.yml` | Where this role stages `os_cursor.py`, beside the injection scorer that imports it. |
 | `signal_projector_service_name` | `group_vars/all.yml` | The service an injection stops and restarts. |
 | `cockpit_metrics_service_name` | `group_vars/all.yml` | The same, for the metrics poller. Also the poison unit's `After=`. |
 | `ops_internal_port` | `group_vars/all.yml` | The loopback port. The nginx vhost in `sweet_os_dashboards` proxies to it. |
@@ -148,15 +149,13 @@ defaults, because a second copy is a second place to change one value.
 
 ## Prerequisites
 
-The role does not bootstrap the machine. Four things must be true before the
+The role does not bootstrap the machine. Three things must be true before the
 services it installs do anything useful.
 
 | Prerequisite | Provided by | What breaks without it |
 |---|---|---|
 | nginx installed, with the `/ops/` proxy in its vhost | `sweet_os_dashboards` role | The page is unreachable. `alice-ops` binds loopback only, so nothing outside the control host can open it. |
 | `templates.sh` present at `alice_ops_templates_script`, with its `schema/` directory beside it | `sweet_opensearch` role | The page's fresh-replay and wipe buttons cannot rebuild the aliases. The unit still starts. |
-| `os_cursor.py` in `/opt/sweet` | `alice_runtime` role | `score_injection.py` fails its import, so an injection run produces no score. |
-| `causal_edges.json` staged | `alice_runtime` role | An injection run cannot explain a symptom by its cause. |
 | Fault agents running on the workers and the projector | `faults` role | An injection has nothing to inject. The `faults` play runs after this one in `site.yml`, which is safe because no run starts at deploy time. |
 
 ## How to use it
@@ -224,8 +223,6 @@ In a playbook, against the control host:
 - **It does not create `/opt/sweet/init`.** It only names
   `templates.sh` inside it, which reads its request bodies from `schema/`
   beside itself.
-- **It does not install `os_cursor.py` or `causal_edges.json`,** although two of
-  its scripts need them. `alice_runtime` owns both.
 - **It does not start an injection or a calibration run.** Only an operator
   does, through the page or through `make inject`, `make poison-replay`.
 

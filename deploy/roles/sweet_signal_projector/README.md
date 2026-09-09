@@ -181,12 +181,16 @@ document — is builtin modules only.
 
 ## Requirements
 
-`alice_runtime` must run on the projector host, in the same play, before this
-role. It creates `/opt/sweet`, stages `os_cursor.py` and `signal_identity.py`
-beside the projector, and writes `signal_catalog.json` and `causal_edges.json` at
-mode 0644 — the projector runs `DynamicUser=true` and cannot read them at 0640.
-It also registers the three change facts the start task reads, and an Ansible
-register survives from one role to the next only inside one play.
+The role stages its own inputs. It creates `/opt/sweet` and `/opt/sweet/init`,
+copies `os_cursor.py` and `signal_identity.py` beside the projector, and writes
+`signal_catalog.json` and `causal_edges.json` at mode 0644 — the projector runs
+`DynamicUser=true` and cannot read them at 0640. It then proves an unprivileged
+process can parse the catalog and that every causal edge is complete, before the
+projector starts. `causal_edges.json`, `os_cursor.py` and `signal_identity.py`
+are owned here; `signal_catalog.json` is owned by `sweet_anomaly_detection`.
+`alice_ops`, `sweet_alertmanager`, `sweet_anomaly_detection` and
+`sweet_cockpit_metrics` carry copies, and the contract test fails when any copy
+differs from its source.
 
 `sweet_opensearch` must have created the signals, incidents, notifications and
 lane-state indices; a first cycle against a missing index creates it with dynamic
@@ -254,7 +258,9 @@ From `group_vars/all.yml`: `signal_projector_service_name`,
 `alice_service_memory_high`, `alice_service_memory_max`, `cluster_id`,
 `signals_index`, `incidents_index`, `notifications_index`, `lane_state_index`,
 `cockpit_metrics_index`, `fleet_roster_index`, `trend_rollup_index`,
-`anomaly_grade_floor`, `alice_bootstrap_signal_catalog`,
+`anomaly_grade_floor`, `alice_app_root`, `alice_bootstrap_root`,
+`alice_os_cursor_script`, `alice_signal_identity_script`,
+`alice_bootstrap_signal_catalog`,
 `alice_bootstrap_causal_edges`, `alice_bootstrap_verify_script`,
 `expected_monitors`, `expected_detectors`, `expected_forecasters`,
 `alerting_max_actionable_alert_count` and `projector_gate_failed`.
@@ -296,7 +302,6 @@ binds loopback.
   vars:
     alertmanager_host_address: "{{ hostvars[groups['control'][0]].ansible_host }}"
   roles:
-    - alice_runtime
     - sweet_signal_projector
 
 - name: The signal-layer proofs, after the projector

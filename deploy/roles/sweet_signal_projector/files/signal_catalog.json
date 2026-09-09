@@ -1,0 +1,480 @@
+{
+  "version": 3,
+  "sentinels": {
+    "entity_id": "none",
+    "collector_id": "none",
+    "family": "none",
+    "topology_version": "none",
+    "run_id": "none",
+    "episode_state": "OPEN"
+  },
+  "monitors": {
+    "collector-down": {
+      "entity_kind": "collector",
+      "entity_source": "bucket_key",
+      "family": "none",
+      "notification_scope": "collector",
+      "feed": "fleet-fb"
+    },
+    "collector-unhealthy": {
+      "entity_kind": "collector",
+      "entity_source": "bucket_key",
+      "family": "none",
+      "notification_scope": "collector",
+      "feed": "fleet-fb"
+    },
+    "data-loss": {
+      "entity_kind": "collector",
+      "entity_source": "bucket_key",
+      "family": "none",
+      "notification_scope": "collector",
+      "feed": "fleet-fb"
+    },
+    "shipping-breaking": {
+      "entity_kind": "collector",
+      "entity_source": "bucket_key",
+      "family": "none",
+      "notification_scope": "collector",
+      "feed": "fleet-fb"
+    },
+    "disk-cliff-warn": {
+      "entity_kind": "os_node",
+      "entity_source": "bucket_key",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane"
+    },
+    "disk-cliff-page": {
+      "entity_kind": "os_node",
+      "entity_source": "bucket_key",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane"
+    },
+    "heap-spiral": {
+      "entity_kind": "os_node",
+      "entity_source": "bucket_key",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane"
+    },
+    "admission-rejections": {
+      "entity_kind": "os_node",
+      "entity_source": "bucket_key",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane"
+    },
+    "disk-fill-forecast": {
+      "entity_kind": "fleet",
+      "entity_source": "constant",
+      "entity_id": "all",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane"
+    },
+    "cluster-red": {
+      "entity_kind": "cluster",
+      "entity_source": "constant",
+      "entity_id": "alice-logs",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane"
+    },
+    "shards-stuck": {
+      "entity_kind": "cluster",
+      "entity_source": "constant",
+      "entity_id": "alice-logs",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane"
+    },
+    "telemetry-silence": {
+      "entity_kind": "service",
+      "entity_source": "constant",
+      "entity_id": "alice-metrics",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "self"
+    },
+    "fleet-fb-silence": {
+      "entity_kind": "fleet",
+      "entity_source": "constant",
+      "entity_id": "all",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "self"
+    },
+    "log-family-silence": {
+      "entity_kind": "fleet",
+      "entity_source": "bucket_key",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "logs"
+    },
+    "ad-high-grade": {
+      "entity_kind": "fleet",
+      "entity_source": "constant",
+      "entity_id": "all",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "anomaly",
+      "healthy_windows_required": 3
+    },
+    "trend-rollup-stale": {
+      "entity_kind": "service",
+      "entity_source": "constant",
+      "entity_id": "alice-trend-rollup",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "self"
+    },
+    "trend-entity-cap": {
+      "entity_kind": "service",
+      "entity_source": "constant",
+      "entity_id": "alice-trend-rollup",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "self"
+    },
+    "signal-projector-stale": {
+      "entity_kind": "service",
+      "entity_source": "constant",
+      "entity_id": "alice-signal-projector",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "self"
+    },
+    "alertmanager-down": {
+      "entity_kind": "service",
+      "entity_source": "constant",
+      "entity_id": "alertmanager",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "self"
+    },
+    "trend-il-volume": {
+      "entity_kind": "epn",
+      "entity_source": "bucket_key",
+      "family": "infologger",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "healthy_windows_required": 3
+    },
+    "trend-il-ef": {
+      "entity_kind": "epn",
+      "entity_source": "bucket_key",
+      "family": "infologger",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "healthy_windows_required": 3
+    },
+    "trend-il-entry-lag": {
+      "entity_kind": "epn",
+      "entity_source": "bucket_key",
+      "family": "infologger",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "healthy_windows_required": 3
+    },
+    "trend-il-shipping-lag": {
+      "entity_kind": "collector",
+      "entity_source": "bucket_key",
+      "family": "infologger",
+      "notification_scope": "collector",
+      "feed": "logs",
+      "healthy_windows_required": 3
+    },
+    "trend-central-volume": {
+      "entity_kind": "epn",
+      "entity_source": "bucket_key",
+      "family": "central",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "healthy_windows_required": 3
+    },
+    "trend-central-errors": {
+      "entity_kind": "epn",
+      "entity_source": "bucket_key",
+      "family": "central",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "healthy_windows_required": 3
+    },
+    "trend-local-volume": {
+      "entity_kind": "epn",
+      "entity_source": "bucket_key",
+      "family": "local",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "healthy_windows_required": 3
+    },
+    "trend-local-entry-lag": {
+      "entity_kind": "epn",
+      "entity_source": "bucket_key",
+      "family": "local",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "healthy_windows_required": 3
+    },
+    "trend-local-shipping-lag": {
+      "entity_kind": "collector",
+      "entity_source": "bucket_key",
+      "family": "local",
+      "notification_scope": "collector",
+      "feed": "logs",
+      "healthy_windows_required": 3
+    },
+    "template-count-check": {
+      "entity_kind": "service",
+      "entity_source": "constant",
+      "entity_id": "alice-stamper",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane"
+    },
+    "template-new": {
+      "entity_kind": "service",
+      "entity_source": "constant",
+      "entity_id": "alice-stamper",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane"
+    }
+  },
+  "detectors": {
+    "ingest-flow": {
+      "entity_kind": "collector",
+      "category_field": "collector_id",
+      "family": "none",
+      "notification_scope": "collector",
+      "feed": "fleet-fb",
+      "silence_policy": "failure",
+      "eligibility_evidence": "roster heartbeat cadence for this collector_id in cockpit-metrics",
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 3,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "node-health": {
+      "entity_kind": "os_node",
+      "category_field": "os_node",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane",
+      "silence_policy": "failure",
+      "eligibility_evidence": "alice-metrics kind:node samples for this os_node",
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 3,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "dashboards-health": {
+      "entity_kind": "service",
+      "category_field": null,
+      "entity_id": "opensearch-dashboards",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane",
+      "silence_policy": "failure",
+      "eligibility_evidence": "alice-metrics kind:osd samples",
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 3,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "il-per-epn": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "infologger",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 5,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "il-per-epn-slow": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "infologger",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 30,
+      "maximum_lateness_minutes": 35,
+      "healthy_windows_required": 2,
+      "close_threshold": 0.0
+    },
+    "il-per-epn-entry-lag": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "infologger",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 5,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "il-per-epn-entry-lag-slow": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "infologger",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 30,
+      "maximum_lateness_minutes": 35,
+      "healthy_windows_required": 2,
+      "close_threshold": 0.0
+    },
+    "il-collector-shipping-lag": {
+      "entity_kind": "collector",
+      "category_field": "node",
+      "family": "infologger",
+      "notification_scope": "collector",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 5,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "il-collector-shipping-lag-slow": {
+      "entity_kind": "collector",
+      "category_field": "node",
+      "family": "infologger",
+      "notification_scope": "collector",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 30,
+      "maximum_lateness_minutes": 35,
+      "healthy_windows_required": 2,
+      "close_threshold": 0.0
+    },
+    "central-per-epn": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "central",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 5,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "central-per-epn-slow": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "central",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 30,
+      "maximum_lateness_minutes": 35,
+      "healthy_windows_required": 2,
+      "close_threshold": 0.0
+    },
+    "local-volume": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "local",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 5,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "local-volume-slow": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "local",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 30,
+      "maximum_lateness_minutes": 35,
+      "healthy_windows_required": 2,
+      "close_threshold": 0.0
+    },
+    "local-per-epn-entry-lag": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "local",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 5,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "local-per-epn-entry-lag-slow": {
+      "entity_kind": "epn",
+      "category_field": "origin_host",
+      "family": "local",
+      "notification_scope": "fleet",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 30,
+      "maximum_lateness_minutes": 35,
+      "healthy_windows_required": 2,
+      "close_threshold": 0.0
+    },
+    "local-collector-shipping-lag": {
+      "entity_kind": "collector",
+      "category_field": "node",
+      "family": "local",
+      "notification_scope": "collector",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 1,
+      "maximum_lateness_minutes": 5,
+      "healthy_windows_required": 3,
+      "close_threshold": 0.0
+    },
+    "local-collector-shipping-lag-slow": {
+      "entity_kind": "collector",
+      "category_field": "node",
+      "family": "local",
+      "notification_scope": "collector",
+      "feed": "logs",
+      "silence_policy": "unknown",
+      "eligibility_evidence": null,
+      "expected_interval_minutes": 30,
+      "maximum_lateness_minutes": 35,
+      "healthy_windows_required": 2,
+      "close_threshold": 0.0
+    }
+  },
+  "forecasters": {
+    "disk-fill": {
+      "entity_kind": "os_node",
+      "category_field": "os_node",
+      "family": "none",
+      "notification_scope": "fleet",
+      "feed": "control-plane",
+      "alerted_by": "disk-fill-forecast",
+      "expected_interval_minutes": 60
+    }
+  }
+}

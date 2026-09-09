@@ -120,10 +120,14 @@ and rejected:
 `sweet_opensearch` must have run on the control host in its configure-the-
 cluster mode first. It creates the indices the detectors read, the ISM policies
 the gate asserts and the `alice-alert-actions` write alias the monitors need.
-`alice_runtime` must have created `/opt/sweet` and `/opt/sweet/init` and staged
-`signal_catalog.json`, `os_cursor.py` and `signal_identity.py` there;
-`backtest.py` imports the two modules. `sweet_cockpit_metrics` must be running its
+`sweet_cockpit_metrics` must be running its
 poller, or the wait step fails the play after two minutes.
+
+`files/signal_catalog.json` is the source of the signal identity catalog: it
+classifies every monitor and detector this role loads, and `gen_monitors.py`
+reads it at build time. `sweet_signal_projector` carries a copy.
+`os_cursor.py` and `signal_identity.py` are copies of the projector's files;
+`backtest.py` imports both. The contract test fails when any copy differs.
 
 ## Role Variables
 
@@ -182,6 +186,8 @@ From `group_vars`: `expected_monitors`, `expected_detectors` and
 `trend_rollup_index`, `fleet_roster_index`, `signals_index`,
 `incidents_index`, `notifications_index`, `lane_state_index`,
 `alice_bootstrap_verify_script`, `alice_bootstrap_signal_catalog`,
+`alice_app_root`, `alice_bootstrap_root`, `alice_os_cursor_script`,
+`alice_signal_identity_script`,
 `anomaly_detection_backtest_script` and `fleet_collector_node_ids`.
 
 ## The gate and the two probes

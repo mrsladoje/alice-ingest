@@ -1,3 +1,11 @@
+- name: Ensure the app root exists
+  ansible.builtin.file:
+    path: "{{ trend_rollup_script | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Install the trend rollup script
   ansible.builtin.copy:
     src: trend_rollup.py

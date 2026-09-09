@@ -1,3 +1,22 @@
+- name: Ensure the app root and the definitions directory exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ alice_app_root }}"
+    - "{{ alice_bootstrap_root }}"
+
+- name: Stage the signal identity catalog that classifies every monitor and detector below
+  ansible.builtin.copy:
+    src: signal_catalog.json
+    dest: "{{ alice_bootstrap_signal_catalog }}"
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Render the monitors upsert script
   ansible.builtin.template:
     src: monitors.sh.j2
@@ -45,6 +64,19 @@
     owner: root
     group: root
     mode: "0640"
+
+- name: Stage the cursor and identity modules the backtest runner imports
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - {src: os_cursor.py, dest: "{{ alice_os_cursor_script }}"}
+    - {src: signal_identity.py, dest: "{{ alice_signal_identity_script }}"}
+  loop_control:
+    label: "{{ item.dest }}"
 
 - name: Stage the historical-analysis backtest runner
   ansible.builtin.copy:

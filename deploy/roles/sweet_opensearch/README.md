@@ -510,10 +510,10 @@ Required from `group_vars`, read by the two scripts and the schema:
 
 ### Configure-the-cluster couplings
 
-- **`opensearch_cluster_config_root` is shared with `alice_runtime`.** Both create
-  the directory with the same owner, group and mode; `sweet_os_dashboards` and
-  `sweet_anomaly_detection` only write into it. It is `0755`
-  because `alice_runtime` stages a world-readable signal catalog there.
+- **`opensearch_cluster_config_root` is shared with the alice-service roles.**
+  Each creates the directory with the same owner, group and mode. It is `0755`
+  because `sweet_anomaly_detection` and `sweet_signal_projector` stage a
+  world-readable signal catalog there.
 - **`alice_ops_templates_script` must match
   `opensearch_cluster_config_templates_script`.** The `alice_ops` role holds the path
   as a literal, so it can run alone.

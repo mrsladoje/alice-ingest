@@ -16,7 +16,7 @@ indices.
 
 | Hosts | Mode | Gate |
 |---|---|---|
-| `control`, after `alice_runtime`, `sweet_os_dashboards` and `alice_ops` | publish and poll (`tasks/main.yml`) | the newest roster names exactly the rostered collectors; `alice-metrics` is enabled and started |
+| `control`, after `sweet_os_dashboards` and `alice_ops` | publish and poll (`tasks/main.yml`) | the newest roster names exactly the rostered collectors; `alice-metrics` is enabled and started |
 | `control`, after `sweet_collector` has run on `workers` | the collector gate (`tasks_from: post_collector.yml`) | every rostered collector pushed a sample in the last 5 minutes; `verify_detection.py` exits 0 |
 
 ## How it works: publish and poll
@@ -26,7 +26,8 @@ indices.
           epn-infra13. Every call goes to the OpenSearch node on localhost and
           to Dashboards on 127.0.0.1.
 
-┌─ STAGE into /opt/sweet, beside os_cursor.py, which both roster scripts import ─┐
+┌─ STAGE into /opt/sweet ────────────────────────────────────────────────────────┐
+│  os_cursor.py          vendored copy; both roster scripts import it            │
 │  roster_publish.py     run once per deploy, next box                           │
 │  discover_roster.py    run by playbooks/roster_discover.yml; prints            │
 │                        roster_assignments rows from the last 7 days of logs    │
@@ -120,8 +121,7 @@ knows the roster or writes `kind: fleet`.
 
 ## Requirements
 
-`alice_runtime` must have run on the same host first. It creates `/opt/sweet`
-and stages `os_cursor.py`, which both roster scripts import. `sweet_opensearch`
+`sweet_opensearch`
 must have configured the cluster, because the `cockpit-metrics` and
 `cockpit-fleet` index templates come from it and the roster is published into
 the running cluster on localhost. The Dashboards samples need the `sweet_os_dashboards`
@@ -174,10 +174,11 @@ From `group_vars`: `opensearch_http_port`, `dashboards_internal_port`,
 `trend_rollup_index`, `signals_index`, `incidents_index`,
 `notifications_index`, `lane_state_index`.
 
-- `restart alice-metrics` is defined here and also notified by `alice_ops`
-  and, through `alice_runtime_stage_notify`, by `alice_runtime`. The handler
-  checks that the unit exists, so a notification before the unit is installed
-  is a no-op.
+- `restart alice-metrics` is defined here. The handler checks that the unit
+  exists, so a notification before the unit is installed is a no-op.
+- `os_cursor.py` is a vendored copy of the signal projector role's file. The
+  contract test fails when the two differ. Change the projector's copy, then
+  re-copy it here.
 - `heartbeat_grace_seconds` and `cockpit_metrics_interval_seconds` change
   together. Raising the interval without the grace turns normal jitter into an
   absence.
@@ -190,11 +191,7 @@ From `group_vars`: `opensearch_http_port`, `dashboards_internal_port`,
 ```yaml
 - hosts: control
   become: true
-  vars:
-    alice_runtime_stage_notify:
-      - restart alice-metrics
   roles:
-    - alice_runtime
     - sweet_cockpit_metrics
 
 - hosts: workers
