@@ -222,13 +222,13 @@ def test_a_dead_rollup_is_not_three_dead_log_streams():
           "a dead rollup must not page as a silent log family. Both make the "
           "per-host rows vanish, which is why this monitor reads _meta and "
           "requires a recent row to exist before it judges anything. "
-          "trend-rollup-stale owns that failure, and answering it with one "
-          "page per family is the fan-out this whole change removes")
+          "trend-rollup-stale owns that failure; one page per family "
+          "would be fan-out")
 
 
 def test_a_live_rollup_reporting_zero_is_a_silent_family():
-    # The 2026-08-14 shape: InfoLogger ran 10:10-11:10 at ~54k per bucket,
-    # then stopped while the rollup kept committing.
+    # InfoLogger is busy for an hour, then stops while the rollup keeps
+    # committing.
     check(_silence_trigger(recent=4, rdocs=0, rows=10, docs=322866) is True,
           "a live rollup reporting 0 records for a family that was busy must "
           "page once, naming the family")

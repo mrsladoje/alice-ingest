@@ -262,7 +262,7 @@
   roles:
     - role: alice_runtime
 
-    - role: trend_rollup
+    - role: sweet_trend_rollup
       when: "'rollup' in background_services"
 
 - name: Shifter view — the standalone log console, off the control host

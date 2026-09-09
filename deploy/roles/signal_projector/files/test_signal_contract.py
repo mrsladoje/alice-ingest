@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 _ROLES = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 for _sibling in ("alice_runtime", "alice_ops", "sweet_anomaly_detection",
-                 "sweet_cockpit_metrics", "trend_rollup"):
+                 "sweet_cockpit_metrics", "sweet_trend_rollup"):
     _dir = os.path.join(_ROLES, _sibling, "files")
     if os.path.isdir(_dir):
         sys.path.append(_dir)

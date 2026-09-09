@@ -481,7 +481,7 @@ declares, and each step depends on the one above it.
 | 5 | `control` | `alice_runtime`, `dashboards`, `alice_ops`, `sweet_cockpit_metrics`, `sweet_anomaly_detection` |
 | 6 | `projector` | `alice_runtime`, `signal_projector` |
 | 7 | `control` | `signal_projector` (`tasks_from: control.yml`) |
-| 8 | `background` | `alice_runtime`, `trend_rollup` |
+| 8 | `background` | `alice_runtime`, `sweet_trend_rollup` |
 | 9 | `shifter` | `sweet_shifter_view` |
 | 10 | `workers` | `sweet_collector` (the stamper, then Fluent Bit) |
 | 11 | `control` | `sweet_template_catalog` |
@@ -601,7 +601,7 @@ below ran clean:
 |---|---|
 | `ansible-inventory --graph` on `inventory.yml` | pass — `alice_nodes` resolves to `workers` (2) + `storage` (3); `control` = `alice-ingest-3` (a storage node) |
 | `ansible-playbook --syntax-check` on `playbooks/site.yml`, `playbooks/provision.yml`, `playbooks/teardown.yml` | pass — zero syntax errors |
-| `ansible-playbook playbooks/site.yml --list-hosts` | pass — common/opensearch/gate target all 5; the control-plane roles (`alice_runtime`, `dashboards`, `alice_ops`, `sweet_cockpit_metrics`, `sweet_anomaly_detection`) → control; `signal_projector` → projector; `trend_rollup` → background; `sweet_shifter_view` → shifter; collector + sweet_replay → the 2 workers only |
+| `ansible-playbook playbooks/site.yml --list-hosts` | pass — common/opensearch/gate target all 5; the control-plane roles (`alice_runtime`, `dashboards`, `alice_ops`, `sweet_cockpit_metrics`, `sweet_anomaly_detection`) → control; `signal_projector` → projector; `sweet_trend_rollup` → background; `sweet_shifter_view` → shifter; collector + sweet_replay → the 2 workers only |
 | `group_vars/all.yml` derivations (`ansible -m debug`) | pass — `node_count=2` (from `workers`); seeds/initial-managers/Dashboards-hosts = the 3 storage nodes; `opensearch_cluster_hosts` = all 5 (firewall mesh) |
 | `opensearch.yml.j2` render (both tiers) | pass — workers get `node.roles: [data, ingest]` + `node.attr.role: worker` + `node.attr.box: <node_id>`; storage gets `[cluster_manager, data, ingest]` + `node.attr.role: storage` |
 | `opensearch.yml.j2` ingest role | pass — every index sets `default_pipeline: alice-add-ingest-time`, and explicit `node.roles` drops the implicit `ingest` role, so both tiers list `ingest` (`[data, ingest]` / `[cluster_manager, data, ingest]`); workers stay ingest-capable so the local info path needs no cross-node hop for the pipeline |

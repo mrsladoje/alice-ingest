@@ -12,7 +12,7 @@ assumes this one already ran on its host.
 
 Five roles need the same four files, and they do not run on the same machine.
 `sweet_cockpit_metrics`, `alice_ops` and `sweet_anomaly_detection` run on the control host,
-`signal_projector` on the projector host, `trend_rollup` on a background node.
+`signal_projector` on the projector host, `sweet_trend_rollup` on a background node.
 Before the split, the control host got the files from `bootstrap.yml`, the
 projector host got a delegated copy of the same lines in `projector.yml`, and a
 background node got a third, shorter copy in `offload_prep.yml`. Three copies of
@@ -116,7 +116,7 @@ service:
   the control host. Leave it at its empty default everywhere else.
 
 - **Run it before every role that imports the modules or reads the catalogs.**
-  That is `sweet_cockpit_metrics`, `alice_ops`, `sweet_anomaly_detection`, `trend_rollup`
+  That is `sweet_cockpit_metrics`, `alice_ops`, `sweet_anomaly_detection`, `sweet_trend_rollup`
   and `signal_projector`.
 - **The role is idempotent.** It copies four files and creates two directories.
   Only a changed module notifies a restart.
