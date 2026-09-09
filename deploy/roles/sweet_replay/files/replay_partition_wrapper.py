@@ -33,7 +33,7 @@ monkeypatch its two extension points:
      dump objects, which don't match _HOST_RE) pass through untouched — every
      surviving DDS/stdout key now belongs to OUR partition, so replay.py's own
      _family_dir()/node_index_for() always resolve to OUR OWN collector name,
-     and files land under NODES_ROOT/<our node_id>/... (see the producer
+     and files land under NODES_ROOT/<our node_id>/... (see the sweet_replay
      role's tasks/main.yml: NODES_ROOT/<node_id> is a symlink straight at this
      VM's log_root — no other collector's directory is ever created).
 

@@ -322,13 +322,13 @@
         name: cockpit_metrics
         tasks_from: post_collector.yml
 
-- name: S3-replay producers (worker VMs only)
+- name: S3-replay engine (worker VMs only)
   hosts: workers
   become: true
   vars_files:
     - "{{ playbook_dir }}/../group_vars/vault.yml"
   roles:
-    - producer
+    - sweet_replay
 
 - name: Fault agents — the nodes an injection has to reach (workers + the projector host)
   hosts: workers:projector

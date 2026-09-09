@@ -52,7 +52,7 @@ the local dev path (Docker Compose on a single machine — see the root
 │ notification-ingest│   │ projector          │   │                    │
 │ alice-inject       │   │ alice-fault-agent  │   │                    │
 └───────────────────┘   └───────────────────┘   └───────────────────┘
-  Storage tier runs NO collector and NO producer — it never touches the ingest firehose.
+  Storage tier runs NO collector and NO replay — it never touches the ingest firehose.
 ```
 
 Single OpenSearch cluster, `cluster.name: alice-logs`, split into two
@@ -60,7 +60,7 @@ hard-pinned tiers by shard-allocation `require` filtering:
 
 - **Worker tier (2 nodes):** `node.roles: [data, ingest]` (never
   manager-eligible), `node.attr.role: worker`, `node.attr.box: <node_id>`. Runs
-  the Fluent Bit collector + S3-replay producer for its own EPN slice, and holds
+  the Fluent Bit collector + S3-replay engine for its own EPN slice, and holds
   only its own `application-logs-local-<node_id>` index (1 shard, **0 replicas**,
   `require.box: <node_id>`) — so the info firehose is written localhost → local
   shard with zero network hops and is deliberately disposable. The `ingest` role
@@ -70,7 +70,7 @@ hard-pinned tiers by shard-allocation `require` filtering:
 - **Storage tier (3 nodes):** `node.roles: [cluster_manager, data, ingest]`,
   `node.attr.role: storage`, quorum 2 (tolerates one storage node lost). Holds
   `application-logs-central` and `infologger` (3 shards, **2 replicas**,
-  `require.role: storage`). Runs no collector and no producer.
+  `require.role: storage`). Runs no collector and no replay.
 
 Exactly one VM — `alice-ingest-3`, the first storage node, the "control" host —
 additionally runs OpenSearch Dashboards, an nginx reverse proxy in front of it,
@@ -112,7 +112,7 @@ not co-located with that UI stack: `alice-signal-projector` runs on
   record still has precisely when no parser claimed it — without it a
   `rewrite_tag` rule can match nothing at all and the record is dropped without
   a word, which is what was happening to every DDS startup banner.
-- **The program name survives.** `deploy/roles/producer` deploys
+- **The program name survives.** `deploy/roles/sweet_replay` deploys
   `images/replay/replay.py`, which used to flatten every process log of a node
   into one file and destroy the program name before Fluent Bit read a line. It
   now writes one file per process under `stdout/<host>/`, keeping the name the
@@ -486,7 +486,7 @@ declares, and each step depends on the one above it.
 | 10 | `workers` | `sweet_collector` (the stamper, then Fluent Bit) |
 | 11 | `control` | `sweet_template_catalog` |
 | 12 | `control` | `cockpit_metrics` (`tasks_from: post_collector.yml`) |
-| 13 | `workers` | `producer` |
+| 13 | `workers` | `sweet_replay` |
 | 14 | `workers` + `projector` | `faults` |
 | 15 | `control` | the final verdict on the projector gate |
 
@@ -602,7 +602,7 @@ below ran clean:
 |---|---|
 | `ansible-inventory --graph` on `inventory.yml` | pass — `alice_nodes` resolves to `workers` (2) + `storage` (3); `control` = `alice-ingest-3` (a storage node) |
 | `ansible-playbook --syntax-check` on `playbooks/site.yml`, `playbooks/provision.yml`, `playbooks/teardown.yml` | pass — zero syntax errors |
-| `ansible-playbook playbooks/site.yml --list-hosts` | pass — common/opensearch/gate target all 5; the control-plane roles (`alice_runtime`, `dashboards`, `alice_ops`, `alerting_monitors`, `cockpit_metrics`, `anomaly_detection`) → control; `signal_projector` → projector; `trend_rollup` → background; `shifter` → shifter; collector + producer → the 2 workers only |
+| `ansible-playbook playbooks/site.yml --list-hosts` | pass — common/opensearch/gate target all 5; the control-plane roles (`alice_runtime`, `dashboards`, `alice_ops`, `alerting_monitors`, `cockpit_metrics`, `anomaly_detection`) → control; `signal_projector` → projector; `trend_rollup` → background; `shifter` → shifter; collector + sweet_replay → the 2 workers only |
 | `group_vars/all.yml` derivations (`ansible -m debug`) | pass — `node_count=2` (from `workers`); seeds/initial-managers/Dashboards-hosts = the 3 storage nodes; `opensearch_cluster_hosts` = all 5 (firewall mesh) |
 | `opensearch.yml.j2` render (both tiers) | pass — workers get `node.roles: [data, ingest]` + `node.attr.role: worker` + `node.attr.box: <node_id>`; storage gets `[cluster_manager, data, ingest]` + `node.attr.role: storage` |
 | `opensearch.yml.j2` ingest role | pass — every index sets `default_pipeline: alice-add-ingest-time`, and explicit `node.roles` drops the implicit `ingest` role, so both tiers list `ingest` (`[data, ingest]` / `[cluster_manager, data, ingest]`); workers stay ingest-capable so the local info path needs no cross-node hop for the pipeline |

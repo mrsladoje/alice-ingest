@@ -73,7 +73,7 @@
 
     - name: Ensure alice-replay clock drop-in directory exists
       ansible.builtin.file:
-        path: /etc/systemd/system/{{ producer_service_name | default('alice-replay') }}.service.d
+        path: /etc/systemd/system/{{ replay_service_name | default('alice-replay') }}.service.d
         state: directory
         owner: root
         group: root
@@ -81,7 +81,7 @@
 
     - name: Install alice-replay clock, pace and loop drop-in
       ansible.builtin.copy:
-        dest: /etc/systemd/system/{{ producer_service_name | default('alice-replay') }}.service.d/clock.conf
+        dest: /etc/systemd/system/{{ replay_service_name | default('alice-replay') }}.service.d/clock.conf
         owner: root
         group: root
         mode: "0644"
@@ -96,7 +96,7 @@
 
     - name: Restart alice-replay with the selected clock mode
       ansible.builtin.systemd:
-        name: "{{ producer_service_name | default('alice-replay') }}"
+        name: "{{ replay_service_name | default('alice-replay') }}"
         state: restarted
         daemon_reload: true
 

@@ -2257,19 +2257,19 @@ def test_dynamic_services_can_read_the_signal_catalog():
 def test_deploy_preserves_the_replay_runtime_dropin():
     import yaml
 
-    producer_path = _checkout_file(
-        "roles", "producer", "tasks", "main.yml")
+    replay_role_path = _checkout_file(
+        "roles", "sweet_replay", "tasks", "main.yml")
     replay_path = _checkout_file("playbooks", "replay.yml")
     unit_path = _checkout_file(
-        "roles", "producer", "templates", "replay.service.j2")
-    if not all((producer_path, replay_path, unit_path)):
+        "roles", "sweet_replay", "templates", "replay.service.j2")
+    if not all((replay_role_path, replay_path, unit_path)):
         print("[signal-contract] "
               "test_deploy_preserves_the_replay_runtime_dropin: skipped, "
-              "producer sources not beside this checkout")
+              "replay sources not beside this checkout")
         return
-    producer_tasks = yaml.safe_load(open(producer_path))
+    replay_tasks = yaml.safe_load(open(replay_role_path))
     managed = []
-    for task in producer_tasks:
+    for task in replay_tasks:
         copy = task.get("ansible.builtin.copy") or {}
         if str(copy.get("dest", "")).endswith("/clock.conf"):
             managed.append(task.get("name"))
@@ -2283,7 +2283,7 @@ def test_deploy_preserves_the_replay_runtime_dropin():
           "replay.yml no longer owns a complete loop-aware runtime drop-in")
     check("Environment=REPLAY_LOOP={{ replay_loop" in unit
           and "Environment=REPLAY_CLOCK={{ replay_clock" in unit,
-          "fresh producer installs have no default replay runtime settings")
+          "fresh replay installs have no default replay runtime settings")
 
 
 def _resolve_from_playbook_dir(path):
@@ -2350,10 +2350,10 @@ def test_playbook_relative_files_resolve_from_playbooks_dir():
     # group_vars is for. They still have to resolve from playbooks/.
     site_paths = {}
     for line in open(vars_path):
-        for key in ("causal_edges_file", "producer_replay_source"):
+        for key in ("causal_edges_file", "replay_engine_source"):
             if line.startswith(key + ":"):
                 site_paths[key] = line.split(":", 1)[1].strip().strip('"')
-    for key in ("causal_edges_file", "producer_replay_source"):
+    for key in ("causal_edges_file", "replay_engine_source"):
         value = site_paths.get(key)
         check(value, f"{key} is no longer set in group_vars/all.yml")
         check(value and os.path.isfile(_resolve_from_playbook_dir(value)),

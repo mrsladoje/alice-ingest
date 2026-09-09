@@ -105,8 +105,8 @@ all:
 
             # The replay engine reads S3 objects up to
             # replay_max_object_bytes, which is 150 MB.
-            producer_memory_high: "1G"
-            producer_memory_max: "2G"
+            replay_memory_high: "1G"
+            replay_memory_max: "2G"
           hosts:
             # Four physical cores for the stack and two for the replay
             # engine, taken from the top of NUMA node 0 and naming both
@@ -118,7 +118,7 @@ all:
               epn_partition: 0
               opensearch_cpuset: "28-31,92-95"
               fluent_bit_cpuset: "28-31,92-95"
-              producer_cpuset: "26-27,90-91"
+              replay_cpuset: "26-27,90-91"
               fluent_bit_version: "4.0.1"
             epn228:
               ansible_host: 10.162.36.228
@@ -126,7 +126,7 @@ all:
               epn_partition: 1
               opensearch_cpuset: "28-31,92-95"
               fluent_bit_cpuset: "28-31,92-95"
-              producer_cpuset: "26-27,90-91"
+              replay_cpuset: "26-27,90-91"
               fluent_bit_version: "4.0.1"
             # 192 logical processors, sibling n and n+96, node 0 is 0-47 and
             # 96-143. Same four cores and two cores, different numbers.
@@ -136,7 +136,7 @@ all:
               epn_partition: 2
               opensearch_cpuset: "44-47,140-143"
               fluent_bit_cpuset: "44-47,140-143"
-              producer_cpuset: "42-43,138-139"
+              replay_cpuset: "42-43,138-139"
               fluent_bit_version: "4.0.14"
               # 8 September 2026: Fluent Bit 4.0.14 segfaults reading this
               # host's journal (AlmaLinux 10, systemd 257, zstd-compressed

@@ -1,4 +1,4 @@
-# `producer`
+# `sweet_replay`
 
 Installs `alice-replay` on each worker: the S3 log-replay engine that streams
 real ALICE EPN logs out of the CERN Ceph bucket and lays them down where the
@@ -9,7 +9,7 @@ deploy. Nothing downstream — no index, no detector, no monitor, no cockpit pan
 The engine itself is not written here. `images/replay/replay.py` is preserved
 ground truth, shared with the Docker Compose stack, and is copied to the VM
 byte-for-byte. What this role adds is everything needed to run that one file as
-one independent single-partition producer per worker, instead of the single
+one independent single-partition replay engine per worker, instead of the single
 fan-out process it was written to be.
 
 ## Why it is a separate role
@@ -19,7 +19,7 @@ fan-out process it was written to be.
   a week without touching Fluent Bit's configuration, and the parsing rules can
   change without re-uploading an engine.
 - **It is the only role that installs a file from outside `deploy/`.**
-  `producer_replay_source` points at `images/replay/replay.py`, so a change to
+  `replay_engine_source` points at `images/replay/replay.py`, so a change to
   the compose stack's engine reaches the VMs through this role and no other.
 - **It is the one role that must not disturb what it installed.** A running soak
   is operational state. That constraint shapes several tasks below, and it does
@@ -33,7 +33,7 @@ fan-out process it was written to be.
 ┌─ 1. RUNTIME + FIREWALL ────────────────────────────────────────────────────┐
 │  dnf python3, python3-pip                                                  │
 │  {{ replay_http_port }}/tcp   one rich rule per allowed client address     │
-│  venv at {{ producers_venv_path }} + boto3     --> restart alice-replay    │
+│  venv at {{ replay_venv_path }} + boto3     --> restart alice-replay    │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
 ┌─ 2. INSTALL — two files, one of them untouchable ──────────────────────────┐
@@ -132,7 +132,7 @@ the resulting idle worker so the operator knows to trigger it again.
 
 ## Armed, not fired
 
-`producer_autostart_replay` is `false`. The deploy installs a producer that is
+`replay_autostart` is `false`. The deploy installs a replay engine that is
 running, healthy and answering its trigger port, and has loaded nothing. An
 operator starts the data load with `make replay` (or `make replay-fresh`, which
 wipes the log indices first, or the `/ops` page's replay button).
@@ -140,7 +140,7 @@ wipes the log indices first, or the `/ops` page's replay button).
 `replay.py`'s own `AUTOSTART_MARKER` guard is still wired up, at
 `{{ log_root }}/.replay-autostart-done`, ported one-for-one from the compose
 stack. It is what makes a restart safe rather than a re-ingest, and it is why
-setting `producer_autostart_replay: true` fires exactly once per host lifetime,
+setting `replay_autostart: true` fires exactly once per host lifetime,
 not once per restart.
 
 ## The trigger
@@ -162,7 +162,7 @@ in step 1 admits, and why the page's button never goes through Ansible.
 - **`replay.py` is copied `0644` and never edited.** It is the one file the
   compose stack and the VM deploy share. Every divergence lives in the wrapper
   beside it, which is why that file's docstring is longer than its code.
-- **`producer_replay_source` defaults into the role's own `files/` but is
+- **`replay_engine_source` defaults into the role's own `files/` but is
   overridden in `group_vars` to `images/replay/replay.py`.** The default keeps
   the role runnable standalone; the override keeps this repository at one copy.
   It is resolved on the **controller**, through `playbook_dir`.
@@ -201,15 +201,15 @@ the role reads directly rather than re-declaring.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `producer_service_name` | `alice-replay` | Unit name. Also read by `playbooks/replay.yml`, with a literal fallback. |
-| `producer_allowed_client_addresses` | `[]` | Addresses permitted through the firewall to `replay_http_port`. Empty so the role is runnable alone; **the playbook supplies the control host.** |
-| `producer_nodes_root` | `/var/log/alice-replay-root` | Stands in for the engine's `NODES_ROOT`. Holds exactly one symlink, `<node_id>` → `log_root`. |
-| `producer_aws_dir` | `/root/.aws` | Credentials directory, `0700`. |
-| `producer_aws_credentials_file` | `{{ producer_aws_dir }}/credentials` | `AWS_SHARED_CREDENTIALS_FILE`. |
-| `producer_autostart_marker` | `{{ log_root }}/.replay-autostart-done` | The engine's once-per-lifetime guard. Lives in `log_root` because, on this VM, `log_root` *is* this partition's `NODES_ROOT/<collector>` directory. |
-| `producer_autostart_families` | `infologger,dds,stdout` | What a first-boot autostart would load. |
-| `producer_autostart_replay` | `false` | Arms the producer without firing it. See "Armed, not fired". |
-| `producer_replay_source` | `{{ role_path }}/files/replay.py` | Overridden in `group_vars` to the repository's one preserved copy. |
+| `replay_service_name` | `alice-replay` | Unit name. Also read by `playbooks/replay.yml`, with a literal fallback. |
+| `replay_allowed_client_addresses` | `[]` | Addresses permitted through the firewall to `replay_http_port`. Empty so the role is runnable alone; **the playbook supplies the control host.** |
+| `replay_nodes_root` | `/var/log/alice-replay-root` | Stands in for the engine's `NODES_ROOT`. Holds exactly one symlink, `<node_id>` → `log_root`. |
+| `replay_aws_dir` | `/root/.aws` | Credentials directory, `0700`. |
+| `replay_aws_credentials_file` | `{{ replay_aws_dir }}/credentials` | `AWS_SHARED_CREDENTIALS_FILE`. |
+| `replay_autostart_marker` | `{{ log_root }}/.replay-autostart-done` | The engine's once-per-lifetime guard. Lives in `log_root` because, on this VM, `log_root` *is* this partition's `NODES_ROOT/<collector>` directory. |
+| `replay_autostart_families` | `infologger,dds,stdout` | What a first-boot autostart would load. |
+| `replay_autostart` | `false` | Arms the replay engine without firing it. See "Armed, not fired". |
+| `replay_engine_source` | `{{ role_path }}/files/replay.py` | Overridden in `group_vars` to the repository's one preserved copy. |
 
 ### Variables the role requires but does not own
 
@@ -218,7 +218,7 @@ the role reads directly rather than re-declaring.
 | Topology | `node_id`, `epn_partition` (inventory), `node_count` | The symlink name, `EPN_PARTITION`, and the partition formula |
 | S3 | `s3_endpoint`, `s3_bucket`, `s3_region`, `s3_aws_profile`, `run_tag`, `infologger_prefix` | Which archive is replayed |
 | Secrets | `s3_access_key_id`, `s3_secret_access_key` | The credentials file, from `vault.yml` |
-| Paths | `log_root`, `producers_app_root`, `producers_venv_path` | Where files land and which interpreter runs |
+| Paths | `log_root`, `replay_app_root`, `replay_venv_path` | Where files land and which interpreter runs |
 | Ports | `replay_http_port`, `infologger_tcp_port` | The trigger, the firewall rule, and where InfoLogger rows go |
 | Pacing | `il_replay_rate`, `dds_replay_rate`, `stdout_replay_rate`, `*_max_objects`, `replay_max_object_bytes` | Unit defaults, overridden at run time by `clock.conf` |
 | Clock and loop | `replay_clock`, `replay_clock_cache`, `replay_loop`, `replay_loop_pause_seconds` | Unit defaults, same override path |
@@ -226,17 +226,17 @@ the role reads directly rather than re-declaring.
 ## How to use it
 
 ```yaml
-- name: S3-replay producers (worker VMs only)
+- name: S3-replay engine (worker VMs only)
   hosts: workers
   become: true
   vars_files:
     - "{{ playbook_dir }}/../group_vars/vault.yml"
   roles:
-    - producer
+    - sweet_replay
 ```
 
-- **`producer_allowed_client_addresses` comes from `group_vars/all.yml`.** The
-  role default is empty, so a play that supplies nothing installs a producer
+- **`replay_allowed_client_addresses` comes from `group_vars/all.yml`.** The
+  role default is empty, so a play that supplies nothing installs a replay engine
   whose trigger port answers only the loopback path `playbooks/replay.yml` uses —
   and the `/ops` page's button, which calls the external address, times out.
 - **The vault file is not optional.** Without `vault_s3_access_key_id` and its
@@ -263,7 +263,7 @@ the role reads directly rather than re-declaring.
   like. Re-slicing means a `make replay-fresh`, not a `make replay`.
 - **`log_root` is shared with `sweet_collector`.** This role writes DDS and stdout
   files into it through the symlink; Fluent Bit tails them out of it. Changing it
-  in one role and not the other produces a healthy producer, a healthy collector,
+  in one role and not the other produces a healthy replay engine, a healthy collector,
   and no data.
 - **`infologger_tcp_port` is shared with `sweet_collector`.** The wrapper connects to
   `127.0.0.1` on it; Fluent Bit listens on it. Same failure mode as above.
@@ -271,7 +271,7 @@ the role reads directly rather than re-declaring.
   here, `worker_replay_trigger_urls` and `worker_replay_endpoints` in
   `group_vars`, and through those the `/ops` page's replay button and the
   `replay-end` injection scenario.
-- **`producer_replay_source` points outside the role.** The `group_vars`
+- **`replay_engine_source` points outside the role.** The `group_vars`
   override reaches `images/replay/replay.py`, which `docker-compose.yml` also
   builds from. Editing that file changes both stacks. If the role is ever
   extracted, drop the override and the bundled `files/replay.py` default takes
@@ -287,7 +287,7 @@ the role reads directly rather than re-declaring.
   `~338k / 3600`. Change either variable and the arithmetic in
   `group_vars/all.yml` has to be re-derived, or the pass stops being an hour long
   and the detectors stop getting their 32 windows.
-- **The firewall rule takes `producer_allowed_client_addresses`, a list.** Same
+- **The firewall rule takes `replay_allowed_client_addresses`, a list.** Same
   convention as `alertmanager_allowed_client_addresses` and
   `shifter_allowed_client_addresses`. `group_vars` resolves it to
   `[control_host_address]`, so the role names no inventory group and does not
@@ -339,7 +339,7 @@ point this becomes an ordinary "install a daemon" role.
 
 ## Used by
 
-- `playbooks/site.yml`, play "S3-replay producers (worker VMs only)", against
+- `playbooks/site.yml`, play "S3-replay engine (worker VMs only)", against
   `workers` — the only installer.
 - `playbooks/replay.yml` (`make replay`, `replay-fresh`, `replay-fast`), which
   writes the runtime drop-in and posts the trigger.
@@ -353,4 +353,4 @@ point this becomes an ordinary "install a daemon" role.
 - `group_vars/vault.yml`, decrypted, for the two S3 secrets.
 - `images/replay/replay.py`, on the controller — outside `deploy/`.
 - `sweet_collector`, in practice: it owns `log_root` and listens on
-  `infologger_tcp_port`. The producer will run without it and write into a void.
+  `infologger_tcp_port`. The replay engine will run without it and write into a void.

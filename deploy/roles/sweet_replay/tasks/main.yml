@@ -1,6 +1,6 @@
-# authored by the producer unit agent
+# authored by the replay unit agent
 # =============================================================================
-# roles/producer — native (venv + systemd) S3-replay engine, one per VM.
+# roles/sweet_replay — native (venv + systemd) S3-replay engine, one per VM.
 #
 # SCOPE (quality bar #2, native fidelity — determined by reading
 # images/node/Dockerfile, images/node/supervisord-collector.conf vs.
@@ -59,12 +59,12 @@
     permanent: true
     immediate: true
     state: enabled
-  loop: "{{ producer_allowed_client_addresses }}"
+  loop: "{{ replay_allowed_client_addresses }}"
   when: alice_manage_firewalld
 
 - name: Ensure the app root exists (replay.py + partition wrapper land here)
   ansible.builtin.file:
-    path: "{{ producers_app_root }}"
+    path: "{{ replay_app_root }}"
     state: directory
     owner: root
     group: root
@@ -72,8 +72,8 @@
 
 - name: Copy the replay engine (the same file the mocks stack runs)
   ansible.builtin.copy:
-    src: "{{ producer_replay_source }}"
-    dest: "{{ producers_app_root }}/replay.py"
+    src: "{{ replay_engine_source }}"
+    dest: "{{ replay_app_root }}/replay.py"
     owner: root
     group: root
     mode: "0644"
@@ -82,7 +82,7 @@
 - name: Copy the single-partition wrapper (imports replay.py, see its docstring)
   ansible.builtin.copy:
     src: replay_partition_wrapper.py
-    dest: "{{ producers_app_root }}/replay_partition_wrapper.py"
+    dest: "{{ replay_app_root }}/replay_partition_wrapper.py"
     owner: root
     group: root
     mode: "0644"
@@ -126,14 +126,14 @@
   ansible.builtin.pip:
     name: boto3
     state: present
-    virtualenv: "{{ producers_venv_path }}"
+    virtualenv: "{{ replay_venv_path }}"
     virtualenv_command: /usr/bin/python3 -m venv
   notify: restart alice-replay
 
 # --- S3 credentials (vault-only, quality bar #5) ------------------------------
 - name: Ensure /root/.aws exists
   ansible.builtin.file:
-    path: "{{ producer_aws_dir }}"
+    path: "{{ replay_aws_dir }}"
     state: directory
     owner: root
     group: root
@@ -142,7 +142,7 @@
 - name: Template the AWS credentials profile from vault
   ansible.builtin.template:
     src: aws-credentials.j2
-    dest: "{{ producer_aws_credentials_file }}"
+    dest: "{{ replay_aws_credentials_file }}"
     owner: root
     group: root
     mode: "0600"
@@ -172,7 +172,7 @@
 
 - name: Ensure the replay partition-root parent directory exists
   ansible.builtin.file:
-    path: "{{ producer_nodes_root }}"
+    path: "{{ replay_nodes_root }}"
     state: directory
     owner: root
     group: root
@@ -181,7 +181,7 @@
 - name: Symlink this VM's replay partition-root to the local log_root
   ansible.builtin.file:
     src: "{{ log_root }}"
-    dest: "{{ producer_nodes_root }}/{{ node_id }}"
+    dest: "{{ replay_nodes_root }}/{{ node_id }}"
     state: link
     force: true
     follow: false
@@ -190,7 +190,7 @@
 - name: Template the alice-replay systemd unit
   ansible.builtin.template:
     src: replay.service.j2
-    dest: /etc/systemd/system/{{ producer_service_name }}.service
+    dest: /etc/systemd/system/{{ replay_service_name }}.service
     owner: root
     group: root
     mode: "0644"
@@ -198,7 +198,7 @@
 
 - name: Ensure alice-replay drop-in directory exists
   ansible.builtin.file:
-    path: /etc/systemd/system/{{ producer_service_name }}.service.d
+    path: /etc/systemd/system/{{ replay_service_name }}.service.d
     state: directory
     owner: root
     group: root
@@ -220,7 +220,7 @@
 
 - name: Enable and start alice-replay
   ansible.builtin.systemd:
-    name: "{{ producer_service_name }}"
+    name: "{{ replay_service_name }}"
     enabled: true
     state: started
     daemon_reload: true

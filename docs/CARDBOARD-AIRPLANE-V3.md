@@ -16,7 +16,7 @@ The hand-to-Lubos increment on top of the v2 two-tier design. Same 5-VM two-tier
 
 ## 1. Triggered replay — the "replay button"
 
-**Disarmed by default.** The producer role now templates `AUTOSTART_REPLAY` from `producer_autostart_replay` (default **false**). After `make deploy` the `alice-replay` service on each worker is running and serving its HTTP trigger, but it has loaded nothing. Flip `producer_autostart_replay: true` to restore the v2 auto-load-once-on-first-boot behaviour.
+**Disarmed by default.** The replay role now templates `AUTOSTART_REPLAY` from `replay_autostart` (default **false**). After `make deploy` the `alice-replay` service on each worker is running and serving its HTTP trigger, but it has loaded nothing. Flip `replay_autostart: true` to restore the v2 auto-load-once-on-first-boot behaviour.
 
 **`make replay`** runs `deploy/playbooks/replay.yml`, which POSTs `/replay` to each worker's local `alice-replay` trigger (`127.0.0.1:8088`). Each worker streams *its own* EPN partition (the v2 single-partition wrapper is unchanged). No vault password is needed — the playbook touches no secrets.
 

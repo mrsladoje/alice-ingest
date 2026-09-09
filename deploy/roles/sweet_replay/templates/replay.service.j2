@@ -1,4 +1,4 @@
-# Managed by Ansible (deploy/roles/producer) — local edits will be overwritten.
+# Managed by Ansible (deploy/roles/sweet_replay) — local edits will be overwritten.
 # Native port of images/replay/replay.py's default container CMD
 # (`python replay.py serve`) — the HTTP trigger stub (GET /health,
 # POST /replay?family=...) which also fires the AUTOSTART_REPLAY-guarded
@@ -12,7 +12,7 @@
 
 [Unit]
 Description=ALICE S3 log replay — single-partition wrapper ({{ node_id }}, epn_partition {{ epn_partition }})
-Documentation=file://{{ producers_app_root }}/replay_partition_wrapper.py
+Documentation=file://{{ replay_app_root }}/replay_partition_wrapper.py
 # Soft ordering only: InfoLogger rows retry-connect forever inside replay.py
 # (il_connect) and the DDS/stdout tail files are picked up by Fluent Bit's
 # `tail` input whenever it next polls, so this unit tolerates starting
@@ -26,10 +26,10 @@ Wants=network-online.target
 Type=simple
 User=root
 Group=root
-WorkingDirectory={{ producers_app_root }}
+WorkingDirectory={{ replay_app_root }}
 
 Environment=AWS_PROFILE={{ s3_aws_profile }}
-Environment=AWS_SHARED_CREDENTIALS_FILE={{ producer_aws_credentials_file }}
+Environment=AWS_SHARED_CREDENTIALS_FILE={{ replay_aws_credentials_file }}
 Environment=S3_ENDPOINT={{ s3_endpoint }}
 Environment=S3_BUCKET={{ s3_bucket }}
 Environment=S3_REGION={{ s3_region }}
@@ -37,7 +37,7 @@ Environment=RUN_TAG={{ run_tag }}
 Environment=INFOLOGGER_PREFIX={{ infologger_prefix }}
 Environment=INFOLOGGER_TCP_PORT={{ infologger_tcp_port }}
 Environment=NODE_COUNT={{ node_count }}
-Environment=NODES_ROOT={{ producer_nodes_root }}
+Environment=NODES_ROOT={{ replay_nodes_root }}
 Environment=DDS_REPLAY_RATE={{ dds_replay_rate }}
 Environment=IL_REPLAY_RATE={{ il_replay_rate }}
 # The three families with no S3 archive behind them. Empty bundle root means the
@@ -56,23 +56,23 @@ Environment=IL_MAX_OBJECTS={{ il_max_objects }}
 Environment=STDOUT_MAX_OBJECTS={{ stdout_max_objects }}
 Environment=REPLAY_MAX_OBJECT_BYTES={{ replay_max_object_bytes }}
 Environment=REPLAY_HTTP_PORT={{ replay_http_port }}
-Environment=AUTOSTART_REPLAY={{ producer_autostart_replay | string | lower }}
-Environment=AUTOSTART_FAMILIES={{ producer_autostart_families }}
-Environment=AUTOSTART_MARKER={{ producer_autostart_marker }}
+Environment=AUTOSTART_REPLAY={{ replay_autostart | string | lower }}
+Environment=AUTOSTART_FAMILIES={{ replay_autostart_families }}
+Environment=AUTOSTART_MARKER={{ replay_autostart_marker }}
 Environment=EPN_PARTITION={{ epn_partition }}
 Environment=REPLAY_CLOCK={{ replay_clock }}
 Environment=PYTHONUNBUFFERED=1
 
-ExecStart={{ producers_venv_path }}/bin/python3 {{ producers_app_root }}/replay_partition_wrapper.py serve
+ExecStart={{ replay_venv_path }}/bin/python3 {{ replay_app_root }}/replay_partition_wrapper.py serve
 
-{% if producer_cpuset %}
-AllowedCPUs={{ producer_cpuset }}
+{% if replay_cpuset %}
+AllowedCPUs={{ replay_cpuset }}
 {% endif %}
-{% if producer_memory_high %}
-MemoryHigh={{ producer_memory_high }}
+{% if replay_memory_high %}
+MemoryHigh={{ replay_memory_high }}
 {% endif %}
-{% if producer_memory_max %}
-MemoryMax={{ producer_memory_max }}
+{% if replay_memory_max %}
+MemoryMax={{ replay_memory_max }}
 {% endif %}
 
 Restart=on-failure

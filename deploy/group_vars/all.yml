@@ -110,7 +110,7 @@ shifter_allowed_client_addresses: "{{ (groups['workers'] + groups['control']) |
 # means "where Alertmanager runs", not "who is allowed to call in".
 control_host_address: "{{ hostvars[groups['control'][0]].ansible_host }}"
 fault_agent_allowed_client_addresses: "{{ [control_host_address] }}"
-producer_allowed_client_addresses: "{{ [control_host_address] }}"
+replay_allowed_client_addresses: "{{ [control_host_address] }}"
 
 # Which services this node's fault agent may stop and start. A node may fault
 # only the service it owns: a worker its Fluent Bit, the projector host its
@@ -132,7 +132,7 @@ infologger_tcp_port: 5170
 log_root: /var/log/node
 
 # Read by two roles in two plays: the collector tails this file and the
-# producer's replay writes the daemon-log bundle into it. A role default is
+# sweet_replay role writes the daemon-log bundle into it. A role default is
 # invisible to the other play, so the one copy lives here.
 infologger_daemon_log_path: /var/log/o2-infologger-daemon.log
 
@@ -143,7 +143,7 @@ infologger_daemon_log_path: /var/log/o2-infologger-daemon.log
 # and nothing backs them up. A bundle captured with tools/epnsurvey/mkbundle.sh
 # is the only way a staging VM can carry either.
 #
-# Both roles read these. The producer ships the bundle and paces the daemon log
+# Both roles read these. sweet_replay ships the bundle and paces the daemon log
 # into the path the collector tails; the collector points its systemd input at
 # the shipped journal. A role default would be invisible to the other role and
 # the two would silently disagree about whether a bundle exists.
@@ -423,13 +423,13 @@ replay_loop_pause_seconds: 30
 # here because playbooks/poison_replay.yml prints it.
 poison_warmup_timeout_seconds: 4200
 
-producers_venv_path: /opt/alice-ingest/venv
-producers_app_root: /opt/alice-ingest/app
+replay_venv_path: /opt/alice-ingest/venv
+replay_app_root: /opt/alice-ingest/app
 
 # Site override: this repository holds the one PRESERVED copy of the replay
 # engine at images/replay/replay.py, which docker-compose.yml also builds from.
-# Drop this line when the producer role is extracted with its own files/copy.
-producer_replay_source: "{{ playbook_dir }}/../../images/replay/replay.py"
+# Drop this line when the sweet_replay role is extracted with its own files/copy.
+replay_engine_source: "{{ playbook_dir }}/../../images/replay/replay.py"
 
 s3_access_key_id: "{{ vault_s3_access_key_id }}"
 s3_secret_access_key: "{{ vault_s3_secret_access_key }}"

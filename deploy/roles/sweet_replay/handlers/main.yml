@@ -1,7 +1,7 @@
-# authored by the producer unit agent
+# authored by the replay unit agent
 # =============================================================================
 # A restart is data-safe because the replay is repeatable, but it terminates an
-# in-flight pass and does not re-trigger it.  The producer role therefore never
+# in-flight pass and does not re-trigger it.  The replay role therefore never
 # rewrites playbooks/replay.yml's runtime drop-in merely because make deploy ran.  A real
 # binary/unit/credential change can still require this handler; make status
 # reports the resulting idle worker so the operator knows to trigger it again.
@@ -10,7 +10,7 @@
 
 - name: Restart alice-replay
   ansible.builtin.systemd:
-    name: "{{ producer_service_name }}"
+    name: "{{ replay_service_name }}"
     state: restarted
     daemon_reload: true
   listen: restart alice-replay
