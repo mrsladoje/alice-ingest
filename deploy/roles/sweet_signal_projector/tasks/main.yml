@@ -1,4 +1,4 @@
-- name: Install the signal projector script on its offload host
+- name: Install the signal projector script on the projector host
   ansible.builtin.copy:
     src: signal_projector.py
     dest: "{{ signal_projector_script }}"
@@ -7,7 +7,7 @@
     mode: "0755"
   register: _projector_remote_script
 
-- name: Template the alice-signal-projector systemd unit on its offload host
+- name: Template the signal projector systemd unit on the projector host
   ansible.builtin.template:
     src: alice-signal-projector.service.j2
     dest: /etc/systemd/system/{{ signal_projector_service_name }}.service
@@ -16,7 +16,7 @@
     mode: "0644"
   register: _projector_remote_unit
 
-- name: Prove the offload host can reach Alertmanager before starting the projector
+- name: Prove the projector host can reach Alertmanager before starting the projector
   ansible.builtin.uri:
     url: "http://{{ alertmanager_host_address }}:{{ alertmanager_port }}/-/ready"
     status_code: [200]
@@ -25,7 +25,7 @@
   delay: 5
   until: _remote_alertmanager_ready.status == 200
 
-- name: Enable and start the projector on its offload host, restarting only when its inputs changed
+- name: Enable and start the projector, restarting it only when its inputs changed
   ansible.builtin.systemd:
     name: "{{ signal_projector_service_name }}"
     enabled: true
@@ -88,8 +88,8 @@
       delay: 5
 
     # The projector writes its heartbeat only after a full cycle returns, and
-    # the first cycle after a restart reads the whole overlap window. Even on
-    # the offload host that can take minutes, not the two this used to allow.
+    # the first cycle after a restart reads the whole overlap window. That
+    # takes minutes, which is what projector_gate_retries has to cover.
     - name: Wait for the newest signal-projector heartbeat to prove a successful cycle
       ansible.builtin.uri:
         url: "http://localhost:{{ opensearch_http_port }}/{{ cockpit_metrics_index }}/_search"
@@ -174,11 +174,11 @@
           it reports; the node's own UTC clock beside them says whether the
           heartbeat timestamps are simply outside the window this gate asks
           for; free -m and swapon say whether the node ran out of memory during
-          the cycle; the journal says whether the cycle raised. This no longer
-          stops the deploy — the remaining plays run, and the deploy still
+          the cycle; the journal says whether the cycle raised. This does not
+          stop the deploy — the remaining plays run, and the deploy still
           exits non-zero at the end so this is never mistaken for a pass.
 
-- name: Assert the offloaded projector stayed up
+- name: Assert the projector stayed up
   ansible.builtin.systemd:
     name: "{{ signal_projector_service_name }}"
   register: _projector_state

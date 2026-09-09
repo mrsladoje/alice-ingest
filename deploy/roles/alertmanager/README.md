@@ -15,7 +15,7 @@ it batches it with, and what may mute it.
   user, port, config file, systemd unit and readiness endpoint. None of that
   belongs to the projector that pushes into it.
 - **It runs on a different host from its only client.** Alertmanager is control
-  host only; the `signal_projector` role runs on the projector host. Two roles
+  host only; the `sweet_signal_projector` role runs on the projector host. Two roles
   over one host boundary is the reason the bind address is not loopback and the
   reason this role carries a firewall rule.
 - **It owns the port, so it owns the rule.** The firewalld rich rule for
@@ -135,7 +135,7 @@ set the flag. It is a deliberate stop, not a formality.
   That binary ships inside the same tarball, which is why the download task sits
   above the template task. Reordering them breaks a first run against an empty
   host.
-- **Handlers are flushed inside the role.** The `signal_projector` role asserts
+- **Handlers are flushed inside the role.** The `sweet_signal_projector` role asserts
   against a *live* Alertmanager later in the same deploy. Without the explicit
   flush, a pending restart would fire at end of play — after that assertion.
 - **The config file is `0640 root:alertmanager`.** It can carry
@@ -191,7 +191,7 @@ controller** through `playbook_dir`, not on the target host.
 
 - **Run it on exactly one host.** There is no gossip cluster. A second instance
   would duplicate every notification and share no silence state.
-- **Run it before `signal_projector`.** That role's readiness gate retries twelve
+- **Run it before `sweet_signal_projector`.** That role's readiness gate retries twelve
   times, five seconds apart, and then fails the play.
 - **Run it after `sweet_os_dashboards`** if you want the `/alertmanager/` path to answer,
   since `sweet_os_dashboards` owns the nginx vhost that proxies it. The daemon itself does
@@ -208,7 +208,7 @@ controller** through `playbook_dir`, not on the target host.
 
 - **`alertmanager_port` is read in four places.** This role's bind address and
   firewall rule, the `sweet_os_dashboards` nginx vhost `proxy_pass`, and the
-  `signal_projector` readiness probe and `ALERTMANAGER_URL`. It lives in
+  `sweet_signal_projector` readiness probe and `ALERTMANAGER_URL`. It lives in
   `group_vars/all.yml` for that reason.
 - **The bind address and the firewall rule are one decision.** Opening
   `0.0.0.0` is only safe because the allowlist is narrow. `test_signal_contract.py`
@@ -222,7 +222,7 @@ controller** through `playbook_dir`, not on the target host.
   group of its own. Moving the projector to another host is a group-vars edit.
 - **The webhook posts to `127.0.0.1`.** The notification receiver must therefore
   run on the control host, which is why `site.yml` installs it through
-  `signal_projector`'s `receiver.yml` in a control-host play *before* the
+  `sweet_signal_projector`'s `receiver.yml` in a control-host play *before* the
   projector's own play.
 - **`notification_ingest_token` is written into this config and read by the
   receiver.** Setting it in only one of the two places drops every notification

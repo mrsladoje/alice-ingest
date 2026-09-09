@@ -188,7 +188,7 @@ From `group_vars`: `expected_monitors`, `expected_detectors` and
 
 | Script | Runs from | What it does |
 |---|---|---|
-| `verify_detection.py` | this role, then `sweet_cockpit_metrics` after the collectors are up, then `signal_projector` | Asserts the whole detection layer against the cluster. Exit 1 fails the deploy. |
+| `verify_detection.py` | this role, then `sweet_cockpit_metrics` after the collectors are up, then `sweet_signal_projector` | Asserts the whole detection layer against the cluster. Exit 1 fails the deploy. |
 | `backtest.py` | `playbooks/backtest.yml` | Historical analysis of every log detector over the replayed window, with a grade floor and a 45 minute timeout. |
 | `detection_status.py` | `playbooks/status.yml`, out of `files/` | Read-only: data windows, job states and result counts per detector. |
 

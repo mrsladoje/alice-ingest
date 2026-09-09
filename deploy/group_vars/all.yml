@@ -18,7 +18,7 @@ alice_service_memory_max: "512M"
 # The projector runs on node-04 rather than the crowded control VM.  Its
 # resident set is bounded, but a little larger than the thin pollers because it
 # must hold the active incident episode set while it traverses AD results.
-# Its memory bounds are role defaults, in roles/signal_projector.
+# Its memory bounds are role defaults, in roles/sweet_signal_projector.
 signal_projector_host: "{{ groups['projector'][0] }}"
 
 # Both ports are declared here, not only in roles/sweet_opensearch/defaults/main.yml,
@@ -289,14 +289,14 @@ alice_ops_poison_replay_status: /var/lib/alice-poison-replay/status.json
 alice_ops_poison_replay_report_dir: /var/lib/alice-poison-replay/runs
 
 # The counts verify_detection.py asserts. They are read by the
-# sweet_anomaly_detection and signal_projector roles and they count the JSON
+# sweet_anomaly_detection and sweet_signal_projector roles and they count the JSON
 # files sweet_anomaly_detection ships: add a monitor or a detector there and the
 # matching number here has to change with it.
 expected_monitors: 30
 expected_detectors: 17
 expected_forecasters: 1
 
-# Set by the signal_projector role's rescue path and read by the final play of
+# Set by the sweet_signal_projector role's rescue path and read by the final play of
 # site.yml, which turns it into the deploy's exit code.
 projector_gate_failed: false
 

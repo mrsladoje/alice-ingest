@@ -1759,7 +1759,7 @@ def test_injected_pipeline_preserves_the_real_one():
 
 def test_every_local_import_survives_the_on_vm_layout():
     source = _checkout_file(
-        "roles", "signal_projector", "files", "test_signal_contract.py")
+        "roles", "sweet_signal_projector", "files", "test_signal_contract.py")
     group_vars = _checkout_file("group_vars", "all.yml")
     if not source or not group_vars:
         print("[signal-contract] "
@@ -1822,7 +1822,7 @@ def test_episode_grouping_gate_runs_after_the_projector_upgrade():
     detection_path = _checkout_file(
         "roles", "sweet_anomaly_detection", "tasks", "detection.yml")
     control_path = _checkout_file(
-        "roles", "signal_projector", "tasks", "control.yml")
+        "roles", "sweet_signal_projector", "tasks", "control.yml")
     site_path = _checkout_file("playbooks", "site.yml")
     verifier_path = _checkout_file(
         "roles", "sweet_anomaly_detection", "files", "verify_detection.py")
@@ -1837,7 +1837,7 @@ def test_episode_grouping_gate_runs_after_the_projector_upgrade():
     verifier = open(verifier_path).read()
     check("CHECK_EPISODE_GROUPING" not in detection,
           "the bootstrap verifier checks episode grouping, but it runs before "
-          "the signal_projector role installs the projector that writes "
+          "the sweet_signal_projector role installs the projector that writes "
           "group_id, so every pre-existing episode fails a gate no deploy can "
           "ever satisfy")
     check('CHECK_EPISODE_GROUPING: "true"' in control,
@@ -1866,7 +1866,7 @@ def test_push_heartbeat_gate_runs_after_collector_cutover():
         return
     site = open(site_path).read()
     projector_path = _checkout_file(
-        "roles", "signal_projector", "tasks", "control.yml")
+        "roles", "sweet_signal_projector", "tasks", "control.yml")
     post_path = _checkout_file(
         "roles", "sweet_cockpit_metrics", "tasks", "post_collector.yml")
     if not all((projector_path, post_path)):
@@ -2106,11 +2106,11 @@ def test_projector_runtime_is_off_the_control_host():
     inventory_path = _checkout_file("inventory.yml")
     site_path = _checkout_file("playbooks", "site.yml")
     projector_path = _checkout_file(
-        "roles", "signal_projector", "tasks", "main.yml")
+        "roles", "sweet_signal_projector", "tasks", "main.yml")
     projector_control_path = _checkout_file(
-        "roles", "signal_projector", "tasks", "control.yml")
+        "roles", "sweet_signal_projector", "tasks", "control.yml")
     projector_unit_path = _checkout_file(
-        "roles", "signal_projector", "templates",
+        "roles", "sweet_signal_projector", "templates",
         "alice-signal-projector.service.j2")
     alertmanager_unit_path = _checkout_file(
         "roles", "alertmanager", "templates", "alertmanager.service.j2")
@@ -2151,8 +2151,8 @@ def test_projector_runtime_is_off_the_control_host():
         site, re.S | re.M)
     check(projector_play is not None
           and "hosts: projector" in projector_play.group(0)
-          and "- signal_projector" in projector_play.group(0),
-          "the signal_projector role no longer runs in a play targeting the "
+          and "- sweet_signal_projector" in projector_play.group(0),
+          "the sweet_signal_projector role no longer runs in a play targeting the "
           "projector host, so its files, service checks and diagnostics land "
           "back on the crowded control host")
     check("delegate_to" not in projector,
@@ -2220,9 +2220,9 @@ def test_dynamic_services_can_read_the_signal_catalog():
     digest_path = _checkout_file(
         "roles", "alice_runtime", "tasks", "digest.yml")
     projector_path = _checkout_file(
-        "roles", "signal_projector", "tasks", "main.yml")
+        "roles", "sweet_signal_projector", "tasks", "main.yml")
     projector_unit_path = _checkout_file(
-        "roles", "signal_projector", "templates",
+        "roles", "sweet_signal_projector", "templates",
         "alice-signal-projector.service.j2")
     site_path = _checkout_file("playbooks", "site.yml")
     projector = open(projector_path).read() if projector_path else ""

@@ -15,7 +15,7 @@ role that exists to break it.
 
 - **Its host set belongs to no other role.** It runs on `workers:projector` — a
   union nothing else in `site.yml` uses. Folding it into `sweet_collector` would leave
-  the projector host without an agent; folding it into `signal_projector` would
+  the projector host without an agent; folding it into `sweet_signal_projector` would
   leave the workers without one. Two copies of one service is the alternative.
 - **It is a service, not a step.** Its own unit, port, token, allowlist,
   readiness probe and firewall rule. The playbook that *drives* it
@@ -153,7 +153,7 @@ uses `/cpu-stress`, and the restore pass uses the matching start or stop call.
   from `group_vars/all.yml`.** The role's own defaults are empty, so a play that
   supplies neither installs an agent that can fault nothing and answers nobody —
   and the deploy gate catches it on the first run.
-- **Run it after `sweet_collector` and after `signal_projector`.** The deploy gate only
+- **Run it after `sweet_collector` and after `sweet_signal_projector`.** The deploy gate only
   proves the agent answers, but an allowlist naming a service that does not exist
   yet is a scenario that fails on its first call.
 - **Do not run it on the control host.** The control host is the caller. An agent

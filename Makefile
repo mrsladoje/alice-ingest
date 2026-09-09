@@ -263,7 +263,7 @@ monitors:
 contract:
 	$(DEPLOY_PYTHON) deploy/roles/alice_ops/files/test_poison_replay.py
 	$(DEPLOY_PYTHON) deploy/roles/sweet_trend_rollup/files/test_trend_rollup.py
-	$(DEPLOY_PYTHON) deploy/roles/signal_projector/files/test_signal_contract.py
+	$(DEPLOY_PYTHON) deploy/roles/sweet_signal_projector/files/test_signal_contract.py
 
 status:
 	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/status.yml
