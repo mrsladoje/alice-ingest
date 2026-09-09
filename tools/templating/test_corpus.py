@@ -55,7 +55,7 @@ class ProgramName(unittest.TestCase):
 
     def test_the_rule_matches_the_shipped_parser_on_optionality(self):
         with open(os.path.join(
-                HERE, "..", "..", "deploy", "roles", "collector",
+                HERE, "..", "..", "deploy", "roles", "sweet_collector",
                 "templates", "parsers.yaml.j2")) as fh:
             parsers = fh.read()
         shipped = [line for line in parsers.splitlines() if "stdout_path" in line]
