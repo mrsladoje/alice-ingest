@@ -752,6 +752,8 @@ class Stamper(object):
             held = self.ledger.versions.get(identity)
             if held is None:
                 continue
+            if len(held["template"]) > self.max_message_length:
+                continue
             document = contract.definition_document(
                 held["family"], held["template"], self.node, held["first"],
                 held["last"], now, programs=held["programs"],

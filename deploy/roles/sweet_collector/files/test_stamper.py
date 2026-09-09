@@ -414,6 +414,25 @@ class Publishing(unittest.TestCase):
         self.assertEqual(marks[0]["counters"]["records"], 7)
         self.assertEqual(machine.ledger.dirty_versions, set())
 
+    def test_an_oversize_definition_is_not_republished_after_a_restart(self):
+        long_line = "[1:0:0][INFO] " + "x" * 100
+        machine = make(self.tmp, transport=FakeTransport(),
+                       local_check=False, max_message_length=1000)
+        machine.handle("family.local",
+                       [(NOW, record(long_line, 0, log_time="x"))],
+                       {"chunk": "a"})
+        machine.publish(NOW + 1000)
+        machine.checkpoint(NOW + 2000)
+        transport = FakeTransport()
+        again = make(self.tmp, transport=transport, local_check=False,
+                     max_message_length=64)
+        self.assertTrue(again.ledger.dirty_versions)
+        again.publish(NOW + 3000)
+        updates = [doc for name, _, _, doc in transport.bulks
+                   if name == "update"]
+        self.assertEqual(updates, [])
+        self.assertEqual(again.ledger.dirty_versions, set())
+
     def test_a_failed_publication_keeps_every_bucket_dirty(self):
         transport = FakeTransport(fail=True)
         machine = make(self.tmp, transport=transport, local_check=False)

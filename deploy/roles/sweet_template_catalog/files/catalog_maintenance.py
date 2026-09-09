@@ -542,7 +542,7 @@ def report_document(section, now_ms, age_ms, result, node_id=MAINTENANCE_ID):
         "published_at": now_ms,
         "cleanup_age_ms": age_ms,
         "failures": len(result["failures"]),
-        "detail": result,
+        "detail": json.dumps(result, sort_keys=True),
     }
     if section == CHECKS_SECTION:
         document["deleted"] = 0

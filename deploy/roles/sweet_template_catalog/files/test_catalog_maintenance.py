@@ -207,6 +207,8 @@ class Pass(unittest.TestCase):
         self.assertEqual(set(reports), {"catalog", "queries", "checks"})
         self.assertEqual(reports["catalog"]["deleted"], 3)
         self.assertEqual(reports["catalog"]["version_conflicts"], 1)
+        self.assertIsInstance(reports["catalog"]["detail"], str)
+        self.assertEqual(json.loads(reports["catalog"]["detail"])["deleted"], 3)
         self.assertEqual(reports["checks"]["deleted"], 0)
         identifiers = {identifier for index, identifier, _ in cluster.bulks}
         self.assertEqual(identifiers, {"maintenance:catalog",
