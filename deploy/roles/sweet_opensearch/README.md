@@ -2,10 +2,10 @@
 
 Builds the ALICE log cluster on the EPN farm: one OpenSearch cluster,
 `alice-logs`, with a data node on every EPN machine and a three-node storage
-tier behind them. First it installs and configures an OpenSearch node on each
-machine. Then, from the control host, it loads the schema into the running
-cluster: the index templates, the ingest pipeline, the pre-created indices and
-the retention policies.
+tier behind them. First it installs and configures the OpenSearch nodes each
+machine carries. Then, from the control host, it loads the schema into the
+running cluster: the index templates, the ingest pipeline, the pre-created
+indices and the retention policies.
 
 ## What the cluster looks like
 
@@ -29,17 +29,17 @@ the inventory.
 ```
         WORKERS — every EPN machine                STORAGE — 3 nodes, quorum
 
-   ┌─ epn001 ───────────────────────┐        ┌─ os-node-04  = control ───────┐
+   ┌─ epn001 ───────────────────────┐        ┌─ node-04  = control ──────────┐
    │  collector ──localhost──>      │        │  cluster_manager, data, ingest │
    │  application-logs-local-epn001 │        │  application-logs-central-*    │
    │  data, ingest   (0 replicas,   │        │  infologger-*                  │
    │  pinned: require.box=epn001)   │        │  cockpit-metrics, signals, ... │
-   └────────────────────────────────┘        ├─ os-node-05 ──────────────────┤
+   └────────────────────────────────┘        ├─ node-05 ─────────────────────┤
    ┌─ epn002 ───────────────────────┐        │  same, replica copies         │
-   │  same, for epn002              │        ├─ os-node-06 ──────────────────┤
+   │  same, for epn002              │        ├─ node-06 ─────────────────────┤
    └────────────────────────────────┘        │  same, replica copies         │
               ...                            └───────────────────────────────┘
-   ┌─ epnNNN ───────────────────────┐
+   ┌─ epnNNN ───────────────────────┐          one machine, three containers
    │  same, for epnNNN              │        every index on the right:
    └────────────────────────────────┘        require.role=storage, 2 replicas
 ```
@@ -49,7 +49,7 @@ the inventory.
 | | `native` | `container` |
 |---|---|---|
 | What | the vendor RPM | a podman container |
-| Nodes per machine | one | several, each an inventory host with its own ports |
+| Nodes per machine | one | several, listed in `opensearch_instances` |
 | Used for | every worker | the three storage nodes, all on one machine |
 
 Three storage containers on one machine give a real quorum of three, not
@@ -66,10 +66,10 @@ cluster** applies the cluster-wide state to the running cluster.
 
 ```
  play 1  hosts: alice_nodes        sweet_opensearch, install
-         every node at once, so the storage nodes can elect a manager together
+         every machine at once, so the storage nodes can elect a manager together
 
  play 2  hosts: alice_nodes        rolling health gate, serial: 1
-         waits for each node's API, then for cluster health
+         waits for each instance's API, then for cluster health
 
  play 3  hosts: control            sweet_opensearch, opensearch_configure_cluster: true
          configures the cluster that now answers
@@ -82,6 +82,20 @@ cluster** applies the cluster-wide state to the running cluster.
   roles:
     - sweet_opensearch
 
+- name: OpenSearch rolling gate
+  hosts: alice_nodes
+  become: true
+  serial: 1
+  tasks:
+    - name: Wait for every instance on this machine to answer and the cluster to report a status
+      ansible.builtin.uri:
+        url: "http://localhost:{{ item.http_port }}/_cluster/health?timeout=5s"
+      register: _gate
+      until: _gate.status == 200 and _gate.json.status in ['red', 'yellow', 'green']
+      retries: 60
+      delay: 5
+      loop: "{{ opensearch_instances }}"
+
 - name: OpenSearch cluster configuration
   hosts: control
   become: true
@@ -92,16 +106,15 @@ cluster** applies the cluster-wide state to the running cluster.
 
 - **Run install against the whole cluster in one play.** A fresh cluster
   needs its cluster-manager-eligible nodes reachable at the same time, or the
-  first election never completes. "Node" is an inventory host, not a machine:
-  three hosts on one `ansible_host` run the role three times there and build
-  three containers.
+  first election never completes. A machine installs every node it lists in
+  `opensearch_instances` in that one run; the storage machine lists three.
 - **The two modes cannot share a play.** Configuring the cluster needs a
   cluster that already answers, which is not true while the nodes are still
   coming up. The `serial: 1` gate between them is also what makes a rolling
   restart safe.
-- **The role is idempotent.** It restarts the service only when `opensearch.yml`,
-  the heap options, the unit drop-in or the quadlet unit changed. Configuring
-  the cluster is safe on every deploy.
+- **The role is idempotent.** It restarts an instance only when its
+  `opensearch.yml`, its heap options, its quadlet unit or the RPM's unit
+  drop-in changed. Configuring the cluster is safe on every deploy.
 
 ## Requirements
 
@@ -121,24 +134,20 @@ None. No role includes or reads from another.
 
 ## Install
 
-Installs and configures one OpenSearch node. As a signed RPM when the machine
-carries one node, or as a podman container when it carries several, chosen by
-`opensearch_install_method`.
+Installs and configures the OpenSearch nodes one machine carries. As a
+signed RPM when the machine carries one node, or as podman containers when it
+carries several, chosen by `opensearch_install_method`. The machine-wide
+steps run once; everything from the firewall down runs once per entry of
+`opensearch_instances`.
 
 ```
-                      EVERY NODE IN alice_nodes
+                      EVERY MACHINE IN alice_nodes
 
 ┌─ 0. KERNEL ────────────────────────────────────────────────────────────────┐
 │  vm.max_map_count = 262144   the bootstrap-check minimum, live + sysctl.d  │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
-┌─ 1. FIREWALL — cluster members only, never the world ──────────────────────┐
-│  9200/tcp   HTTP        rich rule per address in opensearch_cluster_hosts  │
-│  9300/tcp   transport   rich rule per address in opensearch_cluster_hosts  │
-│  both skipped when alice_manage_firewalld is false (the EPN farm)          │
-└────────────────────────────────────┬───────────────────────────────────────┘
-                                     v
-┌─ 2a. INSTALL, native — signed RPM, version-pinned ─────────────────────────┐
+┌─ 1a. INSTALL, native — signed RPM, version-pinned ─────────────────────────┐
 │  yum_repository             artifacts.opensearch.org, gpgcheck on          │
 │  rpm_key                    signing key into the rpm keyring               │
 │  dnf install                opensearch-{{ opensearch_version }}            │
@@ -146,40 +155,51 @@ carries one node, or as a podman container when it carries several, chosen by
 │  resource-limits.conf       rlimits, cpuset, memory on the unit --> restart│
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
-┌─ 2b. INSTALL, container — one podman instance ─────────────────────────────┐
-│  /etc/opensearch/<node_id>  this instance's own configuration directory    │
+┌─ 1b. INSTALL, container — the runtime, once ───────────────────────────────┐
+│  dnf install podman         and assert it is 4.4 or newer, for quadlet     │
+│  /etc/containers/systemd    the quadlet directory                          │
 │  podman pull                opensearchproject/opensearch:{{ version }}     │
-│  <node_id>.container        quadlet unit; cpuset, memory      --> restart  │
-│  Network=host               distinct http.port/transport.port per instance │
-│  --ulimit memlock=-1        the same limit the RPM path sets on the unit   │
-│  DISABLE_INSTALL_DEMO_CONFIG   the same env the RPM path passes to dnf     │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
-┌─ 3. DIRECTORIES ───────────────────────────────────────────────────────────┐
-│  /var/lib/opensearch        0750, owned by opensearch                      │
-│    .../<node_id> per instance and owned by uid 1000 on the container path  │
-│  /var/log/opensearch        0750, owned by opensearch                      │
-│  /etc/sweet          0755, root — shared with the collector         │
-└────────────────────────────────────┬───────────────────────────────────────┘
-                                     v
-┌─ 4. CONFIGURATION ─────────────────────────────────────────────────────────┐
-│  opensearch-node.env        the info-tier index settings, for the worker   │
+┌─ 2. SHARED FILES ──────────────────────────────────────────────────────────┐
+│  /etc/sweet                 0755, root — shared with the collector         │
+│  opensearch-node.env        what the worker's boot-time self-heal reads    │
 │  workers only:                                                             │
 │    local-index-template.json  this worker's own index template, rendered   │
 │    register_node.sh           the boot-time self-heal fluent-bit.service   │
 │                               runs as ExecStartPre                         │
-│  opensearch.yml             identity, tier, discovery, ports  --> restart  │
-│  jvm.options.d/heap.options -Xms and -Xmx                     --> restart  │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
-┌─ 5. START, then PROVE ─────────────────────────────────────────────────────┐
-│  flush_handlers             applies the config before the first start      │
-│  systemd enable + start                                                    │
-│  wait for localhost:9200    60 attempts, 5 s apart — 5 minutes             │
-│  opensearch-plugin list     asserts all 7 required plugins                 │
-│  anomaly-detection API      asserts it answers 200, or 404 for a config    │
-│                             index the first detector has yet to create     │
-└────────────────────────────────────────────────────────────────────────────┘
+╔═ FOR EACH INSTANCE in opensearch_instances ════════════════════════════════╗
+║                                                                            ║
+║ ┌─ 3. FIREWALL — cluster members only, never the world ──────────────────┐ ║
+║ │  http_port/tcp        rich rule per address in opensearch_cluster_hosts│ ║
+║ │  transport_port/tcp   rich rule per address in opensearch_cluster_hosts│ ║
+║ │  both skipped when alice_manage_firewalld is false (the EPN farm)      │ ║
+║ └──────────────────────────────────┬─────────────────────────────────────┘ ║
+║                                    v                                       ║
+║ ┌─ 4. UNIT, container only ──────────────────────────────────────────────┐ ║
+║ │  /etc/opensearch/<id>   this instance's own configuration directory    │ ║
+║ │  opensearch-<id>.container   quadlet unit; cpuset, memory  --> restart │ ║
+║ │  Network=host           distinct http.port/transport.port per instance │ ║
+║ │  --ulimit memlock=-1    the same limit the RPM path sets on the unit   │ ║
+║ └──────────────────────────────────┬─────────────────────────────────────┘ ║
+║                                    v                                       ║
+║ ┌─ 5. DIRECTORIES AND CONFIGURATION ─────────────────────────────────────┐ ║
+║ │  /var/lib/opensearch[/<id>]   0750, owned by opensearch, or uid 1000   │ ║
+║ │  /var/log/opensearch[/<id>]   0750, the same                           │ ║
+║ │  opensearch.yml         identity, tier, discovery, ports  --> restart  │ ║
+║ │  jvm.options.d/heap.options   -Xms and -Xmx               --> restart  │ ║
+║ └──────────────────────────────────┬─────────────────────────────────────┘ ║
+║                                    v                                       ║
+║ ┌─ 6. START, then PROVE ─────────────────────────────────────────────────┐ ║
+║ │  daemon-reload, enable, start   restart instead when 1a, 4 or 5 changed│ ║
+║ │  wait for localhost:http_port   60 attempts, 5 s apart — 5 minutes     │ ║
+║ │  opensearch-plugin list         asserts all 7 required plugins         │ ║
+║ │  anomaly-detection API          asserts 200, or 404 for a config index │ ║
+║ │                                 the first detector has yet to create   │ ║
+║ └────────────────────────────────────────────────────────────────────────┘ ║
+╚════════════════════════════════════════════════════════════════════════════╝
 ```
 
 ### What the tier changes in `opensearch.yml`
@@ -204,18 +224,41 @@ group or host in the inventory.
 ```yaml
 opensearch_version: "3.7.0"
 opensearch_install_method: native
-opensearch_instance_id: default
 ```
 
-The version is declared here **and** in `group_vars/all.yml`, because two
-defaults interpolate it and a role must run on its own defaults. `group_vars`
-outranks the default and is the site value, shared with the `dashboards` role
-so both products stay on one version.
+The version is declared here **and** in `group_vars`, because two defaults
+interpolate it and a role must run on its own defaults. `group_vars` outranks
+the default and is the site value, shared with the `dashboards` role so both
+products stay on one version. `native` installs the RPM: one node per machine.
+`container` runs podman instances: several nodes on one machine, since a
+second RPM cannot give a second service, data directory and port pair.
 
-`native` installs the RPM: one node per machine. `container` runs a podman
-instance: several nodes on one machine, since a second RPM cannot give a second
-service, data directory and port pair. `group_vars/all.yml` sets the instance
-identity to `node_id`; it names the container, its unit and its directories.
+```yaml
+opensearch_instance_id: default
+opensearch_http_port: 9200
+opensearch_transport_port: 9300
+opensearch_instances:
+  - id: "{{ opensearch_instance_id }}"
+    http_port: "{{ opensearch_http_port }}"
+    transport_port: "{{ opensearch_transport_port }}"
+```
+
+The nodes this machine carries. Each entry is one OpenSearch node: `id` is its
+`node.name` and names its container, unit and directories; the two ports are
+its own. The default is one node on the host-level ports, which is every
+worker; `group_vars` sets the instance identity to `node_id`. The storage
+machine lists three:
+
+```yaml
+opensearch_http_port: 9201
+opensearch_instances:
+  - { id: node-04, http_port: 9201, transport_port: 9301 }
+  - { id: node-05, http_port: 9202, transport_port: 9302 }
+  - { id: node-06, http_port: 9203, transport_port: 9303 }
+```
+
+The host-level `opensearch_http_port` stays the port other services connect
+to on that machine, and the one the cluster configuration talks to.
 
 ```yaml
 opensearch_yum_repo_baseurl: "https://artifacts.opensearch.org/releases/bundle/opensearch/{{ opensearch_version.split('.')[0] }}.x/yum"
@@ -230,7 +273,6 @@ The native path.
 
 ```yaml
 opensearch_container_image: "docker.io/opensearchproject/opensearch:{{ opensearch_version }}"
-opensearch_container_name: "opensearch-{{ opensearch_instance_id }}"
 opensearch_container_uid: 1000
 opensearch_container_gid: 1000
 opensearch_container_runtime_packages: [podman]
@@ -247,17 +289,18 @@ directories. The start timeout allows a first pull and unpack.
 opensearch_cluster_hosts: []
 opensearch_seed_hosts: []
 opensearch_initial_cluster_manager_nodes: []
-opensearch_transport_port: 9300
+opensearch_publish_host: "{{ ansible_host | default(inventory_hostname) }}"
 opensearch_network_host: [_local_]
 opensearch_security_disabled: true
 ```
 
 Cluster identity. The playbook supplies the three lists; the role names no
 inventory group. `opensearch_seed_hosts` carries `address:port`, because three
-nodes on one machine share one IP. The node's own `ansible_host` is always
-appended to the bind addresses. With the security plugin disabled every port
-this role opens is unauthenticated, and the firewall rules, which name the
-cluster addresses, are the only boundary.
+nodes on one machine share one IP. The publish host is `ansible_host` when the
+inventory sets one and the inventory name otherwise, which on the farm is the
+machine's DNS name; it is always appended to the bind addresses. With the
+security plugin disabled every port this role opens is unauthenticated, and
+the firewall rules, which name the cluster addresses, are the only boundary.
 
 ```yaml
 opensearch_heap_size: "1g"
@@ -274,10 +317,10 @@ opensearch_vm_max_map_count: 262144
 Resources. `opensearch_heap_size` is deliberately a role default and not a
 `group_vars` entry, so that a group assignment in the inventory file wins.
 `opensearch_worker_heap_size` is read by nobody; it records the measured farm
-worker value. The cpuset and the two memory bounds land on the unit on both
-install paths; empty means none. Keep `MemoryMax` well above the heap, or the
-JVM cannot start. `vm.max_map_count` is the bootstrap-check minimum, not a
-tuning knob.
+worker value. The cpuset and the two memory bounds land on every instance's
+unit on both install paths; empty means none. Keep `MemoryMax` well above the
+heap, or the JVM cannot start. `vm.max_map_count` is the bootstrap-check
+minimum, not a tuning knob.
 
 ```yaml
 opensearch_boot_wait_retries: 60
@@ -296,28 +339,31 @@ opensearch_node_env_file: "{{ opensearch_node_env_dir }}/opensearch-node.env"
 opensearch_register_script: /opt/sweet/register_node.sh
 opensearch_register_script_dir: /opt/sweet
 opensearch_local_index_template_file: "{{ opensearch_node_env_dir }}/local-index-template.json"
+opensearch_info_search_idle_after: "10s"
+opensearch_info_translog_sync_interval: "30s"
+opensearch_info_merge_threads: 1
 alice_manage_firewalld: true
 ```
 
 Files shared with the collector. `sweet_collector` loads the env file and names
-the script as `ExecStartPre`; this role installs both. `alice_manage_firewalld`
-is repeated in every role that writes a firewalld rule, so one inventory line
-switches the whole stack.
+the script as `ExecStartPre`; this role installs both. The three info-tier
+settings are rendered into every worker's local index template here and
+passed to `templates.sh` by the other mode, so both ends come from one place.
+`alice_manage_firewalld` is repeated in every role that writes a firewalld
+rule, so one inventory line switches the whole stack.
 
-### Derived on the container path
+### Derived per instance
 
-Everything below follows from the install method and the instance identity.
-Only `opensearch_http_port` and `opensearch_transport_port` need an inventory
-entry per host, because they are the only values that must differ between
-instances on one machine.
+Everything below follows from the install method and the instance being
+installed. `opensearch_instance` is the current entry of `opensearch_instances`.
 
 | Name | Native | Container |
 |---|---|---|
-| `opensearch_service_name` | `opensearch` | `opensearch-<node_id>` |
+| `opensearch_service_name` | `opensearch` | `opensearch-<id>` |
 | `opensearch_service_enabled` | true | false, see couplings |
-| `opensearch_config_dir` | `/etc/opensearch` | `/etc/opensearch/<node_id>` |
-| `opensearch_data_path` | `/var/lib/opensearch` | `/var/lib/opensearch/<node_id>` |
-| `opensearch_log_path` | `/var/log/opensearch` | `/var/log/opensearch/<node_id>` |
+| `opensearch_config_dir` | `/etc/opensearch` | `/etc/opensearch/<id>` |
+| `opensearch_data_path` | `/var/lib/opensearch` | `/var/lib/opensearch/<id>` |
+| `opensearch_log_path` | `/var/log/opensearch` | `/var/log/opensearch/<id>` |
 | `opensearch_path_data_setting` | the host path | `/usr/share/opensearch/data`, inside the container |
 | `opensearch_dir_owner` | `opensearch` | `1000` |
 | `opensearch_plugin_list_cmd` | `opensearch-plugin list` | the same, through `podman exec` |
@@ -332,12 +378,10 @@ Site-wide, and deliberately not duplicated into the defaults.
 
 | Variable | Owner | Used for |
 |---|---|---|
-| `opensearch_cluster_name` | `group_vars/all.yml` | `cluster.name`. |
-| `opensearch_http_port` | `group_vars/all.yml` | The REST port. Every service reads it. |
-| `opensearch_info_search_idle_after`, `opensearch_info_translog_sync_interval`, `opensearch_info_merge_threads` | `group_vars/all.yml` | Written into `opensearch-node.env` and every rendered local index template. |
-| `node_id` | inventory, per host | `node.name` and, on a worker, `node.attr.box`. |
+| `opensearch_cluster_name` | `group_vars` | `cluster.name`. |
+| `node_id` | inventory, per host | The default instance identity through `group_vars`, and on a worker `node.attr.box` and the local index template. |
 | `node_tier` | inventory, per group | Selects the storage or worker branch. |
-| `ansible_host` | inventory, per host | Bind address and `network.publish_host`. |
+| `ansible_host` | inventory, per host, optional | Bind address and `network.publish_host` when set. |
 | `ansible_processor_vcpus` | gathered fact | The second operand of the `node.processors` `min`. |
 
 ## Configure the cluster
@@ -357,7 +401,7 @@ is cluster-wide.
 │  worker node identity list     must not be empty, or there is no info tier │
 └────────────────────────────────────┬───────────────────────────────────────┘
                                      v
-┌─ 2. STAGE — /opt/sweet/init ────────────────────────────────────────┐
+┌─ 2. STAGE — /opt/sweet/init ───────────────────────────────────────────────┐
 │  templates.sh, ism.sh   rendered from the .j2 of the same name             │
 │  schema/*.json          28 documents, plus one per worker rendered from    │
 │                         templates/schema-per-worker/                       │
@@ -426,22 +470,48 @@ opensearch_cluster_config_worker_node_ids: []
 moves both. The playbook supplies the worker roster; an empty list configures a
 cluster with no info tier, which the guard rejects.
 
-Required from `group_vars/all.yml`, read by the two scripts and the schema:
+```yaml
+admission_control_mode: monitor_only
+admission_control_cpu_limit: 95
+ad_max_batch_task_per_node: 2
+ad_batch_task_piece_interval_seconds: 10
+log_primary_shards_storage: 1
+log_rollover_period: "7d"
+log_rollover_period_info: "1d"
+log_rollover_max_size: "20gb"
+log_rollover_migrate_existing: false
+ism_retention_application_local: "8d"
+ism_retention_application_central: "35d"
+ism_retention_infologger: "56d"
+ism_retention_ad_results: "14d"
+ism_retention_alert_history: "30d"
+ism_retention_alert_actions: "30d"
+alert_actions_rollover_period: "7d"
+alert_actions_rollover_max_size: "1gb"
+template_buckets_5m_prefix: template-buckets-5m
+template_buckets_replicas: 1
+ism_retention_template_buckets_5m: "4d"
+ism_retention_template_buckets_1h: "66d"
+```
+
+The cluster tunables, read by nothing outside this role. The farm sets
+`admission_control_mode: enforced` and `log_primary_shards_storage` to the
+storage node count, in the inventory. `log_rollover_period_info` is the one
+value here that breaks the design at farm scale if shortened: 200 workers are
+already 1600 indices at one day.
+
+Required from `group_vars`, read by the two scripts and the schema:
 
 | Group | Variables |
 |---|---|
 | Connection | `opensearch_http_port` |
-| Info tier | `opensearch_info_search_idle_after`, `opensearch_info_translog_sync_interval`, `opensearch_info_merge_threads` |
-| Shards and rollover | `log_primary_shards_storage`, `log_rollover_period`, `log_rollover_period_info`, `log_rollover_max_size`, `log_rollover_migrate_existing`, `alert_actions_rollover_period`, `alert_actions_rollover_max_size` |
-| Retention | `ism_retention_application_local`, `ism_retention_application_central`, `ism_retention_infologger`, `ism_retention_ad_results`, `ism_retention_alert_history`, `ism_retention_alert_actions`, `ism_retention_template_buckets_5m`, `ism_retention_template_buckets_1h` |
-| Cluster settings | `admission_control_mode`, `admission_control_cpu_limit`, `ad_max_batch_task_per_node`, `ad_batch_task_piece_interval_seconds` |
-| Index names | `cockpit_metrics_index`, `trend_rollup_index`, `fleet_roster_index`, `lane_state_index`, `signals_index`, `incidents_index`, `notifications_index`, `template_catalog_index`, `template_buckets_5m_prefix`, `template_buckets_1h_prefix`, `template_buckets_replicas`, `template_triage_index`, `shifter_queries_index` |
+| Index names | `cockpit_metrics_index`, `trend_rollup_index`, `fleet_roster_index`, `lane_state_index`, `signals_index`, `incidents_index`, `notifications_index`, `template_catalog_index`, `template_buckets_1h_prefix`, `template_triage_index`, `shifter_queries_index` |
 | Templates page retention | `template_catalog_active_days`, `template_catalog_definition_retention_days`, `stamper_ledger_hours` |
 
 ### Configure-the-cluster couplings
 
 - **`opensearch_cluster_config_root` is shared with `alice_runtime`.** Both create
-  the directory with the same owner, group and mode; `dashboards`,
+  the directory with the same owner, group and mode; `dashboards` and
   `sweet_anomaly_detection` only write into it. It is `0755`
   because `alice_runtime` stages a world-readable signal catalog there.
 - **`alice_ops_templates_script` must match
@@ -463,19 +533,19 @@ These scripts are the schema.
 
 - **`bootstrap.memory_lock` and `LimitMEMLOCK` change together.** They live in
   `opensearch.yml.j2` and `resource-limits.conf.j2`.
-- **Do not add `opensearch_heap_size` to `group_vars/all.yml`.** Inventory
+- **Do not add `opensearch_heap_size` to `group_vars`.** Inventory
   group variables rank below `group_vars`, so the `workers` assignment would
   silently stop winning.
 - **`vm.max_map_count` is set by this role.** If a site baseline role sets it
   too, keep the two values equal; whichever runs last wins.
 - **`opensearch_version` is shared with `dashboards`.** Change it in
-  `group_vars/all.yml`.
+  `group_vars`.
 - **The retention policy name in `opensearch-node.env.j2` is a literal.**
   `ism.sh.j2` creates it, `verify_detection.py` asserts it and
   `register_node.sh` falls back to it. A variable would let one end move.
-- **Both transport and HTTP ports are declared in `group_vars/all.yml`, not
-  only here.** The seed-host list reads them out of `hostvars`, which a role
-  default never reaches.
+- **The host-level ports are declared in `group_vars` as well as here.** The
+  seed-host list reads them out of `hostvars`, which a role default never
+  reaches. A machine with several nodes lists them in `opensearch_instances`.
 - **The container path is not enabled by systemd.** Quadlet generates the unit
   at `daemon-reload` and its `[Install]` section does the enabling, so
   `opensearch_service_enabled` is false there and the role only starts it.

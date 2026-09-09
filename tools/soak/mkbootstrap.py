@@ -8,7 +8,7 @@ is the same bootstrap the deploy applies — the component templates, the
 tier-aware mappings, the rollover write aliases — so the cluster under test is
 the cluster we ship.
 
-The variables come from `deploy/group_vars/all.yml`, exactly as the playbook
+The variables come from the role's defaults and `deploy/group_vars/all.yml`, exactly as the playbook
 reads them, so the rig cannot drift from production by editing a copy.
 
 **One deliberate divergence, and it is stated in the results.** Production runs
@@ -30,6 +30,8 @@ from jinja2 import Environment, StrictUndefined
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 ROLE = os.path.join(REPO, "deploy", "roles", "sweet_opensearch", "templates")
 GROUP_VARS = os.path.join(REPO, "deploy", "group_vars", "all.yml")
+ROLE_DEFAULTS = os.path.join(REPO, "deploy", "roles", "sweet_opensearch",
+                             "defaults", "main.yml")
 
 
 def ternary(value, when_true, when_false):
@@ -43,8 +45,11 @@ def to_bool(value):
 
 
 def load_vars():
-    with open(GROUP_VARS) as handle:
-        return yaml.safe_load(handle) or {}
+    variables = {}
+    for path in (ROLE_DEFAULTS, GROUP_VARS):
+        with open(path) as handle:
+            variables.update(yaml.safe_load(handle) or {})
+    return variables
 
 
 def render(name, variables):

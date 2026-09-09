@@ -1,7 +1,7 @@
 # {{ ansible_managed }}
 
 [Unit]
-Description=OpenSearch node {{ opensearch_instance_id }}
+Description=OpenSearch node {{ opensearch_instance.id }}
 After=network-online.target
 Wants=network-online.target
 

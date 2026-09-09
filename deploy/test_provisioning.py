@@ -73,7 +73,8 @@ BOOTSTRAP_VARS = {
 
 
 def render_bootstrap(primaries=1):
-    values = dict(group_vars())
+    values = dict(role_defaults("sweet_opensearch"))
+    values.update(group_vars())
     values.update(BOOTSTRAP_VARS)
     values["log_primary_shards_storage"] = primaries
     return _environment("sweet_opensearch").get_template(
@@ -81,7 +82,8 @@ def render_bootstrap(primaries=1):
 
 
 def schema_documents(primaries=1):
-    values = dict(group_vars())
+    values = dict(role_defaults("sweet_opensearch"))
+    values.update(group_vars())
     values.update(BOOTSTRAP_VARS)
     values["log_primary_shards_storage"] = primaries
     environment = _environment("sweet_opensearch")
@@ -174,8 +176,9 @@ def test_the_fixed_indices_never_roll_over_and_the_buckets_age_out():
     assert "alice-template-buckets-1h-retention" in ism
     assert 'age_delete_policy "delete $BUCKETS_5M day indices' in ism
     assert 'age_delete_policy "delete $BUCKETS_1H month indices' in ism
-    assert group_vars()["ism_retention_template_buckets_5m"] == "4d"
-    assert group_vars()["ism_retention_template_buckets_1h"] == "66d"
+    retention = role_defaults("sweet_opensearch")
+    assert retention["ism_retention_template_buckets_5m"] == "4d"
+    assert retention["ism_retention_template_buckets_1h"] == "66d"
 
 
 def test_both_log_mappings_carry_the_three_stamp_fields():

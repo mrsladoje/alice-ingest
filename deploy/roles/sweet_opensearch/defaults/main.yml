@@ -1,12 +1,12 @@
-# Which of the role's two jobs this host does. site.yml turns it on for the one
-# play that runs against the control host, after the rolling health gate.
+# Which of the role's two jobs this host does. The playbook turns it on for the
+# one play that runs against the control host, after the rolling health gate.
 opensearch_configure_cluster: false
 
-# The version is declared here as well as in group_vars/all.yml, because the two
+# The version is declared here as well as in group_vars, because the two
 # defaults below interpolate it. A role whose own defaults reference a variable
-# it does not declare cannot run outside this repository. group_vars/all.yml
-# carries the site value and outranks this line; the dashboards role reads the
-# same name to pin its own RPM, so the two products stay on one version.
+# it does not declare cannot run outside this repository. group_vars carries
+# the site value and outranks this line; the dashboards role reads the same
+# name to pin its own RPM, so the two products stay on one version.
 opensearch_version: "3.7.0"
 
 opensearch_yum_repo_baseurl: "https://artifacts.opensearch.org/releases/bundle/opensearch/{{ opensearch_version.split('.')[0] }}.x/yum"
@@ -16,10 +16,25 @@ opensearch_package: "opensearch-{{ opensearch_version }}"
 
 opensearch_install_method: native
 
+# The OpenSearch nodes this machine carries: one entry per node, with its
+# node.name and the two ports it listens on. The default is a single node on
+# the host-level ports, which is every worker. A machine that carries the whole
+# storage tier lists three, on distinct ports, and installs them as containers.
+# The host-level ports stay the ones other services connect to.
 opensearch_instance_id: default
+opensearch_http_port: 9200
+opensearch_transport_port: 9300
+opensearch_instances:
+  - id: "{{ opensearch_instance_id }}"
+    http_port: "{{ opensearch_http_port }}"
+    transport_port: "{{ opensearch_transport_port }}"
+
+# The address the node publishes and binds beside loopback: ansible_host when
+# the inventory sets one, otherwise the inventory name, which on the farm is
+# the machine's DNS name.
+opensearch_publish_host: "{{ ansible_host | default(inventory_hostname) }}"
 
 opensearch_container_image: "docker.io/opensearchproject/opensearch:{{ opensearch_version }}"
-opensearch_container_name: "opensearch-{{ opensearch_instance_id }}"
 opensearch_container_config_dir: /usr/share/opensearch/config
 opensearch_container_data_path: /usr/share/opensearch/data
 opensearch_container_log_path: /usr/share/opensearch/logs
@@ -31,23 +46,18 @@ opensearch_container_runtime_packages:
 opensearch_container_min_podman_version: "4.4"
 opensearch_container_start_timeout_seconds: 900
 
+# Derived per instance. opensearch_instance is the entry of opensearch_instances
+# being installed, so on the container path these names resolve only inside
+# the instance loop. On the native path the machine carries one node and the
+# service is the RPM's, whatever the instance is called.
+opensearch_container_name: "opensearch-{{ opensearch_instance.id }}"
+
 opensearch_service_name: "{{ 'opensearch' if opensearch_install_method == 'native' else opensearch_container_name }}"
 
 opensearch_service_enabled: "{{ opensearch_install_method == 'native' }}"
 
-# Supplied by the playbook. The role names no inventory group of its own, so
-# these three arrive as plain lists resolved in group_vars/all.yml.
-opensearch_cluster_hosts: []
-opensearch_seed_hosts: []
-opensearch_initial_cluster_manager_nodes: []
-
-opensearch_transport_port: 9300
-
-opensearch_vm_max_map_count: 262144
-opensearch_sysctl_conf_file: /etc/sysctl.d/99-opensearch.conf
-
-opensearch_data_path: "{{ '/var/lib/opensearch' if opensearch_install_method == 'native' else '/var/lib/opensearch/' ~ opensearch_instance_id }}"
-opensearch_log_path: "{{ '/var/log/opensearch' if opensearch_install_method == 'native' else '/var/log/opensearch/' ~ opensearch_instance_id }}"
+opensearch_data_path: "{{ '/var/lib/opensearch' if opensearch_install_method == 'native' else '/var/lib/opensearch/' ~ opensearch_instance.id }}"
+opensearch_log_path: "{{ '/var/log/opensearch' if opensearch_install_method == 'native' else '/var/log/opensearch/' ~ opensearch_instance.id }}"
 
 opensearch_path_data_setting: "{{ opensearch_data_path if opensearch_install_method == 'native' else opensearch_container_data_path }}"
 opensearch_path_logs_setting: "{{ opensearch_log_path if opensearch_install_method == 'native' else opensearch_container_log_path }}"
@@ -55,10 +65,29 @@ opensearch_path_logs_setting: "{{ opensearch_log_path if opensearch_install_meth
 opensearch_dir_owner: "{{ opensearch_user if opensearch_install_method == 'native' else opensearch_container_uid }}"
 opensearch_dir_group: "{{ opensearch_group if opensearch_install_method == 'native' else opensearch_container_gid }}"
 
-# Declared here rather than in group_vars/all.yml so that a group or host
-# assignment in inventory.yml actually wins. Role defaults rank below every
-# group var; a name that also exists in group_vars/all.yml cannot be overridden
-# from inside the inventory file.
+opensearch_config_dir: "{{ '/etc/opensearch' if opensearch_install_method == 'native' else '/etc/opensearch/' ~ opensearch_instance.id }}"
+opensearch_jvm_options_d: "{{ opensearch_config_dir }}/jvm.options.d"
+opensearch_systemd_dropin_dir: "/etc/systemd/system/{{ opensearch_service_name }}.service.d"
+
+opensearch_home: /usr/share/opensearch
+opensearch_plugin_bin: "{{ opensearch_home }}/bin/opensearch-plugin"
+opensearch_plugin_list_cmd: >-
+  {{ opensearch_plugin_bin ~ ' list' if opensearch_install_method == 'native'
+     else 'podman exec ' ~ opensearch_container_name ~ ' opensearch-plugin list' }}
+
+# Supplied by the playbook. The role names no inventory group of its own, so
+# these three arrive as plain lists resolved in group_vars.
+opensearch_cluster_hosts: []
+opensearch_seed_hosts: []
+opensearch_initial_cluster_manager_nodes: []
+
+opensearch_vm_max_map_count: 262144
+opensearch_sysctl_conf_file: /etc/sysctl.d/99-opensearch.conf
+
+# Declared here rather than in group_vars so that a group or host assignment
+# in the inventory actually wins. Role defaults rank below every group var; a
+# name that also exists in group_vars cannot be overridden from inside the
+# inventory file.
 opensearch_heap_size: "1g"
 
 # Reference only, read by nobody. The measured EPN-farm worker value: a soak
@@ -80,10 +109,11 @@ opensearch_limit_nofile: 65536
 #
 # On a worker this holds the collector AND this node together. The soak
 # measured splitting them apart and found no effect, so they share one set.
+# On a storage machine every instance shares the one set.
 opensearch_cpuset: ""
 
 # The cgroup memory bounds on the unit, the same two names on both install
-# paths: the RPM's drop-in and the quadlet unit each read them.
+# paths: the RPM's drop-in and the quadlet unit each read them, per instance.
 # The farm requires a hard MemoryMax on every service placed on a shared EPN
 # node. Empty leaves the unit unbounded. Keep MemoryMax well above the heap:
 # the JVM needs direct buffers and metaspace on top of it, and a container
@@ -98,7 +128,8 @@ opensearch_memory_max: ""
 opensearch_security_disabled: true
 
 # Addresses the node binds. _local_ keeps the loopback listener the collector
-# and the cluster configuration scripts use; ansible_host is added by the template.
+# and the cluster configuration scripts use; opensearch_publish_host is added
+# by the template.
 opensearch_network_host:
   - _local_
 
@@ -115,20 +146,13 @@ opensearch_ad_api_delay: 3
 opensearch_user: opensearch
 opensearch_group: opensearch
 
-opensearch_home: /usr/share/opensearch
-opensearch_plugin_bin: "{{ opensearch_home }}/bin/opensearch-plugin"
-opensearch_plugin_list_cmd: "{{ opensearch_plugin_bin ~ ' list' if opensearch_install_method == 'native' else 'podman exec ' ~ opensearch_container_name ~ ' opensearch-plugin list' }}"
-opensearch_config_dir: "{{ '/etc/opensearch' if opensearch_install_method == 'native' else '/etc/opensearch/' ~ opensearch_instance_id }}"
-opensearch_jvm_options_d: "{{ opensearch_config_dir }}/jvm.options.d"
-opensearch_systemd_dropin_dir: "/etc/systemd/system/{{ opensearch_service_name }}.service.d"
-
 # The info-tier index settings this cluster publishes to its nodes, so a worker
 # registering itself at boot writes the same template the control host writes.
 #
 # The retention policy name is deliberately NOT a variable here. The policy is
-# created by name in the sweet_opensearch role (ism.sh.j2) and asserted by
-# name in verify_detection.py, and register_node.sh falls back to the same
-# literal. A variable would only let this end of the pair move.
+# created by name in ism.sh.j2 and asserted by name in verify_detection.py, and
+# register_node.sh falls back to the same literal. A variable would only let
+# this end of the pair move.
 opensearch_node_env_dir: /etc/sweet
 opensearch_node_env_file: "{{ opensearch_node_env_dir }}/opensearch-node.env"
 
@@ -138,6 +162,14 @@ opensearch_node_env_file: "{{ opensearch_node_env_dir }}/opensearch-node.env"
 opensearch_register_script: /opt/sweet/register_node.sh
 opensearch_register_script_dir: /opt/sweet
 opensearch_local_index_template_file: "{{ opensearch_node_env_dir }}/local-index-template.json"
+
+# The info-tier index settings. Rendered into every worker's local index
+# template at install time and passed to templates.sh from the control host,
+# so both ends of the pair come from this one place. search_idle_after must
+# stay well under the one-minute detector interval or it is inert.
+opensearch_info_search_idle_after: "10s"
+opensearch_info_translog_sync_interval: "30s"
+opensearch_info_merge_threads: 1
 
 opensearch_required_plugins:
   - opensearch-anomaly-detection
@@ -149,8 +181,8 @@ opensearch_required_plugins:
   - opensearch-sql
 
 # Repeated in every role that writes a firewalld rule, so each role still
-# stands on its own and one inventory line can switch the whole stack. See
-# roles/common/defaults/main.yml for why the EPN farm sets this false.
+# stands on its own and one inventory line can switch the whole stack. The
+# EPN farm runs without firewalld and sets this false.
 alice_manage_firewalld: true
 
 # ---------------------------------------------------------------------------
@@ -171,3 +203,70 @@ opensearch_cluster_config_ism_script: "{{ opensearch_cluster_config_root }}/ism.
 
 # Supplied by the playbook. The role names no inventory group of its own.
 opensearch_cluster_config_worker_node_ids: []
+
+# Anomaly detection cost. Backtests take longer and return the same result.
+# model_max_size_percent is deliberately not set — lowering it evicts models.
+ad_max_batch_task_per_node: 2
+ad_batch_task_piece_interval_seconds: 10
+
+# Emergency valve. A rejected search is a detection interval that never ran and
+# a rejected write is dropped records, so the default is deliberately NOT
+# enforced. monitor_only counts what it would have rejected and the
+# alice-admission-rejections monitor alarms on it; the farm sets enforced.
+#
+# Only disabled, monitor_only and enforced parse. AdmissionControlMode.fromName
+# throws on anything else, so a wrong name is a 400 on the whole settings PUT.
+admission_control_mode: monitor_only
+admission_control_cpu_limit: 95
+
+# The five-minute bucket index family and the replicas on both bucket
+# families. The hourly prefix is not here: the catalog maintenance reads it
+# too, so it lives in group_vars. One replica, not two: a day index per
+# resolution and a month index per resolution is a handful of shards, and the
+# shard budget on the storage tier is the binding constraint.
+template_buckets_5m_prefix: template-buckets-5m
+template_buckets_replicas: 1
+
+# Age delete on the date-named bucket indices. The five-minute series keeps
+# three days plus the day of index granularity; the hourly series keeps the
+# 28-day window plus the 48-hour late horizon plus a margin, plus the month of
+# index granularity.
+ism_retention_template_buckets_5m: "4d"
+ism_retention_template_buckets_1h: "66d"
+
+# Primaries for the two storage-tier log families. The farm value is one per
+# storage node, which spreads the bulk fan-out instead of funnelling it through
+# whichever node holds the single primary.
+#
+# The default is 1 because on a tier with 1 GB heaps the shard budget is the
+# binding constraint, not disk: ~20 shards per GB of heap, so ~60 across three
+# such nodes, and at 3 primaries the two families reach ~135 shards at full
+# retention. Set it to the storage node count when the tier has real heap.
+# Shard count is fixed at index creation, so the change lands at the next
+# rollover with no reindex.
+log_primary_shards_storage: 1
+
+log_rollover_period: "7d"
+
+# DO NOT SHORTEN. At 200 boxes this is already ~1600 indices and shards; a
+# shorter period is the one setting here that breaks the design at farm scale.
+log_rollover_period_info: "1d"
+log_rollover_max_size: "20gb"
+log_rollover_migrate_existing: false
+
+ism_retention_application_local: "8d"
+ism_retention_application_central: "35d"
+ism_retention_infologger: "56d"
+ism_retention_ad_results: "14d"
+ism_retention_alert_history: "30d"
+
+# The in-cluster action log behind the alice-alert-actions write alias. It is
+# write-only — no monitor, dashboard or service reads it — so it had no bound of
+# any kind until this policy existed. A quiet cluster writes almost nothing; a
+# fleet-wide trend storm is the load case, at roughly 200 hosts x 9 trend
+# monitors x 2 fires an hour x a few hundred bytes, so tens of MB a day on a
+# tier where disk is already a paged alert. Matched to alert history, because
+# the two record the same fires by different routes.
+ism_retention_alert_actions: "30d"
+alert_actions_rollover_period: "7d"
+alert_actions_rollover_max_size: "1gb"

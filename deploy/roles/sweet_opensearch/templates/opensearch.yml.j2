@@ -1,7 +1,7 @@
 # {{ ansible_managed }}
 
 cluster.name: {{ opensearch_cluster_name }}
-node.name: {{ node_id }}
+node.name: {{ opensearch_instance.id }}
 
 {% if node_tier == 'storage' %}
 node.roles: [cluster_manager, data, ingest]
@@ -23,11 +23,11 @@ network.host:
 {% for h in opensearch_network_host %}
   - {{ h }}
 {% endfor %}
-  - {{ ansible_host }}
-network.publish_host: {{ ansible_host }}
+  - {{ opensearch_publish_host }}
+network.publish_host: {{ opensearch_publish_host }}
 
-http.port: {{ opensearch_http_port }}
-transport.port: {{ opensearch_transport_port }}
+http.port: {{ opensearch_instance.http_port }}
+transport.port: {{ opensearch_instance.transport_port }}
 
 discovery.seed_hosts:
 {% for h in opensearch_seed_hosts %}

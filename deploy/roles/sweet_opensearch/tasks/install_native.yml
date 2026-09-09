@@ -35,6 +35,4 @@
     owner: root
     group: root
     mode: "0644"
-  notify:
-    - reload systemd
-    - restart opensearch
+  register: _opensearch_dropin

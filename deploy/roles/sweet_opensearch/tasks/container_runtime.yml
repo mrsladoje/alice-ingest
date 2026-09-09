@@ -16,8 +16,8 @@
     fail_msg: >-
       podman {{ _podman_version.stdout.split()[2] }} cannot read
       {{ opensearch_quadlet_dir }}. Quadlet arrived in podman
-      {{ opensearch_container_min_podman_version }}, and this OpenSearch instance is
-      declared as a .container unit.
+      {{ opensearch_container_min_podman_version }}, and every OpenSearch instance
+      here is declared as a .container unit.
     success_msg: "podman {{ _podman_version.stdout.split()[2] }} supports quadlet."
 
 - name: Ensure the quadlet unit directory exists
@@ -27,3 +27,16 @@
     owner: root
     group: root
     mode: "0755"
+
+- name: Check whether the OpenSearch image is already present
+  ansible.builtin.command:
+    cmd: "podman image exists {{ opensearch_container_image }}"
+  register: _opensearch_image_present
+  changed_when: false
+  failed_when: false
+
+- name: Pull the OpenSearch image, once for every instance on this machine
+  ansible.builtin.command:
+    cmd: "podman pull {{ opensearch_container_image }}"
+  when: _opensearch_image_present.rc != 0
+  changed_when: true
