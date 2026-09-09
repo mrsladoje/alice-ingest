@@ -32,9 +32,9 @@
 - name: >-
     Ship the template contract the stamper, the maintenance job and the Shifter
     import, so identity, bucket arithmetic and the document shapes have one
-    definition
+    definition; the role carries its own copy
   ansible.builtin.copy:
-    src: "{{ alice_shared_contract_file }}"
+    src: template_contract.py
     dest: "{{ alice_shared_dir }}/template_contract.py"
     owner: root
     group: root

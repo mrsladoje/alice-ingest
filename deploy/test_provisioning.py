@@ -689,7 +689,7 @@ def test_the_stamper_ships_the_shared_contract_the_recipe_and_its_modules():
         copy = task.get("ansible.builtin.copy")
         if copy:
             copied.append((copy.get("src"), copy.get("dest")))
-    assert ("{{ alice_shared_contract_file }}",
+    assert ("template_contract.py",
             "{{ alice_shared_dir }}/template_contract.py") in copied
     loops = [task.get("loop") for task in tasks if task.get("loop")]
     assert ["stamper.py", "forward.py"] in loops
@@ -718,17 +718,18 @@ def test_the_vendored_templating_copy_matches_its_source(role, name):
         f"Edit tools/templating and copy it into both roles.")
 
 
-def test_the_vendored_contract_copy_matches_its_source():
+@pytest.mark.parametrize("role", ["sweet_shifter_view", "sweet_collector"])
+def test_the_vendored_contract_copy_matches_its_source(role):
     source = os.path.join(DEPLOY, "shared", "template_contract.py")
     with open(source, "rb") as handle:
         expected = handle.read()
-    copy = os.path.join(ROLES, "sweet_shifter_view", "files", "template_contract.py")
+    copy = os.path.join(ROLES, role, "files", "template_contract.py")
     with open(copy, "rb") as handle:
         got = handle.read()
     assert got == expected, (
-        "roles/sweet_shifter_view/files/template_contract.py has drifted from "
+        "roles/%s/files/template_contract.py has drifted from "
         "deploy/shared/template_contract.py. Edit deploy/shared and copy it into "
-        "the role.")
+        "the role." % role)
 
 
 def test_the_vendored_replay_engine_matches_its_source():

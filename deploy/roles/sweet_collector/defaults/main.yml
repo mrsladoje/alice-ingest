@@ -91,10 +91,12 @@ collector_journald_filters: []
 # Empty means this machine's own journal, which is what a real EPN wants. On a
 # staging VM there is nothing interesting in the local journal and the EPN
 # journal is the point, so this is set to the shipped bundle when one exists.
-# `replay_bundle_src` is the sweet_replay role's variable; it is read rather than
-# duplicated so the two cannot disagree about whether a bundle is present.
+# `replay_bundle_src` and `replay_bundle_root` are the sweet_replay role's
+# variables; they are read rather than duplicated so the two roles cannot
+# disagree about whether a bundle is present. Both default to empty here so
+# the role also runs where sweet_replay is absent.
 collector_journald_path: "{{ (replay_bundle_src | default('') | length > 0)
-  | ternary(replay_bundle_root ~ '/journal', '') }}"
+  | ternary((replay_bundle_root | default('')) ~ '/journal', '') }}"
 
 # --- the run orchestrator ---------------------------------------------------
 #

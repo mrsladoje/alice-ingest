@@ -113,8 +113,9 @@ severity routing, the health sampler and the stamper are the role.
 
 `sweet_opensearch` must have run on the same host first. It writes
 `/etc/sweet/opensearch-node.env`, installs `register_node.sh` and starts
-the OpenSearch node on `localhost` that every output writes to. The stamper
-also needs `template_contract.py` at `alice_shared_contract_file`.
+the OpenSearch node on `localhost` that every output writes to. The role
+carries its own copy of `template_contract.py` and ships it to
+`alice_shared_dir`, where the maintenance job and the Shifter import it.
 
 ## Role Variables
 
@@ -181,7 +182,7 @@ From `group_vars` and the inventory: `node_id`, `log_root`,
 `cockpit_metrics_index`, `cockpit_metrics_interval_seconds`,
 `collector_metrics_scrape_source`, `shifter_enabled`, `shifter_host`,
 `shifter_port`, `shifter_ingest_path`, `template_catalog_index`,
-`alice_shared_dir`, `alice_shared_contract_file`.
+`alice_shared_dir`.
 
 ## The stamper
 

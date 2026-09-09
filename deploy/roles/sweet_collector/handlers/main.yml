@@ -9,9 +9,10 @@
     state: restarted
   listen: restart fluent-bit
 
-- name: restart alice-stamper
+- name: Restart alice-stamper
   ansible.builtin.systemd:
     name: "{{ stamper_service_name }}"
     state: restarted
     daemon_reload: true
     enabled: true
+  listen: restart alice-stamper

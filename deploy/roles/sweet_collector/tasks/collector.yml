@@ -32,9 +32,7 @@
     state: present
     allow_downgrade: true
 
-- name: >-
-    {{ 'Open' if collector_metrics_scrape_open else 'Close' }} the Fluent Bit
-    metrics endpoint ({{ fluent_bit_http_port }}/tcp) to the scrape source
+- name: Open or close the Fluent Bit metrics endpoint to the scrape source, tcp {{ fluent_bit_http_port }}
   ansible.posix.firewalld:
     rich_rule: >-
       rule family="ipv4"
@@ -93,13 +91,11 @@
     owner: root
     group: root
     mode: "0644"
-  register: _collector_tmpfiles
 
 - name: Create the socket directory now, not only at the next boot
   ansible.builtin.command:
     cmd: systemd-tmpfiles --create /etc/tmpfiles.d/alice-stamper.conf
-  when: _collector_tmpfiles.changed
-  changed_when: true
+  changed_when: false
 
 - name: Create the Fluent Bit storage and buffer path
   ansible.builtin.file:
