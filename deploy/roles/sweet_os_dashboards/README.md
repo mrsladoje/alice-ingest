@@ -185,9 +185,9 @@ on every path.
 | `/alertmanager/` | `127.0.0.1:<alertmanager_port>` | 120 s |
 | `/live/` | `<shifter_host>:<shifter_port>` | only when `shifter_enabled`; Server-Sent Events, so buffering is off and the read timeout is one hour |
 
-The vhost is the seam between this role and the services behind it: `alice_ops`,
-`alertmanager` and `sweet_shifter_view` bind those ports, this role publishes
-them. Move a port and both ends change.
+The vhost is the seam between this role and the services behind it: the ops
+page, Alertmanager and the Shifter bind those ports, this role publishes them.
+Move a port and both ends change.
 
 Without the websocket upgrade headers on `/`, nginx downgrades every
 connection to plain HTTP and parts of the Dashboards UI stop updating. Without
