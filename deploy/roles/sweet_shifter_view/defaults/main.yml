@@ -94,6 +94,6 @@ shifter_memory_max: "2G"
 shifter_allowed_client_addresses: []
 
 # Repeated in every role that writes a firewalld rule, so each role still
-# stands on its own and one inventory line can switch the whole stack. See
-# roles/common/defaults/main.yml for why the EPN farm sets this false.
+# stands on its own and one inventory line can switch the whole stack. The
+# farm inventory sets it false: firewalld is inactive on the EPN network.
 alice_manage_firewalld: true

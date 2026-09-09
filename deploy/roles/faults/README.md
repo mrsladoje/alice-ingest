@@ -22,7 +22,7 @@ role that exists to break it.
   (`playbooks/inject.yml`) runs on the control host and installs nothing.
 - **It owns the port, so it owns the rule.** The rich rule for
   `fault_agent_port` sits next to the service that listens on it, the same
-  convention `alertmanager` and `shifter` follow.
+  convention `alertmanager` and `sweet_shifter_view` follow.
 
 ## What it does
 

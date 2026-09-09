@@ -482,7 +482,7 @@ declares, and each step depends on the one above it.
 | 6 | `projector` | `alice_runtime`, `signal_projector` |
 | 7 | `control` | `signal_projector` (`tasks_from: control.yml`) |
 | 8 | `background` | `alice_runtime`, `trend_rollup` |
-| 9 | `shifter` | `shifter` |
+| 9 | `shifter` | `sweet_shifter_view` |
 | 10 | `workers` | `sweet_collector` (the stamper, then Fluent Bit) |
 | 11 | `control` | `sweet_template_catalog` |
 | 12 | `control` | `cockpit_metrics` (`tasks_from: post_collector.yml`) |
@@ -601,7 +601,7 @@ below ran clean:
 |---|---|
 | `ansible-inventory --graph` on `inventory.yml` | pass — `alice_nodes` resolves to `workers` (2) + `storage` (3); `control` = `alice-ingest-3` (a storage node) |
 | `ansible-playbook --syntax-check` on `playbooks/site.yml`, `playbooks/provision.yml`, `playbooks/teardown.yml` | pass — zero syntax errors |
-| `ansible-playbook playbooks/site.yml --list-hosts` | pass — common/opensearch/gate target all 5; the control-plane roles (`alice_runtime`, `dashboards`, `alice_ops`, `cockpit_metrics`, `sweet_anomaly_detection`) → control; `signal_projector` → projector; `trend_rollup` → background; `shifter` → shifter; collector + sweet_replay → the 2 workers only |
+| `ansible-playbook playbooks/site.yml --list-hosts` | pass — common/opensearch/gate target all 5; the control-plane roles (`alice_runtime`, `dashboards`, `alice_ops`, `cockpit_metrics`, `sweet_anomaly_detection`) → control; `signal_projector` → projector; `trend_rollup` → background; `sweet_shifter_view` → shifter; collector + sweet_replay → the 2 workers only |
 | `group_vars/all.yml` derivations (`ansible -m debug`) | pass — `node_count=2` (from `workers`); seeds/initial-managers/Dashboards-hosts = the 3 storage nodes; `opensearch_cluster_hosts` = all 5 (firewall mesh) |
 | `opensearch.yml.j2` render (both tiers) | pass — workers get `node.roles: [data, ingest]` + `node.attr.role: worker` + `node.attr.box: <node_id>`; storage gets `[cluster_manager, data, ingest]` + `node.attr.role: storage` |
 | `opensearch.yml.j2` ingest role | pass — every index sets `default_pipeline: alice-add-ingest-time`, and explicit `node.roles` drops the implicit `ingest` role, so both tiers list `ingest` (`[data, ingest]` / `[cluster_manager, data, ingest]`); workers stay ingest-capable so the local info path needs no cross-node hop for the pipeline |
@@ -2279,7 +2279,7 @@ maintains this after us — and that reason stands. But this tree has no Node, n
 npm and no bundler, and adding a JavaScript toolchain to an Ansible deploy is
 the same kind of permanent tax the plan rejected for Dashboards plugins. So
 `react.production.min.js` and `react-dom.production.min.js` are committed under
-`roles/shifter/files/live/`, and the page calls `React.createElement`
+`roles/sweet_shifter_view/files/live/`, and the page calls `React.createElement`
 directly, which is what JSX compiles into. Nothing builds and nothing fetches at
 deploy time. See `live/VENDORED.md` for versions, hashes and provenance. React
 19 removed UMD builds, which is why the vendored line is 18.

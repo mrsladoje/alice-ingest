@@ -144,10 +144,10 @@ Physical memory on the host does not establish available service memory.
 
 Sources:
 
-- `deploy/roles/shifter/files/shifter.py`
-- `deploy/roles/shifter/files/live/shifter.js`
-- `deploy/roles/shifter/defaults/main.yml`
-- `deploy/roles/shifter/templates/alice-shifter.service.j2`
+- `deploy/roles/sweet_shifter_view/files/shifter.py`
+- `deploy/roles/sweet_shifter_view/files/live/shifter.js`
+- `deploy/roles/sweet_shifter_view/defaults/main.yml`
+- `deploy/roles/sweet_shifter_view/templates/alice-shifter.service.j2`
 
 ### Template catalog producer
 

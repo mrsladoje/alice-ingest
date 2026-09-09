@@ -19,11 +19,11 @@
   when: shifter_templates_enabled | bool
 
 - name: >-
-    Ship the template contract the Shifter server and every producer import, so
-    identity, bucket arithmetic and the published document shapes have one
-    definition rather than two that can drift
+    Ship the template contract the server imports, the same file every
+    producer carries, so identity, bucket arithmetic and the published
+    document shapes have one definition
   ansible.builtin.copy:
-    src: "{{ alice_shared_contract_file }}"
+    src: template_contract.py
     dest: "{{ alice_shared_dir }}/template_contract.py"
     owner: root
     group: root
@@ -40,9 +40,7 @@
     mode: "0755"
   when: shifter_templates_enabled | bool
 
-# Vendored, so the role needs nothing outside itself. tools/templating stays
-# the place these two are edited, and test_provisioning.py fails if this copy
-# and that one ever differ.
+# Vendored, so the role needs nothing outside itself.
 - name: >-
     Ship the frozen mining recipe and masker this role vendors, so the
     Lines panel re-matches an ancestor's lines with the same tokens the
@@ -139,8 +137,8 @@
   when: shifter_semantic_enabled | bool
 
 - name: >-
-    Fetch the retrieval model at the pinned revision the evaluation measured,
-    without the ONNX copy the static encoder never reads
+    Fetch the retrieval model at the pinned revision, without the ONNX copy
+    the static encoder never reads
   ansible.builtin.command:
     argv:
       - "{{ shifter_semantic_venv }}/bin/python"
@@ -200,10 +198,9 @@
   when: _shifter_minify_with | length > 0
 
 - name: >-
-    Shrink the page and its stylesheet on the control node. terser is preferred
-    over esbuild because it gzips 259 bytes smaller on this page; see the
-    README for the measurement. The vendored libraries are already minified and
-    the logo is not code, so both are copied through untouched.
+    Shrink the page and its stylesheet on the control node. The vendored
+    libraries are already minified and the logo is not code, so both are
+    copied through untouched.
   ansible.builtin.command:
     cmd: >-
       {{ (_shifter_minify_with == 'terser')

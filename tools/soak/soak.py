@@ -860,7 +860,7 @@ def cmd_run(args):
         "OS_STORAGE2_PORT": str(args.os_storage2_port),
         "SINK2_PORT": str(args.sink2_port),
         "SOAK_NODE_ID": args.node_id,
-        "SOAK_LIVE_LANE": os.path.join(REPO, "deploy", "roles", "shifter",
+        "SOAK_LIVE_LANE": os.path.join(REPO, "deploy", "roles", "sweet_shifter_view",
                                        "files"),
         "LANE_PORT": str(args.lane_port),
         "VIEWERS_CPUSET": args.viewers_cpuset,

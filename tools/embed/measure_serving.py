@@ -20,7 +20,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
-SHIFTER_FILES = os.path.join(REPO, "deploy", "roles", "shifter", "files")
+SHIFTER_FILES = os.path.join(REPO, "deploy", "roles", "sweet_shifter_view", "files")
 SHARED = os.path.join(REPO, "deploy", "shared")
 
 CORPUS_DIR = os.path.join(REPO, "downloads", "frozen", "corpus-2026-09-08")

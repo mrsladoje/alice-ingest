@@ -107,7 +107,7 @@ string. `decode_int(value)` reads both forms and returns an exact Python
 integer. `sum_counts(entries)` adds the `count` of each entry exactly.
 
 The browser must not assume a number. Add one helper to
-`deploy/roles/shifter/files/live/shifter.js` and call it everywhere a count is
+`deploy/roles/sweet_shifter_view/files/live/shifter.js` and call it everywhere a count is
 read:
 
 ```js

@@ -10,7 +10,7 @@ python3 tools/shifterdev/run.py
 Then open **http://127.0.0.1:8092/**. Ctrl-C stops everything.
 
 Nothing is installed and nothing is written into the repository. The page and
-the server are the real files from `deploy/roles/shifter`; only the data
+the server are the real files from `deploy/roles/sweet_shifter_view`; only the data
 underneath them is fake.
 
 ## What it starts

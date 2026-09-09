@@ -145,10 +145,10 @@ STATIC_TYPES = {
 
 KEYWORD_TARGETS = {
     "host": ("origin_host", "hostname", "host"),
-    # `program` is now a real field on every source that has one, so the search
+    # `program` is a real field on every source that has one, so the search
     # target leads with it. rolename and source_file stay behind it because an
     # InfoLogger record has the first and a line no parser claimed has only the
-    # second. `source` is gone: the DDS agent it used to hold is `program` now.
+    # second.
     "program": ("program", "rolename", "source_file"),
     "system": ("system",),
     "facility": ("facility",),

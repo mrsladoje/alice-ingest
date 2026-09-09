@@ -9,7 +9,7 @@ catalogs.
 The role stops at the user interface. It does not create indices, monitors,
 detectors, forecasters or any background service. Those belong to
 `sweet_opensearch`, `sweet_anomaly_detection`,
-`cockpit_metrics`, `trend_rollup`, `alice_ops`, `shifter` and
+`cockpit_metrics`, `trend_rollup`, `alice_ops`, `sweet_shifter_view` and
 `signal_projector`.
 
 ## Why it is a separate role
@@ -220,7 +220,7 @@ Against the control host only:
   certificate reaches the running proxy in the same run.
 - **`ops_internal_port`, `alertmanager_port` and the live-lane trio are proxy
   targets owned elsewhere.** The vhost is the seam: `alice_ops`, `alertmanager`
-  and `shifter` bind those ports, this role publishes them. Move a port and
+  and `sweet_shifter_view` bind those ports, this role publishes them. Move a port and
   both ends change.
 - **`dashboards_index_patterns` feeds two consumers that must agree.**
   `patterns.sh` creates the patterns from it, and the hydration step fills the

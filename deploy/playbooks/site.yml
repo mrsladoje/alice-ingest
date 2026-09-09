@@ -291,7 +291,7 @@
         daemon_reload: true
       when: _live_lane_removed is changed
   roles:
-    - role: shifter
+    - role: sweet_shifter_view
       when: shifter_enabled | bool
 
 - name: Fluent Bit collector and the template stamper (worker VMs only)

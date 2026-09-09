@@ -415,12 +415,12 @@ def _stamper_unit(**overrides):
 
 def _shifter_unit(**overrides):
     values = dict(group_vars())
-    values.update(role_defaults("shifter"))
+    values.update(role_defaults("sweet_shifter_view"))
     values.update({"ansible_managed": "managed", "opensearch_http_port": 9200,
                    "shifter_port": 8092, "shifter_ingest_path": "/ingest",
                    "shifter_opensearch_url": "http://control:9200"})
     values.update(overrides)
-    return _environment("shifter").get_template(
+    return _environment("sweet_shifter_view").get_template(
         "alice-shifter.service.j2").render(**values)
 
 
@@ -700,7 +700,7 @@ def test_the_stamper_ships_the_shared_contract_the_recipe_and_its_modules():
 VENDORED_TEMPLATING = ("drainbench.py", "masking.py")
 
 
-@pytest.mark.parametrize("role", ("sweet_collector", "shifter"))
+@pytest.mark.parametrize("role", ("sweet_collector", "sweet_shifter_view"))
 @pytest.mark.parametrize("name", VENDORED_TEMPLATING)
 def test_the_vendored_templating_copy_matches_its_source(role, name):
     source = os.path.join(DEPLOY, os.pardir, "tools", "templating", name)
@@ -713,6 +713,19 @@ def test_the_vendored_templating_copy_matches_its_source(role, name):
     assert got == expected, (
         f"roles/{role}/files/{name} has drifted from tools/templating/{name}. "
         f"Edit tools/templating and copy it into both roles.")
+
+
+def test_the_vendored_contract_copy_matches_its_source():
+    source = os.path.join(DEPLOY, "shared", "template_contract.py")
+    with open(source, "rb") as handle:
+        expected = handle.read()
+    copy = os.path.join(ROLES, "sweet_shifter_view", "files", "template_contract.py")
+    with open(copy, "rb") as handle:
+        got = handle.read()
+    assert got == expected, (
+        "roles/sweet_shifter_view/files/template_contract.py has drifted from "
+        "deploy/shared/template_contract.py. Edit deploy/shared and copy it into "
+        "the role.")
 
 
 def test_the_vendored_replay_engine_matches_its_source():
@@ -730,7 +743,7 @@ def test_the_vendored_replay_engine_matches_its_source():
 
 @pytest.mark.parametrize("role,name", [
     ("sweet_collector", "stamper.yml"), ("sweet_collector", "collector.yml"),
-    ("sweet_template_catalog", "main.yml"), ("shifter", "main.yml"),
+    ("sweet_template_catalog", "main.yml"), ("sweet_shifter_view", "main.yml"),
 ])
 def test_no_role_task_reaches_outside_its_own_directory(role, name):
     for task in role_tasks(role, name):
@@ -747,7 +760,7 @@ def test_no_role_task_reaches_outside_its_own_directory(role, name):
 
 def test_the_shifter_unit_carries_the_new_serving_limits():
     exported = _unit_environment(_shifter_unit())
-    defaults = role_defaults("shifter")
+    defaults = role_defaults("sweet_shifter_view")
     shared = group_vars()
     assert exported["ALICE_SHARED_PATH"] == shared["alice_shared_dir"]
     assert "SHIFTER_METRICS_INDEX" not in exported
@@ -780,7 +793,7 @@ def test_the_shifter_unit_carries_the_new_serving_limits():
 
 
 def test_semantic_search_ships_on_and_names_the_measured_revision():
-    defaults = role_defaults("shifter")
+    defaults = role_defaults("sweet_shifter_view")
     assert defaults["shifter_semantic_enabled"] is True
     assert defaults["shifter_semantic_backend"] == "model2vec"
     assert defaults["shifter_semantic_model_repo"] == \
@@ -822,7 +835,7 @@ def test_a_host_that_turns_semantic_off_keeps_the_small_ceiling():
 
 
 def test_the_shifter_caches_fit_inside_the_service_ceiling():
-    defaults = role_defaults("shifter")
+    defaults = role_defaults("sweet_shifter_view")
     caches = (defaults["shifter_vector_cache_bytes"]
               + defaults["shifter_catalog_cache_bytes"]
               + defaults["shifter_response_cache_bytes"]
@@ -837,7 +850,7 @@ def test_the_shifter_caches_fit_inside_the_service_ceiling():
 
 
 def test_the_unit_hands_the_page_every_number_its_budget_check_needs():
-    defaults = role_defaults("shifter")
+    defaults = role_defaults("sweet_shifter_view")
     exported = _unit_environment(_shifter_unit())
     assert exported["SHIFTER_MEMORY_MAX"] == defaults["shifter_memory_max"]
     assert int(exported["SHIFTER_LIVE_LANE_BYTES"]) == defaults[
@@ -850,7 +863,7 @@ MODEL_LOAD_PEAK_BYTES = 341311488
 
 
 def test_the_declared_serving_peak_fits_the_service_ceiling():
-    defaults = role_defaults("shifter")
+    defaults = role_defaults("sweet_shifter_view")
     peak = (defaults["shifter_process_base_bytes"]
             + defaults["shifter_live_lane_bytes"]
             + defaults["shifter_vector_cache_bytes"]
@@ -865,25 +878,25 @@ def test_the_declared_serving_peak_fits_the_service_ceiling():
 
 
 def test_the_ceiling_the_page_is_told_matches_the_unit():
-    defaults = role_defaults("shifter")
+    defaults = role_defaults("sweet_shifter_view")
     exported = _unit_environment(_shifter_unit())
     assert exported["SHIFTER_MEMORY_MAX"] == defaults["shifter_memory_max"]
     assert exported["SHIFTER_MEMORY_MAX"] == "2G"
 
 
 def test_one_vector_per_canonical_group_fits_the_vector_cache():
-    defaults = role_defaults("shifter")
+    defaults = role_defaults("sweet_shifter_view")
     assert 5301 * 512 * 4 == 10856448
     assert defaults["shifter_vector_cache_bytes"] >= 10856448
 
 
 def test_the_templates_page_is_off_when_the_query_lane_is_off():
     values = dict(group_vars())
-    values.update(role_defaults("shifter"))
+    values.update(role_defaults("sweet_shifter_view"))
     values.update({"ansible_managed": "managed", "shifter_port": 8092,
                    "shifter_ingest_path": "/ingest",
                    "shifter_opensearch_url": ""})
-    unit = _environment("shifter").get_template(
+    unit = _environment("sweet_shifter_view").get_template(
         "alice-shifter.service.j2").render(**values)
     assert "SHIFTER_CATALOG_INDEX" not in unit
 
@@ -910,14 +923,14 @@ SCHEMA_TEMPLATES = sorted(
     ("sweet_collector", "alice-stamper.service.j2"),
     ("sweet_template_catalog", "alice-catalog-maintenance.service.j2"),
     ("sweet_template_catalog", "alice-catalog-maintenance.timer.j2"),
-    ("shifter", "alice-shifter.service.j2"),
+    ("sweet_shifter_view", "alice-shifter.service.j2"),
 ])
 def test_every_variable_a_template_names_is_declared_somewhere(role, template):
     source = open(os.path.join(ROLES, role, "templates", template)).read()
     source = re.sub(r"\{%\s*raw\s*%\}.*?\{%\s*endraw\s*%\}", "", source,
                     flags=re.S)
     known = set(group_vars()) | set(role_defaults(role)) | TEMPLATE_SUPPLIED
-    for other in ("sweet_collector", "sweet_template_catalog", "shifter",
+    for other in ("sweet_collector", "sweet_template_catalog", "sweet_shifter_view",
                   "sweet_opensearch"):
         known |= set(role_defaults(other))
     used = set()

@@ -107,7 +107,7 @@ def request(**kwargs):
         "template": TEMPLATE,
         "label": triage.LABEL_KNOWN_BAD,
         "note": "",
-        "author": "marko",
+        "author": "ada",
         "watched": False,
         "reviewed_programs": ["o2-gpu-reconstruction"],
         "reviewed_origin_hosts": ["epn146"],
@@ -207,14 +207,14 @@ def test_an_unknown_label_and_a_bad_author_are_refused():
     with pytest.raises(triage.TriageRefused):
         labels.write(request(label="looks_fine"))
     with pytest.raises(triage.TriageRefused):
-        labels.write(request(author="Marko Sladojevic"))
+        labels.write(request(author="Ada Lovelace"))
 
 
 def test_two_authors_keep_two_documents_and_the_conflict_stays_visible():
     transport = FakeTransport()
     labels = store(transport)
-    labels.write(request(author="marko", label=triage.LABEL_KNOWN_BAD))
-    labels.write(request(author="lubos", label=triage.LABEL_KNOWN_GOOD))
+    labels.write(request(author="ada", label=triage.LABEL_KNOWN_BAD))
+    labels.write(request(author="bob", label=triage.LABEL_KNOWN_GOOD))
     documents = labels.read(CANONICAL)
     assert len(documents) == 2
     verdict = triage.review(row(), documents)
