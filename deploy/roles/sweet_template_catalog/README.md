@@ -1,116 +1,179 @@
 # `sweet_template_catalog`
 
-The central maintenance of the template catalog. One oneshot unit on an hourly
-timer, on the control host.
+Housekeeping for the template catalog on the ALICE EPN farm. It runs on the
+control host as one oneshot service, `alice-catalog-maintenance`, on an hourly
+timer. Each pass expires template definitions not observed for 90 days, expires
+check results older than the hourly buckets they came from, once a day expires
+Shifter query history older than a year, and then audits the last completed
+hour: every hourly bucket document the workers published must add up, and the
+number of records indexed per template version in the two replicated log
+indices must not exceed the number the stamper reported. Every failed check and
+a report of the pass itself go back into `template-catalog` as documents the
+Shifter shows and the `template-count-check` monitor fires on.
 
-## Why it is not part of `sweet_collector`
+Nothing here is worker-local. The pass reads and writes only indices on the
+storage tier, through the OpenSearch node on the control host, so the host it
+runs on is a scheduling choice. Staging runs the same layout on fewer machines.
 
-It shares nothing with the collector but a subject. No socket, no host, no unit,
-no file, no variable. Every index it touches — `template-catalog`,
-`shifter-queries`, `template-buckets-1h-*`, and the two shared log indices it
-reads — lives on the storage tier, so the job is a cluster API client and the
-host it runs on is a scheduling choice, not a requirement.
+## How it works
 
-It runs on the control host. On a worker it would put an hourly delete-by-query
-on a machine whose job is ingesting, and it would put a mode into
-`sweet_collector` that never touches Fluent Bit.
+```
+                          CONTROL HOST, once an hour
 
-What it does share is a *contract*, not a role: it reads the definitions, the
-bucket documents and the watermarks that `alice-stamper` publishes, through the
-same `template_contract.py`. That module is shipped from
-`group_vars/all.yml`'s `alice_shared_contract_file`, not out of another role's
-`files/`, so the two roles stay independent.
+┌─ STATE ─────────────────────────────────────────────────────────────────────┐
+│  /var/lib/alice-catalog-maintenance/maintenance-state.json                  │
+│      the time of each section's last clean run; a missing file means never  │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      v
+┌─ EXPIRE DEFINITIONS  (delete-by-query on template-catalog) ─────────────────┐
+│  kind: template, last_observed <= now - 90 days                             │
+│      1000 documents per batch, 500 requests/s, at most 50000 per pass       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      v
+┌─ EXPIRE CHECK RESULTS  (delete-by-query on template-catalog) ───────────────┐
+│  kind: check, checked_at <= now - 35 days                                   │
+│      skipped when the definition expiry above failed                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      v
+┌─ EXPIRE QUERY HISTORY  (delete-by-query on shifter-queries) ────────────────┐
+│  kind: shifter_query, issued_at <= now - 365 days                           │
+│      on its own clock: runs only 24 h after its last clean run              │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      v
+┌─ LIST BUCKETS  (search on template-buckets-1h-*) ───────────────────────────┐
+│  kind: bucket, the last completed hour, one hour behind the clock           │
+│      200 documents per page, at most 5000 per pass; more is reported        │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      v
+┌─ CONSERVATION  (one check per bucket document) ─────────────────────────────┐
+│  the per-version counts must sum to the bucket's total                      │
+│      a bucket that fails here is not compared against the index             │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      v
+┌─ STAMPED AGAINST INDEXED  (terms aggregation, one per bucket and index) ────┐
+│  application-logs-central, infologger                                       │
+│      indexed records per template_version, scoped to the bucket's node,     │
+│      family and hour, must be <= the stamped count for every version        │
+│      the worker-local index is checked on the worker by alice-stamper       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      v
+┌─ PUBLISH  (bulk into template-catalog) ─────────────────────────────────────┐
+│  failed conservation checks and every stamped check  --> kind: check        │
+│  maintenance:catalog, maintenance:queries,                                  │
+│  maintenance:checks, one report each                 --> kind:              │
+│                                                          catalog_maintenance│
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-`sweet_opensearch` owns the shape of these indices and their ISM retention. This
-role owns what the documents mean, and every write to `template-catalog` that is
-not a stamper publication.
+- **A section that fails does not advance its clock.** The state file records
+  a section's last clean run, and the report carries that age, so a section
+  that keeps failing shows as an ever older run.
+- **Every delete is bounded.** A pass deletes at most
+  `template_catalog_maintenance_max_docs` per section and marks the report
+  `bounded`; the rest waits for the next hour.
+- **The service exits non-zero on any failure** and prints the whole report as
+  one JSON line on stdout, so `journalctl -u alice-catalog-maintenance` is the
+  full history.
+- **The unit is idle-priority and memory-capped**, with `Nice=10`,
+  `IOSchedulingClass=idle` and `MemoryMax`, so it never competes with the
+  OpenSearch node beside it.
 
-## Why not ISM
+## Why not an upstream role
 
-ISM deletes whole indices by age. It cannot delete documents inside one. Three of
-the four expiry sections here target documents in single, long-lived indices, and
-`template-catalog` must stay one index because a definition is upserted by
-version identifier and lives across months. The two counting checks are further
-still from ISM: they aggregate, compare across indices, and write a result
-document.
+No Ansible role does this job: the work is a Python client of the cluster API
+that the role ships and schedules. OpenSearch's own retention was checked and
+rejected for these documents:
 
-ISM already does the part it can. `sweet_opensearch`'s `ism.sh.j2` age-deletes
-`template-buckets-5m-*` and `template-buckets-1h-*`, which is the large, growing
-part of this data.
+| Alternative | Why rejected |
+|---|---|
+| [Index State Management](https://docs.opensearch.org/latest/im-plugin/ism/index/) | Deletes whole indices by age. `template-catalog` and `shifter-queries` are single long-lived indices whose documents expire one by one. |
+| [Rollover aliases](https://docs.opensearch.org/latest/im-plugin/ism/policies/#rollover) | A definition is upserted by version identifier across months; splitting the catalog by date would duplicate it. |
 
-The central maintenance of the template catalog. One oneshot unit on a timer,
-on one worker.
+ISM does the part it can: `sweet_opensearch` age-deletes the
+`template-buckets-5m-*` and `template-buckets-1h-*` indices, which are the
+large, growing part of this data.
 
-## What it does
+## Requirements
 
-The worker half of the old catalog producer is gone. Every record is stamped
-in-band by `roles/sweet_collector`, which also publishes the template
-definitions, the exact bucket counts and the per-node watermarks. See
-`docs/TEMPLATES_FIX_PLAN.md`. This role only expires and audits what that
-produces:
+`sweet_opensearch` must have run in both its modes first: install on the
+control host, so an OpenSearch node answers on `localhost`, and configure the
+cluster, so `template-catalog`, `shifter-queries` and the bucket indices exist
+with their mappings and retention. `sweet_collector` must run on the workers,
+because a pass audits the bucket documents the stamper publishes. The role
+copies `template_contract.py` from `alice_shared_contract_file` into
+`alice_shared_dir` itself; the stamper and this job read the same module, so
+they agree on every field name.
 
-- **Definition expiry.** A template definition is deleted 90 days after its
-  last observation (`kind: template`, by `last_observed`).
-- **Check expiry.** Check results are deleted after the hourly bucket
-  retention (`kind: check`, by `checked_at`).
-- **Query-history expiry.** `shifter-queries` documents older than one year
-  are deleted. The unit runs hourly; this section skips a pass until 24 hours
-  have passed since its last clean run.
-- **The two counting checks** (plan section 4). Both read the hourly bucket
-  documents of the last completed hour behind a one-hour lag.
-  - *Conservation.* For every bucket document, the nested counts must sum to
-    the total. A mismatch is a ledger bug.
-  - *Stamped against indexed.* A terms aggregation on `template_version` over
-    each shared index (`application-logs-central`, `infologger`), scoped to the
-    node and the hour, must be at or below the stamped count for every
-    version. The worker-local index is checked on the worker by the stamper
-    itself, once an hour, with the same document shape.
+## Role Variables
 
-  Failing conservation checks and every stamped-against-indexed result are
-  written into `template-catalog` as `kind: check`
-  (`contract.check_document`), so the Shifter can show them. The
-  `template-count-check` monitor fires on any `ok: false` check in the last
-  two hours.
+The variables worth changing. The rest of `defaults/main.yml` is paths and
+service names.
 
-## Every pass publishes what it did
+```yaml
+template_catalog_maintenance_calendar: "hourly"
+template_catalog_maintenance_interval: "1h"
+template_catalog_maintenance_memory_max: "256M"
+```
 
-Each pass writes three documents into `template-catalog` at the fixed
-identifiers `maintenance:catalog`, `maintenance:queries` and
-`maintenance:checks`, `kind: catalog_maintenance`. Each carries the age of that
-section's last clean run, what it deleted or found, its failure count, and the
-whole section report under `detail`.
+The calendar is the timer's `OnCalendar`; the interval only names the timer in
+its description. The checks read one hour per pass, so a slower calendar
+leaves hours unchecked.
 
-## Role variables
+```yaml
+template_catalog_maintenance_page: 1000
+template_catalog_maintenance_requests_per_second: 500
+template_catalog_maintenance_max_docs: 50000
+template_catalog_maintenance_timeout: 300
+template_catalog_maintenance_bulk_documents: 500
+```
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `template_catalog_maintenance_calendar` | `hourly` | `OnCalendar` on the timer. |
-| `template_catalog_maintenance_memory_max` | `256M` | `MemoryMax` on the unit. |
-| `template_catalog_maintenance_page` | `1000` | Documents per delete-by-query batch. |
-| `template_catalog_maintenance_requests_per_second` | `500` | The delete-by-query throttle. |
-| `template_catalog_maintenance_max_docs` | `50000` | Documents one pass may delete per section. |
-| `template_catalog_maintenance_timeout` | `300` | Deadline on one request. |
-| `template_catalog_query_retention_days` | `365` | Expiry of `shifter-queries` by `issued_at`. |
-| `template_catalog_query_cleanup_interval_hours` | `24` | The query section's own clock. |
-| `template_catalog_check_retention_days` | `35` | Expiry of `kind: check` documents. |
-| `template_catalog_shared_indices` | `application-logs-central,infologger` | The indices the central stamped-against-indexed check reads. |
-| `template_catalog_check_hours` | `1` | Completed hours checked per pass. |
-| `template_catalog_check_lag_hours` | `1` | Hours behind the current hour the checked window ends. |
-| `template_catalog_check_page` | `200` | Bucket documents per listing page. |
-| `template_catalog_check_max_buckets` | `5000` | Bucket documents one pass may check. |
+The delete-by-query batch, throttle, per-section ceiling and request deadline
+in seconds. The last value is how many check results one bulk request carries.
 
-## Variables the role requires but does not own
+```yaml
+template_catalog_query_retention_days: 365
+template_catalog_query_cleanup_interval_hours: 24
+template_catalog_check_retention_days: 35
+```
 
-| Variable | Owner | Used for |
-|---|---|---|
-| `template_catalog_index`, `template_buckets_1h_prefix`, `shifter_queries_index` | `group_vars/all.yml` | The catalog, the hourly bucket pattern and the query history. |
-| `alice_shared_dir`, `alice_shared_contract_file` | `group_vars/all.yml` | The shared contract module. |
-| `template_catalog_definition_retention_days` | `group_vars/all.yml` | The 90-day definition retention. |
-| `opensearch_http_port` | `group_vars/all.yml` | The local cluster endpoint. |
+The query section has its own clock and skips a pass until the interval has
+passed since its last clean run. Check retention matches the hourly bucket
+retention, so a check outlives the bucket it judged by no more than the ISM
+delay.
 
-## Tests
+```yaml
+template_catalog_shared_indices: "application-logs-central,infologger"
+template_catalog_check_hours: 1
+template_catalog_check_lag_hours: 1
+template_catalog_check_page: 200
+template_catalog_check_max_buckets: 5000
+```
 
-`files/test_catalog_maintenance.py` drives the pass against a fake cluster:
-the check window, conservation, stamped-against-indexed in both directions, an
-unreadable index, a partial listing, the bucket ceiling, the three expiry
-sections and their clocks, and the state file.
+The indices the stamped-against-indexed check reads, how many completed hours
+one pass checks, and how far behind the current hour the window ends. The lag
+gives every worker's last publication of a bucket time to land before it is
+compared.
+
+From `group_vars`: `template_catalog_index`, `template_buckets_1h_prefix`,
+`shifter_queries_index`, `template_catalog_definition_retention_days`,
+`alice_shared_dir`, `alice_shared_contract_file`, `opensearch_http_port`.
+
+## Example Playbook
+
+```yaml
+- hosts: control
+  become: true
+  roles:
+    - sweet_template_catalog
+```
+
+## Author Information
+
+Marko Sladojevic, CERN ALICE O2/EPN, 2026.

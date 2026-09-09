@@ -1,5 +1,5 @@
-# roles/sweet_template_catalog — the central maintenance of the template
-# catalog. One oneshot unit on an hourly timer, on the control host.
+# Maintenance of the template catalog. One oneshot unit on an hourly timer, on
+# the control host.
 
 template_catalog_app_root: /opt/alice-ingest
 
