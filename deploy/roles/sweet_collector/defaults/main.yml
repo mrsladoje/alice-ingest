@@ -208,6 +208,7 @@ stamper_state_dir: /var/lib/alice-stamper
 # many clusters it holds. At the ceiling the worker stops LEARNING and keeps
 # STAMPING: a record that matches no cluster is stamped `unlearned`.
 stamper_max_templates: 20000
+stamper_max_message_length: 4096
 
 # The publication cycle for bucket documents, definitions and the watermark.
 stamper_publish_seconds: 300

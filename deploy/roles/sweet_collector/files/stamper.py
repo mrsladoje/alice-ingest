@@ -37,6 +37,7 @@ STATE_DIR = os.environ.get("STAMPER_STATE_DIR", "/var/lib/alice-stamper")
 STATUS_FILE = os.environ.get("STAMPER_STATUS_FILE",
                              "/run/alice/stamper-status.json")
 MAX_TEMPLATES = int(os.environ.get("STAMPER_MAX_TEMPLATES", "20000"))
+MAX_MESSAGE_LENGTH = int(os.environ.get("STAMPER_MAX_MESSAGE_LENGTH", "4096"))
 PUBLISH_SECONDS = int(os.environ.get(
     "STAMPER_PUBLISH_SECONDS", str(contract.PUBLISH_INTERVAL_MS // 1000)))
 CHECKPOINT_SECONDS = int(os.environ.get("STAMPER_CHECKPOINT_SECONDS", "600"))
@@ -477,7 +478,8 @@ class Stamper(object):
                  return_socket=RETURN_SOCKET, transport=None, clock=now_ms,
                  max_templates=MAX_TEMPLATES, local_index=LOCAL_INDEX,
                  catalog_index=CATALOG_INDEX, status_file=STATUS_FILE,
-                 local_check=LOCAL_CHECK):
+                 local_check=LOCAL_CHECK,
+                 max_message_length=MAX_MESSAGE_LENGTH):
         self.node = node_id
         self.state_dir = state_dir
         self.clock = clock
@@ -486,6 +488,7 @@ class Stamper(object):
         self.catalog_index = catalog_index
         self.status_file = status_file
         self.local_check = local_check
+        self.max_message_length = max_message_length
         self.trees = Trees(max_templates)
         self.ledger = Ledger()
         self.journal = Journal(os.path.join(state_dir, JOURNAL_FILE))
@@ -572,6 +575,10 @@ class Stamper(object):
         message = record.get("message") or record.get("log") or ""
         if family not in drainbench.RECIPE_SIM or not message:
             record[contract.TEMPLATE_STATUS_FIELD] = contract.STAMP_NO_TEMPLATE
+            return None
+        if len(message) > self.max_message_length:
+            record[contract.TEMPLATE_STATUS_FIELD] = contract.STAMP_NO_TEMPLATE
+            self.counters["oversize_records"] += 1
             return None
         tokens = drainbench.recipe_tokens(family, message)
         if not tokens:

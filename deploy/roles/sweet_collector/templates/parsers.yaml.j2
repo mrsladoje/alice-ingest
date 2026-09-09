@@ -65,11 +65,9 @@ parsers:
   - name: dds_slot
     format: regex
     regex: 'ADD SLOT request,\s+id\s+=\s+(?<slot_id>\d+)'
-    types: slot_id:integer
   - name: dds_channel
     format: regex
     regex: 'Added shared memory channel output with ID:\s+(?<channel_id>\d+)\s+name:\s+(?<channel>\S+)'
-    types: channel_id:integer
   # The binary, not the whole command line.
   #
   # The reason is duplication in the document, not processor cost. An executed

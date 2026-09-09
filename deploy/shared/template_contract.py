@@ -121,7 +121,7 @@ GAP_REASONS = (GAP_MISSING_TIME, GAP_INVALID_TIME, GAP_CLOCK_TOLERANCE,
 STAMPER_COUNTERS = (
     "records", "chunks", "duplicate_chunks", "returned_chunks",
     "return_failures", "matched_records", "new_records", "unlearned_records",
-    "no_template_records", "late_records", "missing_time_records",
+    "no_template_records", "oversize_records", "late_records", "missing_time_records",
     "invalid_time_records", "journal_bytes", "journal_lines", "clusters",
     "ledger_buckets", "ledger_versions", "publications",
     "publication_failures", "peak_rss_bytes", "socket_backlog",

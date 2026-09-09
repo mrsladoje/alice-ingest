@@ -280,6 +280,21 @@ class Stamping(unittest.TestCase):
                     for b in machine.ledger.buckets.values())
         self.assertEqual(total, 1)
 
+    def test_an_oversize_message_is_shipped_but_not_templated(self):
+        machine = make(self.tmp, max_message_length=64)
+        long_line = "[1:0:0][INFO] " + "x" * 100
+        entries = [(NOW, record(long_line, 0, log_time="x")),
+                   (NOW, record("[1:0:0][INFO] fine", 1, log_time="x"))]
+        machine.handle("family.local", entries, {"chunk": "n"})
+        first = entries[0][1]
+        self.assertEqual(first[contract.TEMPLATE_STATUS_FIELD],
+                         contract.STAMP_NO_TEMPLATE)
+        self.assertNotIn(contract.TEMPLATE_VERSION_FIELD, first)
+        self.assertEqual(first["message"], long_line)
+        self.assertEqual(machine.counters["oversize_records"], 1)
+        self.assertEqual(machine.counters["no_template_records"], 1)
+        self.assertEqual(machine.counters["clusters"], 1)
+
     def test_the_state_limit_stops_learning_and_marks_records_unlearned(self):
         machine = make(self.tmp, max_templates=1)
         entries = [(NOW, record("[1:0:0][INFO] one thing here", 0,

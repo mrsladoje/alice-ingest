@@ -553,6 +553,8 @@ computed by the same Lua filter that computes Fluent Bit's own.
   resends it; the identifier makes the resend harmless.
 - **State limit.** At `stamper_max_templates` clusters the tree stops learning
   and stamps `unlearned`; the count is in the health record.
+- **Oversize line.** A message longer than `stamper_max_message_length` is
+  shipped but not templated; the count is `oversize_records` in the same record.
 
 systemd restarts the service (`Restart=always`). The unit gets the same memory
 limits as the collector.
@@ -585,6 +587,7 @@ line and proves the counts and the delivered records agree afterwards.
 | `stamper_socket_dir` | `/run/alice` | Both sockets and the status file. `tasks/collector.yml` creates the directory through a `tmpfiles.d` entry, because the stamper's own `RuntimeDirectory=` would not survive the collector's restarts. |
 | `stamper_state_dir` | `/var/lib/alice-stamper` | `StateDirectory=`. |
 | `stamper_max_templates` | `20000` | Learning ceiling across every family. |
+| `stamper_max_message_length` | `4096` | Longest message the stamper will template. A longer record is shipped unchanged, stamped `no_template` and counted as `oversize_records`; a Fluent Bit bulk-error response or a DDS task assignment runs to tens of kilobytes and would otherwise become its own template, resident in the shifter's view. |
 | `stamper_publish_seconds` | `300` | The publication cycle. |
 | `stamper_checkpoint_seconds` | `600` | The ledger checkpoint; sets the journal size against the replay time. |
 | `stamper_ack_timeout_seconds` | `30` | How long a returned chunk may wait for the Forward input's acknowledgement. |
