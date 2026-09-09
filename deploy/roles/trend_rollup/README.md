@@ -105,7 +105,7 @@ defaults, because a second copy is a second place to change one value.
 
 `trend_entity_cap_warn`, `trend_lag_floor_ms`, `trend_entry_lag_ceiling_ms`,
 `trend_min_slice_docs`, `trend_min_slice_errors` and `trend_min_lag_docs` share
-the `trend_` prefix but belong to `alerting_monitors`. They are thresholds
+the `trend_` prefix but belong to `sweet_anomaly_detection`. They are thresholds
 inside the monitor definitions, not settings of this service. Nothing here
 reads them.
 
@@ -120,7 +120,7 @@ first, all satisfied by the play order in `playbooks/site.yml`.
 | An OpenSearch node answers on `localhost:9200` on this host | `sweet_opensearch` | The service starts, fails every query, and `Restart=on-failure` cycles it. The assertion at the end of the role then fails the deploy. |
 | The `trend-rollup` index and its mapping exist | `sweet_opensearch` | Rows land in a dynamically mapped index. The bucket-commit and silence-imputation fields get the wrong types, and the trend monitors read them wrong. |
 
-`alerting_monitors` is a consumer, not a prerequisite. It may run before or
+`sweet_anomaly_detection` is a consumer, not a prerequisite. It may run before or
 after this role; its monitors simply return nothing until the first bucket is
 written.
 
@@ -160,7 +160,7 @@ In a playbook, against the background group:
   monitor with too few rows to clear its minimum-row guards, and it silently
   stops firing.
 - **`trend_rollup_max_entities` and `trend_entity_cap_warn` are a pair.** The
-  second lives in `alerting_monitors` and is set below the first, so the
+  second lives in `sweet_anomaly_detection` and is set below the first, so the
   `trend-entity-cap` monitor warns before the rollup starts truncating.
   Raising the cap without raising the warning threshold makes the monitor fire
   constantly; lowering the cap below the warning makes it never fire at all.
@@ -168,10 +168,10 @@ In a playbook, against the background group:
   together.** The settle window exists to cover the delay between a log line
   being written and it being searchable. A slower collector needs a longer
   settle, or the bucket is rolled before its documents arrive.
-- **`test_trend_rollup.py` reads two JSON files from `alerting_monitors`.** It
+- **`test_trend_rollup.py` reads two JSON files from `sweet_anomaly_detection`.** It
   asserts that the shipped `trend-il-volume` and `log-family-silence` monitor
   conditions still match the silence contract this script implements. The path
-  is `../alerting_monitors/files/monitors`. Moving either role's directory
+  is `../sweet_anomaly_detection/files/monitors`. Moving either role's directory
   breaks the test, and the test is the only thing tying the imputation logic to
   the monitors that depend on it.
 

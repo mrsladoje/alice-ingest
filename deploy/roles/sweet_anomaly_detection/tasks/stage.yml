@@ -1,4 +1,12 @@
-- name: Render the anomaly detectors bootstrap script
+- name: Render the monitors upsert script
+  ansible.builtin.template:
+    src: monitors.sh.j2
+    dest: "{{ anomaly_detection_monitors_script }}"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Render the detectors upsert script
   ansible.builtin.template:
     src: detectors.sh.j2
     dest: "{{ anomaly_detection_detectors_script }}"
@@ -6,13 +14,21 @@
     group: root
     mode: "0750"
 
-- name: Render the forecaster bootstrap script
+- name: Render the forecasters upsert script
   ansible.builtin.template:
     src: forecasters.sh.j2
     dest: "{{ anomaly_detection_forecasters_script }}"
     owner: root
     group: root
     mode: "0750"
+
+- name: Stage monitor definitions
+  ansible.builtin.copy:
+    src: monitors/
+    dest: "{{ anomaly_detection_monitors_dir }}/"
+    owner: root
+    group: root
+    mode: "0640"
 
 - name: Stage detector definitions
   ansible.builtin.copy:

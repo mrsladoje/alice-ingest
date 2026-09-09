@@ -243,7 +243,6 @@ echo "[detectors] provisioning from $DETECTORS_DIR (metrics_delay=${METRICS_DELA
 curl -s $CURL_TIMEOUTS -XPUT "$OS/_cluster/settings" -H 'Content-Type: application/json' \
   -d '{"persistent":{"plugins.anomaly_detection.max_multi_entity_anomaly_detectors":50}}' \
   >/tmp/ad-settings || true
-delete_detector_by_name "il-per-epn-lag"
 count=0
 for f in "$DETECTORS_DIR"/*.json; do
   [ -f "$f" ] || continue

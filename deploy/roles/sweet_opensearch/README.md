@@ -442,7 +442,7 @@ Required from `group_vars/all.yml`, read by the two scripts and the schema:
 
 - **`opensearch_cluster_config_root` is shared with `alice_runtime`.** Both create
   the directory with the same owner, group and mode; `dashboards`,
-  `alerting_monitors` and `anomaly_detection` only write into it. It is `0755`
+  `sweet_anomaly_detection` only write into it. It is `0755`
   because `alice_runtime` stages a world-readable signal catalog there.
 - **`alice_ops_templates_script` must match
   `opensearch_cluster_config_templates_script`.** The `alice_ops` role holds the path

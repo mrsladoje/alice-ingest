@@ -49,11 +49,9 @@ ensure_alert_sink_alias() {
   echo "[alerting] FATAL: '$SINK_INDEX' is not a rollover write alias."
   echo "[alerting] FATAL: templates.sh owns its index template, its first backing"
   echo "[alerting] FATAL: index and the alias; ism.sh attaches the policy that rolls"
-  echo "[alerting] FATAL: and deletes it. This script used to create the name as a"
-  echo "[alerting] FATAL: concrete index, which is exactly what left the sink growing"
-  echo "[alerting] FATAL: without any retention. Creating it here again would take the"
-  echo "[alerting] FATAL: alias name back and disable retention permanently."
-  echo "[alerting] FATAL: Run templates.sh first — 'make deploy' does both in order."
+  echo "[alerting] FATAL: and deletes it. This script never creates the name: a"
+  echo "[alerting] FATAL: concrete index under it would take the alias name and"
+  echo "[alerting] FATAL: disable retention permanently. Run templates.sh first."
   return 1
 }
 

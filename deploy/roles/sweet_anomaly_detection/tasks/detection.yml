@@ -42,7 +42,7 @@
     FORECAST_RESULT_RETENTION: "{{ forecast_result_retention }}"
   changed_when: true
 
-- name: Remove the bootstrap seed documents now that every detector exists (templates.sh re-seeds on the next run, before the detector update)
+- name: Remove the bootstrap seed documents now that every detector exists (templates.sh seeds them again on the next run)
   ansible.builtin.uri:
     url: "http://localhost:{{ opensearch_http_port }}/{{ item }}/_doc/alice-bootstrap-seed?refresh=true"
     method: DELETE
@@ -54,13 +54,13 @@
                | map('regex_replace', '^(.*)$', 'application-logs-local-\\1')
                | list) }}"
 
-- name: Report bootstrap seed cleanup (a leftover seed is inert, so this never fails the deploy)
+- name: Report the seed cleanup (a leftover seed forms no entity, so this never fails the deploy)
   ansible.builtin.debug:
     msg: >-
       {{ item.item }} -> HTTP {{ item.status | default('unreachable') }}
       {{ '(removed)' if item.status | default(0) == 200
          else '(already absent)' if item.status | default(0) == 404
-         else '(LEFT IN PLACE — harmless: no host, node or severity field, so it forms no entity anywhere)' }}
+         else '(left in place: no host, node or severity field, so it forms no entity anywhere)' }}
   loop: "{{ _seed_cleanup.results }}"
   loop_control:
     label: "{{ item.item }}"

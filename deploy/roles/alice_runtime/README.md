@@ -11,7 +11,7 @@ assumes this one already ran on its host.
 ## Why it is a separate role
 
 Five roles need the same four files, and they do not run on the same machine.
-`cockpit_metrics`, `alice_ops` and `anomaly_detection` run on the control host,
+`cockpit_metrics`, `alice_ops` and `sweet_anomaly_detection` run on the control host,
 `signal_projector` on the projector host, `trend_rollup` on a background node.
 Before the split, the control host got the files from `bootstrap.yml`, the
 projector host got a delegated copy of the same lines in `projector.yml`, and a
@@ -116,7 +116,7 @@ service:
   the control host. Leave it at its empty default everywhere else.
 
 - **Run it before every role that imports the modules or reads the catalogs.**
-  That is `cockpit_metrics`, `alice_ops`, `anomaly_detection`, `trend_rollup`
+  That is `cockpit_metrics`, `alice_ops`, `sweet_anomaly_detection`, `trend_rollup`
   and `signal_projector`.
 - **The role is idempotent.** It copies four files and creates two directories.
   Only a changed module notifies a restart.
@@ -147,7 +147,7 @@ service:
 - **`signal_catalog.json` and `expected_monitors` / `expected_detectors` move
   together.** `verify_detection.py` counts the catalog against those numbers.
   The catalog lives here, the counts live in `group_vars/all.yml`, and the JSON
-  definitions they count live in `alerting_monitors` and `anomaly_detection`.
+  definitions they count live in `sweet_anomaly_detection`.
 
 ## Upstream roles rejected
 

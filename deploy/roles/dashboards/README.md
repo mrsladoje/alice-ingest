@@ -8,7 +8,7 @@ catalogs.
 
 The role stops at the user interface. It does not create indices, monitors,
 detectors, forecasters or any background service. Those belong to
-`sweet_opensearch`, `alerting_monitors`, `anomaly_detection`,
+`sweet_opensearch`, `sweet_anomaly_detection`,
 `cockpit_metrics`, `trend_rollup`, `alice_ops`, `shifter` and
 `signal_projector`.
 
@@ -189,7 +189,7 @@ Against the control host only:
 - **Run it after the `sweet_opensearch` cluster bootstrap, not before.** The
   hydration step reads
   the real field mappings out of the cluster.
-- **Run it before `alerting_monitors`, `anomaly_detection` and
+- **Run it before `sweet_anomaly_detection` and
   `signal_projector`.** They stage their scripts into the same directory and
   expect the cockpit that displays their output to exist.
 - **It is idempotent, but the cockpit steps are not "changed" detectors.** The
@@ -205,7 +205,7 @@ Against the control host only:
   Three of this role's own defaults interpolate it, and a role whose defaults
   reference an undeclared variable cannot run outside this repository. The
   `group_vars` value outranks the default and stays the site source of truth,
-  shared with `sweet_opensearch`, `alerting_monitors`, `anomaly_detection`,
+  shared with `sweet_opensearch`, `sweet_anomaly_detection`,
   `alice_ops` and `signal_projector`, which stage their own files into the same
   directory. Both values must stay `/opt/sweet/init`.
 - **This role does not create `/opt/sweet/init`.** It only writes into it.

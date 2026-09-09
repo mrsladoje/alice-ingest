@@ -39,7 +39,7 @@ def repo_root():
 
 def test_fast_detector_inventory_matches_live_definitions():
     actual = set()
-    detectors = repo_root() / "deploy/roles/anomaly_detection/files/detectors"
+    detectors = repo_root() / "deploy/roles/sweet_anomaly_detection/files/detectors"
     for path in detectors.glob("*.json"):
         definition = json.loads(path.read_text())
         if poison.is_one_minute(definition):

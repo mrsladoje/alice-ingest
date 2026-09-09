@@ -5,7 +5,7 @@ import urllib.error
 import urllib.request
 
 OS_URL = os.environ.get("OS_URL", "http://localhost:9200")
-EXPECTED_MONITORS = int(os.environ.get("EXPECTED_MONITORS", "28"))
+EXPECTED_MONITORS = int(os.environ.get("EXPECTED_MONITORS", "30"))
 EXPECTED_DETECTORS = int(os.environ.get("EXPECTED_DETECTORS", "17"))
 EXPECTED_FORECASTERS = int(os.environ.get("EXPECTED_FORECASTERS", "1"))
 ROLLUP_INDEX = os.environ.get("ROLLUP_INDEX", "trend-rollup")
@@ -18,7 +18,7 @@ NOTIFICATIONS_INDEX = os.environ.get(
 LANE_STATE_INDEX = os.environ.get("LANE_STATE_INDEX", "alice-lane-state")
 CATALOG_PATH = os.environ.get(
     "SIGNAL_CATALOG", "/opt/sweet/init/signal_catalog.json")
-# Staged beside this script by bootstrap.yml, so the default needs no variable.
+# The dashboards role stages it beside this script, so the default needs no variable.
 COCKPIT_NDJSON = os.environ.get(
     "COCKPIT_NDJSON",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "cockpit.ndjson"))
@@ -624,8 +624,7 @@ def check_aliases():
         else:
             print(f"[verify-detection] WARNING: {alias} is a plain index, "
                   f"not a rollover write alias — it will still be wiped "
-                  f"whole when it ages out. Convert once with "
-                  f"'make deploy-migrate-rollover'")
+                  f"whole when it ages out")
     code, body = req("GET", "/_alias/alice-alert-actions")
     if code == 200 and body:
         print(f"[verify-detection] alice-alert-actions: write alias over "
@@ -633,8 +632,7 @@ def check_aliases():
     else:
         print("[verify-detection] WARNING: alice-alert-actions is a plain "
               "index, not a rollover write alias, so nothing bounds the "
-              "alert action log and it grows without limit. The next "
-              "'make deploy' migrates it and keeps its records")
+              "alert action log and it grows without limit")
 
 
 def check_signal_labels(errors):

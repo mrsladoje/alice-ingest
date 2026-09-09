@@ -114,7 +114,7 @@ nobody, which is why the play must set them.
 | `worker_replay_endpoints` | `[]` | The same, prefixed `<inventory_hostname>=`. Joined into `INJECT_WORKER_REPLAY`. |
 | `worker_fault_agent_endpoints` | `[]` | `<inventory_hostname>=http://<ansible_host>:<fault_agent_port>` per worker. Joined into `INJECT_WORKER_AGENTS`. |
 | `worker_inventory_names` | `[]` | The worker inventory names. Joined into `OPS_INJECT_WORKERS`. |
-| `fleet_collector_node_ids` | `[]` | Each worker's `node_id`. Joined into `OPS_WORKER_INFO_NODES`. Shared with `cockpit_metrics` and `anomaly_detection`. |
+| `fleet_collector_node_ids` | `[]` | Each worker's `node_id`. Joined into `OPS_WORKER_INFO_NODES`. Shared with `cockpit_metrics` and `sweet_anomaly_detection`. |
 | `signal_projector_address` | `""` | The projector host's `ansible_host`. Becomes `INJECT_PROJECTOR_AGENT`. |
 
 ### Variables the role requires but does not own
@@ -178,7 +178,7 @@ In a playbook, against the control host:
 - **`make contract` runs `files/test_poison_replay.py`.** That test loads
   `poison_replay.py` and `ops_server.py` from this directory, and reads
   `templates/alice-poison-replay.service.j2`, the `Makefile` and the detector
-  definitions in `anomaly_detection`.
+  definitions in `sweet_anomaly_detection`.
 
 ## Couplings
 

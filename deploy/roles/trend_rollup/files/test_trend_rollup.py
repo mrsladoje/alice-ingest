@@ -20,7 +20,7 @@ import os
 import pathlib
 
 HERE = pathlib.Path(__file__).resolve().parent
-MONITORS = HERE.parents[1] / "alerting_monitors" / "files" / "monitors"
+MONITORS = HERE.parents[1] / "sweet_anomaly_detection" / "files" / "monitors"
 os.environ.setdefault("OS_URL", "http://127.0.0.1:1")
 
 

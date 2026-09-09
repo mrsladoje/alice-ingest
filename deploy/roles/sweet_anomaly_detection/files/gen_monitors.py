@@ -1,14 +1,15 @@
 """Generate every Alerting monitor definition in files/monitors/.
 
-Build-time tool, like gen_cockpit.py — not copied to the VMs. It owns all 25
-monitors so the entity payload, trigger shape and identity fields cannot drift
-apart across hand-edited JSON. Re-run and commit the regenerated files:
+Build-time tool, not copied to the machines. It owns all 30 monitors so the
+entity payload, trigger shape and identity fields cannot drift apart across
+hand-edited JSON. Re-run and commit the regenerated files:
 
-    python3 deploy/roles/alerting_monitors/files/gen_monitors.py
+    python3 deploy/roles/sweet_anomaly_detection/files/gen_monitors.py
 
 BUCKET_MINUTES must match trend_rollup_bucket_seconds in group_vars. Numeric
-guards baked in here are re-substituted from group_vars by alerting.sh at
-bootstrap; entity kinds and notification scopes come from signal_catalog.json.
+guards baked in here are substituted again from group_vars by monitors.sh on
+every deploy; entity kinds and notification scopes come from
+signal_catalog.json.
 """
 
 import json
@@ -527,15 +528,14 @@ LAG_NOTE = (
     "values, so a slice p95 is compared against a typical bucket's p95 - "
     "like against like. Needs >=100 records in every slice, because a p95 "
     "over a handful of records is just the maximum. Floor {floor} ms "
-    "absolute as well as 2x baseline (both substituted at bootstrap)."
+    "absolute as well as 2x baseline (both substituted on every deploy)."
 )
 
 REPLAY_NOTE = (
     " Self-gating instead of flag-gated: a slice above the ceiling "
     "(trend_entry_lag_ceiling_ms, 1h) is archive age, not pipeline health, "
-    "so under preserved June replay - where entry lag is about a month - "
-    "this monitor is naturally silent, and in production - where entry lag "
-    "is seconds - it is naturally live. Nothing to switch on at cutover."
+    "so replayed archives keep this monitor silent and live logs keep it "
+    "live. Nothing to switch on."
 )
 
 

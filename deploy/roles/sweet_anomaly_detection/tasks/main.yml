@@ -1,5 +1,8 @@
-- name: Stage the detector and forecaster definitions, their bootstrap scripts, and the verify and backtest runners
+- name: Stage the monitor, detector and forecaster definitions, their upsert scripts, and the verify and backtest runners
   ansible.builtin.import_tasks: stage.yml
 
-- name: Detection layer (anomaly detectors + verify) — after the metrics poller, which fills their source index
+- name: Notification channels and alerting monitors
+  ansible.builtin.import_tasks: monitors.yml
+
+- name: Anomaly detectors, the forecaster and the verify gate, after the metrics poller has filled their source index
   ansible.builtin.import_tasks: detection.yml

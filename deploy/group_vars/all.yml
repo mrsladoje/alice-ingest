@@ -82,7 +82,7 @@ opensearch_instance_id: "{{ node_id }}"
 opensearch_cluster_config_worker_node_ids: "{{ groups['workers'] | map('extract', hostvars, 'node_id') | list }}"
 
 # The same worker node identities, under the name the cockpit_metrics,
-# anomaly_detection and alice_ops roles read. Resolved here for the same reason:
+# sweet_anomaly_detection and alice_ops roles read. Resolved here for the same reason:
 # a role default must never name an inventory group.
 fleet_collector_node_ids: "{{ groups['workers'] | map('extract', hostvars, 'node_id') | list }}"
 
@@ -363,10 +363,10 @@ alice_ops_inject_request: /var/lib/alice-inject/request.json
 alice_ops_poison_replay_status: /var/lib/alice-poison-replay/status.json
 alice_ops_poison_replay_report_dir: /var/lib/alice-poison-replay/runs
 
-# The counts verify_detection.py asserts. They are read by the anomaly_detection
-# and signal_projector roles, but they count JSON files owned by the
-# alerting_monitors and anomaly_detection roles: add a monitor or a detector
-# there and the matching number here has to change with it.
+# The counts verify_detection.py asserts. They are read by the
+# sweet_anomaly_detection and signal_projector roles and they count the JSON
+# files sweet_anomaly_detection ships: add a monitor or a detector there and the
+# matching number here has to change with it.
 expected_monitors: 30
 expected_detectors: 17
 expected_forecasters: 1

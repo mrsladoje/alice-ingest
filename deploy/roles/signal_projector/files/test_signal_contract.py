@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # roles that own them, so each of those files/ directories joins the path too.
 _ROLES = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
-for _sibling in ("alice_runtime", "alice_ops", "anomaly_detection",
+for _sibling in ("alice_runtime", "alice_ops", "sweet_anomaly_detection",
                  "cockpit_metrics", "trend_rollup"):
     _dir = os.path.join(_ROLES, _sibling, "files")
     if os.path.isdir(_dir):
@@ -1286,7 +1286,7 @@ def test_bucket_key_gate_runs_only_after_the_projector_restart():
     projector would fail the very deploy that replaces it.
     """
     verifier = _checkout_file(
-        "roles", "anomaly_detection", "files", "verify_detection.py")
+        "roles", "sweet_anomaly_detection", "files", "verify_detection.py")
     if verifier is None:
         print("[signal-contract] "
               "test_bucket_key_gate_runs_only_after_the_projector_restart"
@@ -1820,12 +1820,12 @@ def test_every_local_import_survives_the_on_vm_layout():
 
 def test_episode_grouping_gate_runs_after_the_projector_upgrade():
     detection_path = _checkout_file(
-        "roles", "anomaly_detection", "tasks", "detection.yml")
+        "roles", "sweet_anomaly_detection", "tasks", "detection.yml")
     control_path = _checkout_file(
         "roles", "signal_projector", "tasks", "control.yml")
     site_path = _checkout_file("playbooks", "site.yml")
     verifier_path = _checkout_file(
-        "roles", "anomaly_detection", "files", "verify_detection.py")
+        "roles", "sweet_anomaly_detection", "files", "verify_detection.py")
     if not all((detection_path, control_path, site_path, verifier_path)):
         print("[signal-contract] "
               "test_episode_grouping_gate_runs_after_the_projector_upgrade"
@@ -1858,7 +1858,7 @@ def test_episode_grouping_gate_runs_after_the_projector_upgrade():
 def test_push_heartbeat_gate_runs_after_collector_cutover():
     site_path = _checkout_file("playbooks", "site.yml")
     detection_path = _checkout_file(
-        "roles", "anomaly_detection", "tasks", "detection.yml")
+        "roles", "sweet_anomaly_detection", "tasks", "detection.yml")
     if site_path is None or detection_path is None:
         print("[signal-contract] "
               "test_push_heartbeat_gate_runs_after_collector_cutover"
@@ -1920,7 +1920,7 @@ def test_detector_category_migration_recreates_instead_of_updating():
     script = None
     for _ in range(7):
         candidate = os.path.join(
-            here, "roles", "anomaly_detection", "templates",
+            here, "roles", "sweet_anomaly_detection", "templates",
             "detectors.sh.j2")
         if os.path.exists(candidate):
             script = open(candidate).read()
@@ -2423,7 +2423,7 @@ def test_the_registration_script_has_exactly_one_definition():
 def test_status_exposes_functional_projector_and_replay_health():
     status_path = _checkout_file("playbooks", "status.yml")
     probe_path = _checkout_file(
-        "roles", "anomaly_detection", "files", "detection_status.py")
+        "roles", "sweet_anomaly_detection", "files", "detection_status.py")
     if not all((status_path, probe_path)):
         print("[signal-contract] "
               "test_status_exposes_functional_projector_and_replay_health: "

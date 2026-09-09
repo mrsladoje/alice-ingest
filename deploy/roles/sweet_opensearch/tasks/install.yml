@@ -191,5 +191,5 @@
       anomaly-detection REST API answers
       ({{ 'config index present' if _ad_api_check.status == 200
           else '.opendistro-anomaly-detectors not created yet — the plugin
-                creates it with the first detector, in the anomaly_detection
+                creates it with the first detector, in the sweet_anomaly_detection
                 role' }})

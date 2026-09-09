@@ -159,7 +159,7 @@ defaults, because a second copy is a second place to change one value.
 | `anomaly_grade_floor` | `group_vars/all.yml` | Lowest anomaly grade the projector turns into a signal. |
 | `alice_bootstrap_signal_catalog` | `group_vars/all.yml` | The signal catalog. `alice_runtime` stages the file. |
 | `alice_bootstrap_causal_edges` | `group_vars/all.yml` | The causal edges the projector ranks candidate causes from. `alice_runtime` stages the file. |
-| `alice_bootstrap_verify_script` | `group_vars/all.yml` | The verify re-run. `anomaly_detection` stages the file. |
+| `alice_bootstrap_verify_script` | `group_vars/all.yml` | The verify re-run. `sweet_anomaly_detection` stages the file. |
 | `expected_monitors`, `expected_detectors`, `expected_forecasters` | `group_vars/all.yml` | Counts asserted by the verify re-run. |
 | `alerting_max_actionable_alert_count` | `group_vars/all.yml` | Ceiling asserted by the verify re-run. |
 | `projector_gate_failed` | `group_vars/all.yml` | Set to `true` by the rescue. `site.yml` reads it in its final play. Declared site-wide so that final play has a value even when this role never ran. |
@@ -174,9 +174,9 @@ The role does not bootstrap either machine. Six things must be true first.
 | `os_cursor.py` and `signal_identity.py` on the projector host | `alice_runtime` | The service starts and dies on import. Nothing in this role would notice until the cycle gate times out three minutes later. |
 | `signal_catalog.json` and `causal_edges.json` on the projector host, mode 0644 | `alice_runtime` | The projector runs `DynamicUser=true`. At 0640 or 0600 it cannot read either file. |
 | The projector's four indices exist | `sweet_opensearch` | The first cycle creates them with dynamic mappings, which is not the mapping the cockpit queries expect. |
-| Monitors, detectors and forecasters exist | `alerting_monitors`, `anomaly_detection` | The projector has nothing to normalize, and the verify re-run fails its count assertions. |
+| Monitors, detectors and forecasters exist | `sweet_anomaly_detection` | The projector has nothing to normalize, and the verify re-run fails its count assertions. |
 | Alertmanager is up and reachable from the projector host | `alertmanager`, plus its firewall rule | The readiness gate retries twelve times and then fails the play. |
-| `verify_detection.py` staged on the control host | `anomaly_detection` | The final control-host task fails — no such file. |
+| `verify_detection.py` staged on the control host | `sweet_anomaly_detection` | The final control-host task fails — no such file. |
 
 ## How to use it
 

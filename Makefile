@@ -258,7 +258,7 @@ roster-discover:
 	cd deploy && $(ANSIBLE_PLAYBOOK) playbooks/roster_discover.yml $(ANSIBLE_EXTRA)
 
 monitors:
-	python3 deploy/roles/alerting_monitors/files/gen_monitors.py
+	python3 deploy/roles/sweet_anomaly_detection/files/gen_monitors.py
 
 contract:
 	$(DEPLOY_PYTHON) deploy/roles/alice_ops/files/test_poison_replay.py

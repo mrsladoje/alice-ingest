@@ -478,7 +478,7 @@ declares, and each step depends on the one above it.
 | 2 | `alice_nodes` | `opensearch` (initial bring-up, then the `serial: 1` health gate) |
 | 3 | `control` | `sweet_opensearch` |
 | 4 | `control` | `alertmanager` |
-| 5 | `control` | `alice_runtime`, `dashboards`, `alice_ops`, `alerting_monitors`, `cockpit_metrics`, `anomaly_detection` |
+| 5 | `control` | `alice_runtime`, `dashboards`, `alice_ops`, `cockpit_metrics`, `sweet_anomaly_detection` |
 | 6 | `projector` | `alice_runtime`, `signal_projector` |
 | 7 | `control` | `signal_projector` (`tasks_from: control.yml`) |
 | 8 | `background` | `alice_runtime`, `trend_rollup` |
@@ -500,12 +500,11 @@ What each dependency is:
   after it, on the same host.
 - `dashboards` creates the per-source index patterns before it imports the
   cockpit saved objects that reference them.
-- `alerting_monitors` upserts the 28 monitors. `anomaly_detection` asserts that
-  count, so the monitors come first.
 - `cockpit_metrics` publishes the immutable fleet roster, then starts the poller
   that reads it to derive collector absence.
-- `anomaly_detection` waits for the poller's first `kind=node` and `kind=osd`
-  documents before it creates the detectors that read them.
+- `sweet_anomaly_detection` upserts the 30 monitors, then waits for the poller's
+  first `kind=node` and `kind=osd` documents before it creates the detectors
+  that read them, and verifies the whole set.
 - `signal_projector` normalizes the signals the monitors and detectors emit, so
   both must exist first. It also proves it can reach Alertmanager before it
   starts, which is why play 4 is above it.
@@ -602,7 +601,7 @@ below ran clean:
 |---|---|
 | `ansible-inventory --graph` on `inventory.yml` | pass — `alice_nodes` resolves to `workers` (2) + `storage` (3); `control` = `alice-ingest-3` (a storage node) |
 | `ansible-playbook --syntax-check` on `playbooks/site.yml`, `playbooks/provision.yml`, `playbooks/teardown.yml` | pass — zero syntax errors |
-| `ansible-playbook playbooks/site.yml --list-hosts` | pass — common/opensearch/gate target all 5; the control-plane roles (`alice_runtime`, `dashboards`, `alice_ops`, `alerting_monitors`, `cockpit_metrics`, `anomaly_detection`) → control; `signal_projector` → projector; `trend_rollup` → background; `shifter` → shifter; collector + sweet_replay → the 2 workers only |
+| `ansible-playbook playbooks/site.yml --list-hosts` | pass — common/opensearch/gate target all 5; the control-plane roles (`alice_runtime`, `dashboards`, `alice_ops`, `cockpit_metrics`, `sweet_anomaly_detection`) → control; `signal_projector` → projector; `trend_rollup` → background; `shifter` → shifter; collector + sweet_replay → the 2 workers only |
 | `group_vars/all.yml` derivations (`ansible -m debug`) | pass — `node_count=2` (from `workers`); seeds/initial-managers/Dashboards-hosts = the 3 storage nodes; `opensearch_cluster_hosts` = all 5 (firewall mesh) |
 | `opensearch.yml.j2` render (both tiers) | pass — workers get `node.roles: [data, ingest]` + `node.attr.role: worker` + `node.attr.box: <node_id>`; storage gets `[cluster_manager, data, ingest]` + `node.attr.role: storage` |
 | `opensearch.yml.j2` ingest role | pass — every index sets `default_pipeline: alice-add-ingest-time`, and explicit `node.roles` drops the implicit `ingest` role, so both tiers list `ingest` (`[data, ingest]` / `[cluster_manager, data, ingest]`); workers stay ingest-capable so the local info path needs no cross-node hop for the pipeline |
@@ -672,10 +671,9 @@ CERN network access and real quota.
 ## 8. Detection layer runbook (wooden-plane)
 
 Provisioned every `make deploy`: index templates and ISM by the
-`sweet_opensearch` role, then monitors by the `alerting_monitors` role, and
-detectors, the forecaster and strict verify by the `anomaly_detection` role.
-Definitions live under `roles/alerting_monitors/files/monitors/` and
-`roles/anomaly_detection/files/{detectors,forecasters}/`.
+`sweet_opensearch` role, then monitors, detectors, the forecaster and strict
+verify by the `sweet_anomaly_detection` role. Definitions live under
+`roles/sweet_anomaly_detection/files/{monitors,detectors,forecasters}/`.
 
 ### Platform health is pushed, not scraped
 

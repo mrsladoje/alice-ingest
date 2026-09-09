@@ -1,259 +1,214 @@
-# `anomaly_detection`
+# Ansible Role: sweet_anomaly_detection
 
-Provisions the machine-learning layer of the platform on the control host: 17
-Random Cut Forest anomaly detectors, 1 disk-fill forecaster, and the script that
-proves the whole detection layer is present and correct.
+Loads the detection layer into the running `alice-logs` cluster from the
+control host: 30 alerting monitors, 17 Random Cut Forest anomaly detectors and
+one disk-fill forecaster. It stages the definitions and their upsert scripts,
+pins the plugin cluster settings, creates the two notification channels,
+upserts the monitors, waits for the metrics poller's first documents, upserts
+and starts the detectors and the forecaster, and ends with
+`verify_detection.py`, which fails the deploy unless every object is present,
+running and wired to its channel.
 
-It stages the definitions and the two upsert scripts, waits until the metrics
-poller has produced the documents the detectors read, upserts and starts every
-detector and the forecaster, removes the bootstrap seed documents, and then runs
-`verify_detection.py`.
+Every alert the signal projector turns into an incident starts here. Nothing
+downstream fires on its own.
 
-The role does not create indices, index templates or the alerting monitors. The
-`sweet_opensearch` role creates the indices; the `alerting_monitors` role
-creates the monitors.
-
-## Why it is a separate role
-
-The detectors and the forecaster are one closed set of artefacts with one
-lifecycle. A detector definition, its JSON file, its upsert script and the count
-that gates the deploy all change together. Splitting them out of the old
-`dashboards` role means a person adding a detector touches one directory, and
-means the detection layer can be re-run without reinstalling OpenSearch
-Dashboards or nginx.
-
-`verify_detection.py` lives here because it verifies detectors. Two other roles
-run the same installed copy — see couplings.
-
-## What it does
+## How it works
 
 ```
-                          CONTROL HOST ONLY
+                 CONTROL HOST: os-node-04, one of the three storage
+                 containers. Every call goes to localhost:9200.
 
-┌─ 1. STAGE — into /opt/sweet/init, which it does not create ─────────┐
-│  detectors.sh          0750 root   rendered from detectors.sh.j2           │
-│  forecasters.sh        0750 root   rendered from forecasters.sh.j2         │
-│  detectors/            0640 root   17 detector definitions                 │
-│  forecasters/          0640 root   1 forecaster definition                 │
-│  backtest.py           0755 root   into /opt/sweet, historical run  │
-│  verify_detection.py   0750 root   the detection-layer gate                │
-└────────────────────────────────────┬───────────────────────────────────────┘
+┌─ STAGE into /opt/sweet/init ──────────────────────────────────────────────┐
+│  monitors.sh  detectors.sh  forecasters.sh       the three upsert scripts │
+│  monitors/ 30   detectors/ 17   forecasters/ 1   the JSON definitions     │
+│  verify_detection.py                             the gate at the end      │
+│  backtest.py  --> /opt/sweet                     for playbooks/backtest   │
+└───────────────────────────────────────────────────────────────────────────┘
+                                     │
                                      v
-┌─ 2. WAIT — the detectors have no input until the poller writes ────────────┐
-│  cockpit-metrics/_count  kind=node and kind=osd, 20 attempts, 6 s apart    │
-└────────────────────────────────────┬───────────────────────────────────────┘
+┌─ MONITORS (monitors.sh) ──────────────────────────────────────────────────┐
+│  pin      plugins.alerting.max_actionable_alert_count                     │
+│  gate     alice-alert-actions must be a rollover write alias, else FATAL  │
+│  channel  alice-incluster-alert-sink  --> alice-alert-actions, one        │
+│               document per fire; the 30 min throttle needs a destination  │
+│  channel  alice-breakglass-sink       --> the notification receiver on    │
+│               127.0.0.1, for [signal-projector-stale] [alertmanager-down] │
+│  upsert by name, thresholds rewritten from the variables on every run:    │
+│    cockpit-metrics               14   every 1 min   collector, node and   │
+│                                                     cluster health        │
+│    trend-rollup                  12   every 10 min  per-entity volume,    │
+│                                                     errors and lag        │
+│    template-catalog               2   every 60 min  [template-count-check]│
+│                                                     [template-new]        │
+│    .opendistro-anomaly-results*   1   every 1 min   [ad-high-grade]       │
+│    opensearch-forecast-results*   1   every 10 min  [disk-fill-forecast]  │
+└───────────────────────────────────────────────────────────────────────────┘
+                                     │
                                      v
-┌─ 3. UPSERT AND START ──────────────────────────────────────────────────────┐
-│  detectors.sh     upsert by name, start each; unchanged detectors keep     │
-│                   their trained RCF models                                 │
-│  forecasters.sh   pins the two cluster forecast settings, then upserts     │
-└────────────────────────────────────┬───────────────────────────────────────┘
+┌─ WAIT for the metrics poller ─────────────────────────────────────────────┐
+│  cockpit-metrics/_count   kind=node and kind=osd   20 attempts, 6 s apart │
+└───────────────────────────────────────────────────────────────────────────┘
+                                     │
                                      v
-┌─ 4. CLEAN UP THE SEEDS ────────────────────────────────────────────────────┐
-│  DELETE alice-bootstrap-seed from infologger, application-logs-central and │
-│  application-logs-local-<node_id> on every node. Never fails the run.      │
-└────────────────────────────────────┬───────────────────────────────────────┘
+┌─ DETECTORS (detectors.sh) ────────────────────────────────────────────────┐
+│  pin   plugins.anomaly_detection.max_multi_entity_anomaly_detectors = 50  │
+│  every 1 min, each with a -slow twin every 30 min:   entity   window delay│
+│    infologger              [il-per-epn]              origin_host   2 min  │
+│                            [il-per-epn-entry-lag]    origin_host          │
+│                            [il-collector-shipping-lag]   node             │
+│    application-logs-local-*  [local-volume]          origin_host   2 min  │
+│                            [local-per-epn-entry-lag] origin_host          │
+│                            [local-collector-shipping-lag]  node           │
+│    application-logs-central  [central-per-epn]       origin_host   2 min  │
+│  every 1 min, no twin:                                                    │
+│    cockpit-metrics  [ingest-flow]       kind=fluentbit  collector_id 1 min│
+│                     [node-health]        kind=node       os_node          │
+│                     [dashboards-health]  kind=osd        fleet-wide       │
+│  upsert by name:  absent               --> create, start                  │
+│                   same and running     --> leave it; the model survives   │
+│                   same and stopped     --> start                          │
+│                   changed              --> stop, PUT, start; trains again │
+│                   category_field changed --> delete, create               │
+└───────────────────────────────────────────────────────────────────────────┘
+                                     │
                                      v
-┌─ 5. VERIFY ────────────────────────────────────────────────────────────────┐
-│  verify_detection.py   monitor count, detector count, forecaster count,    │
-│                        ISM policy, the index set and the signal catalog    │
-└────────────────────────────────────────────────────────────────────────────┘
+┌─ FORECASTER (forecasters.sh) ─────────────────────────────────────────────┐
+│  pin   plugins.forecast.max_primary_shards                                │
+│        plugins.forecast.forecast_result_history_retention_period          │
+│  [disk-fill]  cockpit-metrics kind=node, per os_node, disk_used_percent   │
+│               every 60 min, 168 points of history, 24 points ahead        │
+│  same upsert outcomes as the detectors                                    │
+└───────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     v
+┌─ CLEAN UP, then VERIFY ───────────────────────────────────────────────────┐
+│  DELETE alice-bootstrap-seed from infologger, application-logs-central    │
+│  and application-logs-local-<node_id> on every worker; never fails        │
+│  verify_detection.py   30 monitors, 17 detectors, 1 forecaster, their     │
+│                        channels and throttle, the indices, the ISM policy │
+│                        and the signal catalog; any miss fails the deploy  │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Non-obvious settings
+- **Two window delays.** A metrics detector waits one minute because the
+  poller writes every 30 seconds. A log detector waits two, because a record
+  travels through Fluent Bit, the stamper and a bulk queue first.
+- **An unchanged detector keeps its trained model.** The script compares the
+  desired definition with the running one field by field, and only a real
+  difference stops, rewrites and restarts it.
+- **The thresholds live in the variables, not in the JSON.** `monitors.sh`
+  rewrites the literals inside the trigger scripts from the environment on
+  every run; the JSON values are only the fallback for a hand run.
+- **`alice-incluster-alert-sink` notifies nobody.** It writes one document per
+  fire so the per-alert throttle has a destination. People are told through
+  the signal projector and Alertmanager.
 
-- **The wait on `cockpit-metrics` is a hard ordering constraint, not a
-  convenience.** The `ingest-flow`, `node-health` and `dashboards-health`
-  detectors read `cockpit-metrics`. Without documents of `kind=node` and
-  `kind=osd` the detectors start against an empty index and never leave
-  initialising. The `cockpit_metrics` role must run before this one.
-- **Two window delays, not one.** Metric detectors use
-  `ad_metrics_window_delay_minutes` (1 minute) because the poller writes on a
-  30-second cycle. Log detectors use `ad_log_window_delay_minutes` (2 minutes)
-  because a log document travels through Fluent Bit and a bulk queue first. The
-  script selects by detector name, from the `METRICS_NAMES` list inside
-  `detectors.sh.j2`.
-- **`detectors.sh` preserves trained models when nothing changed.** It compares
-  the desired definition against the running one field by field. Only a real
-  difference triggers a stop, a `PUT` and a restart, which resets the RCF model
-  and the initialisation progress. A definition edit therefore costs about 32
-  detection intervals of blindness.
-- **A changed `category_field` forces a delete and recreate.** OpenSearch treats
-  that field as immutable. The script detects the case and recreates the
-  detector rather than failing.
-- **`forecast_max_primary_shards` must stay pinned at 1.** The forecast result
-  index otherwise takes one primary per data node with `auto_expand_replicas`
-  `0-2`. That is 15 shards for a few thousand tiny documents, against a
-  storage-tier budget near 60.
-- **The seed cleanup never fails the deploy.** A leftover
-  `alice-bootstrap-seed` document has no `host`, `node` or `severity` field, so
-  it forms no entity in any detector. The task carries `failed_when: false` and
-  a debug report, on purpose.
-- **The detector-start step reports `changed` on every run.** Both upsert scripts
-  are `changed_when: true`. They are idempotent against the cluster, but Ansible
-  cannot see that from a shell exit code.
+## Why not an upstream role
 
-## Role variables
+The vendor publishes an Ansible playbook that installs OpenSearch nodes and
+nothing that creates a monitor, a detector or a forecaster. Candidates checked
+and rejected:
 
-Values the role owns. Override any of them in `group_vars` to change them
-site-wide, or in `inventory.yml` for one group or host.
+| Candidate | Why rejected |
+|---|---|
+| [opensearch-project/ansible-playbook](https://github.com/opensearch-project/ansible-playbook) | Installs and configures nodes. No task talks to the Alerting or Anomaly Detection API. |
+| [opensearch-project/terraform-provider-opensearch](https://github.com/opensearch-project/terraform-provider-opensearch) | A second provisioning tool with its own state, for objects this role upserts with three shell loops. |
+| Ansible Galaxy, `opensearch alerting` and `opensearch anomaly detection` | Nothing found. The definitions are this platform's own, matched to its index and field names, so a generic role would carry no content. |
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `anomaly_detection_detectors_script` | `/opt/sweet/init/detectors.sh` | Where `detectors.sh.j2` is rendered. A literal — see couplings. |
-| `anomaly_detection_forecasters_script` | `/opt/sweet/init/forecasters.sh` | Where `forecasters.sh.j2` is rendered. A literal — see couplings. |
-| `anomaly_detection_detectors_dir` | `/opt/sweet/init/detectors` | Staged detector definitions. `detectors.sh` reads every `*.json` here. |
-| `anomaly_detection_forecasters_dir` | `/opt/sweet/init/forecasters` | Staged forecaster definitions. Same pattern. |
-| `ad_metrics_window_delay_minutes` | `1` | `window_delay` for the three metric detectors. |
-| `ad_log_window_delay_minutes` | `2` | `window_delay` for the fourteen log detectors. |
-| `forecast_interval_minutes` | `60` | `forecast_interval` of the disk-fill forecaster. |
-| `forecast_window_delay_minutes` | `1` | Its `window_delay`. |
-| `forecast_horizon` | `24` | Points predicted ahead. At an hourly interval, one day. |
-| `forecast_history` | `168` | Points of history used. At an hourly interval, seven days. |
-| `forecast_max_primary_shards` | `1` | `plugins.forecast.max_primary_shards`, set cluster-wide. See non-obvious settings. |
-| `forecast_result_retention` | `14d` | `plugins.forecast.forecast_result_history_retention_period`. |
-| `fleet_collector_node_ids` | `[]` | The `node_id` of every collector node. The seed cleanup derives `application-logs-local-<node_id>` from it. The playbook supplies it. |
+## Requirements
 
-### Variables the role requires but does not own
+`sweet_opensearch` must have run on the control host in its configure-the-
+cluster mode first. It creates the indices the detectors read, the ISM policies
+the gate asserts and the `alice-alert-actions` write alias the monitors need.
+`alice_runtime` must have created `/opt/sweet` and `/opt/sweet/init` and staged
+`signal_catalog.json`, `os_cursor.py` and `signal_identity.py` there;
+`backtest.py` imports the two modules. `cockpit_metrics` must be running its
+poller, or the wait step fails the play after two minutes.
 
-These are site-wide. They are deliberately **not** duplicated into this role's
-defaults, because a second copy is a second place to change one value.
+## Role Variables
 
-| Variable | Owner | Used for |
-|---|---|---|
-| `alice_bootstrap_verify_script` | `group_vars/all.yml` | Where `verify_detection.py` is staged. Two other roles run the same path. |
-| `anomaly_detection_backtest_script` | `group_vars/all.yml` | Where `backtest.py` is staged. `playbooks/backtest.yml` runs the same path. |
-| `alice_bootstrap_signal_catalog` | `group_vars/all.yml` | Passed to `verify_detection.py` as `SIGNAL_CATALOG`. Staged by `alice_runtime`. |
-| `opensearch_http_port` | `group_vars/all.yml` | The REST port every task in this role calls on `localhost`. |
-| `cockpit_metrics_index` | `group_vars/all.yml` | The index the wait step polls and the metric detectors read. |
-| `trend_rollup_index` | `group_vars/all.yml` | Passed to `verify_detection.py` as `ROLLUP_INDEX`. |
-| `fleet_roster_index` | `group_vars/all.yml` | Passed as `ROSTER_INDEX`. |
-| `signals_index` | `group_vars/all.yml` | Passed as `SIGNALS_INDEX`. |
-| `incidents_index` | `group_vars/all.yml` | Passed as `INCIDENTS_INDEX`. |
-| `notifications_index` | `group_vars/all.yml` | Passed as `NOTIFICATIONS_INDEX`. |
-| `lane_state_index` | `group_vars/all.yml` | Passed as `LANE_STATE_INDEX`. |
-| `expected_monitors` | `group_vars/all.yml` | Asserted count, 28. The monitors belong to `alerting_monitors`. |
-| `expected_detectors` | `group_vars/all.yml` | Asserted count, 17. Must equal the file count in `files/detectors/`. |
-| `expected_forecasters` | `group_vars/all.yml` | Asserted count, 1. Must equal the file count in `files/forecasters/`. |
-| `alerting_max_actionable_alert_count` | `group_vars/all.yml` | Passed to `verify_detection.py`. |
-
-## Prerequisites
-
-The role does not build the platform under it. Five things must be true first,
-all satisfied by the play order in `playbooks/site.yml`.
-
-| Prerequisite | Provided by | What breaks without it |
-|---|---|---|
-| `/opt/sweet/init` exists, 0755 root:root | `alice_runtime` | Every staging task fails. This role writes into that directory and never creates it. |
-| `/opt/sweet` exists, 0755 root:root | `alice_runtime` | Staging `backtest.py` fails. |
-| `signal_catalog.json` staged | `alice_runtime` | `verify_detection.py` exits non-zero on a missing catalog. |
-| The indices, templates and ISM policy exist | `sweet_opensearch` | The detectors have no source indices and `verify_detection.py` fails its ISM check. |
-| `cockpit-metrics` holds `kind=node` and `kind=osd` documents | `cockpit_metrics` | The wait step burns 20 attempts and then fails the play. |
-| The 28 alerting monitors exist | `alerting_monitors` | `verify_detection.py` fails its `EXPECTED_MONITORS` assertion. |
-
-## How to use it
-
-In a playbook, against the control host:
+The variables worth changing. The rest of `defaults/main.yml` is paths.
 
 ```yaml
-- name: Detection layer (control host only)
-  hosts: control
-  become: true
-  vars:
-    fleet_collector_node_ids: >-
-      {{ groups['workers'] | map('extract', hostvars, 'node_id') | list }}
-  roles:
-    - anomaly_detection
+ad_anomaly_grade_threshold: 0.7
+ad_anomaly_confidence_threshold: 0.7
+forecast_disk_threshold_percent: 85
+fleet_silence_fraction: 0.5
 ```
 
-- **Run it on the control host only.** Every task calls
-  `localhost:{{ opensearch_http_port }}`, and detectors are cluster-wide
-  objects. A second host would upsert the same 17 detectors again.
-- **The role is safe to re-run.** Detectors whose definition has not changed keep
-  their trained models and are only restarted if they were stopped.
-- **`fleet_collector_node_ids` must be supplied.** With the default empty list the
-  seed cleanup only clears `infologger` and `application-logs-central`. Nothing fails,
-  but the per-node info seeds stay in place.
+`ad-high-grade` fires above both thresholds at once. `disk-fill-forecast`
+fires when a node's predicted fill crosses the percentage, and
+`fleet-fb-silence` when that fraction of the roster stops heartbeating.
 
-## Couplings
+```yaml
+trend_lag_floor_ms: 250
+trend_entry_lag_ceiling_ms: 3600000
+trend_entity_cap_warn: 1800
+trend_min_slice_docs: 50
+trend_min_slice_errors: 10
+trend_min_lag_docs: 100
+```
 
-Pairs of values that must change together.
+The guards inside the twelve `trend-*` monitors. Lag under the floor is noise,
+entry lag over the ceiling is archive age, and a rollup slice under the minimum
+counts is too small to judge; `trend_entity_cap_warn` must stay below
+`trend_rollup_max_entities` so the warning comes before the rollup truncates.
 
-- **`expected_detectors` and the file count in `files/detectors/`.** The number
-  lives in `group_vars/all.yml`; the files live here. Adding a detector without
-  raising the number makes `verify_detection.py` fail in this role. This is the
-  one place the split made worse — the count and the directory it counts are
-  now in different trees.
-- **`expected_forecasters` and `files/forecasters/`.** The same trap, with one
-  file instead of seventeen.
-- **`expected_monitors` and the `alerting_monitors` role.** This role asserts a
-  count of artefacts another role creates. Adding a monitor there fails the gate
-  here.
-- **The four `anomaly_detection_*` paths are literals, not references to
-  `alice_bootstrap_root`.** A role default that reads another role's
-  variable resolves lazily and makes this role unrunnable alone. They must stay
-  equal to `{{ alice_bootstrap_root }}/detectors.sh`, `/forecasters.sh`,
-  `/detectors` and `/forecasters`. The `alice_ops` role does the same for
-  `alice_ops_templates_script`.
-- **`verify_detection.py` is staged here and run by three roles.** This role runs
-  it at the end of `detection.yml`. `cockpit_metrics` runs the installed copy
-  again after the collector cutover, with `EXPECT_PUSH_HEARTBEATS` set from the
-  live heartbeat switch. `signal_projector` runs it a third time with
-  `CHECK_EPISODE_GROUPING=true`. Only this role copies the file; the other two
-  read `alice_bootstrap_verify_script`. Changing the script's environment
-  contract means changing three call sites.
-- **`forecast_history` and `cockpit_metrics_retention_days`.** 168 hourly points
-  is exactly the 7 days the metrics index keeps. Shortening the retention
-  starves the forecaster.
-- **`forecast_disk_threshold_percent` is not here.** It belongs to
-  `alerting_monitors`, which raises the alert the forecaster's output feeds. The
-  forecaster itself has no threshold.
-- **`backtest.py` and `detection_status.py` are staged or run from this role's
-  `files/`.** `playbooks/backtest.yml` runs the installed
-  `anomaly_detection_backtest_script`. `playbooks/status.yml` runs
-  `roles/anomaly_detection/files/detection_status.py` straight out of the
-  repository, so its path in that playbook must track this directory.
+```yaml
+ad_metrics_window_delay_minutes: 1
+ad_log_window_delay_minutes: 2
+```
 
-## What is frozen
+`window_delay` for the three metrics detectors and for the fourteen log
+detectors. The script picks by detector name.
 
-- The 17 detector definitions and the single forecaster as a set. They are a
-  design, not a preference. `verify_detection.py` asserts the counts.
-- The `METRICS_NAMES` list inside `detectors.sh.j2`. It is what splits the two
-  window delays.
-- The `alice-bootstrap-seed` document id. `templates.sh` in
-  `sweet_opensearch` writes it under that exact literal and this role
-  deletes it under the same literal.
+```yaml
+forecast_interval_minutes: 60
+forecast_horizon: 24
+forecast_history: 168
+forecast_max_primary_shards: 1
+forecast_result_retention: "14d"
+```
 
-## What this role does not do
+Hourly points, one day ahead, from seven days of history: 168 points is what
+`cockpit_metrics_retention_days` keeps, so shortening that retention starves
+the forecaster. `forecast_max_primary_shards` stays at 1, or the result index
+takes one primary per data node for a few thousand tiny documents.
 
-- **It does not create the alerting monitors.** `alerting_monitors` does.
-- **It does not create indices, templates or ISM policies.**
-  `sweet_opensearch` does.
-- **It does not create `/opt/sweet/init`.** `alice_runtime` does, and
-  `sweet_opensearch` creates the same directory with the same owner, group
-  and mode. Neither owns it. This role only writes files into it.
-- **It does not run the detection verify after the collector cutover.**
-  `cockpit_metrics` does that, from `post_collector.yml`, against the copy this
-  role staged.
+From `group_vars`: `expected_monitors`, `expected_detectors` and
+`expected_forecasters`, which must equal the file counts under `files/`;
+`opensearch_http_port`, `notification_ingest_port`,
+`alerting_max_actionable_alert_count`, `cockpit_metrics_index`,
+`trend_rollup_index`, `fleet_roster_index`, `signals_index`,
+`incidents_index`, `notifications_index`, `lane_state_index`,
+`alice_bootstrap_verify_script`, `alice_bootstrap_signal_catalog`,
+`anomaly_detection_backtest_script` and `fleet_collector_node_ids`.
 
-## Upstream roles rejected
+## The gate and the two probes
 
-Recorded so the question is not reopened at review time. Checked in August 2026.
+| Script | Runs from | What it does |
+|---|---|---|
+| `verify_detection.py` | this role, then `cockpit_metrics` after the collectors are up, then `signal_projector` | Asserts the whole detection layer against the cluster. Exit 1 fails the deploy. |
+| `backtest.py` | `playbooks/backtest.yml` | Historical analysis of every log detector over the replayed window, with a grade floor and a 45 minute timeout. |
+| `detection_status.py` | `playbooks/status.yml`, out of `files/` | Read-only: data windows, job states and result counts per detector. |
 
-| Candidate | Type | Would replace | Why rejected |
-|---|---|---|---|
-| [`opensearch-project/ansible-playbook`](https://github.com/opensearch-project/ansible-playbook) | Vendor | Nothing | It installs and configures OpenSearch nodes. It has no notion of an anomaly detector or a forecaster, and no task that talks to the `_plugins/_anomaly_detection` API. |
-| OpenSearch Terraform / OpenSearch CDK providers | Vendor | The upsert scripts | Neither provider models anomaly detectors or forecasters. Adding a second provisioning tool for one resource type would also split the state of this tree in two. |
-| Galaxy search for `opensearch anomaly detection` | Third-party | The upsert scripts | No result found. The detectors are this platform's own definitions, matched to its own index and field names, so a generic role would carry no content. |
+The verify runs three times in a deploy. Only this role stages the file; the
+other two roles run the installed copy through `alice_bootstrap_verify_script`,
+so a change to its environment contract is a change to three call sites.
 
-What upstream cannot hold is all of this role: the 17 definitions, the two
-window-delay classes, the model-preserving upsert comparison, and the verify
-gate.
+`gen_monitors.py` is a build-time tool and is never copied to a machine. It
+owns all 30 monitor files: to change a monitor's shape, edit the generator,
+run it, and commit the regenerated JSON.
 
-## Used by
+## Example Playbook
 
-- `playbooks/site.yml`, play "Control plane — Dashboards, nginx, ops page,
-  monitors, roster, metrics and detectors (control host only)", against
-  `control` — the only caller.
-- `playbooks/backtest.yml` runs the installed `backtest.py` this role staged.
-- `playbooks/status.yml` runs `files/detection_status.py` from the repository.
+```yaml
+- hosts: control
+  become: true
+  roles:
+    - sweet_anomaly_detection
+```
+
+## Author Information
+
+Marko Sladojevic, CERN ALICE O2/EPN, 2026.

@@ -215,21 +215,18 @@
   #                      patterns before it imports the cockpit saved objects
   #                      that reference them.
   #   alice_ops          serves the ops page behind the nginx seam above.
-  #   alerting_monitors  upserts the monitors, which was the last task of the old
-  #                      bootstrap, still after the cockpit import and before the
-  #                      roster.
   #   cockpit_metrics    publishes the immutable roster, then starts the poller
   #                      that reads it.
-  #   anomaly_detection  waits for the poller's first documents, then upserts the
-  #                      detectors and the forecaster, and asserts the monitor
-  #                      count alerting_monitors just produced.
+  #   sweet_anomaly_detection
+  #                      upserts the channels and the monitors, waits for the
+  #                      poller's first documents, then upserts the detectors
+  #                      and the forecaster and verifies the whole set.
   roles:
     - alice_runtime
     - dashboards
     - alice_ops
-    - alerting_monitors
     - cockpit_metrics
-    - anomaly_detection
+    - sweet_anomaly_detection
 
 - name: Notification receiver on the control host the Alertmanager webhook points at — before the projector, so it is up while the projector starts
   hosts: control

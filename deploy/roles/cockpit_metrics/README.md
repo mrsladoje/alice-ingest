@@ -106,7 +106,7 @@ defaults, because a second copy is a second place to change one value.
 | `cockpit_metrics_service_name` | `group_vars/all.yml` | The unit name. `playbooks/status.yml` and the `alice_ops` role read the same name. |
 | `cockpit_metrics_unit_path` | this role | Where that unit is written. The handler stats it before restarting, so a notification that arrives before the unit exists is a no-op rather than a failure. |
 | `cockpit_metrics_discover_roster_script` | `group_vars/all.yml` | Install path of `discover_roster.py`. `playbooks/roster_discover.yml` runs that path. |
-| `alice_bootstrap_verify_script` | `group_vars/all.yml` | The detection verify `post_collector.yml` runs. The file belongs to `anomaly_detection`. See couplings. |
+| `alice_bootstrap_verify_script` | `group_vars/all.yml` | The detection verify `post_collector.yml` runs. The file belongs to `sweet_anomaly_detection`. See couplings. |
 | `cockpit_metrics_index` | `group_vars/all.yml` | The index the poller writes and the purge cleans. |
 | `cockpit_metrics_interval_seconds` | `group_vars/all.yml` | `INTERVAL` on the unit. Shared with the `sweet_collector` role, which pushes on the same beat. |
 | `fleet_roster_index` | `group_vars/all.yml` | The roster index. |
@@ -132,8 +132,8 @@ own. Five things must be true first, all satisfied by the role order in
 | Dashboards answering on `dashboards_internal_port` | `dashboards` role | The poller starts, but every Dashboards sample is an error until the port opens. |
 | Fluent Bit shipping on every worker | `sweet_collector` role | `post_collector.yml` only. The heartbeat wait times out after 2 minutes per collector. |
 
-`post_collector.yml` additionally needs `anomaly_detection`, `alerting_monitors`
-and `signal_projector` to have run, because the verify it calls counts their
+`post_collector.yml` additionally needs `sweet_anomaly_detection` and
+`signal_projector` to have run, because the verify it calls counts their
 monitors, detectors and forecasters and reads their indices.
 
 ## How to use it
@@ -199,10 +199,10 @@ The post-collector gate is a separate include, later in the same playbook:
   configuration.** The switch is read here and in the `sweet_collector` role. Turning
   it off here only skips the wait and relaxes the verify; it does not stop
   anything pushing.
-- **`alice_bootstrap_verify_script` names a file `anomaly_detection`
+- **`alice_bootstrap_verify_script` names a file `sweet_anomaly_detection`
   owns.** That role stages `verify_detection.py`; this role only runs it, and
   `signal_projector` runs it a third time. All three read one variable, so the
-  path moves once. `anomaly_detection` must run before `post_collector.yml`.
+  path moves once. `sweet_anomaly_detection` must run before `post_collector.yml`.
 - **The roster is published before the poller starts.** The poller derives
   collector absence from the roster. Starting it against a stale snapshot makes
   it report a decommissioned collector as live until the next deploy. This is
