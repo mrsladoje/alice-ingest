@@ -18,16 +18,15 @@
       - collector_allow_blocked_version | bool
         or not (fluent_bit_version is match('^(' ~ (collector_blocked_version_prefixes | map('regex_escape') | join('|')) ~ ')'))
     fail_msg: >-
-      fluent_bit_version is {{ fluent_bit_version }}, which this repository
-      refuses to install. 5.x loses bytes appended to a file after logrotate
-      renames it away — see docs/SOAK_RESULTS.md round 10, where it is
-      reproduced against 3.2.8, 4.0.1 and 4.0.14, none of which lose them.
-      Pin a 4.x version, or set collector_allow_blocked_version to true if you
-      have re-tested rotation on this build.
+      fluent_bit_version is {{ fluent_bit_version }}, which this role refuses
+      to install. 5.x loses bytes appended to a file after logrotate renames it
+      away; 4.x does not. Pin a 4.x version, or set
+      collector_allow_blocked_version to true if you have re-tested rotation on
+      this build.
     quiet: true
   when: collector_blocked_version_prefixes | length > 0
 
-- name: Install fluent-bit RPM (pinned to fluent_bit_version, matches images/node/Dockerfile)
+- name: Install the fluent-bit RPM pinned to fluent_bit_version
   ansible.builtin.dnf:
     name: "{{ collector_service_name }}-{{ fluent_bit_version }}"
     state: present
@@ -35,9 +34,7 @@
 
 - name: >-
     {{ 'Open' if collector_metrics_scrape_open else 'Close' }} the Fluent Bit
-    metrics endpoint ({{ fluent_bit_http_port }}/tcp) to the control node —
-    after the push cutover nothing scrapes it, so the rule is removed and the
-    endpoint is loopback-only
+    metrics endpoint ({{ fluent_bit_http_port }}/tcp) to the scrape source
   ansible.posix.firewalld:
     rich_rule: >-
       rule family="ipv4"
@@ -66,9 +63,7 @@
     group: root
     mode: "0755"
 
-- name: >-
-    Write the per-node environment file (rule R3 — this machine's identity stops
-    living only in the central inventory, so it can register itself at boot)
+- name: Write the per-node environment file, this machine's identity, so it can register itself at boot
   ansible.builtin.template:
     src: node.env.j2
     dest: "{{ collector_env_file }}"
@@ -106,7 +101,7 @@
   when: _collector_tmpfiles.changed
   changed_when: true
 
-- name: Create Fluent Bit storage/buffer path (native equivalent of the container's /var/log/flb-storage)
+- name: Create the Fluent Bit storage and buffer path
   ansible.builtin.file:
     path: "{{ fluent_bit_storage_path }}"
     state: directory
@@ -140,7 +135,7 @@
       is replaced.
   when: not (collector_journald_enabled | bool)
 
-- name: Port parsers.yaml (verbatim from images/node/fluent-bit/parsers.yaml)
+- name: Write parsers.yaml
   ansible.builtin.template:
     src: parsers.yaml.j2
     dest: "{{ collector_config_dir }}/parsers.yaml"
@@ -149,7 +144,7 @@
     mode: "0644"
   notify: restart fluent-bit
 
-- name: Port collector.yaml (from images/node/fluent-bit/collector.yaml, seams templated per contract)
+- name: Write collector.yaml
   ansible.builtin.template:
     src: collector.yaml.j2
     dest: "{{ collector_config_dir }}/collector.yaml"

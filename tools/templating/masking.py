@@ -2,25 +2,25 @@
 
 `REFERENCE` is the rule list as `drain3` consumes it, and `reference_mask` runs
 it the way `drain3` does — eight `re.sub` passes in order. It is the definition
-of correct. `mask` is a rewrite that produces the same string 85 to 87 % faster,
-and round 6 measured the whole templating cost falling 2.3 times because of it.
+of correct. `mask` is a rewrite that produces the same string in a fraction of
+the time.
 
-`TS`, and the unit a number is allowed to carry, came out of the hand audit of
-the new families. Both close the same hole: FLOAT and NUM demanded a
-non-alphanumeric character on each side, so a digit glued to a letter was left
-alone. `42.797s` masked to `<NUM>.797s`, and one InfluxDB message repeated with a
-different `2026-08-07T14:21:52.749880Z` became 396 one-line `journald` templates
-instead of one.
+Byte-identical output is the whole requirement here: every template identifier
+downstream is derived from this string, so a faster masker that changed one
+byte would silently renumber every template.
+
+`TS`, and the unit a number is allowed to carry, close the same hole. FLOAT and
+NUM demand a non-alphanumeric character on each side, so a digit glued to a
+letter would be left alone: `42.797s` would mask to `<NUM>.797s`, and a message
+repeating with a different ISO clock would become one template per clock.
 
 The unit is not a rule of its own. FLOAT and NUM assert it in a lookahead
 instead of consuming it, so the mask replaces the digits and the unit survives
-in the output, and the rule list stays two rules rather than four. Four was the
-first attempt and it was wrong twice over. It cost 1.5 to 2.7 microseconds a
-line on every family — more than every other rule together on `dpl` — because a
-gate looking for a digit followed by a unit letter has to stop at every digit in
-the line. And a separate unit pass running before the plain FLOAT pass can reach
-past it: in `1.5.7ms` it takes `5.7` where a single left-to-right scan takes
-`1.5` first, so the two could not be made byte-identical.
+in the output, and the rule list stays two rules rather than four. A separate
+unit rule would have to stop at every digit in the line, and a unit pass
+running before the plain FLOAT pass can reach past it: in `1.5.7ms` it takes
+`5.7` where a single left-to-right scan takes `1.5` first, so the two could not
+be made byte-identical.
 
 The rewrite is a set of local identities on the regexes, not a new algorithm.
 `((?<=[^A-Za-z0-9])|^)` is the same predicate as `(?<![A-Za-z0-9])`, and `\\b`
@@ -36,7 +36,7 @@ rule, since a rule that cannot match should not be scanned for. An ASCII fast
 path, because `\\d` and `\\w` are Unicode-aware and `[0-9]` and `[A-Za-z0-9_]`
 compile to a bitmap test; lines that are not ASCII fall back to Unicode-exact
 patterns. And FLOAT and NUM folded into one scan, without a per-match callback,
-which measured slower than the scans it saved.
+which costs more than the scans it saves.
 
 `_numbers` reproduces a quirk of the two-pass reference rather than correcting
 it. FLOAT runs over the whole line before NUM does, so in `1.5-3` the second
@@ -44,15 +44,6 @@ pass swallows the sign and the answer is `<FLOAT><NUM>`, not `<FLOAT>-<NUM>`.
 A unit turns the quirk off: after `1.5ms` the sign in `-3` is preceded by `s`,
 which is alphanumeric, so NUM cannot take it and `1.5ms-3` keeps its sign. That
 is what `after_float` is set from the unit for.
-
-Byte-identical output is the whole requirement here: every template identifier
-downstream is derived from this string, so a faster masker that improved the
-quirk would silently renumber the corpus.
-
-Equivalence was checked on every line of all seven family corpora — 7,961,245
-lines, each read raw and again as the stripped input the recipe feeds the miner —
-and on 3,000,000 random strings over an alphabet carrying Arabic-Indic digits,
-combining accents, whole ISO 8601 clocks and every unit. Zero differences.
 """
 import re
 

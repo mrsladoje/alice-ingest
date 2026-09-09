@@ -1,15 +1,9 @@
 collector_repo_baseurl: "https://packages.fluentbit.io/centos/$releasever/"
 collector_repo_gpgkey: "https://packages.fluentbit.io/fluentbit.key"
 
-# Pinned to a version this repository has actually tested end to end.
-#
-# It was 5.0.8. Round 10 in docs/SOAK_RESULTS.md isolated a data loss there:
-# 5.0.8 loses bytes appended to a file after logrotate renames it away, which
-# is what a long-running writer that keeps its own descriptor produces every
-# night. 3.2.8, 4.0.1 and 4.0.14 all keep them. The farm workers pin 4.x in the
-# inventory, but epn-infra13 does not — and that is the node that would collect
-# the one source which rotates daily, so the default is what would have been
-# used there.
+# Pinned. 5.x loses bytes appended to a file after logrotate renames it away,
+# which is what a long-running writer that keeps its own descriptor produces
+# every night; 4.x keeps them.
 fluent_bit_version: "4.0.14"
 
 # Versions this deployment refuses to install, by prefix. Not advice in a
@@ -26,18 +20,17 @@ collector_config_dir: /etc/fluent-bit
 collector_systemd_dropin_dir: /etc/systemd/system/fluent-bit.service.d
 
 # One root for everything this role installs on a worker: the health sampler,
-# the stamper and the modules it imports. It was two variables holding the same
-# string while the collector and the stamper were two roles.
+# the stamper and the modules it imports.
 collector_app_root: /opt/alice-ingest
 
 collector_health_script: "{{ collector_app_root }}/fb_health.py"
 collector_health_interval_seconds: "{{ cockpit_metrics_interval_seconds }}"
 
-# Rule R3 — the one file that tells this machine which machine it is.
+# The one file that tells this machine which machine it is.
 collector_env_dir: /etc/alice-ingest
 collector_env_file: "{{ collector_env_dir }}/node.env"
 
-# Item 3 — run as ExecStartPre, so a node registers itself at every boot.
+# Run as ExecStartPre, so a node registers itself at every boot.
 collector_register_script: "{{ collector_app_root }}/register_node.sh"
 
 # ExecStartPre counts against the unit's start timeout, and register_node.sh
@@ -45,7 +38,7 @@ collector_register_script: "{{ collector_app_root }}/register_node.sh"
 # REGISTER_WAIT_ATTEMPTS x (REGISTER_WAIT_MAX_TIME + REGISTER_WAIT_SLEEP).
 collector_start_timeout_seconds: 600
 
-# Written by the opensearch role, read by register_node.sh through the unit's
+# Written by sweet_opensearch, read by register_node.sh through the unit's
 # second EnvironmentFile. Not optional: a missing file would send a worker back
 # to register_node.sh's own built-in defaults without saying so.
 collector_opensearch_env_file: /etc/alice-ingest/opensearch-node.env
@@ -54,55 +47,42 @@ fluent_bit_storage_path: /var/log/flb-storage
 fluent_bit_http_port: 2020
 fluent_bit_http_listen: 127.0.0.1
 
-# Service-level, so this also delays the live lane by the same 1 second.
-# Chosen by soak round 2: against the shipped 5, the collector's own processor
-# cost falls 24.5 % and its peak memory 28.0 %. See docs/SOAK_RESULTS.md.
+# Service-level, so this also delays the live lane by the same 1 second. A
+# short flush holds less data in flight, which is what bounds the collector's
+# memory.
 fluent_bit_flush_seconds: 1
 
 # NFS gives the tail no inotify, so this poll is the only thing that finds a
 # process log that appeared since the last sweep. It is not a tuning detail.
 collector_stdout_refresh_interval: 5
 
-# infologger_daemon_log_path is in group_vars/all.yml: the producer role
+# infologger_daemon_log_path is in group_vars/all.yml: the sweet_replay role
 # writes the replayed daemon log into the same file this role tails, and the
 # two run in different plays.
 
-# The journal needs the systemd input compiled into the packaged build. The
-# role probes for it and overrides this fact, so the shipped default is what a
-# build without the plugin should do.
 # Slot, channel and launched-task extraction on the DDS message. Each runs
 # unanchored over `message` only, so the envelope is parsed once. Set to an
-# empty list to drop them; see docs/SOAK_RESULTS.md for what they cost.
+# empty list to drop them.
 collector_dds_extractors:
   - dds_slot
   - dds_channel
   - dds_task
 
 # Numeric extraction on the process-tree message. Each runs unanchored over
-# `message` only. The tree is the largest family by a long way, so this list is
-# priced in docs/SOAK_RESULTS.md before anything is added to it.
+# `message` only. The tree is the largest family by a long way, so measure the
+# cost of anything before adding it here.
 collector_dpl_extractors:
   - mft_decoder_error
 
 # Whether we WANT the journal, not whether this machine can give it. The role
-# probes the binary and can only turn this OFF, never on, so a default of false
-# meant the probe computed `false and <probe>` and the journal could never be
-# collected at all. The 5 September 2026 census confirmed all four deployed
-# Fluent Bit builds — 3.2.8, 4.0.1, 4.0.14 and 5.0.8 — carry the systemd input,
-# so wanting it is the right default and the probe is the safety net.
+# probes the binary and can only turn this OFF, never on, so the default must
+# be true or the journal is never collected at all.
 collector_journald_enabled: true
 
-# Journal matches, OR-ed. EMPTY means every unit, which is what ships: Lubos
-# asked for all system logs, and the 5 September 2026 census priced it. A worker
-# writes 2,500 to 10,500 journal entries a day, against millions of lines from
-# the process tree, so collecting all of it is free and an allow-list only
-# creates blind spots.
-#
-# It would have created two. The list this replaced named slurmd, crond,
-# fluent-bit, opensearch and alice-replay. On epn323 that would have dropped
-# NetworkManager, which is 172,935 of its entries; on epn-infra13 it would have
-# dropped slurmctld, which is nearly all of that node's 13 million. Neither was
-# guessed wrong out of carelessness — neither was measurable before the census.
+# Journal matches, OR-ed. EMPTY means every unit. A worker writes a few thousand
+# journal entries a day against millions of lines from the process tree, so
+# collecting all of it is cheap, and an allow-list only creates blind spots:
+# which units carry the volume differs from node to node.
 #
 # Volume is bounded by the priority routing, not by this list: informational
 # entries stay on the node and only warnings and worse cross the network.
@@ -111,7 +91,7 @@ collector_journald_filters: []
 # Empty means this machine's own journal, which is what a real EPN wants. On a
 # staging VM there is nothing interesting in the local journal and the EPN
 # journal is the point, so this is set to the shipped bundle when one exists.
-# `replay_bundle_src` is the producer role's variable; it is read rather than
+# `replay_bundle_src` is the sweet_replay role's variable; it is read rather than
 # duplicated so the two cannot disagree about whether a bundle is present.
 collector_journald_path: "{{ (replay_bundle_src | default('') | length > 0)
   | ternary(replay_bundle_root ~ '/journal', '') }}"
@@ -120,17 +100,11 @@ collector_journald_path: "{{ (replay_bundle_src | default('') | length > 0)
 #
 # odc-grpc-server writes /var/log/odc/staging/odc_<date>.<n>.log on the storage
 # node. An off switch, not a probe: the tail reads one directory through a glob
-# and a glob that matches nothing costs a directory scan every ten seconds. The
-# daemon log input already works this way — it is absent on epn323 and that
-# input is unconditional — so this is the established shape rather than a new
-# one.
+# and a glob that matches nothing costs a directory scan every ten seconds.
 #
-# The 6 September 2026 census read the real files. 560 of them are retained,
-# back to March 2025, 11.5 MB a day. Idle it is a three-second status poll; on
-# 20 January 2026 the same file carried run numbers 2304 and 2305, two `fat`
-# lines for a STOP transition that timed out, and 36 `err` lines naming the
-# collections that failed. That is the orchestration signal, and nothing else
-# on the farm carries it.
+# Idle the file is a status poll; during a run its `fat` and `err` lines name
+# the transitions that timed out and the collections that failed. That is the
+# orchestration signal, and nothing else on the farm carries it.
 collector_odc_enabled: true
 
 # A glob, because the file is dated and rolls at midnight. The tail follows the
@@ -184,11 +158,7 @@ stamper_drain3_version: "0.9.11"
 stamper_msgpack_version: "1.1.2"
 
 # The socket contract, named once. Fluent Bit creates the return socket and
-# connects to the listening one; alice-stamper does the mirror image. While
-# these were two roles the same four strings were declared twice, in two
-# namespaces, with nothing asserting they matched — a rename on one side sent
-# the Forward output to a socket nobody listened on, with no error at deploy
-# time and no records stamped.
+# connects to the listening one; alice-stamper does the mirror image.
 #
 # The directory is created by a tmpfiles.d entry in tasks/collector.yml,
 # because the stamper's RuntimeDirectory= alone would not survive the
@@ -232,7 +202,6 @@ stamper_chunk_hold_ms: 3600000
 # own local index once an hour.
 stamper_local_check: true
 
-# The same memory limits as Fluent Bit, which is now a value in this same file
-# rather than another role's default read across a play.
+# The same memory limits as Fluent Bit.
 stamper_memory_high: "{{ fluent_bit_memory_high }}"
 stamper_memory_max: "{{ fluent_bit_memory_max }}"

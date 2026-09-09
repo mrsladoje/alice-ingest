@@ -35,9 +35,9 @@ multiline_parsers:
         next_state: cont
 {% if collector_odc_enabled | bool %}
   # The orchestrator embeds the stderr of the topology-generation script in one
-  # record. 199 of 153,400 lines on a busy day are those continuations, and each
-  # one is a module-load line that means nothing on its own. Same shape of rule
-  # as DDS: a record starts at a date and anything else continues it.
+  # record, and each continuation is a module-load line that means nothing on
+  # its own. Same shape of rule as DDS: a record starts at a date and anything
+  # else continues it.
   - name: odc_multiline
     type: regex
     flush_timeout: 1000
@@ -104,9 +104,9 @@ pipeline:
       db: ${ALICE_FB_STORAGE_PATH}/stdout.db
 
     # One explicit file, never a wildcard over /var/log. /var/log/messages is
-    # 71 % slurmd and 28 % systemd, both already in the journal, so tailing it
-    # would double-count. This file is not in the journal and nothing else
-    # reports how close the InfoLogger daemon is to its connection ceiling.
+    # already in the journal, so tailing it would double-count. This file is not
+    # in the journal and nothing else reports how close the InfoLogger daemon is
+    # to its connection ceiling.
     - name: tail
       path: {{ infologger_daemon_log_path }}
       tag: ildaemon
@@ -116,15 +116,12 @@ pipeline:
       db: ${ALICE_FB_STORAGE_PATH}/ildaemon.db
 {% if collector_journald_enabled | bool %}
 
-    # The journal is the one source that needs no replay: it is being written
-    # right now on every machine we own. Every unit by default, because a worker
-    # writes only 2,500 to 10,500 entries a day and an allow-list only creates
-    # blind spots — see collector_journald_filters. Volume is held down by the
-    # priority routing below, not by refusing to read.
+    # Every unit by default: a worker's journal is a few thousand entries a day
+    # and an allow-list only creates blind spots — see collector_journald_filters.
+    # Volume is held down by the priority routing below, not by refusing to read.
     #
     # The kernel matters for its own sake: an IOMMU fault naming an O2 process
-    # is the correlation that adding system logs is for, and no OpenStack test
-    # machine can produce one. epn146 logged 986 kernel entries in 30 days.
+    # is the correlation that adding system logs is for.
     - name: systemd
       tag: journald
       read_from_tail: false
@@ -146,15 +143,13 @@ pipeline:
 
 {% if collector_odc_enabled | bool %}
 
-    # The run orchestrator. It lives on the storage node, which is the only
-    # machine on the farm running an O2 process that writes a log continuously.
-    # On a worker this glob matches nothing and the tail does nothing, the same
-    # way the daemon-log input finds nothing on epn323.
+    # The run orchestrator, on the storage node. On a worker this glob matches
+    # nothing and the tail does nothing.
     #
-    # 11.5 MB a day. Idle it is a three-second status poll and its reply; during
-    # a run it is the component that starts and stops the DDS sessions, and its
-    # `err` and `fat` lines name the collection, the task, the exit code and the
-    # host. Those are 0.02 % of the file, so the severity routing below sends
+    # Idle it is a three-second status poll and its reply; during a run it is
+    # the component that starts and stops the DDS sessions, and its `err` and
+    # `fat` lines name the collection, the task, the exit code and the host.
+    # Those are a tiny fraction of the file, so the severity routing below sends
     # almost nothing across the network and keeps the part an operator needs.
     - name: tail
       path: {{ collector_odc_log_path }}
@@ -224,8 +219,8 @@ pipeline:
           end
           return 1, ts, record
         end
-    # The family tags are gone from this match: a re-injected record already
-    # carries collector_time, so the second pass only ever ran the guard.
+    # Matched on the source tags and not the family tags: a re-tagged record
+    # already carries collector_time and would only run the guard again.
     #
     # This also gives every record the document identifier the OpenSearch
     # outputs write it under. Without one, OpenSearch generates an identifier
@@ -254,10 +249,8 @@ pipeline:
     #
     # The output writes with `create`, so the second attempt at an identifier
     # the cluster already holds comes back 409 and is refused rather than
-    # overwritten. Either answer would deduplicate; measured under
-    # tools/collector/retrycheck.py, this is the one that happens, and it is
-    # the stricter of the two because it can never replace a document that is
-    # already correct.
+    # overwritten. Either answer would deduplicate; this is the stricter of the
+    # two because it can never replace a document that is already correct.
     - name: lua
       match_regex: ^(dds|stdout|infologger|ildaemon|journald|odc)$
       call: stamp_collector_time
@@ -295,13 +288,12 @@ pipeline:
           end
           return 2, ts, record
         end
-    # Replaces both set_host Lua filters and keeps the filename as source_file.
-    # Safe before the body parsers: this reads `file`, they read `log`.
+    # The path parsers set `host` and keep the filename as source_file. Safe
+    # before the body parsers: this reads `file`, they read `log`.
     #
     # Two parsers, not one: dds is one firehose per node named after the node,
     # while the process tree puts the host in the directory and the program in
-    # the file name. Each tag runs exactly one of them, so this costs the same
-    # as the single parser it replaces.
+    # the file name. Each tag runs exactly one of them.
     - name: parser
       match: dds
       key_name: file
@@ -363,11 +355,10 @@ pipeline:
       remove_key:
         - file
     # Three rules, not two. A rewrite_tag rule can only fire on a key that
-    # exists, so when dds_text does not claim a line there is no `message` and
-    # the record used to match no rule at all and be dropped without a word.
-    # DDS prints its version banner and a bug-report address at startup and
-    # every one of those was going missing. The last rule reads `log`, which is
-    # the key a record still has precisely when nothing parsed it.
+    # exists, so a line dds_text does not claim has no `message`, matches no
+    # rule and is dropped without a word — DDS's startup banner and bug-report
+    # address are such lines. The last rule reads `log`, which is the key a
+    # record still has precisely when nothing parsed it.
     - name: rewrite_tag
       match: dds
       rule: $severity ^(?:inf|dbg)$  family.local false
@@ -375,9 +366,8 @@ pipeline:
       rule: $log ^.*$  family.central false
       emitter_name: dds_router
     # The cascade. Each parser consumes `log` when it matches, so the next one
-    # sees nothing and does no work; a line no parser claims keeps `log` and is
-    # counted by the unmatched check in tools/collector/replaycheck.py. The
-    # order is by measured share, except that datadist goes first because its
+    # sees nothing and does no work; a line no parser claims keeps `log`. The
+    # order is by share of the tree, except that datadist goes first because its
     # bracket holds a full date and must not be offered to a clock-only regex.
     - name: parser
       match: stdout
@@ -422,10 +412,9 @@ pipeline:
     # crosses the network. One alternation carries every spelling the tree
     # produces: DPL words, DataDistribution single letters, ROOT's `Info`.
     #
-    # STATE is deliberately NOT local. FairMQ transitions are 0.8 % of the tree
-    # and they are the join between DDS launching a task and the task actually
-    # reaching RUNNING, which is what an operator asks for first when a run will
-    # not start.
+    # STATE is deliberately NOT local. FairMQ transitions are the join between
+    # DDS launching a task and the task actually reaching RUNNING, which is what
+    # an operator asks for first when a run will not start.
     #
     # The second rule matches everything, so a line whose severity no parser
     # recovered goes to durable storage. Silence is never the safe direction.
@@ -461,9 +450,8 @@ pipeline:
     # --- the run orchestrator -----------------------------------------------
     #
     # One parser, no cascade: the file has exactly one shape and one program.
-    # 2,612,951 sampled lines carry `odc-grpc-server` and nothing else, so the
-    # program name is captured from the line rather than asserted here, which
-    # keeps it honest if a second component ever writes to the same file.
+    # The program name is captured from the line rather than asserted here,
+    # which keeps it honest if a second component ever writes to the same file.
     - name: parser
       match: odc
       key_name: log
@@ -477,9 +465,8 @@ pipeline:
       remove_key:
         - file
 
-    # The same three-letter severities DDS uses, and the same split. Measured
-    # over 2,612,951 lines: 1,650,555 inf and 961,933 dbg stay on the node,
-    # against 312 wrn, 153 err and 8 fat that go to durable storage. The third
+    # The same three-letter severities DDS uses, and the same split: inf and
+    # dbg stay on the node, wrn, err and fat go to durable storage. The third
     # rule catches a line the parser did not claim, so a continuation block that
     # arrived on its own still reaches storage rather than disappearing.
     - name: rewrite_tag
@@ -493,15 +480,14 @@ pipeline:
 
     # --- the journal --------------------------------------------------------
     #
-    # Order matters here and it was wrong once. The trace is folded FIRST, so
-    # `Comm:` is extracted from a whole reconstructed fault rather than from
-    # whichever single entry happened to carry it; then the journal's own field
-    # names are renamed; then the record is trimmed.
+    # Order matters here. The trace is folded FIRST, so `Comm:` is extracted
+    # from a whole reconstructed fault rather than from whichever single entry
+    # happened to carry it; then the journal's own field names are renamed; then
+    # the record is trimmed.
     #
-    # The fold is a filter and not a property of the input. 4.0.1 and 4.0.14
-    # accept multiline.parser on the systemd input and 5.0.8 rejects it and
-    # refuses to start, so a configuration that puts it there works on two of
-    # the three deployed versions.
+    # The fold is a filter and not a property of the input: not every Fluent
+    # Bit build accepts multiline.parser on the systemd input, and one that
+    # rejects it refuses to start.
     - name: multiline
       match: journald
       multiline.parser: kernel_trace
@@ -510,9 +496,8 @@ pipeline:
       flush_ms: 2000
 
     # `Comm:` is the process the kernel blames, and it is the only join from a
-    # fault back to the O2 logs. epn146's journal carries ten of them and they
-    # name TfBuilder. preserve_key keeps the trace text; without it the parser
-    # would trade the whole record for one field.
+    # fault back to the O2 logs. preserve_key keeps the trace text; without it
+    # the parser would trade the whole record for one field.
     - name: parser
       match: journald
       key_name: MESSAGE
@@ -528,19 +513,17 @@ pipeline:
       rename: MESSAGE message
       copy: PRIORITY severity
 
-    # A journal entry arrives with about twenty-five fields and the corpus holds
-    # 234 distinct ones. The index mapping is not dynamic, so every field nobody
-    # named is stored in _source and never searchable — paid for on the durable
-    # tier and useless in Discover. This keeps the ones an operator or a
-    # detector reads and drops the rest, including the capability bitmask, the
-    # cgroup path, the boot and machine identifiers, and the audit session.
+    # A journal entry arrives with about twenty-five fields. The index mapping
+    # is not dynamic, so every field nobody named is stored in _source and never
+    # searchable — paid for on the durable tier and useless in Discover. This
+    # keeps the ones an operator or a detector reads and drops the rest,
+    # including the capability bitmask, the cgroup path, the boot and machine
+    # identifiers, and the audit session.
     #
     # `doc_id` is on this list because an allowlist is a DENY list for
     # everything unnamed, and the document identifier is not a field an operator
-    # reads -- so it is exactly the kind of thing that gets left off. Without it
-    # here the journal is the one source whose records reach OpenSearch with no
-    # identifier, and a retried chunk writes every one of them twice. That is
-    # the failure this list caused once already.
+    # reads. Without it here the journal reaches OpenSearch with no identifier,
+    # and a retried chunk writes every one of its records twice.
     - name: record_modifier
       match: journald
       allowlist_key:
@@ -567,10 +550,8 @@ pipeline:
         - node ${ALICE_NODE_ID}
 
     # PRIORITY is the journal's own severity, 0 (emerg) to 7 (debug). Kernel
-    # warnings and failures are 4 and below and go to durable storage. A worker
-    # writes 2,500 to 10,500 entries a day and roughly 2 % of them are 4 or
-    # below, so the durable share is small and the informational bulk stays on
-    # the node. Measured on epn146's own journal: 74,038 local, 1,230 durable.
+    # warnings and failures are 4 and below and go to durable storage; the
+    # informational bulk stays on the node.
     - name: rewrite_tag
       match: journald
       rule: $severity ^[0-4]$  family.central false
@@ -579,9 +560,9 @@ pipeline:
       emitter_name: journald_router
 {% endif %}
 
-  # normalize_fields moved into the alice-add-ingest-time ingest pipeline, so
-  # there is no per-record Lua left here. Anything bypassing OpenSearch — the
-  # live lane — must do that enrichment itself.
+  # Field normalisation is the alice-add-ingest-time ingest pipeline's job, not
+  # a filter here. Anything bypassing OpenSearch — the live lane — must do that
+  # enrichment itself.
 
   outputs:
     # The outbound half of the stamper loop. One worker keeps one connection,
@@ -667,13 +648,12 @@ pipeline:
       workers: 0
 
 {% if shifter_enabled | bool %}
-    # The live lane: the second consumer of the stream, and the reason no queue
-    # is needed yet. Never the info tier. Best-effort by construction — a small
-    # buffer and one retry, so a dead viewer never pushes back on OpenSearch.
-    # The buffer is sized for one returned chunk: the stamper hands a chunk
-    # back whole, up to the 2 MB Fluent Bit builds, and a limit below that
-    # made every chunk fail to place for this route ("no available chunk",
-    # 90,000 times in five minutes on epn146 on 8 September 2026).
+    # The live lane: the second consumer of the stream. Never the info tier.
+    # Best-effort by construction — a small buffer and one retry, so a dead
+    # viewer never pushes back on OpenSearch. The buffer is sized for one
+    # returned chunk: the stamper hands a chunk back whole, up to the 2 MB
+    # Fluent Bit builds, and a limit below that leaves every chunk on this
+    # route with no buffer slot it fits in.
     - name: http
       match_regex: ^stamped\.(infologger|ildaemon|family\.central)$
       host: {{ shifter_host }}

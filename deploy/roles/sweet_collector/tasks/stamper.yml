@@ -44,8 +44,7 @@
 # Vendored, not reimplemented. The recipe tables and the masker are the same
 # objects the archive miner uses, so a stamp written here and the template
 # mined offline are the same string. The role carries its own copies so it
-# needs nothing outside itself; tools/templating stays the place they are
-# edited, and test_provisioning.py fails if the two ever differ.
+# needs nothing outside itself.
 - name: Ship the frozen mining recipe and masker this role vendors
   ansible.builtin.copy:
     src: "{{ item }}"

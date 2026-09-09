@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
-"""Mine templates out of a corpus written by corpus.py and price the work.
+"""The frozen mining recipe, and a command line that mines a corpus with it.
 
-Two numbers come out of this, and they answer different questions.
+The per-family strip, mask, pad and similarity tables and the Drain patches
+below define the template a line yields. Everything that stamps or mines a
+template imports them, so the same line gives the same template everywhere.
 
-The new-template rate decides whether round 3 is affordable: an embedding is
-paid once per template, so a rate that keeps falling means the cost is bounded
-and a rate that stays flat means it is not. It is reported per decile, because
-the rate over the whole corpus is dominated by the first few thousand lines and
-tells you nothing about the steady state.
-
-The per-line cost is paid on every line forever. It is measured as processor
-time, not wall time, and mining is timed apart from reading so that a slow disk
-is not billed to Drain.
+Run as a program it mines a corpus of `family<TAB>source<TAB>message` lines and
+prices the work: the new-template rate per block, because the rate over the
+whole corpus is dominated by the first few thousand lines and says nothing
+about the steady state, and the per-line processor time, with mining timed
+apart from reading so that a slow disk is not billed to Drain.
 """
 import argparse
 import json
@@ -37,21 +35,19 @@ from masking import REFERENCE as MASKING, mask as fast_mask
 RECIPE_DEPTH = 8
 RECIPE_MAX_CHILDREN = 100
 # What the collector removes before a line ever reaches the miner. Each entry
-# mirrors one parser in deploy/roles/sweet_collector/templates/parsers.yaml.j2, and it
-# has to: mining the envelope again turns a clock into template tokens and makes
-# every minute its own template.
+# mirrors one parser in the collector's parsers.yaml, and it has to: mining the
+# envelope again turns a clock into template tokens and makes every minute its
+# own template.
 #
-# `stdout` is the pre-4-September family, kept so the round 6 figures can still
-# be reproduced. The tree is two formats and they are now mined apart, because
-# DataDistribution's own bracket carries a full date that the DPL strip rule
-# never removed.
+# `stdout` is the process tree mined as one family. `dpl` and `datadist` are
+# its two formats mined apart, because DataDistribution's own bracket carries a
+# full date that the DPL strip rule never removes.
 RECIPE_STRIP = {
     "stdout": re.compile(r"^\[\d{1,2}:\d{2}:\d{2}(?:\.\d+)?\]\[[A-Za-z]+\]\s*"),
     "dpl": re.compile(r"^\[(?:\x1b\[[0-9;]*m)?\d{1,2}:\d{2}:\d{2}(?:\.\d+)?(?:\x1b\[[0-9;]*m)?\]\[(?:\x1b\[[0-9;]*m)?[A-Za-z]+(?:\x1b\[[0-9;]*m)?\]\s*"),
     "datadist": re.compile(r"^\[\d{4}-\d{2}-\d{2} \d{1,2}:\d{2}:\d{2}\.\d+\]\[[A-Z]\]\s*"),
     "dds": re.compile(r"^\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}:\d{2}(?:\.\d+)?\s+[a-z]{3}\s+"),
-    # Whitespace, not a tab. docs/LOG_TYPES.md recorded a tab and the 5 September
-    # 2026 census read the real file: it is spaces.
+    # Whitespace, not a tab.
     "ildaemon": re.compile(r"^\d{4}-\d{2}-\d{2} \d{1,2}:\d{2}:\d{2}\.\d+\s+"),
     # Mirrors the `odc` parser: date, severity, program, process identifier,
     # then the optional partition and run number the collector captures into
@@ -60,46 +56,27 @@ RECIPE_STRIP = {
     "journald": None,
     "infologger": None,
 }
-# Measured by tools/templating/recipesweep.py. Neither format in the process tree
-# pads anything, which reverses round 6's setting for the family they came from.
-# Round 6 compared pad sets on words kept WITHOUT the clock strip in front; with
-# the strip in place words kept is 99.8 % in every cell and cannot separate them,
-# so the trade is cost against template count. Not padding is 36 % cheaper on
-# `dpl` and 40 % cheaper on `datadist`. See docs/SOAK_RESULTS.md.
+# Which separators are padded into tokens of their own, per family.
 #
-# `ildaemon` and `journald` were measured on 5 September 2026 against corpora
-# captured from the farm: 163,670 daemon lines from epn146 and 277,541 journal
-# entries from the three workers.
+# The process tree pads nothing: with the clock stripped, padding changes
+# nothing about which words are kept and only costs. `ildaemon` has two line
+# shapes and pads nothing.
 #
-# `ildaemon` produced the same 18 templates in all 32 cells with 100 % of words
-# kept, because the file has exactly two shapes. Only cost moved, so it pads
-# nothing.
+# `odc` pads `= ; :` because the orchestrator writes `key: value` everywhere —
+# `exit code: 1`, `id: 3340879470082071756`, `path: "main/..."` — so separating
+# the colon keeps the key literal instead of letting it merge into the value.
+# It reads more words and produces fewer templates, and the source writes about
+# a hundred thousand lines a day on ONE machine, so the cost per line does not
+# bind here the way it does on `dpl`. `infologger` pads the colon for the same
+# reason. `dds` pads only `=`: in a shell command line `;` and `:` separate
+# real things.
 #
-# `odc` was measured on 6 September 2026 against 190,250 real orchestrator lines
-# — a busy day carrying two runs and an idle day of status polls. It is the one
-# family where padding is better on BOTH quality axes at once: `= ; :` reads
-# 98.7 % of words against 94.5 % unpadded AND produces fewer templates, 266
-# against 276. The orchestrator writes `key: value` everywhere — `exit code: 1`,
-# `id: 3340879470082071756`, `path: "main/..."` — so separating the colon keeps
-# the key literal instead of letting it merge into the value.
-#
-# It costs 24.4 core-seconds per million against 6.3 unpadded, and that is
-# accepted rather than traded away. The source writes about 100,000 lines a day
-# on ONE machine, so the whole family costs roughly 2.4 processor-seconds a day.
-# Cost is the binding constraint on `dpl`, which is millions of lines; here it
-# is not, and buying readability with it is the right way round.
-#
-# Numeric tokens are parametrised: 266 templates against 397 with them kept. The
-# numbers that matter — the run number and the partition — are already their own
-# fields on the record, so keeping them in the template text only splits one
-# failure shape across every run it happened in.
-#
-# `journald` keeps numeric tokens, which no other family but dds does. Keeping
-# them reads 96.8 % of words against 89.1 % parametrised, for 1,362 templates
-# against 554 — and on a source writing a few thousand entries a day that is a
-# trade worth making. The shipped guess before the measurement was `= ; :` with
-# parametrised numbers, and the measured recipe beats it on every axis at once:
-# cheaper, more readable, fewer contentless templates.
+# `odc` parametrises numeric tokens because the run number and the partition
+# are already their own fields on the record, so keeping them in the template
+# text only splits one failure shape across every run it happened in.
+# `journald` keeps them, which no other family but `dds` does: on a source
+# writing a few thousand entries a day, more templates that read better is the
+# right trade.
 RECIPE_PAD = {"stdout": "=;", "dpl": "", "datadist": "",
               "infologger": "=;:", "dds": "=", "ildaemon": "",
               "journald": "=", "odc": "=;:"}
@@ -121,10 +98,8 @@ def _merged_create_template(self, seq1, seq2):
 
     Without this the two masks cannot coexist: the first line whose slot sees a
     float and an integer wildcards the whole position and takes the neighbouring
-    words with it. Round 6 measured 6.3 % of stdout lines landing on a template
-    containing <*> without the patch and 1.0 % with it, while 258 templates still
-    show a real <FLOAT>. It is Python rather than a drain3 masking rule, so it
-    cannot be expressed as configuration and has to travel with our own code.
+    words with it. It is Python rather than a drain3 masking rule, so it cannot
+    be expressed as configuration and has to travel with our own code.
 
     The slots that differ are found with compress over map(ne), and only those
     are visited; the result is the same list the per-slot loop built."""
@@ -254,10 +229,10 @@ def install_merged_create_template():
     """Make the FLOAT/NUM merge the active rule for every miner in this process.
 
     `recipe_run` sets it for the length of one offline run and puts the plain
-    rule back. Anything else mining with the frozen recipe — the on-node catalog
-    service above all — has to install it too, or it mines the same lines into
-    different templates than the archive does and the two catalogs disagree
-    without either being wrong on its own terms.
+    rule back. Anything else mining with the frozen recipe — the stamper above
+    all — has to install it too, or it mines the same lines into different
+    templates than the archive does and the two catalogs disagree without
+    either being wrong on its own terms.
 
     The similarity and best-match rewrites ride along: they return what drain3's
     own return, verified line by line on every family, and cost half as much."""
@@ -274,7 +249,7 @@ def restore_plain_drain():
 
 
 def recipe_miner(family, persistence=None):
-    """One miner carrying the configuration round 6 stage H froze for this family.
+    """One miner carrying the frozen configuration for this family.
 
     The three families want three different answers to the same knobs, which is
     what justifies splitting the configuration at all. InfoLogger is full of
@@ -297,9 +272,8 @@ def _already_masked(line):
     free. The recipe cannot use that: it masks first and pads the separators of
     the masked line afterwards, so leaving the binding in place runs the masker a
     second time over a string whose character context has already moved. It is
-    close enough to idempotent to hide — `infologger` and `dds` reproduced stage H
-    to the template with the second pass in place, and `stdout` came out 981
-    against 1,004."""
+    close enough to idempotent that the difference would hide, which is why the
+    binding is replaced explicitly."""
     return line
 
 
@@ -311,13 +285,13 @@ def _pads(pad):
 
 
 def recipe_tokens(family, message):
-    """Strip the envelope, mask, pad, and split: the token list the miner sees.
+    r"""Strip the envelope, mask, pad, and split: the token list the miner sees.
 
     The strip patterns are anchored and cannot match empty, so match() and a
     slice find the one replacement sub() could ever make. Each padded separator
-    is a str.replace, and the whitespace collapse the old form did with \s+ is
-    what split() does anyway; \s in a str pattern, split() with no separator and
-    strip() with no argument all use the same whitespace predicate."""
+    is a str.replace, and split() collapses whitespace the way a \s+ pass would;
+    \s in a str pattern, split() with no separator and strip() with no argument
+    all use the same whitespace predicate."""
     strip = RECIPE_STRIP[family]
     if strip is not None:
         m = strip.match(message)
@@ -360,11 +334,10 @@ def mine(tm, tokens):
 def recipe_run(paths, families, limit, retention_stride):
     """Mine every corpus with the frozen recipe and keep the source label.
 
-    Stage I needs one template set, not one per corpus, so the trees carry across
-    the files and each file's contribution is recorded as it lands. The template
-    count is a curve rather than a number — round 6 mined one run tag of 86 and
-    forty InfoLogger partitions of 179 — so what a corpus adds on top of the one
-    before it is itself the reading."""
+    One template set, not one per corpus: the trees carry across the files and
+    each file's contribution is recorded as it lands. The template count is a
+    curve rather than a number, so what a corpus adds on top of the one before
+    it is itself the reading."""
     install_merged_create_template()
     try:
         miners = {f: recipe_miner(f) for f in families}
@@ -595,7 +568,7 @@ def per_source(path, family_filter, sim_threshold, depth, max_children, limit):
     A per-source tree cannot confuse two programs that happen to share a
     prefix, but it also cannot share a template between them, and every worker
     would hold as many trees as it sees programs. The comparison is here so the
-    sidecar's shape is a measured choice rather than a habit."""
+    stamper's shape is a measured choice rather than a habit."""
     miners = {}
     lines = 0
     cpu = 0.0
@@ -646,7 +619,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("corpus", nargs="+")
     ap.add_argument("--recipe", action="store_true",
-                    help="mine with the per-family configuration round 6 stage H froze, "
+                    help="mine with the frozen per-family recipe, "
                          "carrying one tree per family across every corpus named")
     ap.add_argument("--families", default="infologger,stdout,dds")
     ap.add_argument("--retention-stride", type=int, default=20,
