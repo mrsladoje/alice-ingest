@@ -215,7 +215,8 @@
   #                      patterns before it imports the cockpit saved objects
   #                      that reference them.
   #   alice_ops          serves the ops page behind the nginx seam above.
-  #   cockpit_metrics    publishes the immutable roster, then starts the poller
+  #   sweet_cockpit_metrics
+  #                      publishes the immutable roster, then starts the poller
   #                      that reads it.
   #   sweet_anomaly_detection
   #                      upserts the channels and the monitors, waits for the
@@ -225,7 +226,7 @@
     - alice_runtime
     - dashboards
     - alice_ops
-    - cockpit_metrics
+    - sweet_cockpit_metrics
     - sweet_anomaly_detection
 
 - name: Notification receiver on the control host the Alertmanager webhook points at — before the projector, so it is up while the projector starts
@@ -316,7 +317,7 @@
   tasks:
     - name: Verify pushed heartbeats and roster-derived absence after collector cutover
       ansible.builtin.include_role:
-        name: cockpit_metrics
+        name: sweet_cockpit_metrics
         tasks_from: post_collector.yml
 
 - name: S3-replay engine (worker VMs only)

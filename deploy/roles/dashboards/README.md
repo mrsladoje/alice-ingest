@@ -9,7 +9,7 @@ catalogs.
 The role stops at the user interface. It does not create indices, monitors,
 detectors, forecasters or any background service. Those belong to
 `sweet_opensearch`, `sweet_anomaly_detection`,
-`cockpit_metrics`, `trend_rollup`, `alice_ops`, `sweet_shifter_view` and
+`sweet_cockpit_metrics`, `trend_rollup`, `alice_ops`, `sweet_shifter_view` and
 `signal_projector`.
 
 ## Why it is a separate role

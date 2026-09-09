@@ -1,4 +1,4 @@
-- name: Stage the shared PIT/search_after cursor and identity modules beside the services that import them
+- name: Stage the roster publisher and the roster discovery script beside os_cursor.py, which both import
   ansible.builtin.copy:
     src: "{{ item.src }}"
     dest: "{{ item.dest }}"
@@ -13,8 +13,8 @@
   notify:
     - restart alice-metrics
 
-- name: Publish the immutable fleet roster — before the poller, which reads it to derive collector absence
+- name: Publish the immutable fleet roster before the poller, which reads it to derive collector absence
   ansible.builtin.import_tasks: roster.yml
 
-- name: Metrics poller service (cockpit health panels) — after bootstrap so cockpit-metrics exists first
+- name: Install and start the metrics poller that fills cockpit-metrics
   ansible.builtin.import_tasks: metrics.yml

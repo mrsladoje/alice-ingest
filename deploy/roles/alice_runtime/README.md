@@ -11,7 +11,7 @@ assumes this one already ran on its host.
 ## Why it is a separate role
 
 Five roles need the same four files, and they do not run on the same machine.
-`cockpit_metrics`, `alice_ops` and `sweet_anomaly_detection` run on the control host,
+`sweet_cockpit_metrics`, `alice_ops` and `sweet_anomaly_detection` run on the control host,
 `signal_projector` on the projector host, `trend_rollup` on a background node.
 Before the split, the control host got the files from `bootstrap.yml`, the
 projector host got a delegated copy of the same lines in `projector.yml`, and a
@@ -85,7 +85,7 @@ would be a second place to change one value.
 | `alice_app_root` | `group_vars/all.yml` | The application root, `/opt/sweet`. |
 | `alice_os_cursor_script` | `group_vars/all.yml` | Destination of `os_cursor.py`. |
 | `alice_signal_identity_script` | `group_vars/all.yml` | Destination of `signal_identity.py`. |
-| `cockpit_metrics_service_name` | `group_vars/all.yml` | The unit the `cockpit_metrics` handler restarts. |
+| `cockpit_metrics_service_name` | `group_vars/all.yml` | The unit the `sweet_cockpit_metrics` handler restarts. |
 
 ## Prerequisites
 
@@ -109,14 +109,14 @@ service:
       - restart alice-metrics
   roles:
     - alice_runtime
-    - cockpit_metrics
+    - sweet_cockpit_metrics
 ```
 
 - **Set `alice_runtime_stage_notify` only where `alice-metrics` runs.** That is
   the control host. Leave it at its empty default everywhere else.
 
 - **Run it before every role that imports the modules or reads the catalogs.**
-  That is `cockpit_metrics`, `alice_ops`, `sweet_anomaly_detection`, `trend_rollup`
+  That is `sweet_cockpit_metrics`, `alice_ops`, `sweet_anomaly_detection`, `trend_rollup`
   and `signal_projector`.
 - **The role is idempotent.** It copies four files and creates two directories.
   Only a changed module notifies a restart.
@@ -137,7 +137,7 @@ service:
   `restart alice-metrics` notification from `bootstrap.yml`, but the role now
   also runs on hosts that never install `alice-metrics`. The notification is
   therefore a variable, `alice_runtime_stage_notify`, and only the control-host
-  play sets it. This role defines no handler at all. `cockpit_metrics` owns the
+  play sets it. This role defines no handler at all. `sweet_cockpit_metrics` owns the
   single, strict copy, so a restart failure on the control host still stops the
   deploy. Set the variable on a play whose hosts have no poller and the notify
   cannot resolve.

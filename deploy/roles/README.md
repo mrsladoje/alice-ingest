@@ -17,7 +17,7 @@ the wiring diagram, the variables it reads and the couplings it carries.
 | `alice_runtime` | control, projector, background | Puts the shared runtime on every host that runs an `alice-*` service: the app root, the two imported Python modules, the two JSON catalogs. No service, no port. |
 | `dashboards` | control | Installs OpenSearch Dashboards, caps its Node heap, puts nginx with TLS and basic authentication in front, and imports the index patterns and the Maintainer Cockpit saved objects. |
 | `alice_ops` | control | Installs the operator control panel: the loopback HTTP server behind the replay button, plus the two one-shot units it starts on demand (fault injection, poison replay). |
-| `cockpit_metrics` | control | Publishes the collector roster and runs the poller that fills `cockpit-metrics`. Every health panel, detector and absence monitor reads one of these two outputs. |
+| `sweet_cockpit_metrics` | control | Publishes the collector roster and runs the poller that fills `cockpit-metrics`. Every health panel, detector and absence monitor reads one of these two outputs. |
 | `sweet_anomaly_detection` | control | Loads the detection layer into the cluster: two notification channels, 30 alerting monitors, 17 Random Cut Forest detectors, one disk-fill forecaster, and the verify gate that proves the set is complete. Upserts by name, so a re-run updates instead of duplicating. |
 | `signal_projector` | projector (+ control) | Runs the projector that turns raw alerts, anomaly results and monitor output into named signals, incidents and lane state. Its notification receiver runs on the control host. |
 | `trend_rollup` | background | Runs `alice-trend-rollup`, which turns raw log indices into 10-minute per-entity rows. Twelve monitors read those rows instead of a full day of raw logs. |
@@ -38,7 +38,7 @@ dependency chain, not a preference:
 2. **Cluster state, then the things that read it.** `sweet_opensearch` again,
    in configure-the-cluster mode against `control`, creates the indices before
    any index pattern, monitor or detector names one.
-3. **Data before detection.** `cockpit_metrics` must produce samples before
+3. **Data before detection.** `sweet_cockpit_metrics` must produce samples before
    `sweet_anomaly_detection` can train on them.
 4. **Off the control host last.** The projector, the rollup and the live lane
    each run on their own VM, after the control-plane objects they normalize.

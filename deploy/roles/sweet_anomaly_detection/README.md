@@ -122,7 +122,7 @@ cluster mode first. It creates the indices the detectors read, the ISM policies
 the gate asserts and the `alice-alert-actions` write alias the monitors need.
 `alice_runtime` must have created `/opt/sweet` and `/opt/sweet/init` and staged
 `signal_catalog.json`, `os_cursor.py` and `signal_identity.py` there;
-`backtest.py` imports the two modules. `cockpit_metrics` must be running its
+`backtest.py` imports the two modules. `sweet_cockpit_metrics` must be running its
 poller, or the wait step fails the play after two minutes.
 
 ## Role Variables
@@ -188,7 +188,7 @@ From `group_vars`: `expected_monitors`, `expected_detectors` and
 
 | Script | Runs from | What it does |
 |---|---|---|
-| `verify_detection.py` | this role, then `cockpit_metrics` after the collectors are up, then `signal_projector` | Asserts the whole detection layer against the cluster. Exit 1 fails the deploy. |
+| `verify_detection.py` | this role, then `sweet_cockpit_metrics` after the collectors are up, then `signal_projector` | Asserts the whole detection layer against the cluster. Exit 1 fails the deploy. |
 | `backtest.py` | `playbooks/backtest.yml` | Historical analysis of every log detector over the replayed window, with a grade floor and a 45 minute timeout. |
 | `detection_status.py` | `playbooks/status.yml`, out of `files/` | Read-only: data windows, job states and result counts per detector. |
 

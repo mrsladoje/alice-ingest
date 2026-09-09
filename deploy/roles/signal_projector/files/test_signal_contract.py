@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 _ROLES = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 for _sibling in ("alice_runtime", "alice_ops", "sweet_anomaly_detection",
-                 "cockpit_metrics", "trend_rollup"):
+                 "sweet_cockpit_metrics", "trend_rollup"):
     _dir = os.path.join(_ROLES, _sibling, "files")
     if os.path.isdir(_dir):
         sys.path.append(_dir)
@@ -1868,7 +1868,7 @@ def test_push_heartbeat_gate_runs_after_collector_cutover():
     projector_path = _checkout_file(
         "roles", "signal_projector", "tasks", "control.yml")
     post_path = _checkout_file(
-        "roles", "cockpit_metrics", "tasks", "post_collector.yml")
+        "roles", "sweet_cockpit_metrics", "tasks", "post_collector.yml")
     if not all((projector_path, post_path)):
         print("[signal-contract] "
               "test_push_heartbeat_gate_runs_after_collector_cutover"

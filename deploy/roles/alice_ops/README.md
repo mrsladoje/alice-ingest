@@ -67,7 +67,7 @@ OpenSearch Dashboards. Its page is served by the same nginx instance the
   is imported by the injection scorer, not by the metrics poller, but the notify
   is inherited verbatim from the single five-file staging loop this line came
   out of. Dropping it would change the restart graph. The handler itself lives
-  in the `cockpit_metrics` role — see couplings.
+  in the `sweet_cockpit_metrics` role — see couplings.
 - **The first task creates the app root from `alice_ops_script | dirname`.**
   It derives `/opt/sweet` from the script path instead of naming it. The
   `alice_runtime` role creates the same directory with the same owner, group and
@@ -114,7 +114,7 @@ nobody, which is why the play must set them.
 | `worker_replay_endpoints` | `[]` | The same, prefixed `<inventory_hostname>=`. Joined into `INJECT_WORKER_REPLAY`. |
 | `worker_fault_agent_endpoints` | `[]` | `<inventory_hostname>=http://<ansible_host>:<fault_agent_port>` per worker. Joined into `INJECT_WORKER_AGENTS`. |
 | `worker_inventory_names` | `[]` | The worker inventory names. Joined into `OPS_INJECT_WORKERS`. |
-| `fleet_collector_node_ids` | `[]` | Each worker's `node_id`. Joined into `OPS_WORKER_INFO_NODES`. Shared with `cockpit_metrics` and `sweet_anomaly_detection`. |
+| `fleet_collector_node_ids` | `[]` | Each worker's `node_id`. Joined into `OPS_WORKER_INFO_NODES`. Shared with `sweet_cockpit_metrics` and `sweet_anomaly_detection`. |
 | `signal_projector_address` | `""` | The projector host's `ansible_host`. Becomes `INJECT_PROJECTOR_AGENT`. |
 
 ### Variables the role requires but does not own
@@ -190,7 +190,7 @@ In a playbook, against the control host:
   purpose. A default that interpolates another role's variable resolves lazily,
   so this role could not run without that role's defaults loaded. The price is
   two places to change one path.
-- **`restart alice-metrics` is notified here but defined in `cockpit_metrics`.**
+- **`restart alice-metrics` is notified here but defined in `sweet_cockpit_metrics`.**
   Both roles must appear in the same play. A static `roles:` list loads every
   handler in the play before the first task runs, so the notify resolves from
   any position in that list. A second copy of the handler here would restart the

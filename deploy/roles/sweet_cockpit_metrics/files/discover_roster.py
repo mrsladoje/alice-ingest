@@ -57,8 +57,8 @@ def main():
             f"collector in the window; the most frequent parent was taken. "
             f"Review before committing: {ambiguous[:5]}")
     log(f"{len(rows)} host->collector assignments observed since {LOOKBACK}")
-    log("Commit this into deploy/group_vars/control.yml so the published "
-        "roster stays a deterministic function of configuration — a snapshot "
+    log("Commit this as roster_assignments in group_vars, so the published "
+        "roster stays a deterministic function of configuration: a snapshot "
         "recomputed from live data on every deploy would mint a new "
         "topology_version whenever a new EPN appeared.")
     print("roster_assignments:")

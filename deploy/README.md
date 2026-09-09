@@ -478,14 +478,14 @@ declares, and each step depends on the one above it.
 | 2 | `alice_nodes` | `opensearch` (initial bring-up, then the `serial: 1` health gate) |
 | 3 | `control` | `sweet_opensearch` |
 | 4 | `control` | `alertmanager` |
-| 5 | `control` | `alice_runtime`, `dashboards`, `alice_ops`, `cockpit_metrics`, `sweet_anomaly_detection` |
+| 5 | `control` | `alice_runtime`, `dashboards`, `alice_ops`, `sweet_cockpit_metrics`, `sweet_anomaly_detection` |
 | 6 | `projector` | `alice_runtime`, `signal_projector` |
 | 7 | `control` | `signal_projector` (`tasks_from: control.yml`) |
 | 8 | `background` | `alice_runtime`, `trend_rollup` |
 | 9 | `shifter` | `sweet_shifter_view` |
 | 10 | `workers` | `sweet_collector` (the stamper, then Fluent Bit) |
 | 11 | `control` | `sweet_template_catalog` |
-| 12 | `control` | `cockpit_metrics` (`tasks_from: post_collector.yml`) |
+| 12 | `control` | `sweet_cockpit_metrics` (`tasks_from: post_collector.yml`) |
 | 13 | `workers` | `sweet_replay` |
 | 14 | `workers` + `projector` | `faults` |
 | 15 | `control` | the final verdict on the projector gate |
@@ -500,7 +500,7 @@ What each dependency is:
   after it, on the same host.
 - `dashboards` creates the per-source index patterns before it imports the
   cockpit saved objects that reference them.
-- `cockpit_metrics` publishes the immutable fleet roster, then starts the poller
+- `sweet_cockpit_metrics` publishes the immutable fleet roster, then starts the poller
   that reads it to derive collector absence.
 - `sweet_anomaly_detection` upserts the 30 monitors, then waits for the poller's
   first `kind=node` and `kind=osd` documents before it creates the detectors
@@ -508,7 +508,7 @@ What each dependency is:
 - `signal_projector` normalizes the signals the monitors and detectors emit, so
   both must exist first. It also proves it can reach Alertmanager before it
   starts, which is why play 4 is above it.
-- `cockpit_metrics`'s post-collector gate runs after `sweet_collector`, because
+- `sweet_cockpit_metrics`'s post-collector gate runs after `sweet_collector`, because
   it waits for each collector's pushed Fluent Bit heartbeat.
 - `sweet_template_catalog` runs after `sweet_collector`, because a maintenance
   pass reads the bucket documents every worker publishes. It runs on `control`,
@@ -601,7 +601,7 @@ below ran clean:
 |---|---|
 | `ansible-inventory --graph` on `inventory.yml` | pass — `alice_nodes` resolves to `workers` (2) + `storage` (3); `control` = `alice-ingest-3` (a storage node) |
 | `ansible-playbook --syntax-check` on `playbooks/site.yml`, `playbooks/provision.yml`, `playbooks/teardown.yml` | pass — zero syntax errors |
-| `ansible-playbook playbooks/site.yml --list-hosts` | pass — common/opensearch/gate target all 5; the control-plane roles (`alice_runtime`, `dashboards`, `alice_ops`, `cockpit_metrics`, `sweet_anomaly_detection`) → control; `signal_projector` → projector; `trend_rollup` → background; `sweet_shifter_view` → shifter; collector + sweet_replay → the 2 workers only |
+| `ansible-playbook playbooks/site.yml --list-hosts` | pass — common/opensearch/gate target all 5; the control-plane roles (`alice_runtime`, `dashboards`, `alice_ops`, `sweet_cockpit_metrics`, `sweet_anomaly_detection`) → control; `signal_projector` → projector; `trend_rollup` → background; `sweet_shifter_view` → shifter; collector + sweet_replay → the 2 workers only |
 | `group_vars/all.yml` derivations (`ansible -m debug`) | pass — `node_count=2` (from `workers`); seeds/initial-managers/Dashboards-hosts = the 3 storage nodes; `opensearch_cluster_hosts` = all 5 (firewall mesh) |
 | `opensearch.yml.j2` render (both tiers) | pass — workers get `node.roles: [data, ingest]` + `node.attr.role: worker` + `node.attr.box: <node_id>`; storage gets `[cluster_manager, data, ingest]` + `node.attr.role: storage` |
 | `opensearch.yml.j2` ingest role | pass — every index sets `default_pipeline: alice-add-ingest-time`, and explicit `node.roles` drops the implicit `ingest` role, so both tiers list `ingest` (`[data, ingest]` / `[cluster_manager, data, ingest]`); workers stay ingest-capable so the local info path needs no cross-node hop for the pipeline |
