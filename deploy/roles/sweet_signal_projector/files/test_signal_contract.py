@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # roles that own them, so each of those files/ directories joins the path too.
 _ROLES = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
-for _sibling in ("alice_runtime", "alice_ops", "sweet_anomaly_detection",
+for _sibling in ("alice_ops", "sweet_anomaly_detection",
                  "sweet_cockpit_metrics", "sweet_trend_rollup"):
     _dir = os.path.join(_ROLES, _sibling, "files")
     if os.path.isdir(_dir):
@@ -26,11 +26,8 @@ for _sibling in ("alice_runtime", "alice_ops", "sweet_anomaly_detection",
 
 os.environ.setdefault(
     "SIGNAL_CATALOG",
-    next((p for p in (os.path.join(d, "signal_catalog.json")
-                      for d in sys.path[:1] + sys.path[-5:])
-          if os.path.exists(p)),
-         os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                      "signal_catalog.json")))
+    os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                 "signal_catalog.json"))
 
 import signal_identity  # noqa: E402
 import signal_projector as sp  # noqa: E402
@@ -2113,10 +2110,10 @@ def test_projector_runtime_is_off_the_control_host():
         "roles", "sweet_signal_projector", "templates",
         "alice-signal-projector.service.j2")
     alertmanager_unit_path = _checkout_file(
-        "roles", "alertmanager", "templates", "alertmanager.service.j2")
+        "roles", "sweet_alertmanager", "templates", "alertmanager.service.j2")
     # The rule moved out of `common` when each role took the ports it owns.
     alertmanager_tasks_path = _checkout_file(
-        "roles", "alertmanager", "tasks", "main.yml")
+        "roles", "sweet_alertmanager", "tasks", "main.yml")
     group_vars_path = _checkout_file("group_vars", "all.yml")
     inject_path = _checkout_file("playbooks", "inject.yml")
     if not all((inventory_path, site_path, projector_path,
@@ -2190,15 +2187,16 @@ def test_dynamic_services_can_read_the_signal_catalog():
     import yaml
 
     path = _checkout_file(
-        "roles", "alice_runtime", "tasks", "main.yml")
+        "roles", "sweet_signal_projector", "tasks", "main.yml")
     if path is None:
         print("[signal-contract] "
               "test_dynamic_services_can_read_the_signal_catalog: skipped, "
-              "alice_runtime not beside this checkout")
+              "sweet_signal_projector not beside this checkout")
         return
     tasks = yaml.safe_load(open(path))
     by_name = {task.get("name"): task for task in tasks}
-    root = by_name.get("Ensure the bootstrap scripts directory exists", {})
+    root = by_name.get(
+        "Ensure the app root and the catalog directory exist", {})
     catalog = by_name.get(
         "Stage the signal identity catalog (one explicit per-monitor and "
         "per-detector classifier, never inferred from an index name)", {})
@@ -2217,8 +2215,6 @@ def test_dynamic_services_can_read_the_signal_catalog():
           "deployment does not prove an unprivileged service can parse the "
           "signal catalog")
 
-    digest_path = _checkout_file(
-        "roles", "alice_runtime", "tasks", "digest.yml")
     projector_path = _checkout_file(
         "roles", "sweet_signal_projector", "tasks", "main.yml")
     projector_unit_path = _checkout_file(
@@ -2229,8 +2225,6 @@ def test_dynamic_services_can_read_the_signal_catalog():
     projector_unit = (open(projector_unit_path).read()
                       if projector_unit_path else "")
     site = open(site_path).read() if site_path else ""
-    check(digest_path is None,
-          "digest.yml still exists; the live anomaly digest was removed")
     check("tasks_from: digest.yml" not in site
           and "anomaly-realtime" not in site,
           "deploy still waits on the digest watermark or includes digest.yml")
@@ -2350,14 +2344,63 @@ def test_playbook_relative_files_resolve_from_playbooks_dir():
     # group_vars is for. They still have to resolve from playbooks/.
     site_paths = {}
     for line in open(vars_path):
-        for key in ("causal_edges_file", "replay_engine_source"):
+        for key in ("replay_engine_source",):
             if line.startswith(key + ":"):
                 site_paths[key] = line.split(":", 1)[1].strip().strip('"')
-    for key in ("causal_edges_file", "replay_engine_source"):
+    for key in ("replay_engine_source",):
         value = site_paths.get(key)
         check(value, f"{key} is no longer set in group_vars/all.yml")
         check(value and os.path.isfile(_resolve_from_playbook_dir(value)),
               f"{key} does not resolve from playbooks/")
+
+
+VENDORED_SIGNAL_FILES = {
+    "os_cursor.py": ("sweet_signal_projector", "sweet_anomaly_detection",
+                     "sweet_cockpit_metrics", "alice_ops"),
+    "signal_identity.py": ("sweet_signal_projector",
+                           "sweet_anomaly_detection"),
+    "signal_catalog.json": ("sweet_anomaly_detection",
+                            "sweet_signal_projector"),
+    "causal_edges.json": ("sweet_signal_projector", "alice_ops",
+                          "sweet_alertmanager"),
+}
+
+
+def test_vendored_signal_files_are_byte_identical():
+    import hashlib
+
+    roles_root = _checkout_file("roles")
+    if roles_root is None:
+        print("[signal-contract] "
+              "test_vendored_signal_files_are_byte_identical: skipped, "
+              "roles/ not beside this checkout")
+        return
+    for name, owners in VENDORED_SIGNAL_FILES.items():
+        copies = {}
+        for role in sorted(os.listdir(roles_root)):
+            path = os.path.join(roles_root, role, "files", name)
+            if os.path.isfile(path):
+                copies[role] = hashlib.sha256(
+                    open(path, "rb").read()).hexdigest()
+        check(set(copies) == set(owners),
+              f"{name} is vendored by {sorted(copies)}, expected "
+              f"{sorted(owners)}; the first role listed is its source")
+        check(len(set(copies.values())) <= 1,
+              f"{name} differs between roles: change the copy in "
+              f"{owners[0]} and re-copy it into {list(owners[1:])}")
+    for role in ("sweet_signal_projector", "sweet_anomaly_detection",
+                 "sweet_cockpit_metrics", "alice_ops", "sweet_alertmanager"):
+        for dirpath, _, filenames in os.walk(os.path.join(roles_root, role)):
+            for filename in filenames:
+                if not filename.endswith((".yml", ".j2", ".py")):
+                    continue
+                if filename == os.path.basename(__file__):
+                    continue
+                text = open(os.path.join(dirpath, filename),
+                            errors="ignore").read()
+                check("alice_runtime" not in text,
+                      f"{role}/{filename} still refers to the removed "
+                      "alice_runtime role")
 
 
 def test_no_role_reaches_outside_its_own_directory():

@@ -22,7 +22,7 @@ role that exists to break it.
   (`playbooks/inject.yml`) runs on the control host and installs nothing.
 - **It owns the port, so it owns the rule.** The rich rule for
   `fault_agent_port` sits next to the service that listens on it, the same
-  convention `alertmanager` and `sweet_shifter_view` follow.
+  convention `sweet_alertmanager` and `sweet_shifter_view` follow.
 
 ## What it does
 
@@ -97,7 +97,7 @@ uses `/cpu-stress`, and the restore pass uses the matching start or stop call.
   is a second allowlist that can disagree with the first one.
 - **It binds `0.0.0.0`, not loopback.** The control host calls it over the
   network. The firewalld rich rule, not the bind address, is what restricts
-  access — exactly the split `alertmanager` uses.
+  access — exactly the split `sweet_alertmanager` uses.
 - **`fault_agent_token` defaults to empty, and empty means no authentication.**
   `_authorised()` returns `True` when `TOKEN` is falsy. On a CERN-internal
   network behind a single-source firewall rule that is a deliberate default, not

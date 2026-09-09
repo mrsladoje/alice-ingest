@@ -477,7 +477,7 @@ declares, and each step depends on the one above it.
 | 1 | `alice_nodes` | `common` |
 | 2 | `alice_nodes` | `opensearch` (initial bring-up, then the `serial: 1` health gate) |
 | 3 | `control` | `sweet_opensearch` |
-| 4 | `control` | `alertmanager` |
+| 4 | `control` | `sweet_alertmanager` |
 | 5 | `control` | `alice_runtime`, `sweet_os_dashboards`, `alice_ops`, `sweet_cockpit_metrics`, `sweet_anomaly_detection` |
 | 6 | `projector` | `alice_runtime`, `sweet_signal_projector` |
 | 7 | `control` | `sweet_signal_projector` (`tasks_from: control.yml`) |
@@ -619,7 +619,7 @@ CERN network access and real quota.
 
 ## 8. Open items
 
-- **Alertmanager** — built (`roles/alertmanager`, single instance, no gossip
+- **Alertmanager** — built (`roles/sweet_alertmanager`, single instance, no gossip
   HA: a restart is self-healing because the projector re-sends). External
   receivers are still absent by design; adding one is a receiver config change,
   not an architecture change.

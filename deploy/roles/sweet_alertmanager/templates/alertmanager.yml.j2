@@ -22,9 +22,10 @@ route:
       group_wait: {{ alertmanager_page_group_wait }}
       group_interval: {{ alertmanager_page_group_interval }}
 
-{# Generated from causal_edges.json, the one place an edge is declared. Only
+{# Generated from this role's copy of causal_edges.json. The signal projector
+   owns the source; the contract test keeps every copy byte-identical. Only
    proven edges reach this file; the rest rank as candidate causes instead. #}
-{% set _edges = (lookup('file', causal_edges_file) | from_json)['edges'] %}
+{% set _edges = (lookup('file', 'causal_edges.json') | from_json)['edges'] %}
 {% set _rules = {} %}
 {% for e in _edges if e.proven %}
 {%   set _key = e.cause ~ '|' ~ (e.cause_severity | default('')) ~ '|' ~ (e.equal | join(',')) %}

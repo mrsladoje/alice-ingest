@@ -192,7 +192,7 @@ register survives from one role to the next only inside one play.
 lane-state indices; a first cycle against a missing index creates it with dynamic
 mappings the cockpit queries cannot use. `sweet_anomaly_detection` must have
 loaded the monitors, detectors and forecasters the projector normalizes, and
-staged `verify_detection.py` on the control host. `alertmanager` must be running
+staged `verify_detection.py` on the control host. `sweet_alertmanager` must be running
 and reachable from the projector host, or the readiness gate fails the play.
 
 ## Role Variables

@@ -202,7 +202,7 @@ Missing producer coverage is not evidence of zero template volume.
 Sources:
 
 - `deploy/roles/sweet_signal_projector/files/signal_projector.py`
-- `deploy/roles/alertmanager/templates/alertmanager.yml.j2`
+- `deploy/roles/sweet_alertmanager/templates/alertmanager.yml.j2`
 - `deploy/roles/sweet_trend_rollup/files/trend_rollup.py`
 
 ## 3. Where work runs and how it stays bounded

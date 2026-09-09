@@ -195,7 +195,7 @@
   hosts: control
   become: true
   roles:
-    - alertmanager
+    - sweet_alertmanager
 
 - name: Control plane — Dashboards, nginx, ops page, monitors, roster, metrics and detectors (control host only)
   hosts: control
