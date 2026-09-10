@@ -630,9 +630,14 @@ class Stamper(object):
             defs = []
             tails = [] if frames is not None else None
             for _, record in entries:
+                held = len(record)
                 stamped = self.stamp(record)
                 if tails is not None:
-                    tails.append(self._tail(record))
+                    tail, extra = self._tail(record)
+                    if len(record) - held == extra:
+                        tails.append((tail, extra))
+                    else:
+                        frames = tails = None
                 if stamped is None:
                     self._count_unstamped(record)
                     continue

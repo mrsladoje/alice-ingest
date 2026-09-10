@@ -175,8 +175,8 @@ class LoopHarness(object):
         if hook is not None:
             original = machine.handle
 
-            def handle(tag, entries, options):
-                original(tag, entries, options)
+            def handle(tag, entries, options, frames=None):
+                original(tag, entries, options, frames)
                 hook(machine, tag, entries, options)
 
             machine.handle = handle

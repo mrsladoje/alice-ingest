@@ -17,6 +17,14 @@ ACK_KEY = "ack"
 MAX_BUFFER_BYTES = 256 * 1024 * 1024
 READ_BYTES = 1024 * 1024
 
+ENTRY_HEAD = b"\x92\xd7\x00"
+FIXMAP_MAX = 15
+MAP16 = b"\xde"
+MAP32 = b"\xdf"
+ARRAY_HEADS = frozenset([0xdc, 0xdd] + list(range(0x90, 0xa0)))
+_MAP_HEADERS = [bytes((0x80 | n,)) if n <= FIXMAP_MAX
+                else MAP16 + struct.pack(">H", n) for n in range(1024)]
+
 
 class ForwardError(Exception):
     pass
@@ -112,6 +120,100 @@ def encode_forward(tag, entries, chunk_id=None):
     return msgpack.packb([tag, body, options], use_bin_type=True)
 
 
+def pack_field(key, value):
+    return (msgpack.packb(key, use_bin_type=True)
+            + msgpack.packb(value, use_bin_type=True))
+
+
+def map_header(pairs):
+    if pairs < len(_MAP_HEADERS):
+        return _MAP_HEADERS[pairs]
+    if pairs < 65536:
+        return MAP16 + struct.pack(">H", pairs)
+    return MAP32 + struct.pack(">I", pairs)
+
+
+def array_header(items):
+    if items < 16:
+        return bytes((0x90 | items,))
+    if items < 65536:
+        return b"\xdc" + struct.pack(">H", items)
+    return b"\xdd" + struct.pack(">I", items)
+
+
+def entry_prefix(epoch_ms):
+    seconds, millis = divmod(int(epoch_ms), 1000)
+    return ENTRY_HEAD + struct.pack(">II", seconds, millis * 1000000)
+
+
+def _record_span(blob, start):
+    head = blob[start]
+    if head == 0xde:
+        return start + 3, (blob[start + 1] << 8) | blob[start + 2]
+    if head == 0xdf:
+        return start + 5, struct.unpack_from(">I", blob, start + 1)[0]
+    if 0x80 <= head <= 0x8f:
+        return start + 1, head & 0x0f
+    raise ProtocolError("a record is a map, got type byte %02x" % head)
+
+
+def decode_chunk(blob):
+    unpacker = _unpacker()
+    unpacker.feed(blob)
+    fields = unpacker.read_array_header()
+    if fields < 2:
+        raise ProtocolError("a forward message is [tag, ...], got %d fields"
+                            % fields)
+    tag = unpacker.unpack()
+    if not isinstance(tag, str):
+        raise ProtocolError("the tag is a string, got %r" % (tag,))
+    if blob[unpacker.tell()] not in ARRAY_HEADS:
+        return None
+    count = unpacker.read_array_header()
+    entries = []
+    frames = []
+    tell = unpacker.tell
+    unpack = unpacker.unpack
+    for _ in range(count):
+        if unpacker.read_array_header() != 2:
+            raise ProtocolError("an entry is [time, record]")
+        when = _time_ms(unpack())
+        start = tell()
+        record = unpack()
+        end = tell()
+        if not isinstance(record, dict):
+            raise ProtocolError("a record is a map, got %r" % (record,))
+        cut, pairs = _record_span(blob, start)
+        entries.append((when, record))
+        frames.append((entry_prefix(when), pairs, blob[cut:end]))
+    options = unpack() if fields > 2 else {}
+    if not isinstance(options, dict):
+        options = {}
+    return tag, entries, options, frames
+
+
+def encode_spliced(tag, frames, tails, chunk_id=None):
+    if len(frames) != len(tails):
+        raise ProtocolError("%d frames against %d stamps"
+                            % (len(frames), len(tails)))
+    parts = [b"\x93", msgpack.packb(tag, use_bin_type=True),
+             array_header(len(frames))]
+    append = parts.append
+    headers = _MAP_HEADERS
+    limit = len(headers)
+    for (prefix, pairs, body), (tail, extra) in zip(frames, tails):
+        append(prefix)
+        pairs += extra
+        append(headers[pairs] if pairs < limit else map_header(pairs))
+        append(body)
+        append(tail)
+    options = {SIZE_OPTION: len(frames)}
+    if chunk_id is not None:
+        options[CHUNK_OPTION] = chunk_id
+    append(msgpack.packb(options, use_bin_type=True))
+    return b"".join(parts)
+
+
 def new_chunk_id():
     return base64.b64encode(os.urandom(16)).decode("ascii")
 
@@ -174,29 +276,19 @@ class ForwardServer(object):
             thread.start()
 
     def _serve(self, connection):
-        unpacker = _unpacker()
+        pending = bytearray()
         connection.settimeout(None)
         try:
             while not self._stop.is_set():
                 data = connection.recv(READ_BYTES)
                 if not data:
                     return
-                unpacker.feed(data)
-                for message in unpacker:
-                    tag, entries, options = decode_message(message)
-                    with self._lock:
-                        self.waiting += 1
-                    self.serving.acquire()
-                    try:
-                        with self._lock:
-                            self.waiting -= 1
-                        self.handler(tag, entries, options)
-                    finally:
-                        self.serving.release()
-                    chunk = options.get(CHUNK_OPTION)
-                    if chunk is not None:
-                        connection.sendall(msgpack.packb({ACK_KEY: chunk},
-                                                         use_bin_type=True))
+                pending.extend(data)
+                if len(pending) > MAX_BUFFER_BYTES:
+                    raise ProtocolError("a forward message exceeded %d bytes"
+                                        % MAX_BUFFER_BYTES)
+                for blob in self._frame(pending):
+                    self._dispatch(connection, blob)
         except (OSError, ForwardError, ValueError):
             return
         except Exception:
@@ -206,6 +298,46 @@ class ForwardServer(object):
                 connection.close()
             except OSError:
                 pass
+
+    @staticmethod
+    def _frame(pending):
+        scanner = _unpacker()
+        scanner.feed(bytes(pending))
+        blobs = []
+        pos = 0
+        while True:
+            try:
+                scanner.skip()
+            except msgpack.OutOfData:
+                break
+            end = scanner.tell()
+            blobs.append(bytes(pending[pos:end]))
+            pos = end
+        del pending[:pos]
+        return blobs
+
+    def _dispatch(self, connection, blob):
+        decoded = decode_chunk(blob)
+        if decoded is None:
+            tag, entries, options = decode_message(
+                msgpack.unpackb(blob, raw=False, ext_hook=_ext_hook,
+                                strict_map_key=False))
+            frames = None
+        else:
+            tag, entries, options, frames = decoded
+        with self._lock:
+            self.waiting += 1
+        self.serving.acquire()
+        try:
+            with self._lock:
+                self.waiting -= 1
+            self.handler(tag, entries, options, frames)
+        finally:
+            self.serving.release()
+        chunk = options.get(CHUNK_OPTION)
+        if chunk is not None:
+            connection.sendall(msgpack.packb({ACK_KEY: chunk},
+                                             use_bin_type=True))
 
     def backlog_size(self):
         with self._lock:
@@ -257,7 +389,9 @@ class ForwardClient(object):
 
     def send(self, tag, entries, chunk_id=None):
         chunk = chunk_id or new_chunk_id()
-        payload = encode_forward(tag, entries, chunk)
+        return self.send_payload(encode_forward(tag, entries, chunk), chunk)
+
+    def send_payload(self, payload, chunk):
         if self._socket is None:
             self._connect()
         try:

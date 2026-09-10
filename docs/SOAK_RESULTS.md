@@ -5919,3 +5919,189 @@ or 301 against 112, every time.
 Unchanged and still open: template grouping correctness, minimum processor cost,
 active-run source coverage, source-owner approval, and the storage-node
 deployment decision.
+
+
+---
+
+## Round 21 — the transport nobody had priced
+
+Round 18 made the templating 31 to 57 per cent cheaper and left the hop that
+carries the records to it unmeasured. Section 9 of `docs/TEMPLATES_FIX_PLAN.md`
+listed "cost of the Forward loop, both directions" as open. This round prices
+it and takes the wasteful half away.
+
+**The Forward loop is 15 per cent cheaper per record and every returned byte is
+the same.** The gain is all on the return half: the stamper no longer rebuilds
+a record it did not change.
+
+### The question that started it, answered first
+
+The record does not travel as JSON. Fluent Bit's `out_forward` writes msgpack
+already, so there is no JSON to replace and protobuf buys nothing:
+
+- A record is an open map that the filters add to. No schema describes it. A
+  protobuf `map<string, string>` is larger than the msgpack it replaces.
+- Both Forward plugins would stop working. The change needs a Fluent Bit output
+  plugin written in C.
+- The only wire saving is the repeated key names, 32 per cent of the
+  `infologger` stream and 24 per cent of `dpl`. That is bandwidth on a Unix
+  socket, and Unix socket bandwidth is free.
+
+`compress: gzip` on the output loses for the same reason: it spends processor
+time on both sides to save bandwidth that costs nothing.
+
+### What the wire actually is
+
+Captured off the socket from a rig running the production input, filter chain
+and forward output for each family, then replayed. Messages come from the
+frozen template catalogue, weighted by line count.
+
+| Family | Records | Wire | Bytes a record | Fields | Records a chunk |
+|---|---:|---:|---:|---:|---:|
+| `infologger` | 60,000 | 25.5 MB | 425 | 16 | 4,615 |
+| `dpl` | 120,000 | 43.8 MB | 365 | 12 | 5,454 |
+
+One message is `[tag, [[[EventTime, metadata], record], ...], {chunk, size}]`.
+Fluent Bit writes `str8` for a long string, which is what msgpack-python
+writes, and `map32` for the record. The event time carries whole milliseconds
+because every parser in the chain formats with `%L`.
+
+### The figure of record
+
+Both arms share `ForwardServer._frame`, so framing is common and cancels.
+Streaming over 1 MB reads, arms interleaved inside one process, paired ratios
+so host drift cancels, median of 15 pairs, two passes each.
+
+| | transport alone | the whole stamper hop |
+|---|---:|---:|
+| `infologger` | **−15.1 / −15.4 %** | **−6.5 %** |
+| `dpl` | **−14.8 / −16.2 %** | **−4.0 %** |
+
+The right-hand column is the landed `Stamper.handle` with the journal write and
+the ledger accounting included. The transport is roughly a quarter of the hop,
+so a 15 per cent cut there lands as 4 to 6 per cent overall.
+
+🔴 **Read the ratios, not the absolutes.** The same code read 3.63 and 5.58
+core-seconds a million on `infologger` an hour apart on this host, with nothing
+else running. Every ratio above was taken on one host state.
+
+### Where the time goes
+
+Per record, landed code, each step timed alone.
+
+| Step | `infologger` | `dpl` |
+|---|---:|---:|
+| framing alone | 0.41 | 0.22 |
+| decode, shipped | 2.77 | 3.74 |
+| decode, keeping the record's bytes | 2.77 | 2.37 |
+| encode, shipped | 1.69 | 2.14 |
+| encode, spliced | **0.28** | **0.24** |
+
+🔴 **These do not sum to the end-to-end figures and must not be read as a
+budget.** Each arm was timed with the others' allocations absent, and the sum
+overshoots the measured whole by about a fifth. They say which direction each
+step moved, nothing more. The end-to-end ratio above is the number of record.
+
+What they do show is where the waste was: **the encode falls by 83 to 89 per
+cent, and the decode does not move.** The stamper was adding two fields to a
+sixteen-field record and then re-encoding all eighteen.
+
+### The three mechanisms
+
+1. **The record is never re-encoded.** `decode_chunk` keeps each record's own
+   msgpack alongside the decoded dict. `encode_spliced` writes the entry
+   prefix, a map header for the new pair count, those original bytes, then the
+   stamp fields. Fluent Bit's value encodings and msgpack-python's agree, so
+   the spliced chunk is byte-for-byte what the shipped path produced.
+2. **The stamp tail is encoded once per template version and cached** on the
+   ledger, pruned by `prune_versions` with the version it belongs to. This one
+   is load-bearing: without it the splice wins almost nothing, because it
+   trades one large C `packb` for many small Python `pack` calls and the call
+   overhead eats the gain. The status field stays outside the cache — a version
+   reads `new` the first time and `matched` afterwards.
+3. **One framing pass per receive**, shared by both paths.
+
+### What was tried and rejected
+
+| Candidate | Result |
+|---|---|
+| `raw=True`, to skip the UTF-8 decode of every key and value | 2.6 against 3.0, and it breaks byte-identity: `use_bin_type=False` writes `raw16` where the shipped path writes `str8` |
+| read the keys, skip the values nobody reads | 1.46 against 1.30 for decoding the whole map |
+| skip the record, find the wanted keys in its bytes | 12.82 against 1.30 |
+| splice the event time too, to dodge the `ext_hook` callback | lost by 6 to 8 points against decoding it |
+
+**The C unpacker's map build beats every Python-level partial decode.** Three
+independent attempts, one conclusion, and it is round 18's lesson in another
+place: work that stays inside a builtin is cheaper than work that returns to
+the interpreter for each item. That is why the decode column above does not
+move, and it is the floor while the stamper needs fields from the record.
+
+### The defect the first implementation had
+
+A record that already carried a stamp field broke byte-identity. The shipped
+path assigns into the dict and **overwrites**; a splice appends bytes and so
+**duplicates the key**, giving one pair too many and two copies of the field.
+Decoders take the last value, so the meaning survived and the record count
+survived. The bytes did not, and the gate is byte-identity or rejection.
+
+It was found by differential fuzzing, not by the corpus: 60,000 real records
+never contain a stamp field, because nothing upstream of the stamper writes
+one. A replayed document that already carries the field would.
+
+The guard is arithmetic rather than a name lookup: `handle` records `len(record)`
+before stamping and compares the growth against the pair count the tail claims.
+They disagree exactly when a key was overwritten instead of added, and the
+chunk falls back to `encode_forward` whole. The check is two `len()` calls per
+record and does not show up in the measurements. It fired on 288 of 3,000
+fuzzed chunks and every one of those still matched.
+
+### Why it is byte-identical, and how that was checked
+
+| Check | Cases | Result |
+|---|---:|---|
+| spliced reply against the shipped `forward.py`, driving the real `Stamper` | 180,000 records | **0 differences** |
+| the same, at 64 KB, 256 KB, 1 MB and 4 MB reads | 180,000 × 4 | **0 differences** |
+| differential fuzz, 5 message modes, 8 seeds | 12,000 chunks | **0 differences** |
+| the same fuzz, path coverage | 3,000 chunks | 1,541 spliced, 1,171 fell back, 288 fired the guard |
+| record pair counts 0 to 21 and 65,533 to 65,537, stamped and not | 54 | **0 differences** |
+| malformed messages: 23 shapes, accepted against rejected | 23 | **0 disagreements** |
+| real Fluent Bit round trip, output → stamper → input → file | 20,000 records | **0 errors** |
+| every returned row, both arms, `doc_id` and `collector_time` excluded | 20,000 | **0 differences** |
+| `test_stamper.py`, `test_acceptance_stamper.py` | — | 24 of 24 |
+
+Three of those earn their place. The **read sizes**: at 64 KB a two-megabyte
+chunk spans thirty receives, so the framing is exercised at every boundary a
+socket can produce. The **pair counts**: 15 to 16 crosses `fixmap` into
+`map16` and 65,535 to 65,536 crosses into `map32`, which is where a header
+width bug would hide. The **malformed shapes**: the splice must reject exactly
+what the shipped decoder rejects, or it accepts corruption the old code caught.
+
+### The trap, which cost two wrong runs
+
+`msgpack.Unpacker.tell()` mis-counts after an `OutOfData` at a feed boundary:
+the next object's offset comes back one byte late, then it resynchronises. A
+decoder that only iterates objects never sees this, which is why the shipped
+`forward.py` was never wrong. A splice needs byte offsets, so it does see it.
+
+`ForwardServer._frame` therefore scans a fresh unpacker over the pending buffer
+on every receive and takes an offset only from a `skip()` that succeeded. The
+scan covers the incomplete tail alone, because the consumed bytes are dropped
+each time.
+
+### What did not change
+
+Fluent Bit's `flush` stays at 1. This round did not touch it and the basin
+measured earlier still stands. The stamper's semantics are untouched: the same
+records, the same templates, the same counts, the same acknowledgement order.
+The shipped `encode_forward` path still runs whenever a message arrives in a
+mode the splice does not cover, which is every PackedForward and Message-mode
+chunk, and whenever the guard above fires.
+
+### One correction to what this round first reported
+
+The transport gain was first written up as 32 to 41 per cent. That was measured
+against a prototype whose baseline created a fresh `Unpacker` for every chunk
+and whose stamp tail carried three fields. The landed code shares one framing
+pass between both arms and carries a two-field tail, and against it the gain is
+15 per cent. The whole-hop figures moved little, because the transport is only
+a quarter of the hop either way.
