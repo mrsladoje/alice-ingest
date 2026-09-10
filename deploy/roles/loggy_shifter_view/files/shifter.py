@@ -132,7 +132,7 @@ KEEP_FIELDS = (
     # The process that wrote the line, on every source that has one. Without it
     # the live view cannot tell a GPU reconstruction error from a tracker one.
     "program", "log_time", "comm", "clients", "client_limit",
-    "template_version", "template_id", "template_status",
+    "template_version", "template_status",
 )
 
 STATIC_TYPES = {
@@ -647,10 +647,10 @@ class TemplatesRuntime:
                 or view.refreshed_at == self._submitted_at):
             return
         try:
-            groups = semantic.active_groups(
+            versions = semantic.active_versions(
                 view.rows, view.cutoff or self.now_ms(),
                 self._service.active_ms)
-            if self._search.submit(groups):
+            if self._search.submit(versions):
                 self._submitted_at = view.refreshed_at
         except Exception as exc:                              # noqa: BLE001
             log(f"semantic corpus was not submitted: {exc!r}")
@@ -691,7 +691,7 @@ class TemplatesRuntime:
                 page = self._service.list_rows(request)
             semantic_block = self.semantic_status()
             note = ""
-        self._labels.decorate(page["rows"])
+        self._labels.decorate(page["rows"], self._service.current().coverers)
         if watched_only:
             page["rows"] = [row for row in page["rows"] if row["watched"]]
         page["semantic"] = semantic_block
@@ -724,16 +724,22 @@ class TemplatesRuntime:
 
         return matches
 
+    def _watched_versions(self, view):
+        watched = set(self._labels.watched_ids())
+        for version_id in list(watched):
+            watched.update(view.descendants(version_id))
+        return watched
+
     def _watched_page(self, request):
         view = self._service.current()
-        watched = self._labels.watched_ids()
+        watched = self._watched_versions(view)
         predicate = self._predicate(
-            request, lambda row: row["canonical_id"] in watched)
+            request, lambda row: row["version_id"] in watched)
         sort = request.get("sort") or templates_view.SORT_VOLUME
         if sort == templates_view.SORT_FIRST_CATALOGUED:
             page = self._service.catalogued_page(
                 request, self._page_size(request),
-                canonical_ids=sorted(watched))
+                version_ids=sorted(watched))
             return self._decorated_page(page, view)
         page = view.page(sort=sort, page_size=self._page_size(request),
                          after=request.get("after"),
@@ -760,27 +766,22 @@ class TemplatesRuntime:
             block = (semantic.result_summary(result) if result is not None
                      else self.semantic_status())
             return page, block, SEMANTIC_FALLBACK_NOTE
-        watched = (self._labels.watched_ids()
+        watched = (self._watched_versions(view)
                    if request.get("watched_only") else None)
         filters = dict(request)
         filters.pop("query", None)
         predicate = self._predicate(
             filters,
             None if watched is None
-            else lambda row: row["canonical_id"] in watched)
+            else lambda row: row["version_id"] in watched)
         include_inactive = bool(request.get("include_inactive"))
         rows = []
         for hit in result.hits:
-            for version_id in hit.version_ids:
-                row = view.row(version_id)
-                if row is None:
-                    continue
-                if not row["active"]:
-                    continue
-                if not predicate(row):
-                    continue
-                row["score"] = hit.score
-                rows.append(row)
+            row = view.row(hit.version_id)
+            if row is None or not row["active"] or not predicate(row):
+                continue
+            row["score"] = hit.score
+            rows.append(row)
         note = ""
         history = None
         if include_inactive:
@@ -858,16 +859,16 @@ class TemplatesRuntime:
                 "a detail request names one version identifier", "refused")
         detail = self._service.detail(version_id)
         version = detail["version"]
-        rows = [version] + list(detail["canonical_group"]["versions"])
-        self._labels.decorate(rows)
+        rows = [version] + list(detail["covered"]["versions"])
+        self._labels.decorate(rows, self._service.current().coverers)
         try:
             with self._service.detail_slot():
-                labels = self._labels.read(version["canonical_id"])
+                labels = self._labels.read(version_id)
         except templates_view.ViewRefused:
-            labels = self._labels.cached(version["canonical_id"])
+            labels = self._labels.cached(version_id)
         except Exception as exc:                              # noqa: BLE001
             log(f"stored labels were unreadable: {exc!r}")
-            labels = self._labels.cached(version["canonical_id"])
+            labels = self._labels.cached(version_id)
         detail["labels"] = labels
         detail["episodes"] = self._related_episodes(version)
         detail["neighbours"] = self._neighbours(version)
@@ -881,7 +882,7 @@ class TemplatesRuntime:
 
     def _neighbours(self, row):
         try:
-            result = self._search.neighbours(row.get("canonical_id"))
+            result = self._search.neighbours(row.get("version_id"))
         except Exception as exc:                              # noqa: BLE001
             log(f"semantic neighbours were unreadable: {exc!r}")
             return {"suggestions": [], "note": NEIGHBOUR_UNAVAILABLE_NOTE,
@@ -889,18 +890,15 @@ class TemplatesRuntime:
         view = self._service.current()
         suggestions = []
         for hit in result.hits:
-            for version_id in hit.version_ids:
-                found = view.row(version_id)
-                if found is None or not found["active"]:
-                    continue
-                suggestions.append({
-                    "version_id": found["version_id"],
-                    "canonical_id": found["canonical_id"],
-                    "family": found["family"],
-                    "template": found["template"],
-                    "score": hit.score,
-                })
-                break
+            found = view.row(hit.version_id)
+            if found is None or not found["active"]:
+                continue
+            suggestions.append({
+                "version_id": found["version_id"],
+                "family": found["family"],
+                "template": found["template"],
+                "score": hit.score,
+            })
         return {
             "suggestions": suggestions,
             "note": self._neighbour_note(result),
@@ -936,13 +934,13 @@ class TemplatesRuntime:
         return self._service.lines(request)
 
     def label_read(self, payload):
-        canonical_id = str((payload or {}).get("canonical_id") or "").strip()
-        if not canonical_id:
+        version_id = str((payload or {}).get("version_id") or "").strip()
+        if not version_id:
             raise templates_view.ViewRefused(
-                "a label read names one canonical identifier", "refused")
+                "a label read names one version identifier", "refused")
         with self._service.detail_slot():
-            labels = self._labels.read(canonical_id)
-        return {"canonical_id": canonical_id, "labels": labels,
+            labels = self._labels.read(version_id)
+        return {"version_id": version_id, "labels": labels,
                 "limits": {"note_max_chars": self._labels.note_max,
                            "history_max": self._labels.history_max,
                            "watched_max": self._labels.watched_max}}

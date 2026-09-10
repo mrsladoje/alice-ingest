@@ -57,12 +57,12 @@ QUERY_RESULTS_MAX = 50
 QUERY_OPENED_MAX = 200
 QUERY_RETENTION_MS = contract.QUERY_RETENTION_MS
 
-CACHE_FIELDS = ["label_id", "canonical_id", "reviewed_version_ids", "label",
+CACHE_FIELDS = ["label_id", "version_id", "reviewed_version_ids", "label",
                 "author", "watched", "reviewed_programs",
                 "reviewed_origin_hosts", "revision", "updated_at"]
 
-DOCUMENT_FIELDS = ["kind", "schema_version", "label_id", "canonical_id",
-                   "reviewed_version_ids", "family", "template", "normalized",
+DOCUMENT_FIELDS = ["kind", "schema_version", "label_id", "version_id",
+                   "reviewed_version_ids", "family", "template",
                    "label", "note", "author", "watched", "reviewed_programs",
                    "reviewed_origin_hosts", "revision", "created_at",
                    "updated_at", "history"]
@@ -179,8 +179,8 @@ def author_slug(value):
     return slug
 
 
-def label_id(canonical_id, author):
-    return f"label:{canonical_id}:{author}"
+def label_id(version_id, author):
+    return f"label:{version_id}:{author}"
 
 
 def scope_state(row, document):
@@ -257,26 +257,30 @@ class LabelStore:
     def cache_status(self):
         with self._lock:
             return {
-                "groups": len(self._cache),
+                "versions": len(self._cache),
                 "bytes": self._cache_bytes,
                 "truncated": self._cache_truncated,
                 "refreshed_at": self._cache_refreshed_ms or 0,
                 "last_error": self.last_error,
             }
 
-    def cached(self, canonical_id):
+    def cached(self, version_id):
         with self._lock:
-            return [dict(doc) for doc in self._cache.get(canonical_id, ())]
+            return [dict(doc) for doc in self._cache.get(version_id, ())]
 
     def watched_ids(self):
         with self._lock:
-            return {canonical for canonical, documents in self._cache.items()
+            return {version for version, documents in self._cache.items()
                     if any(document.get("watched")
                            for document in documents)}
 
-    def decorate(self, rows):
+    def decorate(self, rows, coverers=None):
         for row in rows:
-            documents = self.cached(row.get("canonical_id"))
+            version = row.get("version_id")
+            documents = self.cached(version)
+            if coverers is not None:
+                for wider in coverers(version):
+                    documents.extend(self.cached(wider))
             if not documents:
                 row["label"] = None
                 row["label_scope"] = None
@@ -321,14 +325,14 @@ class LabelStore:
                 break
             for hit in hits:
                 document = hit.get("_source") or {}
-                canonical = document.get("canonical_id")
-                if not canonical:
+                version = document.get("version_id")
+                if not version:
                     continue
                 used += contract.encoded_size(document)
                 if used > self.cache_max_bytes:
                     truncated = True
                     break
-                cache.setdefault(canonical, []).append(document)
+                cache.setdefault(version, []).append(document)
             if truncated:
                 break
             after = hits[-1].get("sort")
@@ -345,33 +349,33 @@ class LabelStore:
             self.last_error = ""
         return cache
 
-    def read(self, canonical_id):
-        canonical = _text(canonical_id, "canonical_id", 64)
+    def read(self, version_id):
+        version = _text(version_id, "version_id", 128)
         body = {
             "size": READ_ROWS,
             "track_total_hits": False,
             "sort": [{"label_id": {"order": "asc"}}],
             "query": {"bool": {"filter": [
                 {"term": {"kind": contract.KIND_TRIAGE_LABEL}},
-                {"term": {"canonical_id": canonical}}]}},
+                {"term": {"version_id": version}}]}},
             "_source": list(DOCUMENT_FIELDS),
         }
         result = self._transport.search(self._index, body) or {}
         hits = ((result.get("hits") or {}).get("hits") or [])
         return [hit.get("_source") or {} for hit in hits]
 
-    def watched_groups(self, exclude=None):
+    def watched_versions(self, exclude=None):
         body = {
             "size": 0,
             "track_total_hits": False,
             "query": {"bool": {"filter": [
                 {"term": {"kind": contract.KIND_TRIAGE_LABEL}},
                 {"term": {"watched": True}}]}},
-            "aggs": {"groups": {"terms": {
-                "field": "canonical_id", "size": self.watched_max + 1}}},
+            "aggs": {"versions": {"terms": {
+                "field": "version_id", "size": self.watched_max + 1}}},
         }
         result = self._transport.search(self._index, body) or {}
-        buckets = ((result.get("aggregations") or {}).get("groups")
+        buckets = ((result.get("aggregations") or {}).get("versions")
                    or {}).get("buckets") or []
         keys = {bucket.get("key") for bucket in buckets}
         keys.discard(exclude)
@@ -384,8 +388,8 @@ class LabelStore:
         return (found.get("_source") or {}, found.get("_seq_no"),
                 found.get("_primary_term"))
 
-    def _stored(self, canonical_id, author):
-        for document in self.read(canonical_id):
+    def _stored(self, version_id, author):
+        for document in self.read(version_id):
             if document.get("author") == author:
                 return document
         return None
@@ -394,7 +398,7 @@ class LabelStore:
         now = self.now_ms() if now_ms is None else now_ms
         if not isinstance(request, dict):
             raise TriageRefused("a label write needs a JSON object")
-        canonical = _text(request.get("canonical_id"), "canonical_id", 64)
+        version = _text(request.get("version_id"), "version_id", 128)
         author = author_slug(request.get("author"))
         label = request.get("label")
         if label not in LABELS:
@@ -424,7 +428,7 @@ class LabelStore:
                                      or not isinstance(revision, int)):
             raise TriageRefused("revision must be the integer you read")
 
-        document_id = label_id(canonical, author)
+        document_id = label_id(version, author)
         stored, seq_no, primary_term = self._fetch(document_id)
         if stored is None:
             if revision:
@@ -432,11 +436,11 @@ class LabelStore:
                     "this label was removed while you were editing it", None)
             family = _text(request.get("family"), "family", 64)
             template = _text(request.get("template"), "template", 4096)
-            if contract.canonical_id(template) != canonical:
+            if contract.version_id(family, template) != version:
                 raise TriageRefused(
-                    "the template text does not normalise to the canonical "
+                    "the family and template text do not hash to the version "
                     "identifier this label names; the label would describe "
-                    "another group")
+                    "another template")
             created = now
             history = []
             next_revision = 1
@@ -451,8 +455,8 @@ class LabelStore:
             next_revision = int(stored.get("revision") or 0) + 1
 
         if watched and (not stored or not stored.get("watched")):
-            groups = self.watched_groups(exclude=canonical)
-            if len(groups) >= self.watched_max:
+            watching = self.watched_versions(exclude=version)
+            if len(watching) >= self.watched_max:
                 raise TriageRefused(
                     f"{self.watched_max} templates are already watched, which "
                     f"is the limit this server enforces; unwatch one first")
@@ -471,11 +475,10 @@ class LabelStore:
             "kind": contract.KIND_TRIAGE_LABEL,
             "schema_version": contract.SCHEMA_VERSION,
             "label_id": document_id,
-            "canonical_id": canonical,
+            "version_id": version,
             "reviewed_version_ids": versions,
             "family": family,
             "template": template,
-            "normalized": contract.normalize(template),
             "label": label,
             "note": note,
             "author": author,
@@ -504,14 +507,14 @@ class LabelStore:
         except urllib.error.HTTPError as exc:
             if exc.code != 409:
                 raise
-            current = self._stored(canonical, author)
+            current = self._stored(version, author)
             raise LabelConflict(
                 "this label changed while you were editing it", current)
         with self._lock:
-            cached = [doc for doc in self._cache.get(canonical, ())
+            cached = [doc for doc in self._cache.get(version, ())
                       if doc.get("author") != author]
             cached.append({field: document[field] for field in CACHE_FIELDS})
-            self._cache[canonical] = cached
+            self._cache[version] = cached
         return document
 
 

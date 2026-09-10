@@ -16,7 +16,6 @@ import triage                                                 # noqa: E402
 
 NOW = 1788877200000
 TEMPLATE = "failed to allocate <NUM> bytes"
-CANONICAL = contract.canonical_id(TEMPLATE)
 VERSION = contract.version_id("dpl", TEMPLATE)
 WIDER = contract.version_id("dpl", "failed to allocate <NUM> <*>")
 
@@ -75,13 +74,14 @@ class FakeTransport:
                 rows = [row for row in rows if row.get(field) == value]
         aggs = body.get("aggs") or {}
         if aggs:
-            field = aggs["groups"]["terms"]["field"]
+            name, spec = next(iter(aggs.items()))
+            field = spec["terms"]["field"]
             keys = {}
             for row in rows:
                 keys[row.get(field)] = keys.get(row.get(field), 0) + 1
             buckets = [{"key": key, "doc_count": count}
                        for key, count in sorted(keys.items())]
-            return {"aggregations": {"groups": {"buckets": buckets}}}
+            return {"aggregations": {name: {"buckets": buckets}}}
         rows.sort(key=lambda row: row.get("label_id") or row.get("query_id")
                   or "")
         after = body.get("search_after")
@@ -101,7 +101,7 @@ def store(transport=None, **kwargs):
 
 def request(**kwargs):
     payload = {
-        "canonical_id": CANONICAL,
+        "version_id": VERSION,
         "reviewed_version_ids": [VERSION],
         "family": "dpl",
         "template": TEMPLATE,
@@ -121,7 +121,6 @@ def row(version_id=VERSION, programs=("o2-gpu-reconstruction",),
         hosts=("epn146",), **kwargs):
     out = {
         "version_id": version_id,
-        "canonical_id": CANONICAL,
         "programs": list(programs),
         "origin_hosts": list(hosts),
         "active": False,
@@ -196,7 +195,7 @@ def test_a_label_document_over_its_byte_ceiling_is_refused():
     assert transport.puts == 0
 
 
-def test_a_label_for_another_group_is_refused_on_creation():
+def test_a_label_for_another_template_is_refused_on_creation():
     labels = store()
     with pytest.raises(triage.TriageRefused):
         labels.write(request(template="a different message <NUM>"))
@@ -215,7 +214,7 @@ def test_two_authors_keep_two_documents_and_the_conflict_stays_visible():
     labels = store(transport)
     labels.write(request(author="ada", label=triage.LABEL_KNOWN_BAD))
     labels.write(request(author="bob", label=triage.LABEL_KNOWN_GOOD))
-    documents = labels.read(CANONICAL)
+    documents = labels.read(VERSION)
     assert len(documents) == 2
     verdict = triage.review(row(), documents)
     assert verdict["label_conflicts"] == 1
@@ -226,7 +225,7 @@ def test_an_exact_returning_version_recovers_its_reviewed_label():
     transport = FakeTransport()
     labels = store(transport)
     labels.write(request())
-    verdict = triage.review(row(), labels.read(CANONICAL))
+    verdict = triage.review(row(), labels.read(VERSION))
     assert verdict["label"] == triage.LABEL_KNOWN_BAD
     assert verdict["label_scope"] == triage.SCOPE_REVIEWED
 
@@ -235,9 +234,25 @@ def test_a_broader_version_requires_review():
     transport = FakeTransport()
     labels = store(transport)
     labels.write(request())
-    verdict = triage.review(row(version_id=WIDER), labels.read(CANONICAL))
+    verdict = triage.review(row(version_id=WIDER), labels.read(VERSION))
     assert verdict["label"] is None
     assert verdict["label_scope"] == triage.SCOPE_BROADER_VERSION
+
+
+def test_a_label_on_a_covering_version_reaches_the_narrower_one():
+    transport = FakeTransport()
+    labels = store(transport)
+    wide = "failed to allocate <NUM> <*>"
+    labels.write(request(version_id=WIDER, template=wide,
+                         reviewed_version_ids=[WIDER]))
+    labels.refresh(NOW)
+    narrow = row()
+    labels.decorate([narrow], coverers=lambda version: [WIDER])
+    assert narrow["label"] is None
+    assert narrow["label_scope"] == triage.SCOPE_BROADER_VERSION
+    alone = row()
+    labels.decorate([alone])
+    assert alone["label_scope"] is None
 
 
 def test_a_new_source_scope_requires_review():
@@ -245,7 +260,7 @@ def test_a_new_source_scope_requires_review():
     labels = store(transport)
     labels.write(request())
     verdict = triage.review(row(hosts=("epn146", "epn228")),
-                            labels.read(CANONICAL))
+                            labels.read(VERSION))
     assert verdict["label"] is None
     assert verdict["label_scope"] == triage.SCOPE_NEW_SOURCE
 
@@ -255,7 +270,7 @@ def test_the_watched_limit_is_enforced_and_explains_itself():
     labels = store(transport, watched_max=2)
     for index in range(2):
         template = f"another template number <NUM> {index}"
-        labels.write(request(canonical_id=contract.canonical_id(template),
+        labels.write(request(version_id=contract.version_id("dpl", template),
                              template=template,
                              reviewed_version_ids=[
                                  contract.version_id("dpl", template)],
@@ -284,7 +299,7 @@ def test_the_label_cache_reports_its_own_byte_bound():
     labels = store(transport, cache_max_bytes=1024)
     for index in range(40):
         template = f"cache filling template <NUM> {index}"
-        labels.write(request(canonical_id=contract.canonical_id(template),
+        labels.write(request(version_id=contract.version_id("dpl", template),
                              template=template,
                              reviewed_version_ids=[
                                  contract.version_id("dpl", template)],
@@ -301,7 +316,7 @@ def test_the_watched_identifiers_come_from_the_cache_without_a_query():
     labels.write(request(watched=True))
     labels.refresh(NOW)
     before = transport.searches
-    assert labels.watched_ids() == {CANONICAL}
+    assert labels.watched_ids() == {VERSION}
     assert transport.searches == before
 
 
@@ -317,7 +332,7 @@ def test_the_query_log_keeps_identifiers_and_ranks_but_no_payload():
     assert stored["query_text"] == "why did allocation fail"
     assert stored["model_revision"] == "rev-1"
     assert stored["issued_at"] == NOW
-    for field in ("template", "normalized", "count", "rows", "programs"):
+    for field in ("template", "count", "rows", "programs"):
         assert field not in stored
 
 

@@ -52,6 +52,7 @@ EPISODE_ROWS = 20
 CATALOG_PAGE = 1000
 WATERMARK_PAGE = 1000
 ROUTE_NODES = 1000
+COVERED_LISTED = 20
 MAX_ANCESTORS = 64
 CATALOGUED_CACHE_ROWS = 512
 
@@ -92,7 +93,7 @@ CATALOG_FIELDS = list(contract.CATALOG_FIELDS)
 RECORD_FIELDS = (
     "@timestamp", "collector_time", "node", "origin_host", "host", "hostname",
     "program", "log_source", "severity", "severity_norm", "message",
-    "doc_id", "template_version", "template_id", "template_status", "run",
+    "doc_id", "template_version", "template_status", "run",
     "partition", "detector", "system", "facility", "pid", "level",
     "rolename", "source_file",
 )
@@ -285,7 +286,7 @@ def resident_bytes(row):
                                     + len(row["origin_hosts"])
                                     + len(row["log_sources"])
                                     + len(row["descendants"]))
-            + len(row["template"]) + len(row["normalized"]))
+            + len(row["template"]))
 
 
 def _row(document, count, count_status, activity_ms, active_ms,
@@ -302,10 +303,8 @@ def _row(document, count, count_status, activity_ms, active_ms,
     held = sorted(descendants)
     return {
         "version_id": version,
-        "canonical_id": document.get("canonical_id"),
         "family": document.get("family"),
         "template": document.get("template"),
-        "normalized": document.get("normalized"),
         "token_count": document.get("token_count"),
         "programs": programs,
         "origin_hosts": hosts,
@@ -325,7 +324,6 @@ def _row(document, count, count_status, activity_ms, active_ms,
         "widened_from": sorted(document.get("widened_from") or []),
         "descendants": held,
         "descendant_count": len(held),
-        "canonical_versions": [],
         "label": None,
         "label_conflicts": 0,
         "watched": False,
@@ -386,19 +384,15 @@ class TemplatesView:
         self.expired = dict(expired) if expired else None
         self.metadata_bytes = metadata_bytes
 
-        canonical = {}
+        coverers = {}
         for row in rows:
-            canonical.setdefault(row["canonical_id"], []).append(
-                row["version_id"])
-        for group in canonical.values():
-            group.sort()
-        for row in rows:
-            row["canonical_versions"] = list(canonical[row["canonical_id"]])
+            for narrow in row["descendants"]:
+                coverers.setdefault(narrow, []).append(row["version_id"])
 
         self.rows = tuple(rows)
         self.by_version = {row["version_id"]: row for row in self.rows}
-        self.canonical_versions = {cid: tuple(ids)
-                                   for cid, ids in canonical.items()}
+        self._coverers = {narrow: tuple(sorted(wide))
+                          for narrow, wide in coverers.items()}
         self._orders = {sort: tuple(sorted(
             self.rows, key=lambda row, s=sort: _sort_key(row, s)))
             for sort in VIEW_SORTS}
@@ -421,21 +415,28 @@ class TemplatesView:
     def has_rows(self):
         return bool(self.rows)
 
-    def group_count(self, canonical_id):
-        total = 0
-        for version in self.canonical_versions.get(canonical_id, ()):
-            total += contract.decode_int(self.by_version[version]["count"])
+    def covered_count(self, version_id):
+        row = self.by_version.get(version_id)
+        if row is None:
+            return 0
+        total = contract.decode_int(row["count"])
+        for narrow in row["descendants"]:
+            total += contract.decode_int(self.by_version[narrow]["count"])
         return total
 
-    def canonical_group(self, canonical_id):
-        versions = self.canonical_versions.get(canonical_id, ())
+    def covered(self, version_id):
+        row = self.by_version.get(version_id)
+        versions = row["descendants"][:COVERED_LISTED] if row else ()
         return {
-            "canonical_id": canonical_id,
+            "version_id": version_id,
             "versions": [dict(self.by_version[v]) for v in versions],
-            "count": contract.encode_int(self.group_count(canonical_id)),
+            "count": contract.encode_int(self.covered_count(version_id)),
             "count_status": _count_status(
                 self.coverage.get("status", contract.COVERAGE_UNKNOWN)),
         }
+
+    def coverers(self, version_id):
+        return list(self._coverers.get(version_id, ()))
 
     def row(self, version_id):
         row = self.by_version.get(version_id)
@@ -514,7 +515,6 @@ class TemplatesView:
     def totals(self):
         return {
             "versions": len(self.rows),
-            "canonical_groups": len(self.canonical_versions),
             "records": contract.encode_int(self.total_records),
             "records_status": self.records_status,
         }
@@ -890,32 +890,30 @@ class TemplatesService:
         page["took_ms"] = int((time.time() - started) * 1000)
         return page
 
-    def catalogued_page(self, request, page_size, canonical_ids=None,
+    def catalogued_page(self, request, page_size, version_ids=None,
                         now_ms=None):
         now = self.now_ms() if now_ms is None else now_ms
         size = max(1, min(int(page_size), self.limits.page_rows))
         return self._catalog_page(request, self.current(now), size, now,
                                   sort=SORT_FIRST_CATALOGUED,
                                   active_only=True,
-                                  canonical_ids=canonical_ids)
+                                  version_ids=version_ids)
 
     def _catalog_page(self, request, view, page_size, now_ms,
                       sort=SORT_LAST_OBSERVED, active_only=False,
-                      canonical_ids=None):
+                      version_ids=None):
         activity = view.cutoff or now_ms
         horizon = self.active_ms if active_only else self.retention_ms
         filters = [{"term": {"kind": contract.KIND_CATALOG_TEMPLATE}},
                    {"range": {"last_observed": {
                        "gte": activity - horizon + 1}}}]
-        if canonical_ids is not None:
-            filters.append({"terms": {"canonical_id": list(canonical_ids)}})
+        if version_ids is not None:
+            filters.append({"terms": {"version_id": list(version_ids)}})
         query = (request.get("query") or "").strip()
         if query:
             filters.append({"bool": {"should": [
                 {"term": {"version_id": query}},
-                {"term": {"canonical_id": query}},
                 {"match_phrase": {"template": query}},
-                {"match_phrase": {"normalized": query}},
             ], "minimum_should_match": 1}})
         for field, name in (("family", "family"), ("program", "programs"),
                             ("host", "origin_hosts"),
@@ -980,29 +978,25 @@ class TemplatesService:
         count = contract.decode_int(counted["count"]) if counted else 0
         status = _count_status(view.coverage.get(
             "status", contract.COVERAGE_UNAVAILABLE))
-        row = _row(document, count, status, activity_ms, self.active_ms,
-                   counted["descendants"] if counted else ())
-        row["canonical_versions"] = list(view.canonical_versions.get(
-            document.get("canonical_id"), (version,)))
-        return row
+        return _row(document, count, status, activity_ms, self.active_ms,
+                    counted["descendants"] if counted else ())
 
     def detail(self, version_id, now_ms=None):
         now = self.now_ms() if now_ms is None else now_ms
         view = self.current(now)
         row = view.row(version_id)
+        covered = view.covered(version_id) if row is not None else None
         if row is None:
             row = self._catalog_detail(version_id, view, now)
         if row is None:
             raise ViewRefused(
                 f"no retained definition or counted version answers to "
                 f"{version_id!r}", "refused")
-        canonical = view.canonical_group(row["canonical_id"])
-        if not canonical["versions"]:
-            canonical = {"canonical_id": row["canonical_id"],
-                         "versions": [dict(row)],
-                         "count": row["count"],
-                         "count_status": row["count_status"]}
-        return {"version": row, "canonical_group": canonical,
+        if covered is None:
+            covered = {"version_id": version_id, "versions": [],
+                       "count": row["count"],
+                       "count_status": row["count_status"]}
+        return {"version": row, "covered": covered,
                 "ancestors": view.ancestors(version_id)}
 
     def _catalog_detail(self, version_id, view, now_ms):
@@ -1281,9 +1275,7 @@ def _predicate(request):
             return False
         if query:
             if (query in row["template"].lower()
-                    or query in row["normalized"]
-                    or query == row["version_id"]
-                    or query == row["canonical_id"]):
+                    or query == row["version_id"]):
                 return True
             return False
         return True

@@ -401,6 +401,23 @@ def test_descendants_follow_the_cover_relation_and_never_widen():
     assert rows[version(OTHER, "infologger")]["descendants"] == []
     assert built.descendants(version(W)) == [version(A)]
     assert built.descendants("dpl:missing") == []
+    assert built.coverers(version(A)) == sorted([version(W), version(X)])
+    assert built.coverers(version(X)) == []
+    assert built.coverers("dpl:missing") == []
+
+
+def test_a_covered_block_sums_the_version_and_the_versions_it_covers():
+    built = service(seeded()).refresh(NOW)
+    rows = built.by_version
+    covered = built.covered(version(X))
+    assert [row["version_id"] for row in covered["versions"]] == sorted(
+        [version(A), version(W)])
+    expected = sum(contract.decode_int(rows[v]["count"])
+                   for v in (version(X), version(A), version(W)))
+    assert contract.decode_int(covered["count"]) == expected
+    assert built.covered(version(A))["versions"] == []
+    assert contract.decode_int(built.covered(version(A))["count"]) == \
+        contract.decode_int(rows[version(A)]["count"])
 
 
 def test_ancestors_walk_the_observed_widening_links_transitively():
@@ -421,15 +438,16 @@ def test_ancestors_walk_the_observed_widening_links_transitively():
 def test_a_row_carries_the_new_shape_and_none_of_the_old_one():
     built = service(seeded()).refresh(NOW)
     row = built.by_version[version(A)]
-    for name in ("version_id", "canonical_id", "family", "template",
-                 "normalized", "token_count", "programs", "origin_hosts",
-                 "log_sources", "severity_norm", "count", "count_status",
-                 "first_observed", "last_observed", "first_catalogued",
-                 "active", "historical", "widened_into", "widened_from",
-                 "descendants", "descendant_count", "canonical_versions",
-                 "label", "label_conflicts", "watched", "score"):
+    for name in ("version_id", "family", "template", "token_count",
+                 "programs", "origin_hosts", "log_sources", "severity_norm",
+                 "count", "count_status", "first_observed", "last_observed",
+                 "first_catalogued", "active", "historical", "widened_into",
+                 "widened_from", "descendants", "descendant_count", "label",
+                 "label_conflicts", "watched", "score"):
         assert name in row, name
-    for name in ("superseded_by", "supersedes", "relationship_verified",
+    for name in ("canonical_id", "normalized", "template_id",
+                 "canonical_versions",
+                 "superseded_by", "supersedes", "relationship_verified",
                  "historical_programs", "historical_origin_hosts",
                  "contributing_producers", "missing_producers",
                  "open_bucket_observed", "open_bucket_last_observed",
@@ -580,8 +598,8 @@ def test_the_detail_reads_the_catalog_for_a_version_outside_the_view():
     served.refresh(NOW)
     detail = served.detail(version(old), NOW)
     assert detail["version"]["historical"] is True
-    assert detail["canonical_group"]["versions"][0]["version_id"] == \
-        version(old)
+    assert detail["covered"]["versions"] == []
+    assert detail["covered"]["count"] == detail["version"]["count"]
     with pytest.raises(view.ViewRefused):
         served.detail("dpl:0123456789abcdef01234567", NOW)
 
@@ -607,7 +625,7 @@ def lines_farm():
         transport.put_record(index, {
             "doc_id": f"r{n}", "node": node, "collector_time": when,
             "message": message, "template_version": stamp,
-            "template_id": "x", "template_status": "matched",
+            "template_status": "matched",
             "log_source": "stdout", "program": "o2-gpu",
             "origin_host": f"{node}.cern.ch", "severity_norm": "error"})
     return transport
@@ -805,8 +823,9 @@ def test_the_predicate_reads_every_filter():
     assert [r["version_id"] for r in rows if only(r)] == [
         version(OTHER, "infologger")]
     text = view._predicate({"query": "SENT <*> BYTES"})
-    assert sorted(r["version_id"] for r in rows if text(r)) == sorted(
-        [version(A), version(W)])
+    assert [r["version_id"] for r in rows if text(r)] == [version(W)]
+    typed = view._predicate({"query": "sent <NUM> bytes"})
+    assert [r["version_id"] for r in rows if typed(r)] == [version(A)]
     by_id = view._predicate({"query": version(A)})
     assert [r["version_id"] for r in rows if by_id(r)] == [version(A)]
     host = view._predicate({"host": ["epn999"]})

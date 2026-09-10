@@ -35,40 +35,39 @@ REASON_MODEL_MISSING = "model_unavailable"
 REASON_MODEL_DIMENSIONS = "model_dimensions_mismatch"
 REASON_ENCODE_FAILED = "encode_failed"
 REASON_ENCODER_BUSY = "encoder_busy"
-REASON_GROUP_LIMIT = "group_limit_reached"
+REASON_VERSION_LIMIT = "version_limit_reached"
 REASON_VECTOR_BYTES_LIMIT = "vector_bytes_limit_reached"
 REASON_EMPTY_QUERY = "empty_query"
 REASON_REFRESH_RUNNING = "refresh_running"
-REASON_NOT_EMBEDDED = "group_not_embedded"
+REASON_NOT_EMBEDDED = "version_not_embedded"
 
 REASON_TEXT = {
     REASON_NONE: "",
     REASON_DISABLED: "semantic search is turned off on this server",
     REASON_NO_SNAPSHOT: "semantic search has no vectors yet",
-    REASON_NO_CAPACITY: "the configured vector memory holds no group",
+    REASON_NO_CAPACITY: "the configured vector memory holds no version",
     REASON_MODEL_MISSING: "the retrieval model did not load",
     REASON_MODEL_DIMENSIONS: "the model emits a different number of dimensions "
                              "than the memory budget was set for",
     REASON_ENCODE_FAILED: "the encoder failed",
     REASON_ENCODER_BUSY: "the single encoding slot was busy",
-    REASON_GROUP_LIMIT: "the active group limit was reached, so the searched "
-                        "corpus is smaller than the active catalog",
+    REASON_VERSION_LIMIT: "the active version limit was reached, so the "
+                          "searched corpus is smaller than the active catalog",
     REASON_VECTOR_BYTES_LIMIT: "the vector memory limit was reached, so the "
                                "searched corpus is smaller than the active "
                                "catalog",
     REASON_EMPTY_QUERY: "the query was empty",
     REASON_REFRESH_RUNNING: "a refresh is already running",
-    REASON_NOT_EMBEDDED: "this canonical group holds no vector in the "
+    REASON_NOT_EMBEDDED: "this template version holds no vector in the "
                          "searched corpus",
 }
 
 VECTOR_VALUE_BYTES = 4
-GROUP_RESIDENT_BYTES = 544
-VERSION_RESIDENT_BYTES = 112
+VERSION_RESIDENT_BYTES = 656
 QUERY_SCRATCH_BYTES = 96
 
 DEFAULT_DIMENSIONS = 512
-DEFAULT_MAX_GROUPS = 20000
+DEFAULT_MAX_VERSIONS = 20000
 DEFAULT_MAX_VECTOR_BYTES = 16777216
 DEFAULT_BATCH = 256
 DEFAULT_MAX_RESULTS = 50
@@ -81,21 +80,20 @@ MAX_ENCODERS = 1
 POLL_SECONDS = 1.0
 
 VERSION_IDENTIFIER = re.compile(r"^[A-Za-z0-9_.-]{1,32}:[0-9a-f]{24}$")
-CANONICAL_IDENTIFIER = re.compile(r"^[0-9a-f]{16}$")
 
-Group = collections.namedtuple(
-    "Group", ("canonical_id", "normalized", "version_ids", "last_observed"))
+Version = collections.namedtuple(
+    "Version", ("version_id", "template", "last_observed"))
 
-Hit = collections.namedtuple("Hit", ("canonical_id", "version_ids", "score"))
+Hit = collections.namedtuple("Hit", ("version_id", "score"))
 
 Snapshot = collections.namedtuple("Snapshot", (
-    "status", "coverage", "reason", "detail", "groups", "groups_total",
-    "versions", "vector_bytes", "vector_bytes_limit", "capacity", "truncated",
-    "model_revision", "built_at_ms", "took_ms", "members"))
+    "status", "coverage", "reason", "detail", "versions", "versions_total",
+    "vector_bytes", "vector_bytes_limit", "capacity", "truncated",
+    "model_revision", "built_at_ms", "took_ms", "embedded"))
 
 SearchResult = collections.namedtuple("SearchResult", (
-    "status", "coverage", "reason", "detail", "hits", "truncated", "groups",
-    "groups_total", "vector_bytes", "model_revision", "limit", "took_ms"))
+    "status", "coverage", "reason", "detail", "hits", "truncated", "versions",
+    "versions_total", "vector_bytes", "model_revision", "limit", "took_ms"))
 
 
 class SemanticError(Exception):
@@ -145,7 +143,7 @@ class Config(object):
     def __init__(self, enabled=False, backend=BACKEND_NONE, model_path="",
                  model_revision=DEFAULT_MODEL_REVISION,
                  corpus_revision="unset", dimensions=DEFAULT_DIMENSIONS,
-                 max_groups=DEFAULT_MAX_GROUPS,
+                 max_versions=DEFAULT_MAX_VERSIONS,
                  max_vector_bytes=DEFAULT_MAX_VECTOR_BYTES,
                  batch_size=DEFAULT_BATCH, encoders=MAX_ENCODERS,
                  max_results=DEFAULT_MAX_RESULTS,
@@ -160,7 +158,7 @@ class Config(object):
         self.model_revision = str(model_revision or DEFAULT_MODEL_REVISION)
         self.corpus_revision = str(corpus_revision or "unset")
         self.dimensions = max(1, int(dimensions))
-        self.max_groups = max(0, int(max_groups))
+        self.max_versions = max(0, int(max_versions))
         self.max_vector_bytes = max(0, int(max_vector_bytes))
         self.batch_size = max(1, int(batch_size))
         self.encoders = _clamp(encoders, 1, MAX_ENCODERS)
@@ -177,19 +175,18 @@ class Config(object):
 
     @property
     def vector_capacity(self):
-        return min(self.max_groups,
+        return min(self.max_versions,
                    self.max_vector_bytes // self.vector_row_bytes)
 
     @property
     def binding_limit(self):
-        if self.max_groups <= self.max_vector_bytes // self.vector_row_bytes:
-            return REASON_GROUP_LIMIT
+        if self.max_versions <= self.max_vector_bytes // self.vector_row_bytes:
+            return REASON_VERSION_LIMIT
         return REASON_VECTOR_BYTES_LIMIT
 
-    def resident_ceiling(self, versions_per_group=1.05):
-        groups = self.vector_capacity
-        return int(groups * (self.vector_row_bytes + GROUP_RESIDENT_BYTES)
-                   + groups * versions_per_group * VERSION_RESIDENT_BYTES
+    def resident_ceiling(self):
+        versions = self.vector_capacity
+        return int(versions * (self.vector_row_bytes + VERSION_RESIDENT_BYTES)
                    + self.max_results * QUERY_SCRATCH_BYTES)
 
     @classmethod
@@ -205,8 +202,8 @@ class Config(object):
                                     "unset"),
             dimensions=_whole(env.get("SHIFTER_SEMANTIC_DIMENSIONS"),
                               DEFAULT_DIMENSIONS, 1),
-            max_groups=_whole(env.get("SHIFTER_SEMANTIC_MAX_GROUPS"),
-                              DEFAULT_MAX_GROUPS),
+            max_versions=_whole(env.get("SHIFTER_SEMANTIC_MAX_VERSIONS"),
+                                DEFAULT_MAX_VERSIONS),
             max_vector_bytes=_whole(env.get("SHIFTER_VECTOR_CACHE_BYTES"),
                                     DEFAULT_MAX_VECTOR_BYTES),
             batch_size=_whole(env.get("SHIFTER_SEMANTIC_BATCH"),
@@ -257,8 +254,8 @@ class VectorStore(object):
     def __len__(self):
         return len(self._ids)
 
-    def __contains__(self, canonical_id):
-        return canonical_id in self._rows
+    def __contains__(self, version_id):
+        return version_id in self._rows
 
     @property
     def vector_bytes(self):
@@ -267,16 +264,16 @@ class VectorStore(object):
     def ids(self):
         return tuple(self._ids)
 
-    def vector(self, canonical_id):
-        row = self._rows.get(canonical_id)
+    def vector(self, version_id):
+        row = self._rows.get(version_id)
         if row is None:
             return None
         dimensions = self.dimensions
         return self._values[row * dimensions:(row + 1) * dimensions]
 
-    def add(self, canonical_id, values):
+    def add(self, version_id, values):
         vector = unit_vector(values, self.dimensions)
-        row = self._rows.get(canonical_id)
+        row = self._rows.get(version_id)
         dimensions = self.dimensions
         if row is not None:
             self._values[row * dimensions:(row + 1) * dimensions] = vector
@@ -284,15 +281,15 @@ class VectorStore(object):
         if len(self._ids) >= self.capacity:
             raise LimitReached(
                 REASON_VECTOR_BYTES_LIMIT,
-                "the store holds %d groups and its capacity is %d"
+                "the store holds %d versions and its capacity is %d"
                 % (len(self._ids), self.capacity))
-        self._rows[canonical_id] = len(self._ids)
-        self._ids.append(canonical_id)
+        self._rows[version_id] = len(self._ids)
+        self._ids.append(version_id)
         self._values.extend(vector)
         return True
 
-    def discard(self, canonical_id):
-        row = self._rows.pop(canonical_id, None)
+    def discard(self, version_id):
+        row = self._rows.pop(version_id, None)
         if row is None:
             return False
         dimensions = self.dimensions
@@ -317,10 +314,10 @@ class VectorStore(object):
         values = self._values
         multiply = operator.mul
         scored = []
-        for row, canonical_id in enumerate(self._ids):
-            if allowed is not None and canonical_id not in allowed:
+        for row, version_id in enumerate(self._ids):
+            if allowed is not None and version_id not in allowed:
                 continue
-            scored.append((canonical_id, sum(map(
+            scored.append((version_id, sum(map(
                 multiply, values[row * dimensions:(row + 1) * dimensions],
                 query))))
         scored.sort(key=lambda item: (-item[1], item[0]))
@@ -410,53 +407,29 @@ def load_encoder(config):
     return Encoder(model, dimensions, config.model_revision, call)
 
 
-def active_groups(entries, now_ms, active_ms=contract.ACTIVE_MS):
-    collected = {}
+def active_versions(entries, now_ms, active_ms=contract.ACTIVE_MS):
+    found = []
     for entry in entries:
         if not isinstance(entry, dict):
             continue
-        canonical_id = entry.get("canonical_id")
         version_id = entry.get("version_id")
+        template = entry.get("template")
         last_observed = entry.get("last_observed")
-        if not canonical_id or not version_id:
+        if not version_id or not template:
             continue
         if not isinstance(last_observed, int) or isinstance(last_observed,
                                                             bool):
             continue
         if not contract.is_active(last_observed, now_ms, active_ms):
             continue
-        normalized = entry.get("normalized")
-        if not normalized:
-            template = entry.get("template")
-            if not template:
-                continue
-            normalized = contract.normalize(template)
-        found = collected.get(canonical_id)
-        if found is None:
-            collected[canonical_id] = {
-                "normalized": normalized,
-                "versions": {version_id},
-                "last_observed": last_observed,
-                "lowest": version_id,
-            }
-            continue
-        found["versions"].add(version_id)
-        if last_observed > found["last_observed"]:
-            found["last_observed"] = last_observed
-        if version_id < found["lowest"]:
-            found["lowest"] = version_id
-            found["normalized"] = normalized
-    groups = [Group(canonical_id, found["normalized"],
-                    tuple(sorted(found["versions"])), found["last_observed"])
-              for canonical_id, found in collected.items()]
-    groups.sort(key=lambda group: (-group.last_observed, group.canonical_id))
-    return groups
+        found.append(Version(version_id, template, last_observed))
+    found.sort(key=lambda version: (-version.last_observed,
+                                    version.version_id))
+    return found
 
 
 def looks_like_identifier(text):
-    text = (text or "").strip()
-    return bool(VERSION_IDENTIFIER.match(text)
-                or CANONICAL_IDENTIFIER.match(text))
+    return bool(VERSION_IDENTIFIER.match((text or "").strip()))
 
 
 def search_modes(mode, include_inactive):
@@ -485,11 +458,9 @@ def history_query(text, now_ms, page_size=DEFAULT_MAX_RESULTS, after=None,
     }
     text = (text or "").strip()[:max(1, int(max_query_chars))]
     if text:
-        should = [{"term": {"version_id": text}},
-                  {"term": {"canonical_id": text}}]
+        should = [{"term": {"version_id": text}}]
         if not looks_like_identifier(text):
             should.append({"match_phrase": {"template": text}})
-            should.append({"match_phrase": {"normalized": text}})
         body["query"]["bool"]["should"] = should
         body["query"]["bool"]["minimum_should_match"] = 1
     if after:
@@ -498,21 +469,21 @@ def history_query(text, now_ms, page_size=DEFAULT_MAX_RESULTS, after=None,
 
 
 def apply_scores(rows, hits):
-    scores = {hit.canonical_id: hit.score for hit in hits}
+    scores = {hit.version_id: hit.score for hit in hits}
     for row in rows:
-        row["score"] = scores.get(row.get("canonical_id"))
+        row["score"] = scores.get(row.get("version_id"))
     return rows
 
 
 def summary(snapshot):
     return {
         "status": snapshot.status,
-        "groups": snapshot.groups,
+        "versions": snapshot.versions,
         "vector_bytes": snapshot.vector_bytes,
         "model_revision": snapshot.model_revision,
         "coverage": snapshot.coverage,
         "truncated": snapshot.truncated,
-        "groups_total": snapshot.groups_total,
+        "versions_total": snapshot.versions_total,
         "reason": snapshot.reason,
         "detail": REASON_TEXT.get(snapshot.reason, snapshot.reason),
     }
@@ -521,12 +492,12 @@ def summary(snapshot):
 def result_summary(result):
     return {
         "status": result.status,
-        "groups": result.groups,
+        "versions": result.versions,
         "vector_bytes": result.vector_bytes,
         "model_revision": result.model_revision,
         "coverage": result.coverage,
         "truncated": result.truncated,
-        "groups_total": result.groups_total,
+        "versions_total": result.versions_total,
         "reason": result.reason,
         "detail": REASON_TEXT.get(result.reason, result.reason),
     }
@@ -535,20 +506,20 @@ def result_summary(result):
 def unavailable_summary(reason=REASON_DISABLED, detail=""):
     return {
         "status": STATUS_UNAVAILABLE,
-        "groups": 0,
+        "versions": 0,
         "vector_bytes": 0,
         "model_revision": DEFAULT_MODEL_REVISION,
         "coverage": contract.COVERAGE_UNAVAILABLE,
         "truncated": False,
-        "groups_total": 0,
+        "versions_total": 0,
         "reason": reason,
         "detail": detail or REASON_TEXT.get(reason, reason),
     }
 
 
-def resident_estimate(groups, versions, dimensions):
-    return int(groups * (dimensions * VECTOR_VALUE_BYTES + GROUP_RESIDENT_BYTES)
-               + versions * VERSION_RESIDENT_BYTES)
+def resident_estimate(versions, dimensions):
+    return int(versions * (dimensions * VECTOR_VALUE_BYTES
+                           + VERSION_RESIDENT_BYTES))
 
 
 class SemanticSearch(object):
@@ -580,15 +551,14 @@ class SemanticSearch(object):
         return REASON_NO_SNAPSHOT
 
     def _blank(self, reason, detail="", status=STATUS_UNAVAILABLE,
-               groups_total=0, took_ms=0):
+               versions_total=0, took_ms=0):
         return Snapshot(
             status=status,
             coverage=contract.COVERAGE_UNAVAILABLE,
             reason=reason,
             detail=detail,
-            groups=0,
-            groups_total=groups_total,
             versions=0,
+            versions_total=versions_total,
             vector_bytes=0,
             vector_bytes_limit=self.config.max_vector_bytes,
             capacity=self.config.vector_capacity,
@@ -596,7 +566,7 @@ class SemanticSearch(object):
             model_revision=self.config.model_revision,
             built_at_ms=self._clock(),
             took_ms=took_ms,
-            members={})
+            embedded=frozenset())
 
     def snapshot(self):
         return self._snapshot
@@ -626,11 +596,11 @@ class SemanticSearch(object):
         if thread is not None:
             thread.join(timeout)
 
-    def submit(self, groups):
+    def submit(self, versions):
         if not self.config.enabled:
             return False
         with self._lock:
-            self._pending = list(groups)
+            self._pending = list(versions)
         self._wake.set()
         return True
 
@@ -641,16 +611,16 @@ class SemanticSearch(object):
             if self._stopping:
                 return
             with self._lock:
-                groups = self._pending
+                versions = self._pending
                 self._pending = None
-            if groups is None:
+            if versions is None:
                 continue
             try:
-                self.refresh(groups)
+                self.refresh(versions)
             except Exception as exc:
                 self._fail(REASON_ENCODE_FAILED, repr(exc))
 
-    def refresh(self, groups):
+    def refresh(self, versions):
         started = time.time()
         if not self.config.enabled:
             self._snapshot = self._blank(REASON_DISABLED)
@@ -660,7 +630,7 @@ class SemanticSearch(object):
                 return self._snapshot
             self._refreshing = True
         try:
-            return self._refresh(list(groups), started)
+            return self._refresh(list(versions), started)
         except SemanticError as exc:
             return self._fail(exc.reason, exc.detail)
         except Exception as exc:
@@ -669,31 +639,31 @@ class SemanticSearch(object):
             with self._lock:
                 self._refreshing = False
 
-    def _refresh(self, groups, started):
+    def _refresh(self, versions, started):
         capacity = self._store.capacity
         if capacity <= 0:
             return self._fail(REASON_NO_CAPACITY, "")
         self._encoder_error = None
-        ordered = sorted(groups, key=lambda group: (-group.last_observed,
-                                                    group.canonical_id))
+        ordered = sorted(versions, key=lambda version: (-version.last_observed,
+                                                        version.version_id))
         total = len(ordered)
         wanted = ordered[:capacity]
         truncated = total > capacity
-        keep = set(group.canonical_id for group in wanted)
+        keep = set(version.version_id for version in wanted)
         with self._store_lock:
-            for canonical_id in self._store.ids():
-                if canonical_id not in keep:
-                    self._store.discard(canonical_id)
-            missing = [group for group in wanted
-                       if group.canonical_id not in self._store]
+            for version_id in self._store.ids():
+                if version_id not in keep:
+                    self._store.discard(version_id)
+            missing = [version for version in wanted
+                       if version.version_id not in self._store]
         reason = REASON_NONE
         detail = ""
         if missing:
-            if not self._snapshot.groups:
+            if not self._snapshot.versions:
                 self._snapshot = self._snapshot._replace(
-                    status=STATUS_BUILDING, groups_total=total)
+                    status=STATUS_BUILDING, versions_total=total)
             try:
-                self._encode_groups(missing)
+                self._encode_versions(missing)
             except SemanticError as exc:
                 reason = exc.reason
                 detail = exc.detail
@@ -706,15 +676,15 @@ class SemanticSearch(object):
             reason = self.config.binding_limit
         return self._publish(wanted, total, truncated, reason, detail, started)
 
-    def _encode_groups(self, groups):
+    def _encode_versions(self, versions):
         size = self.config.batch_size
-        for start in range(0, len(groups), size):
-            batch = groups[start:start + size]
-            vectors = self._encode([group.normalized for group in batch],
+        for start in range(0, len(versions), size):
+            batch = versions[start:start + size]
+            vectors = self._encode([version.template for version in batch],
                                    self.config.encode_wait_seconds)
             with self._store_lock:
-                for group, values in zip(batch, vectors):
-                    self._store.add(group.canonical_id, values)
+                for version, values in zip(batch, vectors):
+                    self._store.add(version.version_id, values)
 
     def _encode(self, texts, timeout):
         if not self._encode_slot.acquire(True, timeout):
@@ -742,19 +712,17 @@ class SemanticSearch(object):
 
     def _publish(self, wanted, total, truncated, reason, detail, started):
         with self._store_lock:
-            members = {group.canonical_id: group.version_ids
-                       for group in wanted
-                       if group.canonical_id in self._store}
+            embedded = frozenset(version.version_id for version in wanted
+                                 if version.version_id in self._store)
             vector_bytes = self._store.vector_bytes
-        groups = len(members)
-        versions = sum(len(ids) for ids in members.values())
+        versions = len(embedded)
         took_ms = int((time.time() - started) * 1000)
-        if groups == 0:
+        if versions == 0:
             self._snapshot = self._blank(
                 reason or REASON_NO_SNAPSHOT, detail,
-                groups_total=total, took_ms=took_ms)
+                versions_total=total, took_ms=took_ms)
             return self._snapshot
-        if truncated or groups < total:
+        if truncated or versions < total:
             coverage = contract.COVERAGE_PARTIAL
             if reason == REASON_NONE:
                 reason = REASON_ENCODE_FAILED
@@ -765,39 +733,38 @@ class SemanticSearch(object):
             coverage=coverage,
             reason=reason,
             detail=detail,
-            groups=groups,
-            groups_total=total,
             versions=versions,
+            versions_total=total,
             vector_bytes=vector_bytes,
             vector_bytes_limit=self.config.max_vector_bytes,
             capacity=self._store.capacity,
-            truncated=truncated or groups < total,
+            truncated=truncated or versions < total,
             model_revision=self.config.model_revision,
             built_at_ms=self._clock(),
             took_ms=took_ms,
-            members=members)
+            embedded=embedded)
         return self._snapshot
 
     def _fail(self, reason, detail):
         self.last_error = "%s %s" % (reason, detail)
         previous = self._snapshot
         self._snapshot = Snapshot(
-            status=previous.status if previous.groups else STATUS_UNAVAILABLE,
-            coverage=(contract.COVERAGE_PARTIAL if previous.groups
+            status=(previous.status if previous.versions
+                    else STATUS_UNAVAILABLE),
+            coverage=(contract.COVERAGE_PARTIAL if previous.versions
                       else contract.COVERAGE_UNAVAILABLE),
             reason=reason,
             detail=detail,
-            groups=previous.groups,
-            groups_total=previous.groups_total,
             versions=previous.versions,
+            versions_total=previous.versions_total,
             vector_bytes=previous.vector_bytes,
             vector_bytes_limit=self.config.max_vector_bytes,
             capacity=self.config.vector_capacity,
-            truncated=previous.truncated or bool(previous.groups),
+            truncated=previous.truncated or bool(previous.versions),
             model_revision=self.config.model_revision,
             built_at_ms=self._clock(),
             took_ms=previous.took_ms,
-            members=previous.members)
+            embedded=previous.embedded)
         return self._snapshot
 
     def _result(self, snapshot, hits, limit, started, reason=None, detail=""):
@@ -808,8 +775,8 @@ class SemanticSearch(object):
             detail=detail or snapshot.detail,
             hits=hits,
             truncated=snapshot.truncated,
-            groups=snapshot.groups,
-            groups_total=snapshot.groups_total,
+            versions=snapshot.versions,
+            versions_total=snapshot.versions_total,
             vector_bytes=snapshot.vector_bytes,
             model_revision=snapshot.model_revision,
             limit=limit,
@@ -837,8 +804,8 @@ class SemanticSearch(object):
                 status=STATUS_UNAVAILABLE,
                 coverage=contract.COVERAGE_UNAVAILABLE,
                 reason=exc.reason, detail=exc.detail, hits=(),
-                truncated=snapshot.truncated, groups=snapshot.groups,
-                groups_total=snapshot.groups_total,
+                truncated=snapshot.truncated, versions=snapshot.versions,
+                versions_total=snapshot.versions_total,
                 vector_bytes=snapshot.vector_bytes,
                 model_revision=snapshot.model_revision, limit=limit,
                 took_ms=int((time.time() - started) * 1000))
@@ -848,18 +815,17 @@ class SemanticSearch(object):
                 status=STATUS_UNAVAILABLE,
                 coverage=contract.COVERAGE_UNAVAILABLE,
                 reason=REASON_ENCODE_FAILED, detail=repr(exc), hits=(),
-                truncated=snapshot.truncated, groups=snapshot.groups,
-                groups_total=snapshot.groups_total,
+                truncated=snapshot.truncated, versions=snapshot.versions,
+                versions_total=snapshot.versions_total,
                 vector_bytes=snapshot.vector_bytes,
                 model_revision=snapshot.model_revision, limit=limit,
                 took_ms=int((time.time() - started) * 1000))
         with self._store_lock:
-            scored = self._store.search(vector, limit, snapshot.members)
-        hits = tuple(Hit(canonical_id, snapshot.members[canonical_id], score)
-                     for canonical_id, score in scored)
+            scored = self._store.search(vector, limit, snapshot.embedded)
+        hits = tuple(Hit(version_id, score) for version_id, score in scored)
         return self._result(snapshot, hits, limit, started)
 
-    def neighbours(self, canonical_id, limit=None):
+    def neighbours(self, version_id, limit=None):
         started = time.time()
         snapshot = self._snapshot
         limit = _clamp(limit or DEFAULT_MAX_NEIGHBOURS, 1,
@@ -867,21 +833,20 @@ class SemanticSearch(object):
         if snapshot.status != STATUS_READY:
             return self._result(snapshot, (), limit, started,
                                 reason=snapshot.reason or REASON_NO_SNAPSHOT)
-        group_id = str(canonical_id or "").strip()
-        if group_id not in snapshot.members:
+        wanted = str(version_id or "").strip()
+        if wanted not in snapshot.embedded:
             return self._result(snapshot, (), limit, started,
                                 reason=REASON_NOT_EMBEDDED)
         with self._store_lock:
-            vector = self._store.vector(group_id)
+            vector = self._store.vector(wanted)
             scored = (() if vector is None
                       else self._store.search(vector, limit + 1,
-                                              snapshot.members))
+                                              snapshot.embedded))
         if vector is None:
             return self._result(snapshot, (), limit, started,
                                 reason=REASON_NOT_EMBEDDED)
-        hits = tuple(Hit(found, snapshot.members[found], score)
-                     for found, score in scored
-                     if found != group_id)[:limit]
+        hits = tuple(Hit(found, score) for found, score in scored
+                     if found != wanted)[:limit]
         return self._result(snapshot, hits, limit, started)
 
 
@@ -905,10 +870,10 @@ class DisabledSearch(object):
     def stop(self, timeout=5.0):
         return None
 
-    def submit(self, groups):
+    def submit(self, versions):
         return False
 
-    def refresh(self, groups):
+    def refresh(self, versions):
         return None
 
     def search(self, text, limit=None):
@@ -916,17 +881,17 @@ class DisabledSearch(object):
             status=STATUS_UNAVAILABLE,
             coverage=contract.COVERAGE_UNAVAILABLE,
             reason=self.reason, detail=self.detail, hits=(), truncated=False,
-            groups=0, groups_total=0, vector_bytes=0,
+            versions=0, versions_total=0, vector_bytes=0,
             model_revision=DEFAULT_MODEL_REVISION,
             limit=_clamp(limit or DEFAULT_MAX_RESULTS, 1, DEFAULT_MAX_RESULTS),
             took_ms=0)
 
-    def neighbours(self, canonical_id, limit=None):
+    def neighbours(self, version_id, limit=None):
         return SearchResult(
             status=STATUS_UNAVAILABLE,
             coverage=contract.COVERAGE_UNAVAILABLE,
             reason=self.reason, detail=self.detail, hits=(), truncated=False,
-            groups=0, groups_total=0, vector_bytes=0,
+            versions=0, versions_total=0, vector_bytes=0,
             model_revision=DEFAULT_MODEL_REVISION,
             limit=_clamp(limit or DEFAULT_MAX_NEIGHBOURS, 1,
                          DEFAULT_MAX_NEIGHBOURS),

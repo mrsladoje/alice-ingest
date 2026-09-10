@@ -34,7 +34,6 @@
         "program":    { "type": "keyword" },
         "doc_id":     { "type": "keyword" },
         "template_version": { "type": "keyword" },
-        "template_id":      { "type": "keyword" },
         "template_status":  { "type": "keyword" },
         "message":    { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 1024 } } }
       }
@@ -42,6 +41,6 @@
   },
   "_meta": {
     "family": "infologger",
-    "note": "dynamic is strict here, so a field the ingest pipeline sets and this mapping does not name gets the whole document REJECTED, not just left unindexed. program is set from facility for every InfoLogger record; anything else added to the pipeline has to be added here in the same change. doc_id is the collector-assigned document identifier that makes a retried bulk chunk an overwrite; under a strict mapping it is not optional, because the output leaves it in the body and an unmapped field rejects the whole record. template_version, template_id and template_status are the stamper's fields and are not optional here for the same reason."
+    "note": "dynamic is strict here, so a field the ingest pipeline sets and this mapping does not name gets the whole document REJECTED, not just left unindexed. program is set from facility for every InfoLogger record; anything else added to the pipeline has to be added here in the same change. doc_id is the collector-assigned document identifier that makes a retried bulk chunk an overwrite; under a strict mapping it is not optional, because the output leaves it in the body and an unmapped field rejects the whole record. template_version and template_status are the stamper's fields and are not optional here for the same reason."
   }
 }

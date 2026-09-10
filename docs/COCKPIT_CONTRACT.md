@@ -47,25 +47,16 @@ and a colon. Example: `dpl:e5cad426a5acaa0b4610f900`.
 
 The version identifier is also the document identifier in `template-catalog`.
 
-**The canonical identifier** answers "which event meaning is this?". It is
-`canonical_id(template)`, which is `digest(normalize(template))`. Normalization
-lowercases the text, replaces every mask with ` <*> `, collapses whitespace, and
-strips edge punctuation. The digest is the SHA-256 of the normalized text, cut
-to 16 hexadecimal characters. Example: `f14be5aac03b59f8`.
+There is no second identifier. The cover relation of `docs/TEMPLATES_FIX_PLAN.md`
+section 4 groups versions: a version covers a narrower one when the two have the
+same family and token count and every token that differs is a wildcard in the
+wider one. Labels attach to a version; a label on a covering version reaches the
+versions it covers with the `broader_version` scope. Never inherit a statistic
+or an alert suppression across versions.
 
-Both functions came from shipped code and their output did not change.
-`normalize` and `digest` came from `tools/embed/freeze.py`. `version_id` is the
-former `template_id` in `deploy/roles/template_catalog/files/template_catalog.py`.
-`deploy/shared/test_template_contract.py` extracts both originals from their
-source files and compares them against the shared module.
-
-Normalization removes the difference between `<NUM>`, `<FLOAT>` and `<*>`.
-A shared canonical identifier is therefore not proof of unchanged reviewed
-meaning. Never inherit a label, a statistic, or an alert suppression from a
-canonical identifier alone.
-
-A count belongs to a version, never to a canonical group. A group total is the
-sum of the versions the response lists, and nothing else.
+A count belongs to a version, never to a group. A covered total is the sum of
+the version and the versions it covers, as the response lists them, and nothing
+else.
 
 ## 3. Time
 
@@ -179,10 +170,8 @@ One entry per counted version. Every field is present on every entry.
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `version_id` | string | Identity of the exact masked text. Derived, never accepted. |
-| `canonical_id` | string | Identity of the normalized text. Derived, never accepted. |
 | `family` | string | Mining family. |
 | `template` | string | Exact masked template text. |
-| `normalized` | string | Canonical normalization of that text. |
 | `count` | integer or decimal string | Exact record count in the completed window. |
 | `first_observed` | integer | Earliest retained observation, at or after `window_start`. |
 | `last_observed` | integer | Latest accepted observation, including the open bucket. |
@@ -385,10 +374,8 @@ The document identifier is the `version_id`.
         "kind":                   { "type": "keyword" },
         "schema_version":         { "type": "integer" },
         "version_id":             { "type": "keyword" },
-        "canonical_id":           { "type": "keyword" },
         "family":                 { "type": "keyword" },
         "template":               { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 2048 } } },
-        "normalized":             { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 2048 } } },
         "programs":               { "type": "keyword" },
         "programs_truncated":     { "type": "boolean" },
         "origin_hosts":           { "type": "keyword" },
@@ -526,11 +513,10 @@ disappears must fail explicitly.
         "kind":                  { "type": "keyword" },
         "schema_version":        { "type": "integer" },
         "label_id":              { "type": "keyword" },
-        "canonical_id":          { "type": "keyword" },
+        "version_id":            { "type": "keyword" },
         "reviewed_version_ids":  { "type": "keyword" },
         "family":                { "type": "keyword" },
         "template":              { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 2048 } } },
-        "normalized":            { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 2048 } } },
         "label":                 { "type": "keyword" },
         "note":                  { "type": "text" },
         "author":                { "type": "keyword" },
@@ -554,7 +540,7 @@ disappears must fail explicitly.
 
 Rules:
 
-- The document identifier is `label:<canonical_id>:<author_slug>`. The author
+- The document identifier is `label:<version_id>:<author_slug>`. The author
   slug matches `^[a-z0-9][a-z0-9-]{0,31}$`.
 - Two authors produce two documents. Conflicting labels stay visible. The page
   shows the conflict; it does not merge them.
@@ -645,7 +631,7 @@ the schema rather than the role.
   the 28-day sum is one nested aggregation on `counts.version_id` and
   `counts.count`. The total beside the counts is what the conservation check
   compares them against.
-- **Both log component mappings carry `template_version`, `template_id` and
+- **Both log component mappings carry `template_version` and
   `template_status`.** The InfoLogger mapping is `dynamic: strict`, so the
   stamper's fields are not optional there.
 
@@ -690,15 +676,14 @@ The Logs page keeps its own subscription.
   },
   "totals": {
     "versions": 5571,
-    "canonical_groups": 5301,
     "records": 4211987,
     "records_status": "incomplete"
   },
   "backlog": {"records": 0, "by_producer": {"epn146": 0}},
   "semantic": {
     "status": "ready",
-    "groups": 5301,
-    "vector_bytes": 10856448,
+    "versions": 5571,
+    "vector_bytes": 11409408,
     "model_revision": "unset"
   },
   "last_complete_snapshot": {
@@ -765,10 +750,8 @@ One row:
 ```json
 {
   "version_id": "dpl:e5cad426a5acaa0b4610f900",
-  "canonical_id": "3aba27572ede143e",
   "family": "dpl",
   "template": "failed to allocate <NUM> bytes",
-  "normalized": "failed to allocate <*> bytes",
   "programs": ["o2-gpu-reconstruction"],
   "origin_hosts": ["epn146"],
   "log_sources": ["stdout"],
@@ -787,7 +770,6 @@ One row:
   "superseded_by": null,
   "supersedes": [],
   "relationship_verified": true,
-  "canonical_versions": ["dpl:e5cad426a5acaa0b4610f900"],
   "label": null,
   "label_conflicts": 0,
   "watched": false,
@@ -825,8 +807,8 @@ Response:
 ```json
 {
   "version": {},
-  "canonical_group": {
-    "canonical_id": "3aba27572ede143e",
+  "covered": {
+    "version_id": "dpl:e5cad426a5acaa0b4610f900",
     "versions": [],
     "count": 4213001,
     "count_status": "exact"
@@ -837,7 +819,6 @@ Response:
     "suggestions": [
       {
         "version_id": "dpl:9c11f0a4d2b7e6531ac40d88",
-        "canonical_id": "77ce41a09b3d5e12",
         "family": "dpl",
         "template": "failed to allocate <NUM> bytes on device <NUM>",
         "score": 0.94
@@ -855,8 +836,10 @@ Response:
 }
 ```
 
-`version` and each item of `canonical_group.versions` use the row shape of
-section 8.2. The group count is the sum of the listed versions and nothing else.
+`version` and each item of `covered.versions` use the row shape of
+section 8.2. `covered.versions` are the narrower versions the selected one
+covers, and `covered.count` is the sum over the selected version and those
+listed, nothing else.
 Predecessor volume is never added to successor volume automatically.
 
 `episodes` is empty for a historical row. Its hosts are a source hint from
@@ -913,7 +896,7 @@ Request:
 
 ```json
 {
-  "canonical_id": "3aba27572ede143e",
+  "version_id": "dpl:e5cad426a5acaa0b4610f900",
   "reviewed_version_ids": ["dpl:e5c..."],
   "label": "known_bad",
   "note": "",
@@ -1011,8 +994,8 @@ does not match is thrown away, not migrated.
   Eight-byte counters alone occupy about 161 megabytes before metadata or
   serialization. Pause input with incomplete coverage before that limit. Never
   evict a positive count.
-- One 512-dimension vector per canonical group, at four bytes per value, is
-  10856448 bytes for 5301 groups. That is the matrix alone, about 10.9
+- One 512-dimension vector per template version, at four bytes per value, is
+  11409408 bytes for 5571 versions. That is the matrix alone, about 11.4
   megabytes. Measure the whole serving footprint on the target host.
 
 These are computed ceilings, not measurements. Load acceptance still needs the

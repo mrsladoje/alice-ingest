@@ -25,7 +25,6 @@ NOW = fx.NOW
 HOUR = fx.HOUR
 TEMPLATE = "failed to allocate <NUM> bytes"
 VERSION = contract.version_id("dpl", TEMPLATE)
-CANONICAL = contract.canonical_id(TEMPLATE)
 BIG = 2 ** 40 + 3
 
 
@@ -53,8 +52,8 @@ class ReadySearch(semantic.DisabledSearch):
         self.neighbour_hits = tuple(neighbours)
         self.submitted = []
 
-    def submit(self, groups):
-        self.submitted.append(list(groups))
+    def submit(self, versions):
+        self.submitted.append(list(versions))
         return True
 
     def search(self, text, limit=None):
@@ -62,19 +61,19 @@ class ReadySearch(semantic.DisabledSearch):
             status=semantic.STATUS_READY,
             coverage=contract.COVERAGE_COMPLETE,
             reason=semantic.REASON_NONE, detail="", hits=self.hits,
-            truncated=False, groups=len(self.hits),
-            groups_total=len(self.hits),
+            truncated=False, versions=len(self.hits),
+            versions_total=len(self.hits),
             vector_bytes=2048, model_revision="rev-1",
             limit=limit or 50, took_ms=1)
 
-    def neighbours(self, canonical_id, limit=None):
+    def neighbours(self, version_id, limit=None):
         return semantic.SearchResult(
             status=semantic.STATUS_READY,
             coverage=contract.COVERAGE_COMPLETE,
             reason=semantic.REASON_NONE, detail="",
             hits=self.neighbour_hits, truncated=False,
-            groups=len(self.neighbour_hits),
-            groups_total=len(self.neighbour_hits),
+            versions=len(self.neighbour_hits),
+            versions_total=len(self.neighbour_hits),
             vector_bytes=2048, model_revision="rev-1",
             limit=limit or 5, took_ms=1)
 
@@ -201,7 +200,7 @@ def test_a_ready_semantic_search_ranks_the_rows_and_is_recorded():
     transport = farm([(TEMPLATE, 7), ("another line <NUM>", 4)])
     decisions = FakeTriageTransport()
     queries = triage.QueryLog(decisions, clock=lambda: NOW)
-    search = ReadySearch([semantic.Hit(CANONICAL, (VERSION,), 0.87)])
+    search = ReadySearch([semantic.Hit(VERSION, 0.87)])
     built, _ = runtime(transport, search=search, queries=queries)
     built.cycle()
 
@@ -227,10 +226,8 @@ def test_a_ready_semantic_search_ranks_the_rows_and_is_recorded():
 def test_the_drawer_offers_neighbours_as_labelled_suggestions():
     other = "failed to allocate <NUM> bytes on device <NUM>"
     other_version = contract.version_id("dpl", other)
-    other_canonical = contract.canonical_id(other)
     transport = farm([(TEMPLATE, 11), (other, 3)])
-    search = ReadySearch(
-        [], [semantic.Hit(other_canonical, (other_version,), 0.94)])
+    search = ReadySearch([], [semantic.Hit(other_version, 0.94)])
     built, _ = runtime(transport, search=search)
     built.cycle()
 
@@ -246,7 +243,7 @@ def test_the_drawer_offers_neighbours_as_labelled_suggestions():
     assert "count" not in block["suggestions"][0]
     assert "suggestion" in block["note"]
     assert contract.decode_int(detail["version"]["count"]) == 11
-    assert contract.decode_int(detail["canonical_group"]["count"]) == 11
+    assert contract.decode_int(detail["covered"]["count"]) == 11
 
 
 def test_the_corpus_is_submitted_once_for_each_published_view():
@@ -255,7 +252,7 @@ def test_the_corpus_is_submitted_once_for_each_published_view():
     for _ in range(4):
         built.cycle()
     assert len(search.submitted) == 1
-    assert [group.canonical_id for group in search.submitted[0]] == [CANONICAL]
+    assert [v.version_id for v in search.submitted[0]] == [VERSION]
 
 
 def test_the_corpus_uses_the_configured_activity_window():
@@ -266,8 +263,8 @@ def test_the_corpus_uses_the_configured_activity_window():
     search = ReadySearch([])
     built, _ = runtime(transport, search=search)
     built.cycle()
-    assert [group.canonical_id for group in search.submitted[0]] == [
-        contract.canonical_id("quiet for three days")]
+    assert [v.version_id for v in search.submitted[0]] == [
+        contract.version_id("dpl", "quiet for three days")]
 
     transport = fx.FakeTransport()
     fx.farm(transport, nodes=("epn146",))
@@ -284,18 +281,18 @@ def test_two_simultaneous_label_edits_collide_over_the_wire():
     built.cycle()
     with serving(built) as address:
         status, raw = call(address, "POST", "/api/templates/label", {
-            "canonical_id": CANONICAL, "template": TEMPLATE, "family": "dpl",
+            "version_id": VERSION, "template": TEMPLATE, "family": "dpl",
             "reviewed_version_ids": [VERSION], "label": "known_bad",
             "author": "shift-a", "note": "seen on epn146"})
         assert status == 200
         first = json.loads(raw)["label"]
         status, raw = call(address, "POST", "/api/templates/label", {
-            "canonical_id": CANONICAL, "template": TEMPLATE, "family": "dpl",
+            "version_id": VERSION, "template": TEMPLATE, "family": "dpl",
             "reviewed_version_ids": [VERSION], "label": "noisy",
             "author": "shift-a", "revision": first["revision"]})
         assert status == 200
         status, raw = call(address, "POST", "/api/templates/label", {
-            "canonical_id": CANONICAL, "template": TEMPLATE, "family": "dpl",
+            "version_id": VERSION, "template": TEMPLATE, "family": "dpl",
             "reviewed_version_ids": [VERSION], "label": "known_good",
             "author": "shift-a", "revision": first["revision"]})
         assert status == 409
@@ -374,7 +371,7 @@ def test_a_label_reaches_the_row_it_reviewed_and_leaves_the_count_alone():
     built.cycle()
     with serving(built) as address:
         status, _ = call(address, "POST", "/api/templates/label", {
-            "canonical_id": CANONICAL, "template": TEMPLATE, "family": "dpl",
+            "version_id": VERSION, "template": TEMPLATE, "family": "dpl",
             "reviewed_version_ids": [VERSION], "label": "noisy",
             "reviewed_programs": ["o2-gpu"],
             "reviewed_origin_hosts": ["epn146"],
@@ -608,7 +605,7 @@ def test_semantic_ranking_still_answers_the_inactive_history():
     dormant = "allocation failed for an older message <NUM>"
     transport.put_definition(fx.definition(dormant,
                                            last=CUTOFF - 30 * 86400000))
-    search = ReadySearch([semantic.Hit(CANONICAL, (VERSION,), 0.87)])
+    search = ReadySearch([semantic.Hit(VERSION, 0.87)])
     built, _ = runtime(transport, search=search)
     built.cycle()
 
@@ -637,7 +634,7 @@ def test_a_failed_history_lane_is_stated_and_never_silent():
     transport = Broken()
     fx.farm(transport, nodes=("epn146",))
     transport.put_definition(fx.definition(TEMPLATE))
-    search = ReadySearch([semantic.Hit(CANONICAL, (VERSION,), 0.87)])
+    search = ReadySearch([semantic.Hit(VERSION, 0.87)])
     built, _ = runtime(transport, search=search)
     built.cycle()
 

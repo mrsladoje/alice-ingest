@@ -28,9 +28,9 @@ CORPUS_PATH = os.path.join(CORPUS_DIR, "corpus.jsonl")
 MANIFEST_PATH = os.path.join(CORPUS_DIR, "manifest.json")
 QUERIES_PATH = os.path.join(HERE, "queries.txt")
 
-PLAN_GROUPS = 5301
+PLAN_VERSIONS = 5571
 PLAN_DIMENSIONS = 512
-PLAN_MATRIX_BYTES = 10856448
+PLAN_MATRIX_BYTES = 11409408
 SERVICE_CEILING_BYTES = 384 * 1024 * 1024
 LIVE_LANE_RESERVE_BYTES = 32 * 1024 * 1024
 
@@ -85,21 +85,19 @@ def percentile(values, fraction):
 
 
 def read_corpus(path, limit=None):
-    groups = []
+    templates = []
     with open(path, "r", encoding="utf-8") as handle:
         for line in handle:
             line = line.strip()
             if not line:
                 continue
-            record = json.loads(line)
-            canonical_id = record.get("canonical_id")
-            normalized = record.get("normalized") or record.get("template")
-            if not canonical_id or not normalized:
+            template = json.loads(line).get("template")
+            if not template or template in templates:
                 continue
-            groups.append((canonical_id, normalized))
-            if limit and len(groups) >= limit:
+            templates.append(template)
+            if limit and len(templates) >= limit:
                 break
-    return groups
+    return templates
 
 
 def read_manifest(path):
@@ -157,15 +155,16 @@ def worker(args):
     config = semantic.Config(
         enabled=True, backend=args.backend, model_path=args.model,
         model_revision=args.revision, dimensions=args.dimensions,
-        max_groups=args.max_groups, max_vector_bytes=args.max_vector_bytes,
+        max_versions=args.max_versions,
+        max_vector_bytes=args.max_vector_bytes,
         batch_size=args.batch_size, max_results=args.limit,
         encode_wait_seconds=600.0, query_wait_seconds=600.0)
 
     result["vector_capacity"] = config.vector_capacity
     result["resident_ceiling_bytes"] = config.resident_ceiling()
 
-    corpus = read_corpus(args.corpus, args.groups)
-    result["corpus_groups"] = len(corpus)
+    corpus = read_corpus(args.corpus, args.versions)
+    result["corpus_versions"] = len(corpus)
     result["corpus_rss_bytes"] = resident_bytes()
 
     encoder = None
@@ -186,8 +185,8 @@ def worker(args):
         ]
         store = semantic.VectorStore(args.dimensions, config.vector_capacity)
         vectors = synthetic_vectors(len(corpus), args.dimensions)
-        for (canonical_id, _), values in zip(corpus, vectors):
-            store.add(canonical_id, values)
+        for template, values in zip(corpus, vectors):
+            store.add(template, values)
         result["vector_matrix_bytes"] = store.vector_bytes
         latencies = []
         probes = synthetic_vectors(args.repeats, args.dimensions, seed=7)
@@ -211,18 +210,17 @@ def worker(args):
 
     search = semantic.SemanticSearch(config=config,
                                      encoder_factory=lambda cfg: encoder)
-    groups = [semantic.Group(canonical_id, normalized, (canonical_id,),
-                             int(time.time() * 1000))
-              for canonical_id, normalized in corpus]
+    versions = [semantic.Version(template, template, int(time.time() * 1000))
+                for template in corpus]
 
     encode_started = time.time()
-    snapshot = search.refresh(groups)
+    snapshot = search.refresh(versions)
     result["encode_seconds"] = time.time() - encode_started
     result["encode_peak_rss_bytes"] = peak_resident_bytes()
     result["encode_rss_bytes"] = resident_bytes()
     result["snapshot_status"] = snapshot.status
     result["snapshot_coverage"] = snapshot.coverage
-    result["snapshot_groups"] = snapshot.groups
+    result["snapshot_versions"] = snapshot.versions
     result["snapshot_truncated"] = snapshot.truncated
     result["vector_matrix_bytes"] = snapshot.vector_bytes
 
@@ -276,15 +274,15 @@ def row(label, measured, note=""):
 
 def report(result, manifest, wall_seconds):
     lines = []
-    corpus_groups = (manifest.get("totals") or {}).get(
-        "canonical_groups", result.get("corpus_groups"))
+    corpus_versions = (manifest.get("totals") or {}).get(
+        "templates", result.get("corpus_versions"))
     lines.append("Bounded semantic search: measured serving cost")
     lines.append("")
     lines.append("host python           %s on %s"
                  % (result.get("python", "?"), result.get("platform", "?")))
-    lines.append("frozen corpus         %s, %s canonical groups"
+    lines.append("frozen corpus         %s, %s template versions"
                  % (manifest.get("corpus_id", "unknown"),
-                    integer(corpus_groups)))
+                    integer(corpus_versions)))
     lines.append("model measured        %s, backend %s, %d dimensions"
                  % (result.get("model_id"), result.get("backend"),
                     result.get("dimensions")))
@@ -314,17 +312,17 @@ def report(result, manifest, wall_seconds):
                      megabytes(result.get("model_peak_rss_bytes")),
                      "the model itself accounts for %s resident"
                      % megabytes(model_only)))
-    lines.append(row("vector matrix bytes, %s groups at %d dimensions, 4 bytes"
-                     % (integer(PLAN_GROUPS), PLAN_DIMENSIONS),
+    lines.append(row("vector matrix bytes, %s versions at %d dimensions, "
+                     "4 bytes" % (integer(PLAN_VERSIONS), PLAN_DIMENSIONS),
                      integer(PLAN_MATRIX_BYTES),
                      "%s; the plan states the same number"
                      % megabytes(PLAN_MATRIX_BYTES)))
     lines.append(row("vector matrix bytes actually built",
                      integer(result.get("vector_matrix_bytes")),
-                     "%s over %s groups"
+                     "%s over %s versions"
                      % (megabytes(result.get("vector_matrix_bytes")),
-                        integer(result.get("snapshot_groups",
-                                           result.get("corpus_groups"))))))
+                        integer(result.get("snapshot_versions",
+                                           result.get("corpus_versions"))))))
     lines.append(row("peak resident memory during a batch encode",
                      megabytes(result.get("encode_peak_rss_bytes")),
                      "encode took %s"
@@ -348,7 +346,7 @@ def report(result, manifest, wall_seconds):
                          "encoding is not included"))
     lines.append(row("computed resident ceiling at the configured limits",
                      megabytes(result.get("resident_ceiling_bytes")),
-                     "%s groups fit the vector budget"
+                     "%s versions fit the vector budget"
                      % integer(result.get("vector_capacity"))))
     lines.append(row("peak resident memory over the whole run",
                      megabytes(result.get("peak_rss_bytes")),
@@ -413,11 +411,11 @@ def parse(argv):
     parser.add_argument("--corpus", default=CORPUS_PATH)
     parser.add_argument("--manifest", default=MANIFEST_PATH)
     parser.add_argument("--queries", default=QUERIES_PATH)
-    parser.add_argument("--groups", type=int, default=0)
+    parser.add_argument("--versions", type=int, default=0)
     parser.add_argument("--repeats", type=int, default=100)
     parser.add_argument("--limit", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=256)
-    parser.add_argument("--max-groups", type=int, default=20000)
+    parser.add_argument("--max-versions", type=int, default=20000)
     parser.add_argument("--max-vector-bytes", type=int, default=16777216)
     parser.add_argument("--allow-network", action="store_true")
     parser.add_argument("--json", default="")
@@ -440,10 +438,11 @@ def main(argv=None):
              "--revision", args.revision,
              "--dimensions", str(args.dimensions),
              "--corpus", args.corpus, "--queries", args.queries,
-             "--groups", str(args.groups), "--repeats", str(args.repeats),
+             "--versions", str(args.versions),
+             "--repeats", str(args.repeats),
              "--limit", str(args.limit),
              "--batch-size", str(args.batch_size),
-             "--max-groups", str(args.max_groups),
+             "--max-versions", str(args.max_versions),
              "--max-vector-bytes", str(args.max_vector_bytes)]
     environment = dict(os.environ)
     if not args.allow_network:

@@ -10,7 +10,7 @@ through the stamper and back, and writes it to the OpenSearch node on the same
 machine. Informational records land in this machine's own disposable local
 index; warnings and worse go to the replicated central index on the storage
 tier. `alice-stamper` stamps every record with its log template identity
-(`template_id`, `template_version`, `template_status`) using drain3, and
+(`template_version`, `template_status`) using drain3, and
 publishes per-template counts every five minutes.
 
 This is the only role that decides what a log line means. Every index template,
@@ -193,7 +193,6 @@ time from the log line and an HTTP hop would replace it with arrival time.
 | Field | Meaning |
 |---|---|
 | `template_version` | The exact template text the tree returned. Never rewritten. |
-| `template_id` | The mask-class-collapsed text. |
 | `template_status` | `matched`, `new` (new to this worker's tree) or `no_template` (nothing left after masking). |
 
 Per chunk: stamp every record, send the chunk back and wait for the Forward

@@ -24,10 +24,8 @@ COLLECTOR_TIME_FIELD = "collector_time"
 RECORD_ID_FIELD = "doc_id"
 NODE_FIELD = "node"
 TEMPLATE_VERSION_FIELD = "template_version"
-TEMPLATE_ID_FIELD = "template_id"
 TEMPLATE_STATUS_FIELD = "template_status"
-STAMP_FIELDS = (TEMPLATE_VERSION_FIELD, TEMPLATE_ID_FIELD,
-                TEMPLATE_STATUS_FIELD)
+STAMP_FIELDS = (TEMPLATE_VERSION_FIELD, TEMPLATE_STATUS_FIELD)
 
 STAMP_MATCHED = "matched"
 STAMP_NEW = "new"
@@ -73,9 +71,6 @@ JS_MAX_SAFE_INTEGER = 9007199254740991
 JS_MIN_SAFE_INTEGER = -9007199254740991
 
 WILDCARD = "<*>"
-PLACEHOLDER = re.compile(r"<[A-Z_]+>|<\*>")
-SPACE = re.compile(r"\s+")
-EDGE = re.compile(r"^[\s.,;:!-]+|[\s.,;:!-]+$")
 
 ID_PART = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 ISO_8601 = re.compile(
@@ -127,7 +122,7 @@ STAMPER_COUNTERS = (
 )
 
 CATALOG_FIELDS = (
-    "kind", "version_id", "canonical_id", "family", "template", "normalized",
+    "kind", "version_id", "family", "template",
     "token_count", "programs", "programs_truncated", "origin_hosts",
     "origin_hosts_truncated", "log_sources", "severity_norm", "nodes",
     "nodes_truncated", "first_observed", "last_observed", "first_catalogued",
@@ -149,23 +144,9 @@ class ClockFault(ContractError):
     pass
 
 
-def normalize(template):
-    text = PLACEHOLDER.sub(" <*> ", template).lower()
-    text = SPACE.sub(" ", text).strip()
-    return EDGE.sub("", text) or text
-
-
-def digest(*parts):
-    return hashlib.sha256(" ".join(parts).encode("utf-8")).hexdigest()[:16]
-
-
 def version_id(family, template):
     body = hashlib.sha1(("%s\n%s" % (family, template)).encode("utf-8"))
     return "%s:%s" % (family, body.hexdigest()[:24])
-
-
-def canonical_id(template):
-    return digest(normalize(template))
 
 
 def family_of(record, source):
@@ -547,10 +528,8 @@ def definition_document(family, template, node, first_observed_ms,
         "kind": KIND_CATALOG_TEMPLATE,
         "schema_version": SCHEMA_VERSION,
         "version_id": identity,
-        "canonical_id": canonical_id(template),
         "family": family,
         "template": template,
-        "normalized": normalize(template),
         "token_count": len(template_tokens(template)),
         "programs": names,
         "programs_truncated": cut_programs,

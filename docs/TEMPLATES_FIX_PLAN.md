@@ -2,7 +2,7 @@
 
 **Author:** Marko Sladojevic  
 **Date:** 8 September 2026.  
-**Status:** steps 1 to 6 of section 11 implemented on 8 September 2026 (`roles/loggy_collector`, the collector loop, the mappings and ISM policies, the maintenance checks in `roles/loggy_template_catalog`, the Shifter). Not run on the rig or the farm: step 7 and the four measurements of section 9 are still open. The three checks of section 9 passed locally against Fluent Bit 5.1.2: both Forward plugins accept `unix_path`, the input acknowledges a chunk option, and the output sends Forward mode with the event-time extension and record metadata, which the stamper's decoder accepts in every mode. Decisions taken while implementing, where the text below is silent or differs: the bucket indices are date-named (`template-buckets-5m-<day>`, `template-buckets-1h-<month>`) with an ISM age policy rather than a rollover alias, because a republished bucket must overwrite the document it wrote before, and a rollover alias would put it in a new index; the canonical identifier stays as `template_id` (open decision 1 left as is); the observed widening link is kept as the set-valued `widened_into` / `widened_from` on the definition (open decision 3, kept); the check results and the maintenance reports live in `template-catalog` as `kind: check` and `kind: catalog_maintenance`; the `template-count-check` monitor fires on any failed check; the stamper's counters reach `cockpit-metrics` through `fb_health.py` reading a status file.  
+**Status:** steps 1 to 6 of section 11 implemented on 8 September 2026 (`roles/loggy_collector`, the collector loop, the mappings and ISM policies, the maintenance checks in `roles/loggy_template_catalog`, the Shifter). Not run on the rig or the farm: step 7 and the four measurements of section 9 are still open. The three checks of section 9 passed locally against Fluent Bit 5.1.2: both Forward plugins accept `unix_path`, the input acknowledges a chunk option, and the output sends Forward mode with the event-time extension and record metadata, which the stamper's decoder accepts in every mode. Decisions taken while implementing, where the text below is silent or differs: the bucket indices are date-named (`template-buckets-5m-<day>`, `template-buckets-1h-<month>`) with an ISM age policy rather than a rollover alias, because a republished bucket must overwrite the document it wrote before, and a rollover alias would put it in a new index; the canonical identifier and its `template_id` record field were removed on 10 September 2026 and the cover relation is the only grouping (open decision 1, resolved); the observed widening link is kept as the set-valued `widened_into` / `widened_from` on the definition (open decision 3, kept); the check results and the maintenance reports live in `template-catalog` as `kind: check` and `kind: catalog_maintenance`; the `template-count-check` monitor fires on any failed check; the stamper's counters reach `cockpit-metrics` through `fb_health.py` reading a status file.  
 **Supersedes:** in `docs/SHIFTER_COCKPIT_PLAN.md`: the rule that the work "does not add `template_id` to raw logs", the seven-day window, the ten-minute cadence, the read-back producer on the worker, the rolling-total snapshot publication as a manifest and generation chunks in `template-metrics`, and the single-successor `superseded_by` field. What stands from that plan: the identity functions, the observation clock, the coverage statuses, the rule that a stale figure is never shown as current, the idle-producer rule, the 90-day definition retention, and the labels.  
 **Does not change:** the templating itself. drain3 with the frozen recipe, the masker and the four Drain patches stay exactly as `docs/SOAK_RESULTS.md` and `docs/TEMPLATING_RESULTS.md` measured them.
 
@@ -83,15 +83,14 @@ One process per worker, one thread for drain3. The drain3 tree is not thread-saf
 
 Dependencies on the worker: drain3 and jsonpickle as today, plus msgpack for the Forward protocol, including its event-time extension type that carries seconds and nanoseconds.
 
-Per record: `family_of` from the contract, `recipe_tokens` from `drainbench`, `mine` on the persisted tree for that family. Three fields are written.
+Per record: `family_of` from the contract, `recipe_tokens` from `drainbench`, `mine` on the persisted tree for that family. Two fields are written.
 
 | Field | Type | Meaning |
 |---|---|---|
 | `template_version` | keyword | `version_id(family, template)`, the exact text the tree returned |
-| `template_id` | keyword | `canonical_id(template)`, the mask-class-collapsed text |
 | `template_status` | keyword | `matched`; `new` when the record created the cluster; `unlearned` when the tree is at its state limit and refused a cluster; `no_template` when the recipe reduced the record to nothing |
 
-All three go into both component mappings. The InfoLogger mapping is `dynamic: strict`, so an unmapped field rejects every document.
+Both go into both component mappings. The InfoLogger mapping is `dynamic: strict`, so an unmapped field rejects every document.
 
 Per chunk, in this order:
 
@@ -207,7 +206,7 @@ Drain only widens, so every observed transition is a cover relation. The structu
 
 The Shifter computes the relation in memory when it builds a view. It groups versions by family and token count and compares all pairs inside a group. The largest group is a few hundred versions. Nothing is stored and no mapping changes.
 
-The canonical identifier collapses mask classes only. When a literal becomes `<*>`, the canonical identifier changes too. The cover relation contains the canonical grouping as a special case. Section 10 lists the decision whether to keep both.
+There is no second identifier. An earlier draft carried a canonical identifier, the hash of the template with mask classes collapsed, case folded and edge punctuation stripped. It changed on every widening, so it did not group a template across its versions, and it was lossy, because which variables were masked, the case and the punctuation are part of a template's identity. The cover relation contains that grouping as a special case, so the identifier was removed (section 10). Labels attach to a version; a label on a covering version reaches the versions it covers with the `broader_version` scope. The semantic index holds one vector per active version.
 
 Drain at similarity 0.4 produces some very wide templates with many descendants. The view shows the descendant count beside a selected template so the operator sees what a search will expand to.
 
@@ -276,7 +275,7 @@ Three checks need no measurement, only the packaged Fluent Bit on AlmaLinux and 
 
 ## 10. Open decisions
 
-- Keep the canonical identifier and its grouping, or let the cover relation replace it. Replacing it means one concept instead of two and one field fewer on every record.
+- Resolved 10 September 2026: the cover relation replaced the canonical identifier and its grouping. One concept instead of two, one field fewer on every record, and `version_id` is the only identity.
 - The window length. 28 days is the working figure until the return-interval measurement is in.
 - Whether the observed widening link is worth keeping as provenance once search no longer needs it.
 - Where the storage-tier checks and phase two's tree build run. The central maintenance job is the working answer.

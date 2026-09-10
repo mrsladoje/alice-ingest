@@ -181,7 +181,7 @@ shifter_semantic_enabled: true
 shifter_semantic_backend: "model2vec"
 shifter_semantic_model_repo: "minishlab/potion-retrieval-32M"
 shifter_semantic_model_revision: "6fc8051fab2a1e0ee76689cf08c853792ac285e7"
-shifter_semantic_max_groups: 20000
+shifter_semantic_max_versions: 20000
 shifter_vector_cache_bytes: 67108864
 shifter_memory_high: "1G"
 shifter_memory_max: "2G"

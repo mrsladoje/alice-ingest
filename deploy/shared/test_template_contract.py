@@ -3,7 +3,6 @@ import calendar
 import hashlib
 import json
 import os
-import re
 import sys
 import unittest
 
@@ -13,8 +12,7 @@ sys.path.insert(0, HERE)
 
 import template_contract as tc  # noqa: E402
 
-FREEZE = os.path.join(REPO, "tools", "embed", "freeze.py")
-STAMPER = os.path.join(REPO, "deploy", "roles", "stamper", "files",
+STAMPER = os.path.join(REPO, "deploy", "roles", "loggy_collector", "files",
                        "stamper.py")
 SHIFTER = os.path.join(REPO, "deploy", "roles", "loggy_shifter_view", "files",
                        "shifter.py")
@@ -34,17 +32,6 @@ MASK_SAMPLES = [
     "12",
 ]
 
-NORMALIZATION_CASES = [
-    ("Failed to open file.", "failed to open file", "f14be5aac03b59f8"),
-    ("allocate <NUM> bytes", "allocate <*> bytes", "3aba27572ede143e"),
-    ("allocate <FLOAT> bytes", "allocate <*> bytes", "3aba27572ede143e"),
-    ("new client: <NUM>/<NUM>", "new client: <*> / <*>", "b61dfcb8bed601b6"),
-    ("...", "...", "ab5df625bc76dbd4"),
-    ("  Ready   for  <*> run ", "ready for <*> run", "0e7dee73479398df"),
-    ("Status: found <NUM> partition(s)", "status: found <*> partition(s)",
-     "7bc7217aebc428d1"),
-]
-
 VERSION_CASES = [
     ("dpl", "failed to allocate <NUM> bytes",
      "dpl:e5cad426a5acaa0b4610f900"),
@@ -59,23 +46,6 @@ IDENTITY_NAMES = {"template_id", "version_id", "canonical_id", "digest",
 WINDOW_END = calendar.timegm((2026, 9, 8, 14, 0, 0, 0, 0, 0)) * 1000
 WINDOW_START = calendar.timegm((2026, 8, 11, 14, 0, 0, 0, 0, 0)) * 1000
 NODE = "epn146"
-
-
-def extract(path, names):
-    with open(path) as handle:
-        tree = ast.parse(handle.read())
-    namespace = {"re": re, "hashlib": hashlib}
-    for node in tree.body:
-        name = None
-        if isinstance(node, ast.Assign) and isinstance(node.targets[0],
-                                                       ast.Name):
-            name = node.targets[0].id
-        elif isinstance(node, ast.FunctionDef):
-            name = node.name
-        if name in names:
-            exec(compile(ast.Module(body=[node], type_ignores=[]), path,
-                         "exec"), namespace)
-    return namespace
 
 
 def parse(path):
@@ -121,35 +91,6 @@ def calls_attribute(path, module, attribute):
     return False
 
 
-class Normalisation(unittest.TestCase):
-    def test_pinned_values(self):
-        for template, normalized, identity in NORMALIZATION_CASES:
-            self.assertEqual(tc.normalize(template), normalized)
-            self.assertEqual(tc.canonical_id(template), identity)
-
-    @unittest.skipUnless(os.path.exists(FREEZE), "freeze.py is not present")
-    def test_identical_to_the_frozen_corpus_builder(self):
-        namespace = extract(FREEZE, {"PLACEHOLDER", "SPACE", "EDGE",
-                                     "normalize", "digest"})
-        for template, _, _ in NORMALIZATION_CASES:
-            self.assertEqual(tc.normalize(template),
-                             namespace["normalize"](template))
-            self.assertEqual(tc.canonical_id(template),
-                             namespace["digest"](
-                                 namespace["normalize"](template)))
-        self.assertEqual(tc.digest("dpl", "mft-tracker", "link <NUM> is down"),
-                         namespace["digest"]("dpl", "mft-tracker",
-                                             "link <NUM> is down"))
-
-    def test_typed_masks_and_wildcards_are_one_group(self):
-        self.assertEqual(tc.canonical_id("allocate <NUM> bytes"),
-                         tc.canonical_id("allocate <FLOAT> bytes"))
-
-    def test_normalization_is_never_empty(self):
-        self.assertTrue(tc.normalize("..."))
-        self.assertTrue(tc.normalize("---"))
-
-
 class VersionIdentity(unittest.TestCase):
     def test_pinned_values(self):
         for family, template, identity in VERSION_CASES:
@@ -169,10 +110,9 @@ class VersionIdentity(unittest.TestCase):
         self.assertNotEqual(tc.version_id("dpl", "reader 7 opened"),
                             tc.version_id("dpl", "reader <NUM> opened"))
 
-    def test_a_canonical_group_is_not_a_version(self):
+    def test_case_and_mask_class_are_part_of_the_version(self):
         one = "reader <NUM> opened"
         two = "Reader <FLOAT> opened"
-        self.assertEqual(tc.canonical_id(one), tc.canonical_id(two))
         self.assertNotEqual(tc.version_id("dpl", one), tc.version_id("dpl", two))
 
 
@@ -524,8 +464,6 @@ class Definitions(unittest.TestCase):
             widened_into=["dpl:b"], widened_from=["dpl:a"])
         self.assertEqual(document["version_id"],
                          tc.version_id("dpl", "reader <NUM> opened"))
-        self.assertEqual(document["canonical_id"],
-                         tc.canonical_id("reader <NUM> opened"))
         self.assertEqual(document["token_count"], 3)
         self.assertEqual(document["nodes"], [NODE])
         self.assertEqual(document["widened_into"], ["dpl:b"])

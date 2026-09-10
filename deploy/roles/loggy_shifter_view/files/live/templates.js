@@ -752,7 +752,7 @@
     var labels = props.labels || [];
     if (!labels.length) {
       return e('div', { className: 'tp-note' },
-        'No label has been recorded for this canonical group.');
+        'No label has been recorded for this template version.');
     }
     return e('div', { className: 'tp-labels' },
       labels.map(function (label) {
@@ -770,7 +770,7 @@
           label.note ? e('div', { className: 'tp-labelnote' }, label.note)
                      : null,
           label.watched
-            ? e('div', { className: 'tp-note' }, 'This group is watched.')
+            ? e('div', { className: 'tp-note' }, 'This version is watched.')
             : null,
           history.length
             ? e('ul', { className: 'tp-list' },
@@ -890,7 +890,7 @@
     }
     var data = state.data;
     var row = data.version || {};
-    var group = data.canonical_group || {};
+    var group = data.covered || {};
     var versions = group.versions || [];
     var groupCount = { count: group.count || 0,
                        count_status: group.count_status || 'unknown' };
@@ -899,7 +899,6 @@
     var episodes = data.episodes || [];
     var neighbours = data.neighbours || {};
     var suggestions = neighbours.suggestions || [];
-    var descendants = data.descendants || [];
     var descendantCount = data.descendant_count || 0;
     var widenedInto = data.widened_into || row.widened_into || [];
     var widenedFrom = data.widened_from || row.widened_from || [];
@@ -935,8 +934,6 @@
 
         e('h3', { className: 'tp-h3' }, 'Identity'),
         e(Field, { label: 'version' }, row.version_id),
-        e(Field, { label: 'canonical' }, row.canonical_id),
-        e(Field, { label: 'normalized' }, row.normalized),
         e(Field, { label: 'severity' }, row.severity_norm || 'not recorded'),
 
         e('h3', { className: 'tp-h3' }, 'Retained scope'),
@@ -987,19 +984,9 @@
           descendantCount
             ? descendantCount + ' narrower version' +
               (descendantCount === 1 ? '' : 's') +
-              (descendants.length < descendantCount
-                ? ', first ' + descendants.length + ' listed' : '')
+              (versions.length < descendantCount
+                ? ', first ' + versions.length + ' listed' : '')
             : 'no narrower version'),
-        descendants.length
-          ? e('ul', { className: 'tp-list' },
-              descendants.map(function (versionId) {
-                return e('li', { key: versionId, className: 'tp-listitem' },
-                  e('button', {
-                    className: 'tp-ctext',
-                    onClick: function () { props.onOpen(versionId); }
-                  }, versionId));
-              }))
-          : null,
         e('div', { className: 'tp-note' },
           'Widened links are what a worker observed. The cover relation is '
           + 'structural: a narrower version fits under this one token by '
@@ -1019,11 +1006,11 @@
               }))
           : null,
         e('div', { className: 'tp-note' },
-          'Canonical group total: ',
+          'Covered total: ',
           e(Volume, { row: groupCount }),
-          '. That total is the sum of the versions listed here and nothing '
-          + 'else; a narrower version\'s volume is never added to a wider '
-          + 'one.'),
+          '. That is this version plus every narrower version it covers, '
+          + 'the same set a search for its lines expands to. Each version '
+          + 'above keeps its own count.'),
 
         e('h3', { className: 'tp-h3' }, 'Semantic suggestions'),
         suggestions.length
@@ -1053,7 +1040,7 @@
         row.label_conflicts
           ? e('div', { className: 'tp-note tp-warn' },
               row.label_conflicts + ' conflicting labels are recorded for '
-              + 'this canonical group. They stay visible and are not merged.')
+              + 'this template version. They stay visible and are not merged.')
           : null,
         e(Labels, { labels: data.labels }),
 
@@ -1182,8 +1169,7 @@
       e('input', {
         className: 'tp-search',
         type: 'search',
-        placeholder: 'Search template text, a version identifier or a '
-          + 'canonical identifier',
+        placeholder: 'Search template text or a version identifier',
         value: typed,
         onInput: function (ev) { setTyped(ev.target.value); }
       }),

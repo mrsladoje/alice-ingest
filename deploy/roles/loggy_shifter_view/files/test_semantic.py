@@ -30,7 +30,7 @@ def config(**kwargs):
         "model_path": "unused-in-tests",
         "model_revision": "test-revision",
         "dimensions": 4,
-        "max_groups": 100,
+        "max_versions": 100,
         "max_vector_bytes": 100 * 4 * 4,
         "batch_size": 2,
         "max_results": 10,
@@ -76,20 +76,16 @@ def factory(encoder):
     return load
 
 
-def entry(version, canonical, template, last_observed, normalized=None):
+def entry(version, template, last_observed):
     return {
         "version_id": version,
-        "canonical_id": canonical,
         "template": template,
-        "normalized": (normalized if normalized is not None
-                       else contract.normalize(template)),
         "last_observed": last_observed,
     }
 
 
-def group(canonical, normalized, versions=("dpl:aa",), last_observed=NOW):
-    return semantic.Group(canonical, normalized, tuple(versions),
-                          last_observed)
+def version(identifier, template, last_observed=NOW):
+    return semantic.Version(identifier, template, last_observed)
 
 
 class ConfigTest(unittest.TestCase):
@@ -106,14 +102,14 @@ class ConfigTest(unittest.TestCase):
             "SHIFTER_SEMANTIC_ENABLED": "true",
             "SHIFTER_SEMANTIC_BACKEND": "model2vec",
             "SHIFTER_SEMANTIC_MODEL_PATH": "/opt/loggy/model",
-            "SHIFTER_SEMANTIC_MAX_GROUPS": "20000",
+            "SHIFTER_SEMANTIC_MAX_VERSIONS": "20000",
             "SHIFTER_VECTOR_CACHE_BYTES": "16777216",
             "SHIFTER_TEMPLATE_PAGE_ROWS": "50",
             "SHIFTER_ACTIVE_DAYS": "28",
             "SHIFTER_DEFINITION_RETENTION_DAYS": "90",
         })
         self.assertTrue(cfg.enabled)
-        self.assertEqual(cfg.max_groups, 20000)
+        self.assertEqual(cfg.max_versions, 20000)
         self.assertEqual(cfg.max_vector_bytes, 16777216)
         self.assertEqual(cfg.max_results, 50)
         self.assertEqual(cfg.active_ms, contract.ACTIVE_MS)
@@ -122,12 +118,12 @@ class ConfigTest(unittest.TestCase):
     def test_bad_values_fall_back_instead_of_raising(self):
         cfg = semantic.Config.from_environment({
             "SHIFTER_SEMANTIC_ENABLED": "maybe",
-            "SHIFTER_SEMANTIC_MAX_GROUPS": "twenty",
+            "SHIFTER_SEMANTIC_MAX_VERSIONS": "twenty",
             "SHIFTER_VECTOR_CACHE_BYTES": "-1",
             "SHIFTER_SEMANTIC_BACKEND": "faiss",
         })
         self.assertFalse(cfg.enabled)
-        self.assertEqual(cfg.max_groups, semantic.DEFAULT_MAX_GROUPS)
+        self.assertEqual(cfg.max_versions, semantic.DEFAULT_MAX_VERSIONS)
         self.assertEqual(cfg.max_vector_bytes,
                          semantic.DEFAULT_MAX_VECTOR_BYTES)
         self.assertEqual(cfg.backend, semantic.BACKEND_NONE)
@@ -138,19 +134,19 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(cfg.encoders, 1)
 
     def test_capacity_is_the_smaller_of_the_two_limits(self):
-        cfg = config(max_groups=10, dimensions=4, max_vector_bytes=1000)
+        cfg = config(max_versions=10, dimensions=4, max_vector_bytes=1000)
         self.assertEqual(cfg.vector_capacity, 10)
-        self.assertEqual(cfg.binding_limit, semantic.REASON_GROUP_LIMIT)
-        cfg = config(max_groups=1000, dimensions=4, max_vector_bytes=160)
+        self.assertEqual(cfg.binding_limit, semantic.REASON_VERSION_LIMIT)
+        cfg = config(max_versions=1000, dimensions=4, max_vector_bytes=160)
         self.assertEqual(cfg.vector_capacity, 10)
         self.assertEqual(cfg.binding_limit,
                          semantic.REASON_VECTOR_BYTES_LIMIT)
 
     def test_the_plan_arithmetic_reproduces(self):
-        cfg = semantic.Config(dimensions=512, max_groups=5301,
+        cfg = semantic.Config(dimensions=512, max_versions=5571,
                               max_vector_bytes=1 << 30)
-        self.assertEqual(cfg.vector_capacity, 5301)
-        self.assertEqual(5301 * cfg.vector_row_bytes, 10856448)
+        self.assertEqual(cfg.vector_capacity, 5571)
+        self.assertEqual(5571 * cfg.vector_row_bytes, 11409408)
 
 
 class VectorStoreTest(unittest.TestCase):
@@ -187,7 +183,7 @@ class VectorStoreTest(unittest.TestCase):
             store.add("c", [1.0, 1.0])
         self.assertEqual(len(store), 2)
 
-    def test_replacing_a_group_does_not_grow_the_store(self):
+    def test_replacing_a_version_does_not_grow_the_store(self):
         store = semantic.VectorStore(2, 2)
         store.add("a", [1.0, 0.0])
         self.assertFalse(store.add("a", [0.0, 1.0]))
@@ -214,79 +210,70 @@ class VectorStoreTest(unittest.TestCase):
         store.add("b", [0.7, 0.7])
         store.add("c", [0.0, 1.0])
         hits = store.search([1.0, 0.0], 3)
-        self.assertEqual([canonical for canonical, _ in hits],
+        self.assertEqual([identifier for identifier, _ in hits],
                          ["a", "b", "c"])
         self.assertAlmostEqual(hits[0][1], 1.0, places=6)
         self.assertAlmostEqual(hits[2][1], 0.0, places=6)
 
-    def test_ties_break_on_the_canonical_identifier(self):
+    def test_ties_break_on_the_version_identifier(self):
         store = semantic.VectorStore(2, 4)
-        for canonical in ("zz", "aa", "mm"):
-            store.add(canonical, [1.0, 0.0])
+        for identifier in ("zz", "aa", "mm"):
+            store.add(identifier, [1.0, 0.0])
         hits = store.search([1.0, 0.0], 3)
-        self.assertEqual([canonical for canonical, _ in hits],
+        self.assertEqual([identifier for identifier, _ in hits],
                          ["aa", "mm", "zz"])
 
-    def test_search_only_returns_permitted_groups(self):
+    def test_search_only_returns_permitted_versions(self):
         store = semantic.VectorStore(2, 4)
         store.add("a", [1.0, 0.0])
         store.add("b", [1.0, 0.0])
-        hits = store.search([1.0, 0.0], 5, {"b": ()})
-        self.assertEqual([canonical for canonical, _ in hits], ["b"])
+        hits = store.search([1.0, 0.0], 5, {"b"})
+        self.assertEqual([identifier for identifier, _ in hits], ["b"])
 
 
-class ActiveGroupTest(unittest.TestCase):
+class ActiveVersionTest(unittest.TestCase):
 
-    def test_versions_share_one_group(self):
+    def test_every_active_version_is_its_own_entry(self):
         entries = [
-            entry("dpl:1", "c1", "failed to allocate <NUM> bytes", NOW),
-            entry("dpl:2", "c1", "failed to allocate <FLOAT> bytes", NOW - 10),
-            entry("dpl:3", "c2", "reader <NUM> opened", NOW - 20),
+            entry("dpl:1", "failed to allocate <NUM> bytes", NOW),
+            entry("dpl:2", "failed to allocate <FLOAT> bytes", NOW - 10),
+            entry("dpl:3", "reader <NUM> opened", NOW - 20),
         ]
-        groups = semantic.active_groups(entries, NOW)
-        self.assertEqual(len(groups), 2)
-        first = groups[0]
-        self.assertEqual(first.canonical_id, "c1")
-        self.assertEqual(first.version_ids, ("dpl:1", "dpl:2"))
-        self.assertEqual(first.last_observed, NOW)
+        versions = semantic.active_versions(entries, NOW)
+        self.assertEqual([v.version_id for v in versions],
+                         ["dpl:1", "dpl:2", "dpl:3"])
+        self.assertEqual(versions[0].template,
+                         "failed to allocate <NUM> bytes")
+        self.assertEqual(versions[0].last_observed, NOW)
 
     def test_inactive_entries_are_dropped(self):
         entries = [
-            entry("dpl:1", "c1", "one", NOW),
-            entry("dpl:2", "c2", "two", NOW - contract.ACTIVE_MS),
-            entry("dpl:3", "c3", "three", NOW - contract.ACTIVE_MS + 1),
+            entry("dpl:1", "one", NOW),
+            entry("dpl:2", "two", NOW - contract.ACTIVE_MS),
+            entry("dpl:3", "three", NOW - contract.ACTIVE_MS + 1),
         ]
-        groups = semantic.active_groups(entries, NOW)
-        self.assertEqual([g.canonical_id for g in groups], ["c1", "c3"])
+        versions = semantic.active_versions(entries, NOW)
+        self.assertEqual([v.version_id for v in versions], ["dpl:1", "dpl:3"])
 
     def test_missing_or_invalid_fields_are_skipped(self):
         entries = [
-            {"canonical_id": "c1", "last_observed": NOW},
+            {"template": "one", "last_observed": NOW},
             {"version_id": "dpl:1", "last_observed": NOW},
-            entry("dpl:2", "c2", "two", None),
-            entry("dpl:3", "c3", "three", True),
-            {"version_id": "dpl:4", "canonical_id": "c4",
-             "last_observed": NOW},
+            entry("dpl:2", "two", None),
+            entry("dpl:3", "three", True),
             "not a dict",
         ]
-        self.assertEqual(semantic.active_groups(entries, NOW), [])
-
-    def test_normalized_is_derived_when_absent(self):
-        entries = [{"version_id": "dpl:1", "canonical_id": "c1",
-                    "template": "Failed  to  allocate <NUM> bytes",
-                    "last_observed": NOW}]
-        groups = semantic.active_groups(entries, NOW)
-        self.assertEqual(groups[0].normalized,
-                         contract.normalize("Failed  to  allocate <NUM> bytes"))
+        self.assertEqual(semantic.active_versions(entries, NOW), [])
 
     def test_order_is_freshest_first(self):
         entries = [
-            entry("dpl:1", "c1", "one", NOW - 5000),
-            entry("dpl:2", "c2", "two", NOW),
-            entry("dpl:3", "c3", "three", NOW - 1000),
+            entry("dpl:1", "one", NOW - 5000),
+            entry("dpl:2", "two", NOW),
+            entry("dpl:3", "three", NOW - 1000),
         ]
-        groups = semantic.active_groups(entries, NOW)
-        self.assertEqual([g.canonical_id for g in groups], ["c2", "c3", "c1"])
+        versions = semantic.active_versions(entries, NOW)
+        self.assertEqual([v.version_id for v in versions],
+                         ["dpl:2", "dpl:3", "dpl:1"])
 
 
 class RefreshTest(unittest.TestCase):
@@ -303,7 +290,7 @@ class RefreshTest(unittest.TestCase):
         search = semantic.SemanticSearch(config=config(enabled=False),
                                          encoder_factory=factory(encoder),
                                          clock=lambda: NOW)
-        search.refresh([group("c1", "one")])
+        search.refresh([version("c1", "one")])
         self.assertEqual(search.status()["status"],
                          semantic.STATUS_UNAVAILABLE)
         self.assertEqual(search.status()["reason"], semantic.REASON_DISABLED)
@@ -323,84 +310,76 @@ class RefreshTest(unittest.TestCase):
         self.assertEqual(loaded, [])
         search.refresh([])
         self.assertEqual(loaded, [])
-        search.refresh([group("c1", "one")])
+        search.refresh([version("c1", "one")])
         self.assertEqual(len(loaded), 1)
 
-    def test_each_group_is_embedded_once(self):
+    def test_each_version_is_embedded_once(self):
         search, encoder = self.build()
-        groups = [group("c%d" % i, "word%d" % i, last_observed=NOW - i)
+        versions = [version("c%d" % i, "word%d" % i, last_observed=NOW - i)
                   for i in range(5)]
-        search.refresh(groups)
+        search.refresh(versions)
         self.assertEqual(sum(encoder.calls), 5)
-        search.refresh(groups)
+        search.refresh(versions)
         self.assertEqual(sum(encoder.calls), 5)
-        self.assertEqual(search.status()["groups"], 5)
+        self.assertEqual(search.status()["versions"], 5)
 
-    def test_a_new_group_is_the_only_one_embedded_again(self):
+    def test_a_new_version_is_the_only_one_embedded_again(self):
         search, encoder = self.build()
-        groups = [group("c1", "one"), group("c2", "two")]
-        search.refresh(groups)
+        versions = [version("c1", "one"), version("c2", "two")]
+        search.refresh(versions)
         encoder.texts = []
-        search.refresh(groups + [group("c3", "three")])
+        search.refresh(versions + [version("c3", "three")])
         self.assertEqual(encoder.texts, ["three"])
 
-    def test_the_normalized_text_is_what_is_encoded(self):
+    def test_the_template_text_is_what_is_encoded(self):
         search, encoder = self.build()
-        search.refresh([group("c1", "failed to allocate <*> bytes")])
-        self.assertEqual(encoder.texts, ["failed to allocate <*> bytes"])
+        search.refresh([version("c1", "Failed to allocate <NUM> bytes")])
+        self.assertEqual(encoder.texts, ["Failed to allocate <NUM> bytes"])
 
-    def test_one_vector_is_shared_by_every_listed_version(self):
-        search, encoder = self.build()
-        search.refresh([group("c1", "one", ("dpl:1", "dpl:2", "dpl:3"))])
-        self.assertEqual(sum(encoder.calls), 1)
-        result = search.search("one")
-        self.assertEqual(result.hits[0].version_ids,
-                         ("dpl:1", "dpl:2", "dpl:3"))
-
-    def test_expired_groups_lose_their_vector_in_the_same_refresh(self):
+    def test_expired_versions_lose_their_vector_in_the_same_refresh(self):
         search, _ = self.build()
-        search.refresh([group("c1", "one"), group("c2", "two")])
-        self.assertEqual(search.status()["groups"], 2)
-        snapshot = search.refresh([group("c1", "one")])
-        self.assertEqual(snapshot.groups, 1)
+        search.refresh([version("c1", "one"), version("c2", "two")])
+        self.assertEqual(search.status()["versions"], 2)
+        snapshot = search.refresh([version("c1", "one")])
+        self.assertEqual(snapshot.versions, 1)
         self.assertEqual(snapshot.vector_bytes, 4 * 4)
-        self.assertNotIn("c2", snapshot.members)
+        self.assertNotIn("c2", snapshot.embedded)
 
     def test_the_snapshot_is_replaced_and_not_mutated(self):
         search, _ = self.build()
-        first = search.refresh([group("c1", "one")])
-        second = search.refresh([group("c1", "one"), group("c2", "two")])
+        first = search.refresh([version("c1", "one")])
+        second = search.refresh([version("c1", "one"), version("c2", "two")])
         self.assertIsNot(first, second)
-        self.assertEqual(first.groups, 1)
-        self.assertEqual(second.groups, 2)
+        self.assertEqual(first.versions, 1)
+        self.assertEqual(second.versions, 2)
 
     def test_complete_coverage_is_only_claimed_when_it_is_complete(self):
         search, _ = self.build()
-        snapshot = search.refresh([group("c1", "one"), group("c2", "two")])
+        snapshot = search.refresh([version("c1", "one"), version("c2", "two")])
         self.assertEqual(snapshot.coverage, contract.COVERAGE_COMPLETE)
         self.assertFalse(snapshot.truncated)
         self.assertEqual(snapshot.reason, semantic.REASON_NONE)
 
-    def test_the_group_limit_truncates_and_says_so(self):
-        search, _ = self.build(max_groups=2)
-        groups = [group("c%d" % i, "word%d" % i, last_observed=NOW - i)
+    def test_the_version_limit_truncates_and_says_so(self):
+        search, _ = self.build(max_versions=2)
+        versions = [version("c%d" % i, "word%d" % i, last_observed=NOW - i)
                   for i in range(5)]
-        snapshot = search.refresh(groups)
+        snapshot = search.refresh(versions)
         self.assertEqual(snapshot.status, semantic.STATUS_READY)
         self.assertEqual(snapshot.coverage, contract.COVERAGE_PARTIAL)
         self.assertTrue(snapshot.truncated)
-        self.assertEqual(snapshot.groups, 2)
-        self.assertEqual(snapshot.groups_total, 5)
-        self.assertEqual(snapshot.reason, semantic.REASON_GROUP_LIMIT)
-        self.assertEqual(sorted(snapshot.members), ["c0", "c1"])
+        self.assertEqual(snapshot.versions, 2)
+        self.assertEqual(snapshot.versions_total, 5)
+        self.assertEqual(snapshot.reason, semantic.REASON_VERSION_LIMIT)
+        self.assertEqual(sorted(snapshot.embedded), ["c0", "c1"])
 
     def test_the_vector_byte_limit_truncates_and_says_so(self):
-        search, _ = self.build(max_groups=1000, max_vector_bytes=2 * 4 * 4)
-        groups = [group("c%d" % i, "word%d" % i, last_observed=NOW - i)
+        search, _ = self.build(max_versions=1000, max_vector_bytes=2 * 4 * 4)
+        versions = [version("c%d" % i, "word%d" % i, last_observed=NOW - i)
                   for i in range(4)]
-        snapshot = search.refresh(groups)
+        snapshot = search.refresh(versions)
         self.assertTrue(snapshot.truncated)
-        self.assertEqual(snapshot.groups, 2)
+        self.assertEqual(snapshot.versions, 2)
         self.assertEqual(snapshot.vector_bytes, 2 * 4 * 4)
         self.assertLessEqual(snapshot.vector_bytes,
                              snapshot.vector_bytes_limit)
@@ -409,7 +388,7 @@ class RefreshTest(unittest.TestCase):
 
     def test_no_capacity_is_unavailable_and_not_empty_success(self):
         search, encoder = self.build(max_vector_bytes=0)
-        snapshot = search.refresh([group("c1", "one")])
+        snapshot = search.refresh([version("c1", "one")])
         self.assertEqual(snapshot.status, semantic.STATUS_UNAVAILABLE)
         self.assertEqual(snapshot.coverage, contract.COVERAGE_UNAVAILABLE)
         self.assertEqual(snapshot.reason, semantic.REASON_NO_CAPACITY)
@@ -421,7 +400,7 @@ class RefreshTest(unittest.TestCase):
         search = semantic.SemanticSearch(config=config(),
                                          encoder_factory=factory(encoder),
                                          clock=lambda: NOW)
-        snapshot = search.refresh([group("c1", "one")])
+        snapshot = search.refresh([version("c1", "one")])
         self.assertEqual(snapshot.status, semantic.STATUS_UNAVAILABLE)
         self.assertEqual(snapshot.coverage, contract.COVERAGE_UNAVAILABLE)
         self.assertNotEqual(snapshot.coverage, contract.COVERAGE_COMPLETE)
@@ -434,7 +413,7 @@ class RefreshTest(unittest.TestCase):
         search = semantic.SemanticSearch(config=config(),
                                          encoder_factory=load,
                                          clock=lambda: NOW)
-        snapshot = search.refresh([group("c1", "one")])
+        snapshot = search.refresh([version("c1", "one")])
         self.assertEqual(snapshot.reason, semantic.REASON_MODEL_MISSING)
         self.assertEqual(snapshot.status, semantic.STATUS_UNAVAILABLE)
 
@@ -451,19 +430,19 @@ class RefreshTest(unittest.TestCase):
             return original(texts)
 
         encoder.encode = once
-        groups = [group("c%d" % i, "word%d" % i, last_observed=NOW - i)
+        versions = [version("c%d" % i, "word%d" % i, last_observed=NOW - i)
                   for i in range(3)]
-        snapshot = search.refresh(groups)
-        self.assertEqual(snapshot.groups, 1)
-        self.assertEqual(snapshot.groups_total, 3)
+        snapshot = search.refresh(versions)
+        self.assertEqual(snapshot.versions, 1)
+        self.assertEqual(snapshot.versions_total, 3)
         self.assertEqual(snapshot.coverage, contract.COVERAGE_PARTIAL)
         self.assertTrue(snapshot.truncated)
 
     def test_a_refresh_batches_at_the_configured_size(self):
         search, encoder = self.build(batch_size=2)
-        groups = [group("c%d" % i, "word%d" % i, last_observed=NOW - i)
+        versions = [version("c%d" % i, "word%d" % i, last_observed=NOW - i)
                   for i in range(5)]
-        search.refresh(groups)
+        search.refresh(versions)
         self.assertEqual(encoder.calls, [2, 2, 1])
 
     def test_a_dimension_mismatch_is_refused_at_load(self):
@@ -472,20 +451,20 @@ class RefreshTest(unittest.TestCase):
         search = semantic.SemanticSearch(config=cfg,
                                          encoder_factory=factory(encoder),
                                          clock=lambda: NOW)
-        snapshot = search.refresh([group("c1", "one")])
+        snapshot = search.refresh([version("c1", "one")])
         self.assertEqual(snapshot.reason, semantic.REASON_MODEL_DIMENSIONS)
-        self.assertEqual(snapshot.groups, 0)
+        self.assertEqual(snapshot.versions, 0)
 
 
 class SearchTest(unittest.TestCase):
 
-    def build(self, groups=None, **kwargs):
+    def build(self, versions=None, **kwargs):
         encoder = WordEncoder()
         search = semantic.SemanticSearch(config=config(**kwargs),
                                          encoder_factory=factory(encoder),
                                          clock=lambda: NOW)
-        if groups:
-            search.refresh(groups)
+        if versions:
+            search.refresh(versions)
         return search, encoder
 
     def test_search_before_a_refresh_is_unavailable(self):
@@ -495,37 +474,37 @@ class SearchTest(unittest.TestCase):
         self.assertEqual(result.hits, ())
         self.assertEqual(result.reason, semantic.REASON_NO_SNAPSHOT)
 
-    def test_the_nearest_group_comes_first(self):
+    def test_the_nearest_version_comes_first(self):
         search, _ = self.build([
-            group("c1", "aaa bb c", ("dpl:1",)),
-            group("c2", "zzzz yyyy xxxx wwww", ("dpl:2",)),
+            version("c1", "aaa bb c"),
+            version("c2", "zzzz yyyy xxxx wwww"),
         ])
         result = search.search("aaa bb c")
         self.assertEqual(result.status, semantic.STATUS_READY)
-        self.assertEqual(result.hits[0].canonical_id, "c1")
+        self.assertEqual(result.hits[0].version_id, "c1")
         self.assertAlmostEqual(result.hits[0].score, 1.0, places=5)
 
     def test_the_result_limit_is_bounded_by_the_page_size(self):
-        groups = [group("c%d" % i, "word%d" % i, last_observed=NOW - i)
+        versions = [version("c%d" % i, "word%d" % i, last_observed=NOW - i)
                   for i in range(20)]
-        search, _ = self.build(groups, max_results=5)
+        search, _ = self.build(versions, max_results=5)
         self.assertEqual(len(search.search("word1", limit=100).hits), 5)
         self.assertEqual(len(search.search("word1", limit=2).hits), 2)
 
     def test_an_empty_query_returns_nothing_and_says_why(self):
-        search, _ = self.build([group("c1", "one")])
+        search, _ = self.build([version("c1", "one")])
         result = search.search("   ")
         self.assertEqual(result.hits, ())
         self.assertEqual(result.reason, semantic.REASON_EMPTY_QUERY)
 
     def test_a_long_query_is_cut_not_refused(self):
-        search, encoder = self.build([group("c1", "one")],
+        search, encoder = self.build([version("c1", "one")],
                                      max_query_chars=10)
         search.search("x" * 50)
         self.assertEqual(len(encoder.texts[-1]), 10)
 
     def test_a_broken_encoder_never_raises_into_the_request(self):
-        search, encoder = self.build([group("c1", "one")])
+        search, encoder = self.build([version("c1", "one")])
         encoder.fail_with = RuntimeError("the model went away")
         result = search.search("one")
         self.assertEqual(result.status, semantic.STATUS_UNAVAILABLE)
@@ -533,28 +512,27 @@ class SearchTest(unittest.TestCase):
         self.assertEqual(result.reason, semantic.REASON_ENCODE_FAILED)
 
     def test_a_truncated_corpus_is_never_reported_as_complete(self):
-        groups = [group("c%d" % i, "word%d" % i, last_observed=NOW - i)
+        versions = [version("c%d" % i, "word%d" % i, last_observed=NOW - i)
                   for i in range(6)]
-        search, _ = self.build(groups, max_groups=3)
+        search, _ = self.build(versions, max_versions=3)
         result = search.search("word0")
         self.assertTrue(result.truncated)
         self.assertEqual(result.coverage, contract.COVERAGE_PARTIAL)
-        self.assertEqual(result.groups, 3)
-        self.assertEqual(result.groups_total, 6)
+        self.assertEqual(result.versions, 3)
+        self.assertEqual(result.versions_total, 6)
         self.assertEqual(semantic.result_summary(result)["coverage"],
                          contract.COVERAGE_PARTIAL)
 
     def test_results_carry_no_count_and_no_suppression(self):
-        search, _ = self.build([group("c1", "one", ("dpl:1",))])
+        search, _ = self.build([version("c1", "one")])
         hit = search.search("one").hits[0]
-        self.assertEqual(sorted(hit._fields),
-                         ["canonical_id", "score", "version_ids"])
+        self.assertEqual(sorted(hit._fields), ["score", "version_id"])
 
     def test_scores_are_attached_without_touching_a_count(self):
-        rows = [{"canonical_id": "c1", "count": 4211987,
+        rows = [{"version_id": "c1", "count": 4211987,
                  "count_status": "exact"},
-                {"canonical_id": "c2", "count": 5, "count_status": "exact"}]
-        hits = [semantic.Hit("c1", ("dpl:1",), 0.87)]
+                {"version_id": "c2", "count": 5, "count_status": "exact"}]
+        hits = [semantic.Hit("c1", 0.87)]
         semantic.apply_scores(rows, hits)
         self.assertEqual(rows[0]["score"], 0.87)
         self.assertIsNone(rows[1]["score"])
@@ -568,13 +546,13 @@ class SearchTest(unittest.TestCase):
         search = semantic.SemanticSearch(
             config=config(batch_size=1, query_wait_seconds=5.0),
             encoder_factory=factory(encoder), clock=lambda: NOW)
-        search.refresh([group("c1", "one")])
-        groups = [group("c%d" % i, "word%d" % i, last_observed=NOW - i)
-                  for i in range(1, 8)] + [group("c1", "one")]
+        search.refresh([version("c1", "one")])
+        versions = [version("c%d" % i, "word%d" % i, last_observed=NOW - i)
+                  for i in range(1, 8)] + [version("c1", "one")]
         results = []
 
         def refresh():
-            search.refresh(groups)
+            search.refresh(versions)
 
         worker = threading.Thread(target=refresh)
         worker.start()
@@ -582,7 +560,7 @@ class SearchTest(unittest.TestCase):
         results.append(search.search("one"))
         worker.join(10)
         self.assertEqual(results[0].status, semantic.STATUS_READY)
-        self.assertEqual(results[0].hits[0].canonical_id, "c1")
+        self.assertEqual(results[0].hits[0].version_id, "c1")
 
     def test_a_busy_encoder_reports_itself_rather_than_blocking(self):
         encoder = WordEncoder()
@@ -590,10 +568,10 @@ class SearchTest(unittest.TestCase):
         search = semantic.SemanticSearch(
             config=config(batch_size=8, query_wait_seconds=0.01),
             encoder_factory=factory(encoder), clock=lambda: NOW)
-        search.refresh([group("c1", "one")])
-        groups = [group("c%d" % i, "word%d" % i, last_observed=NOW - i)
-                  for i in range(1, 9)] + [group("c1", "one")]
-        worker = threading.Thread(target=lambda: search.refresh(groups))
+        search.refresh([version("c1", "one")])
+        versions = [version("c%d" % i, "word%d" % i, last_observed=NOW - i)
+                  for i in range(1, 9)] + [version("c1", "one")]
+        worker = threading.Thread(target=lambda: search.refresh(versions))
         worker.start()
         time.sleep(0.05)
         result = search.search("one")
@@ -604,20 +582,20 @@ class SearchTest(unittest.TestCase):
 
 class NeighbourTest(unittest.TestCase):
 
-    def build(self, groups=None, **kwargs):
+    def build(self, versions=None, **kwargs):
         encoder = WordEncoder()
         search = semantic.SemanticSearch(config=config(**kwargs),
                                          encoder_factory=factory(encoder),
                                          clock=lambda: NOW)
-        if groups:
-            search.refresh(groups)
+        if versions:
+            search.refresh(versions)
         return search, encoder
 
     def corpus(self):
         return [
-            group("c1", "aaa bb c", ("dpl:1",)),
-            group("c2", "aaa bb", ("dpl:2",)),
-            group("c3", "zzzz yyyy xxxx wwww", ("dpl:3",)),
+            version("c1", "aaa bb c"),
+            version("c2", "aaa bb"),
+            version("c3", "zzzz yyyy xxxx wwww"),
         ]
 
     def test_neighbours_before_a_refresh_are_unavailable(self):
@@ -627,22 +605,21 @@ class NeighbourTest(unittest.TestCase):
         self.assertEqual(result.hits, ())
         self.assertEqual(result.reason, semantic.REASON_NO_SNAPSHOT)
 
-    def test_the_nearest_groups_come_back_without_the_selected_one(self):
+    def test_the_nearest_versions_come_back_without_the_selected_one(self):
         search, _ = self.build(self.corpus())
         result = search.neighbours("c1")
         self.assertEqual(result.status, semantic.STATUS_READY)
-        self.assertEqual([hit.canonical_id for hit in result.hits],
+        self.assertEqual([hit.version_id for hit in result.hits],
                          ["c2", "c3"])
         self.assertGreater(result.hits[0].score, result.hits[1].score)
 
-    def test_a_neighbour_carries_its_versions_and_no_count(self):
+    def test_a_neighbour_carries_its_identifier_and_no_count(self):
         search, _ = self.build(self.corpus())
         hit = search.neighbours("c1").hits[0]
-        self.assertEqual(hit.version_ids, ("dpl:2",))
-        self.assertEqual(sorted(hit._fields),
-                         ["canonical_id", "score", "version_ids"])
+        self.assertEqual(hit.version_id, "c2")
+        self.assertEqual(sorted(hit._fields), ["score", "version_id"])
 
-    def test_an_unembedded_group_says_why_rather_than_guessing(self):
+    def test_an_unembedded_version_says_why_rather_than_guessing(self):
         search, _ = self.build(self.corpus())
         result = search.neighbours("c9")
         self.assertEqual(result.hits, ())
@@ -657,9 +634,9 @@ class NeighbourTest(unittest.TestCase):
         self.assertEqual(len(encoder.calls), before)
 
     def test_the_neighbour_count_is_bounded(self):
-        groups = [group("c%d" % i, "word%d" % i, ("dpl:%d" % i,),
-                        last_observed=NOW - i) for i in range(20)]
-        search, _ = self.build(groups)
+        versions = [version("c%d" % i, "word%d" % i, last_observed=NOW - i)
+                    for i in range(20)]
+        search, _ = self.build(versions)
         result = search.neighbours("c0", limit=100)
         self.assertEqual(len(result.hits), semantic.DEFAULT_MAX_NEIGHBOURS)
         self.assertEqual(len(search.neighbours("c0", limit=2).hits), 2)
@@ -682,16 +659,16 @@ class BackgroundTaskTest(unittest.TestCase):
         self.assertTrue(search.start())
         self.assertFalse(search.start())
         try:
-            self.assertTrue(search.submit([group("c1", "one"),
-                                           group("c2", "two")]))
+            self.assertTrue(search.submit([version("c1", "one"),
+                                           version("c2", "two")]))
             deadline = time.time() + 10
             while time.time() < deadline:
-                if search.status()["groups"] == 2:
+                if search.status()["versions"] == 2:
                     break
                 time.sleep(0.01)
         finally:
             search.stop()
-        self.assertEqual(search.status()["groups"], 2)
+        self.assertEqual(search.status()["versions"], 2)
         self.assertEqual(search.status()["status"], semantic.STATUS_READY)
 
     def test_a_disabled_server_starts_no_thread(self):
@@ -699,7 +676,7 @@ class BackgroundTaskTest(unittest.TestCase):
                                          encoder_factory=factory(WordEncoder()),
                                          clock=lambda: NOW)
         self.assertFalse(search.start())
-        self.assertFalse(search.submit([group("c1", "one")]))
+        self.assertFalse(search.submit([version("c1", "one")]))
         search.stop()
 
     def test_a_second_refresh_does_not_run_beside_the_first(self):
@@ -708,15 +685,15 @@ class BackgroundTaskTest(unittest.TestCase):
         search = semantic.SemanticSearch(config=config(batch_size=1),
                                          encoder_factory=factory(encoder),
                                          clock=lambda: NOW)
-        groups = [group("c%d" % i, "word%d" % i, last_observed=NOW - i)
+        versions = [version("c%d" % i, "word%d" % i, last_observed=NOW - i)
                   for i in range(4)]
-        worker = threading.Thread(target=lambda: search.refresh(groups))
+        worker = threading.Thread(target=lambda: search.refresh(versions))
         worker.start()
         time.sleep(0.05)
-        search.refresh([group("c9", "nine")])
+        search.refresh([version("c9", "nine")])
         worker.join(10)
-        self.assertNotIn("c9", search.snapshot().members)
-        self.assertEqual(search.snapshot().groups, 4)
+        self.assertNotIn("c9", search.snapshot().embedded)
+        self.assertEqual(search.snapshot().versions, 4)
 
 
 class IsolationTest(unittest.TestCase):
@@ -751,7 +728,7 @@ class IsolationTest(unittest.TestCase):
         block = semantic.unavailable_summary()
         self.assertEqual(block["coverage"], contract.COVERAGE_UNAVAILABLE)
         self.assertIn(block["status"], semantic.STATUSES)
-        self.assertEqual(block["groups"], 0)
+        self.assertEqual(block["versions"], 0)
         self.assertEqual(block["vector_bytes"], 0)
 
     def test_the_summary_carries_the_contract_field_names(self):
@@ -759,9 +736,9 @@ class IsolationTest(unittest.TestCase):
         search = semantic.SemanticSearch(config=config(),
                                          encoder_factory=factory(encoder),
                                          clock=lambda: NOW)
-        search.refresh([group("c1", "one")])
+        search.refresh([version("c1", "one")])
         block = search.status()
-        for field in ("status", "groups", "vector_bytes", "model_revision"):
+        for field in ("status", "versions", "vector_bytes", "model_revision"):
             self.assertIn(field, block)
         self.assertEqual(block["model_revision"], "test-revision")
         self.assertIn(block["status"], semantic.STATUSES)
@@ -804,10 +781,7 @@ class HistoryTest(unittest.TestCase):
         version = contract.version_id("dpl", "failed to allocate <NUM> bytes")
         body = semantic.history_query(version, NOW)
         should = body["query"]["bool"]["should"]
-        self.assertEqual(should, [{"term": {"version_id": version}},
-                                  {"term": {"canonical_id": version}}])
-        canonical = contract.canonical_id("failed to allocate <NUM> bytes")
-        self.assertTrue(semantic.looks_like_identifier(canonical))
+        self.assertEqual(should, [{"term": {"version_id": version}}])
         self.assertTrue(semantic.looks_like_identifier(version))
         self.assertFalse(semantic.looks_like_identifier("failed to allocate"))
 
@@ -826,26 +800,25 @@ class HistoryTest(unittest.TestCase):
         search = semantic.SemanticSearch(config=config(),
                                          encoder_factory=factory(encoder),
                                          clock=lambda: NOW)
-        search.refresh([group("c1", "one")])
+        search.refresh([version("c1", "one")])
         before = sum(encoder.calls)
         semantic.history_query("two", NOW)
         self.assertEqual(sum(encoder.calls), before)
-        self.assertEqual(search.snapshot().groups, 1)
+        self.assertEqual(search.snapshot().versions, 1)
 
 
 class MemoryTest(unittest.TestCase):
 
     def test_the_matrix_cost_is_stated_in_bytes(self):
-        self.assertEqual(
-            semantic.resident_estimate(0, 0, 512), 0)
-        matrix = 5301 * 512 * semantic.VECTOR_VALUE_BYTES
-        self.assertEqual(matrix, 10856448)
-        estimate = semantic.resident_estimate(5301, 5571, 512)
+        self.assertEqual(semantic.resident_estimate(0, 512), 0)
+        matrix = 5571 * 512 * semantic.VECTOR_VALUE_BYTES
+        self.assertEqual(matrix, 11409408)
+        estimate = semantic.resident_estimate(5571, 512)
         self.assertGreater(estimate, matrix)
         self.assertLess(estimate, 384 * 1024 * 1024)
 
     def test_the_configured_ceiling_is_computable(self):
-        cfg = semantic.Config(dimensions=512, max_groups=20000,
+        cfg = semantic.Config(dimensions=512, max_versions=20000,
                               max_vector_bytes=16777216)
         self.assertEqual(cfg.vector_capacity, 8192)
         self.assertLess(cfg.resident_ceiling(), 384 * 1024 * 1024)
@@ -865,9 +838,9 @@ def measured(**kwargs):
         "model_rss_bytes": 180000000,
         "model_peak_rss_bytes": 200000000,
         "model_load_seconds": 0.3,
-        "vector_matrix_bytes": 10856448,
-        "corpus_groups": 5301,
-        "snapshot_groups": 5301,
+        "vector_matrix_bytes": 11409408,
+        "corpus_versions": 5571,
+        "snapshot_versions": 5571,
         "encode_seconds": 0.8,
         "encode_peak_rss_bytes": 210000000,
         "cold_start_seconds": 1.2,
@@ -887,10 +860,10 @@ def measured(**kwargs):
 class MeasurementTest(unittest.TestCase):
 
     def test_the_plan_numbers_are_the_ones_the_script_states(self):
-        self.assertEqual(measure_serving.PLAN_GROUPS, 5301)
+        self.assertEqual(measure_serving.PLAN_VERSIONS, 5571)
         self.assertEqual(measure_serving.PLAN_DIMENSIONS, 512)
         self.assertEqual(measure_serving.PLAN_MATRIX_BYTES,
-                         5301 * 512 * semantic.VECTOR_VALUE_BYTES)
+                         5571 * 512 * semantic.VECTOR_VALUE_BYTES)
         self.assertEqual(measure_serving.SERVICE_CEILING_BYTES,
                          384 * 1024 * 1024)
 
@@ -900,19 +873,18 @@ class MeasurementTest(unittest.TestCase):
         self.assertEqual(measure_serving.percentile(values, 0.95), 10.0)
         self.assertIsNone(measure_serving.percentile([], 0.5))
 
-    def test_the_corpus_reader_takes_the_normalized_text(self):
+    def test_the_corpus_reader_takes_the_template_text(self):
         handle = tempfile.NamedTemporaryFile("w", suffix=".jsonl",
                                              delete=False)
         try:
-            handle.write(json.dumps({"canonical_id": "c1",
-                                     "normalized": "one <*>"}) + "\n")
+            handle.write(json.dumps({"template": "one <NUM>"}) + "\n")
             handle.write("\n")
-            handle.write(json.dumps({"template": "no canonical id"}) + "\n")
-            handle.write(json.dumps({"canonical_id": "c2",
-                                     "template": "two"}) + "\n")
+            handle.write(json.dumps({"normalized": "no template"}) + "\n")
+            handle.write(json.dumps({"template": "one <NUM>"}) + "\n")
+            handle.write(json.dumps({"template": "two"}) + "\n")
             handle.close()
-            groups = measure_serving.read_corpus(handle.name)
-            self.assertEqual(groups, [("c1", "one <*>"), ("c2", "two")])
+            templates = measure_serving.read_corpus(handle.name)
+            self.assertEqual(templates, ["one <NUM>", "two"])
             self.assertEqual(len(measure_serving.read_corpus(handle.name, 1)),
                              1)
         finally:
@@ -967,7 +939,7 @@ class MeasurementTest(unittest.TestCase):
         text = measure_serving.report(measured(), {}, 2.0)
         self.assertIn("This machine is not the deployment host", text)
         self.assertIn("is a candidate, not a winner", text)
-        self.assertIn("10,856,448", text)
+        self.assertIn("11,409,408", text)
 
     def test_an_unreadable_resident_size_is_not_a_verdict(self):
         text = measure_serving.report(measured(peak_rss_bytes=0), {}, 2.0)

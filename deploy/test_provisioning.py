@@ -22,8 +22,8 @@ CONTRACT_SHARDS = {
 REMOVED_CATALOG_FIELDS = ("count", "counts_by_node", "last_pass", "first_seen",
                           "last_seen", "last_seen_node", "collector_time")
 
-REQUIRED_CATALOG_FIELDS = ("version_id", "canonical_id", "normalized",
-                           "token_count", "first_observed", "last_observed",
+REQUIRED_CATALOG_FIELDS = ("version_id", "token_count", "first_observed",
+                           "last_observed",
                            "first_catalogued", "widened_into", "widened_from",
                            "nodes", "watermark_id", "published_through",
                            "check_id", "check", "ok", "stamped", "indexed")
@@ -33,7 +33,7 @@ REMOVED_SNAPSHOT_FIELDS = ("superseded_by", "supersedes",
                            "historical_origin_hosts", "historical_scope",
                            "incarnations")
 
-STAMP_FIELDS = ("template_version", "template_id", "template_status")
+STAMP_FIELDS = ("template_version", "template_status")
 
 
 def _load_yaml(path):
@@ -268,9 +268,10 @@ def test_the_changed_catalog_mapping_reaches_an_index_that_already_exists():
         "template"]["mappings"]["properties"]
     assert index_templates()[index]["template"][
         "mappings"]["dynamic"] is False
-    for field in ("last_observed", "first_observed", "canonical_id",
-                  "normalized", "version_id"):
+    for field in ("last_observed", "first_observed", "version_id"):
         assert field in properties
+    for field in ("canonical_id", "normalized"):
+        assert field not in properties
 
 
 ROLLOVER_FAMILIES = {
@@ -888,10 +889,10 @@ def test_the_ceiling_the_page_is_told_matches_the_unit():
     assert exported["SHIFTER_MEMORY_MAX"] == "2G"
 
 
-def test_one_vector_per_canonical_group_fits_the_vector_cache():
+def test_one_vector_per_template_version_fits_the_vector_cache():
     defaults = role_defaults("loggy_shifter_view")
-    assert 5301 * 512 * 4 == 10856448
-    assert defaults["shifter_vector_cache_bytes"] >= 10856448
+    assert 5571 * 512 * 4 == 11409408
+    assert defaults["shifter_vector_cache_bytes"] >= 11409408
 
 
 def test_the_templates_page_is_off_when_the_query_lane_is_off():

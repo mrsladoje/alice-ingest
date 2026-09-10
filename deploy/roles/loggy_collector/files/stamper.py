@@ -62,14 +62,19 @@ STATE_VERSION = 1
 FINE = contract.FINE_BUCKET_MS
 COARSE = contract.COARSE_BUCKET_MS
 
+STATUS_TAILS = {status: forward.pack_field(contract.TEMPLATE_STATUS_FIELD,
+                                           status)
+                for status in contract.STAMP_STATUSES}
+
+TAIL_FIELDS = tuple(name for name in contract.STAMP_FIELDS
+                    if name != contract.TEMPLATE_STATUS_FIELD)
+
 DEFINITION_APPLY = (
     "ctx._source.kind = params.kind;"
     " ctx._source.schema_version = params.schema_version;"
     " ctx._source.version_id = params.version_id;"
-    " ctx._source.canonical_id = params.canonical_id;"
     " ctx._source.family = params.family;"
     " ctx._source.template = params.template;"
-    " ctx._source.normalized = params.normalized;"
     " ctx._source.token_count = params.token_count;"
     " if (params.severity_norm != null)"
     " { ctx._source.severity_norm = params.severity_norm; }"
@@ -325,7 +330,7 @@ class Ledger(object):
         self.dirty = set()
         self.versions = {}
         self.dirty_versions = set()
-        self.canonical = {}
+        self.tails = {}
 
     @staticmethod
     def key(family, bucket_start, late):
@@ -404,7 +409,7 @@ class Ledger(object):
         for identity in list(self.versions):
             if identity not in live and identity not in self.dirty_versions:
                 del self.versions[identity]
-                self.canonical.pop(identity, None)
+                self.tails.pop(identity, None)
 
     def to_state(self):
         buckets = []
@@ -613,23 +618,21 @@ class Stamper(object):
             return None
         identity, template, status, previous = self.trees.stamp(family, tokens)
         record[contract.TEMPLATE_STATUS_FIELD] = status
-        canonical = self.ledger.canonical.get(identity)
-        if canonical is None:
-            canonical = contract.canonical_id(template)
-            self.ledger.canonical[identity] = canonical
         record[contract.TEMPLATE_VERSION_FIELD] = identity
-        record[contract.TEMPLATE_ID_FIELD] = canonical
         return family, identity, template, status, previous
 
-    def handle(self, tag, entries, options):
+    def handle(self, tag, entries, options, frames=None):
         now = self.clock()
         chunk = options.get(forward.CHUNK_OPTION)
         with self.lock:
             duplicate = chunk is not None and chunk in self.chunks
             deltas = {}
             defs = []
+            tails = [] if frames is not None else None
             for _, record in entries:
                 stamped = self.stamp(record)
+                if tails is not None:
+                    tails.append(self._tail(record))
                 if stamped is None:
                     self._count_unstamped(record)
                     continue
@@ -638,7 +641,7 @@ class Stamper(object):
                     continue
                 self._count(record, family, identity, template, status,
                             previous, now, deltas, defs)
-            self._return(tag, entries, chunk)
+            self._return(tag, entries, chunk, frames, tails)
             if duplicate:
                 self.counters["duplicate_chunks"] += 1
                 self.counters["chunks"] += 1
@@ -698,13 +701,37 @@ class Stamper(object):
             defs.append([identity, family, template, observed.epoch_ms,
                          previous])
 
-    def _return(self, tag, entries, chunk):
-        try:
+    def _tail(self, record):
+        status = record.get(contract.TEMPLATE_STATUS_FIELD)
+        head = STATUS_TAILS.get(status)
+        if head is None:
+            head = forward.pack_field(contract.TEMPLATE_STATUS_FIELD, status)
+        identity = record.get(contract.TEMPLATE_VERSION_FIELD)
+        if identity is None:
+            return head, 1
+        held = self.ledger.tails.get(identity)
+        if held is None:
+            packed = [forward.pack_field(name, record[name])
+                      for name in TAIL_FIELDS if name in record]
+            held = self.ledger.tails[identity] = (b"".join(packed),
+                                                  len(packed))
+        return head + held[0], 1 + held[1]
+
+    def _deliver(self, tag, entries, chunk, frames, tails):
+        if frames is None:
             self.client.send(tag, entries, chunk_id=chunk)
+            return
+        outgoing = chunk or forward.new_chunk_id()
+        self.client.send_payload(
+            forward.encode_spliced(tag, frames, tails, outgoing), outgoing)
+
+    def _return(self, tag, entries, chunk, frames=None, tails=None):
+        try:
+            self._deliver(tag, entries, chunk, frames, tails)
         except (OSError, forward.ForwardError):
             self.counters["return_failures"] += 1
             try:
-                self.client.send(tag, entries, chunk_id=chunk)
+                self._deliver(tag, entries, chunk, frames, tails)
             except (OSError, forward.ForwardError) as exc:
                 self.counters["return_failures"] += 1
                 raise StamperError("the stamped chunk was not accepted by "
@@ -774,10 +801,8 @@ class Stamper(object):
                                "kind": document["kind"],
                                "schema_version": document["schema_version"],
                                "version_id": identity,
-                               "canonical_id": document["canonical_id"],
                                "family": document["family"],
                                "template": document["template"],
-                               "normalized": document["normalized"],
                                "token_count": document["token_count"],
                                "severity_norm": document["severity_norm"],
                                "first_observed": document["first_observed"],
