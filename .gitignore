@@ -42,3 +42,6 @@ tools/soak/runs/
 
 # EPN farm access (personal copy; upstream is alice-epn.docs.cern.ch)
 docs/EPN-ACCESS.md
+
+# Reference reports from other students (private)
+reports/
