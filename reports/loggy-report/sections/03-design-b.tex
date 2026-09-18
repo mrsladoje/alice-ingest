@@ -43,7 +43,7 @@ The trend rules never scan raw lines when they check. They compare small rows wi
 
 \begin{enumerate}[itemsep=3pt]
 \item \emph{The rollup reads finished slices.} Every ten minutes the rollup service waits 120~seconds for late records. Then it reads the last three finished ten-minute slices from the log indices.
-\item \emph{It writes small rows.} The rollup writes one row per family, entity and slice to \code{trend-rollup}. An entity is a host, or a collector for the lags. A row holds the record, error and fatal counts, the 95th percentile of both lags, and the family's fleet total. The row identifier comes from family, entity and slice, so a recount overwrites the row.
+\item \emph{It writes small rows.} The rollup writes one row per family, entity and slice to \code{trend-rollup}. An entity is a host, or a collector for the lags. A row holds the record, error and fatal counts, the 95th percentile and the mean of both lags, and the family's fleet total. The row identifier comes from family, entity and slice, so a recount overwrites the row.
 \item \emph{Silence becomes a zero.} A host that logged in the last 24~hours but not in this slice gets a row with a zero count. A commit row closes the slice once every row has landed.
 \item \emph{Nine rules compare with the last week.} Every ten minutes the nine trend monitors compare each entity's three latest slices with its own previous seven days. Without seven days of history, a monitor falls back to 24~hours.
 \item \emph{Volume rules compare shares.} A volume rule reads the host's share of its fleet, so a fleet-wide ramp cancels out. It fires when the share doubles or halves against the baseline in all three slices.

@@ -16,7 +16,7 @@ The rig saturated unnoticed after that first pass, so we retracted every later m
 
 Against a sink that always accepts, the collector's memory sat between 133 and 228~MB on two cores, up to 53,000 records a second. In a sink outage with the shipped 256~MB buffer it peaked at 373~MB, under its 384~MB memory line.
 
-The flush interval is how often the collector pushes buffered records out. Table~\ref{tab:flush} comes from three alternating runs. Across eight flush values from 0.125 to 10 seconds, whole-stack cost is a U with its floor at 1 second, best to worst 17.9~\% apart.
+The flush interval is how often the collector pushes buffered records out. Table~\ref{tab:flush} comes from three alternating runs at 5,000 records a second on the re-run rig, so its memory peaks sit below the range above. Across eight flush values from 0.125 to 10 seconds, whole-stack cost is a U with its floor at 1 second, best to worst 17.9~\% apart.
 
 \begin{table}[htbp]\caption{Flush 1 second beats the shipped 5 seconds on every measure, at 5,000 records a second on the re-run rig.}\label{tab:flush}\centering\footnotesize
 \begin{tabular}{@{}lrrr@{}}
@@ -57,6 +57,6 @@ Four facts in the design now come from a read-only census of four farm machines.
 
 The collector passes the fixture and restart checks on the three farm releases and on one newer. Release 5.0.8 is blocked: it loses every byte appended after rotation, in five of five runs. The rotation check now rotates only after a line written before it has reached the output, so the loss shows on every run.
 
-No regex change in the collector is worth making on cost. Two identical configurations differ by up to 19.3~\% in processor time, so the rig cannot resolve a change below about a fifth. For that reason an external review retracted every collector regex cost figure.
+No regex change in the collector is worth making on cost. Two identical configurations differ by up to 19.3~\% in processor time, so the rig cannot resolve a change below about a fifth.
 
 The product now writes with create under a stamped document identifier, so a retried bulk write no longer duplicates every record. That was one of 99 defects fixed in the test rounds: 32 in the instrument, the rest in the collector, the stamper and the catalogue.

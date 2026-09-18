@@ -4,7 +4,7 @@
 
 \subsection{One \textit{OpenSearch} cluster, two tiers}\label{sec:design-tiers}
 
-The worker tier runs on every EPN in the target design. The collector reads the six log sources. The stamper beside it names every line's template, the skeleton of the line with every variable token a wildcard, before indexing. The health sample pushes the collector's heartbeat up. The local \textit{OpenSearch} data node holds one index per worker. The four share the worker's four-core budget of Section~\ref{sec:problem-constraints}. Memory is a 384~MB cap on the collector and a 1~GB heap on the local node.
+The worker tier runs on every EPN in the target design. The collector reads the five collected sources of Table~\ref{tab:sources}. The stamper beside it names every line's template, the skeleton of the line with every variable token a wildcard, before indexing. The health sample pushes the collector's heartbeat up. The local \textit{OpenSearch} data node holds one index per worker. The four share the worker's four-core budget of Section~\ref{sec:problem-constraints}. Memory is a 384~MB cap on the collector and a 1~GB heap on the local node.
 
 \begin{figure}[htbp]\centering\includegraphics[width=0.92\textwidth]{fig02-architecture.pdf}\caption{The bulk stays on the worker tier, \textit{InfoLogger} and every line above info cross once to the storage tier, and every watcher pushes its numbers up.}\label{fig:arch}\end{figure}
 
@@ -55,7 +55,7 @@ Most of what the farm writes is info level. This is the cheap path, and the stor
 \item \emph{A \textit{DDS} info line takes the local route.} \textit{DDS} writes info lines by the thousand. The collector joins an event that spans several lines, such as a banner, into one record. The routing rule sends it to the local route.
 \item \emph{It is still stamped and processed.} Every family passes the stamper and the ingest pipeline on the worker, so the template counts cover the bulk too.
 \item \emph{It lands in a shard on the same machine.} Each worker has one index of its own, with one shard and no replica (Table~\ref{tab:indices}). A placement setting pins that shard to the worker's own node, so the line never crosses the wire. That keeps the network free for reconstruction data. Under severity routing 96.94~\% of the \textit{O2} process-tree family stays local.
-\item \emph{Three readers use it.} The trend rollup reads the index every ten minutes and six of the seventeen detectors every minute. The shifter view fetches a few real lines from it when a person inspects a template. If the worker dies, its raw lines die with it. The rollup rows, template counts and detector results survive, and the rules run on those.
+\item \emph{Three readers use it.} The trend rollup reads the index every ten minutes. Three detectors read it every minute, and their three slow twins every 30 minutes. The shifter view fetches a few real lines from it when a person inspects a template. If the worker dies, its raw lines die with it. The rollup rows, template counts and detector results survive, and the rules run on those.
 \item \emph{The live lane never sees it.} Across more than 200 workers the info bulk would saturate the wire and flood the live view. Only a search over the worker indices finds an info line, and that search is as slow as the slowest worker. Section~\ref{sec:why-cluster} explains why we accept that cost.
 \end{enumerate}
 
