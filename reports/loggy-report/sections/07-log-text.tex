@@ -1,6 +1,6 @@
 \section{The log text: detection and search}\label{sec:logtext}
 
-The platform \textbf{does detect on the log text, through templates}. The stamper turns every line into a message form, and the detectors watch those forms: a form never seen before, and how often each known form appears. What we rejected is detection on raw lines and on embeddings. Figure~\ref{fig:textroutes} shows where each step of the standard route ended.
+The platform detects on the log text through templates. The stamper turns every line into a message form, and the detectors watch those forms: a form never seen before, and how often each known form appears. What we rejected is detection on raw lines and on embeddings. Figure~\ref{fig:textroutes} shows where each step of the standard route ended.
 
 \begin{figure}[htbp]\centering\includegraphics[width=\textwidth]{fig09-text-routes.pdf}\caption{Templates are built and feed counts to the detectors, embeddings serve search only, and the novelty score on vectors is not built.}\label{fig:textroutes}\end{figure}
 
@@ -11,14 +11,14 @@ Anomaly detection on the log text asks one question: is this message unlike ever
 \begin{enumerate}
 \item \textbf{Templating.} Replace the varying parts of a line with placeholders, so millions of lines collapse into a few thousand forms. \code{Processing timeslice 41} becomes \code{Processing timeslice <NUM>}.
 \item \textbf{Embedding.} Compute a vector for each form that stands for its meaning. Two messages that say the same thing in different words get vectors close together.
-\item \textbf{Nearest-neighbour search (k-NN).} For a new message, find the closest vectors already seen. If even the nearest one is far away, the message is \textbf{semantically new}: it says something no earlier message said.
+\item \textbf{Nearest-neighbour search (k-NN).} For a new message, find the closest vectors already seen. If even the nearest one is far away, the message is \emph{semantically new}: it says something no earlier message said.
 \end{enumerate}
 
 Each step can run on the worker or on the storage tier, per line or per template. Those two choices decide the cost.
 
 \subsection{Embed templates, not lines}\label{sec:logtext-unit}
 
-\textbf{Decision:} one vector per template, computed once, never one per line. Table~\ref{tab:unit} sets the two side by side.
+We compute one vector per template, once, and none per line. Table~\ref{tab:unit} sets the two side by side.
 
 \begin{table}[htbp]\caption{A vector per line costs ten times the logs it describes, and the only model fast enough to run per line does not beat plain word search.}\label{tab:unit}\centering\footnotesize
 \begin{tabularx}{\textwidth}{L{0.30\textwidth} Y Y}
@@ -40,11 +40,11 @@ The model that wins on quality & 113 templates a second on a laptop, so out of r
 
 \textbf{Quality decides it.} Only a static model is cheap enough to run per line, and on the sealed set it scores 0.353 against 0.371 for plain word search (Section~\ref{sec:logtext-search}). The model that does beat word search is far too slow per line.
 
-\textbf{What we keep.} An operator reaches a line in two steps: \textbf{semantic search over templates}, then the store's ordinary search over the lines of the template found. The second step is free, because every record already carries its template version.
+\textbf{What we keep.} An operator reaches a line in two steps: semantic search over templates, then the store's ordinary search over the lines of the template found. The second step is free, because every record already carries its template version.
 
 \subsection{Choosing the template miner}\label{sec:logtext-miner}
 
-\textbf{Decision:} drain3 \cite{ref:drain,ref:drain3}, one tree and one recipe per log family, behind a rewritten masker. No parser can be scored for accuracy on our logs. The correct template for an O2 line is the format string in the O2 source, and nobody has extracted those. So \textbf{cost, memory, streaming and readability} decided. Table~\ref{tab:parsers} gives the reason each candidate lost.
+We chose drain3 \cite{ref:drain,ref:drain3}, with one tree and one recipe per log family, behind a rewritten masker. No parser can be scored for accuracy on our logs. The correct template for an O2 line is the format string in the O2 source, and nobody has extracted those. Cost, memory, streaming and readability decided instead. Table~\ref{tab:parsers} gives the reason each candidate lost.
 
 \begin{table}[htbp]\caption{Every other parser lost on cost, streaming or readability, and the store's own command works at query time.}\label{tab:parsers}\centering\footnotesize
 \begin{tabularx}{\textwidth}{L{0.19\textwidth} Y}
@@ -65,7 +65,7 @@ The store's \code{patterns} command & mines at query time over stored records (r
 \end{tabularx}
 \end{table}
 
-\textbf{Why one recipe per family.} A recipe sets which separators get padded with spaces and how similar two lines must be to share a template. The three families want different answers to the same setting, as Table~\ref{tab:recipe} shows. One recipe per family costs what one global setting costs, 17.57 against 17.65 weighted core-seconds per million lines. It cuts \textbf{contentless templates}, where every token is a placeholder, from 44.9 to 10.4~\% on InfoLogger.
+\textbf{Why one recipe per family.} A recipe sets which separators get padded with spaces and how similar two lines must be to share a template. The three families want different answers to the same setting, as Table~\ref{tab:recipe} shows. One recipe per family costs what one global setting costs, 17.57 against 17.65 weighted core-seconds per million lines. It cuts \emph{contentless templates}, where every token is a placeholder, from 44.9 to 10.4~\% on InfoLogger.
 
 \begin{table}[htbp]\caption{Each family wants a different separator setting, which is why each gets its own recipe.}\label{tab:recipe}\centering\footnotesize
 \begin{tabularx}{\textwidth}{l l Y}
@@ -79,29 +79,29 @@ DDS & \code{=} & a shell command line uses \code{;} between commands \\
 \end{tabularx}
 \end{table}
 
-\textbf{Why the masker was rewritten.} The masker replaces numbers, addresses and identifiers with placeholders before the tree sees a line. Without it, mining is \textbf{46 times dearer}, because every distinct number becomes a distinct token and the tree grows 92 times the clusters it should have. It was also 74 to 87~\% of the mining cost. We rewrote \textbf{seven regular expressions} to reach the same output by a shorter path, which made masking 85 to 87~\% cheaper with zero differences on 3,000,000 lines per family. The September rewrite of the steps around the miner then made the pipeline \textbf{31 to 57~\% cheaper per family}, byte-identical on 8,961,245 lines, with the cluster of every line compared in order.
+\textbf{Why the masker was rewritten.} The masker replaces numbers, addresses and identifiers with placeholders before the tree sees a line. Without it, mining is 46 times dearer, because every distinct number becomes a distinct token and the tree grows 92 times the clusters it should have. It was also 74 to 87~\% of the mining cost. We rewrote seven regular expressions to reach the same output by a shorter path, which made masking 85 to 87~\% cheaper with zero differences on 3,000,000 lines per family. The September rewrite of the steps around the miner then made the pipeline 31 to 57~\% cheaper per family, byte-identical on 8,961,245 lines, with the cluster of every line compared in order.
 
 \textbf{Why not the store's own templating.} The store's \code{patterns} command mines forms from records already stored, at the moment someone queries. It cannot stamp a template on a record before indexing, it cannot run on the worker where the bulk stays, and it rebuilds its forms on every query instead of keeping one catalogue for the farm. This judgement comes from how the feature works. We did not measure it.
 
 \subsection{Templates are the text detector}\label{sec:logtext-counts}
 
-\textbf{Templates are how the platform detects on the text.} They turn each line into a form, and a form can be counted. Two signals come from them, one built and one half built.
+Templates turn each line into a form, and a form can be counted. That is how the platform detects on the text. Two signals come from them, one built and one half built.
 
 \textbf{A template never seen before (built).} The stamper marks every record as matched, new or without a template, and an hourly rule fires on any template catalogued in the last hour. New templates arrive at 48.9 per million lines in the steady state, about one a second at the design rate.
 
-\textbf{Counts per template (published, not yet read).} Every worker publishes a count for each template version every 300~seconds. That gives a \textbf{time series per message form}, which the three lanes of Section~\ref{sec:design-watch} can read the same way they read a whole family:
+\textbf{Counts per template (published, not yet read).} Every worker publishes a count for each template version every 300~seconds. That gives a time series per message form, which the three lanes of Section~\ref{sec:design-watch} can read the same way they read a whole family:
 
 \begin{itemize}
-\item a message that \textbf{stops}, when a component has gone quiet;
-\item a message that \textbf{floods}, when one form suddenly dominates its family;
-\item a message whose rate \textbf{drifts} from its own week-old baseline.
+\item a message that stops, when a component has gone quiet;
+\item a message that floods, when one form suddenly dominates its family;
+\item a message whose rate drifts from its own week-old baseline.
 \end{itemize}
 
 Read that way, they would enter the same moving windows as a family's counts (Section~\ref{sec:design-watch}): a per-template detector would compare each minute with a rolling sample of recent minutes, and a trend rule would compare the last half hour with the previous seven days. No detector or trend rule reads these counts yet. Wiring them in is the next detection step (Section~\ref{sec:limits-remains}).
 
 \subsection{Embeddings are for search}\label{sec:logtext-search}
 
-\textbf{Decision:} DenseOn scans all 5,301 template vectors exactly, and LateOn reranks the top 30. The search is built and evaluated, and it \textbf{ships disabled}, because no person has judged its results. The service is capped at 384~MB. The model's memory peak was seen in one local run and is not recorded.
+DenseOn scans all 5,301 template vectors exactly, and LateOn reranks the top 30. The search is built and evaluated, and it ships disabled, because no person has judged its results. The service is capped at 384~MB. The model's memory peak was seen in one local run and is not recorded.
 
 \textbf{How the benchmark was built.} We scored every system on nDCG@10, which rewards relevant templates near the top of the first ten results and reaches 1 when the order is perfect \cite{ref:ndcg}.
 
@@ -140,10 +140,10 @@ Static model trained on our own relevance grades & $+0.063$ & a lead only: measu
 
 \textbf{Post-training a static model.} We hoped a cheap static model trained on our logs would retrieve as well as a dense one. Training on log text gave nothing measurable. Adding ALICE words to the vocabulary gave a small gain that did not survive the statistics. Training on relevance grades did generalise to unseen questions, but on one small split, so it stays a lead.
 
-\textbf{Two limits bind every number here.} A machine wrote every question and made every grade, and every latency comes from a laptop.
+Two limits apply to every number here. A machine wrote every question and made every grade, and every latency comes from a laptop.
 
 \subsection{No novelty detector on the vectors}\label{sec:logtext-knn}
 
-\textbf{Decision:} no nearest-neighbour novelty score, and embeddings serve search only. The new-template signal of Section~\ref{sec:logtext-counts} already answers the question a novelty score asks, the moment a form is mined, with no vector and no threshold to tune. A distance in the vector space would repeat that signal with a threshold added.
+We built no nearest-neighbour novelty score, and embeddings serve search only. The new-template signal of Section~\ref{sec:logtext-counts} already answers the question a novelty score asks, the moment a form is mined, with no vector and no threshold to tune. A distance in the vector space would repeat that signal with a threshold added.
 
-\textbf{Novelty alone is also a weak signal.} O2 software changes across the farm all the time, and a new release prints new forms that are not faults. Detectors that treat every unseen form as an anomaly score 0.23 to 0.27 on F1, where 1 is perfect, once the logs drift from the text they learnt on. Plain principal component analysis scores about 0.71 on the same logs. That is why the counts per template matter more than novelty: a known message that stops or floods is rarely a release. The closest published work on ALICE logs, topic modelling over InfoLogger messages \cite{ref:aliceilad}, is the comparison for any later text detector.
+Novelty alone is also a weak signal. O2 software changes across the farm all the time, and a new release prints new forms that are not faults. Detectors that treat every unseen form as an anomaly score 0.23 to 0.27 on F1, where 1 is perfect, once the logs drift from the text they learnt on. Plain principal component analysis scores about 0.71 on the same logs. That is why the counts per template matter more than novelty: a known message that stops or floods is rarely a release. The closest published work on ALICE logs, topic modelling over InfoLogger messages \cite{ref:aliceilad}, is the comparison for any later text detector.

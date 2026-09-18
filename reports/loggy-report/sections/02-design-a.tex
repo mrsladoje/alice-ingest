@@ -62,7 +62,7 @@ Flushing every second instead of every 5~seconds cut the collector's processor c
 
 At most 64 chunks sit in memory, about 128~MB. The documented worst case is twice that with a 20~\% margin, roughly 307~MB.
 
-An output is the collector's connection to one destination. Each output has a 256~MB disk buffer, a hiccup layer: when the store does not answer, chunks spill to disk. At a real worker's rate it holds hours, but it is not durability: a lost machine loses its records.
+An output is the collector's connection to one destination. Each output has a 256~MB disk buffer: when the store does not answer, chunks spill to disk. At a real worker's rate it holds hours, but it is not durability: a lost machine loses its records.
 
 A resend cannot duplicate. The document identifier, node id plus boot id plus a counter, is the record's id in the store. The output writes with create, which the store refuses when that id already exists.
 

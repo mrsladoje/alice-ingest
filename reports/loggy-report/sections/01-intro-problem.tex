@@ -6,7 +6,7 @@ Logging today is InfoLogger \cite{ref:infologger}. A client library sends each p
 
 \begin{figure}[htbp]\centering\includegraphics[width=\textwidth]{fig01-logging-today.pdf}\caption{InfoLogger carries only what a process sends it, and the process logs on disk and the journal never take that road.}\label{fig:today}\end{figure}
 
-We built \loggy{}. It keeps the bulk of the logs on the worker, the EPN that wrote them, and still searches them as one. It runs on five staging machines, and one farm deployment of the cluster, the collectors and Dashboards passed every check.
+We built \loggy{}. It keeps the bulk of the logs on the worker, the EPN that wrote them, and still searches them as one. It runs on five staging machines, and one farm deployment of the cluster, the collectors and OpenSearch Dashboards passed every check.
 
 Section~\ref{sec:problem} gives the constraints. Section~\ref{sec:design} walks an error line, an info line, a dead collector and a quiet worker through it. Section~\ref{sec:why} names the fact behind each choice, Section~\ref{sec:eval} what the measurements settle. Section~\ref{sec:logtext} covers detection and search on the log text, and Section~\ref{sec:metrics} anomaly detection on the metrics. Section~\ref{sec:limits} gives the limits and what remains.
 
@@ -49,7 +49,7 @@ The infra machine's default ports belong to a second search cluster, so the stor
 
 \subsection{What the platform must do}\label{sec:problem-objectives}
 
-Six objectives keep the volume where it is made and the value where it is safe (Table~\ref{tab:objectives}).
+Table~\ref{tab:objectives} lists the six objectives and the part of the design that meets each.
 
 \begin{table}[htbp]\caption{One named element of the design meets each of the six objectives.}\label{tab:objectives}\centering\footnotesize
 \begin{tabularx}{\textwidth}{L{0.22\textwidth} X}

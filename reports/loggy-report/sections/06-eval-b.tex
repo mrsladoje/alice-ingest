@@ -20,6 +20,6 @@ Growth ceiling & 20,000 & 4.7 times the 4,221 mined, 208.1~MB against 512~MB \\
 \end{tabularx}
 \end{table}
 
-\subsection{The detection chain, proven by injection}\label{sec:eval-injection}
+\subsection{Injection tests for the detection chain}\label{sec:eval-injection}
 
 Seven scenarios score whether a signal, an incident and a notification followed one thing broken on purpose. A fault agent on each worker kills its collector, and one beside the projector stops only the projector. A poison replay floods the indices with marked fake errors. The stopped-projector run passes only if one stale-projector notification takes the break-glass path of Section~\ref{sec:design-watch}. The scorer checks presence and order, not time, so the bound in Section~\ref{sec:design-walk-dead} follows from cadences and is not measured.
