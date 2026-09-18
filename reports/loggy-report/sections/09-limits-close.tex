@@ -43,7 +43,7 @@ Nine things remain. Figure~\ref{fig:layouts} shows the three layouts. Staging is
 \item Catalogue maintenance as ISM policies plus monitors is open. ISM, Index State Management, deletes whole indices by age, so the two counting checks need a home.
 \item The operator view beside InfoLogger waits for farm access and a live run.
 \item The system journal and per-device process logs are absent from the archive.
-\item Anomaly detection on the log text stays open~\cite{ref:aliceilad}: templates, then nearest-neighbour search. Raw-message search and templating as the detector lost.
+\item Detectors on per-template counts. The bucket counts exist, and no detector or trend rule reads them yet. Nearest-neighbour novelty on the text is closed (Section~\ref{sec:logtext}).
 \item Authentication inside the cluster is required before the farm.
 \item Source-owner approval for reading the node logs is open.
 \end{enumerate}

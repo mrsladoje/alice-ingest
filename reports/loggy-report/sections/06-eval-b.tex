@@ -1,10 +1,6 @@
 \subsection{Templating}\label{sec:eval-templating}
 
-Templating is built, and the September rewrite of the steps around the miner made it 31 to 57\,\% cheaper per family (Table~\ref{tab:templating}).
-
-With its own defaults and one global tree, drain3 gave 3,822 templates at the unverified 19.91~core-seconds per million \cite{ref:drain,ref:drain3}.
-
-A recipe is one family's similarity and separator setting, on a tree depth every family shares. One per family costs the same as one global setting, 17.57 against 17.65 weighted core-seconds per million. Contentless templates, every token a wildcard, fell from 44.9 to 10.4\,\% of InfoLogger's templates.
+Templating is built, and the September rewrite of the steps around the miner made it 31 to 57\,\% cheaper per family (Table~\ref{tab:templating}). Section~\ref{sec:logtext-miner} gives why drain3 was chosen, the recipe per family and the masker rewrite.
 
 The template count grows with runs sampled, not lines. One run of each family on 45,596,613 lines gave 3,011, a floor. Sixteen runs and eighty InfoLogger partitions gave 4,092. One tree carried across that corpus and two further archive pulls, 55,963,050 lines, gave 4,221. New templates arrive at 48.9 per million, about one a second at 20,000 records a second.
 
@@ -16,30 +12,10 @@ Splicing the stamped fields into the record's own bytes cut transport 15\,\%. Tr
 Figure & Value & Reference \\
 \midrule
 Pipeline after the rewrite & 31 to 57\,\% cheaper & byte-identical on 8,961,245 lines \\
-PIPLUP cost over drain3, whole corpus & 2.56 times & gate of 25\,\% \\
-PIPLUP memory over drain3 & 7.8 times & 206.5 against 26.3~MB \\
-Masking cost cut by seven rewritten regular expressions & 85 to 87\,\% & zero differences on 3,000,000 lines per family \\
+Templates, one tree across 55,963,050 lines & 4,221 & 3,011 from one run per family \\
+New templates, steady state & 48.9 per million & about one a second at 20,000 records a second \\
+Collector-to-stamper transport after splicing & 15\,\% cheaper & byte-identical \\
 Growth ceiling & 20,000 & 4.7 times the 4,221 mined, 208.1~MB against 512~MB \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\subsection{Embeddings and semantic retrieval}\label{sec:eval-semantic}
-
-Semantic retrieval is built and evaluated, and ships disabled by configuration, because no person has judged its results (Table~\ref{tab:semantic}). 47.1\,\% of relevant question-and-template pairs share no analysed term. It searches 5,301 template groups, one per template after copies from different programs merge, from a later corpus of 56,628,579 lines.
-
-An embedding is a vector for a template's meaning, computed once per template, not per line. A static model, one fixed vector per word, encodes 18,037 templates a core-second, 31 times faster than a small transformer that reads words in context. It keeps 93\,\% of the transformer's quality. Quality is macro source purity: the share of a template's ten nearest neighbours from the same program, averaged over programs. We rejected neighbour agreement as the measure: an eight-bit copy agrees with its original on 0.636 of neighbours. That copy also ran 5.4 times slower on one laptop backend.
-
-The search box score is normalised discounted cumulative gain at rank ten, nDCG@10, which rewards relevant results near the top \cite{ref:ndcg}. A dense scan keeps the 30 templates nearest the question's vector. A reranker rescores those 30 word by word. The development set of 130 questions chose the settings. On it the pair scores 0.685 against 0.634 for the dense scan alone, bootstrap interval +0.028 to +0.080. The held-out set stayed sealed. On it the dense scan alone scores 0.689 against 0.371 for the store's word-matching search, the lexical engine. Reranking was never scored there. On the live path against the lexical engine it gains 377 relevant templates, loses 204, and worsens 29 of 110 questions. An approximate vector index costs 0.020 nDCG@10 and moves between builds, so we use none. Fusing with the lexical engine scores 0.048 worse. Median laptop latency moves from the lexical engine's 1~ms to 12~ms. Reranking adds 0.6~ms and the whole path is not timed. We cap the service at 384~MB and never recorded the model's peak, seen in one local run.
-
-\begin{table}[htbp]\caption{Semantic retrieval beats the lexical engine on questions in a person's own words and nowhere else, on machine-made judgements.}\label{tab:semantic}\centering\footnotesize
-\begin{tabularx}{\textwidth}{L{0.46\textwidth}rX}
-\toprule
-Figure & Value & Reference \\
-\midrule
-Static model purity & 0.387 & 0.414 transformer, 0.035 random \\
-Search box, nDCG@10 & 0.685 & 0.634 dense scan alone \\
-Held-out, nDCG@10 & 0.689 & 0.371 lexical engine \\
 \bottomrule
 \end{tabularx}
 \end{table}

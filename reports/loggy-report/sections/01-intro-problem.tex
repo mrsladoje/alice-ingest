@@ -8,7 +8,7 @@ Logging today is InfoLogger \cite{ref:infologger}. A client library sends each p
 
 We built \loggy{}. It keeps the bulk of the logs on the worker, the EPN that wrote them, and still searches them as one. It runs on five staging machines, and one farm deployment of the cluster, the collectors and Dashboards passed every check.
 
-Section~\ref{sec:problem} gives the constraints. Section~\ref{sec:design} walks an error line, an info line, a dead collector and a quiet worker through it. Section~\ref{sec:why} names the fact behind each choice, Section~\ref{sec:eval} what the measurements settle, and Section~\ref{sec:limits} the limits and what remains.
+Section~\ref{sec:problem} gives the constraints. Section~\ref{sec:design} walks an error line, an info line, a dead collector and a quiet worker through it. Section~\ref{sec:why} names the fact behind each choice, Section~\ref{sec:eval} what the measurements settle. Section~\ref{sec:logtext} covers anomaly detection on the log text and Section~\ref{sec:metrics} on the metrics. Section~\ref{sec:limits} gives the limits and what remains.
 
 \section{The problem and the constraints}\label{sec:problem}
 

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 820 314" width="820" height="314">
+<defs>
+<marker id="mk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0,1 L10,5 L0,9 z" fill="#101010"/></marker>
+<marker id="mkr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0,1 L10,5 L0,9 z" fill="#e1251b"/></marker>
+<marker id="mks" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0,1 L10,5 L0,9 z" fill="#6b6b66"/></marker>
+</defs>
+<g font-family="Menlo, monospace"></g>
+<text x="20" y="22" font-family="Menlo, monospace" font-size="11" fill="#101010" text-anchor="start" font-weight="normal" letter-spacing="0.18em">THE STANDARD ROUTE, STEP BY STEP</text>
+<text x="20" y="38" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11" fill="#3a3a36" text-anchor="start" font-weight="normal">Solid: built. Dashed: rejected or closed. Red: what the templates bought for detection.</text>
+<rect x="12" y="92" width="155" height="76" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+<text x="89.5" y="116" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" fill="#101010" text-anchor="middle" font-weight="600">Log line</text>
+<text x="89.5" y="134" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#6b6b66" text-anchor="middle" font-weight="normal">the raw record</text>
+<text x="89.5" y="150" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#6b6b66" text-anchor="middle" font-weight="normal">310 bytes of text</text>
+<rect x="227" y="92" width="155" height="76" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+<text x="304.5" y="116" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" fill="#101010" text-anchor="middle" font-weight="600">Template</text>
+<text x="304.5" y="134" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#6b6b66" text-anchor="middle" font-weight="normal">drain3 on the worker</text>
+<text x="304.5" y="150" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#6b6b66" text-anchor="middle" font-weight="normal">stamped before indexing</text>
+<rect x="442" y="92" width="155" height="76" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+<text x="519.5" y="116" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" fill="#101010" text-anchor="middle" font-weight="600">Embedding</text>
+<text x="519.5" y="134" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#6b6b66" text-anchor="middle" font-weight="normal">one vector per template</text>
+<text x="519.5" y="150" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#6b6b66" text-anchor="middle" font-weight="normal">5,301 in the corpus</text>
+<rect x="657" y="92" width="155" height="76" fill="#ffffff" stroke="#101010" stroke-width="1.1" stroke-dasharray="4 4"/>
+<text x="734.5" y="116" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" fill="#6b6b66" text-anchor="middle" font-weight="600">Novelty score</text>
+<text x="734.5" y="134" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#6b6b66" text-anchor="middle" font-weight="normal">distance to the</text>
+<text x="734.5" y="150" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#6b6b66" text-anchor="middle" font-weight="normal">nearest neighbour</text>
+<line x1="167" y1="130.0" x2="224" y2="130.0" stroke="#101010" stroke-width="1.25" marker-end="url(#mk)"/>
+<text x="195.5" y="123.0" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle" font-weight="normal">mine</text>
+<line x1="382" y1="130.0" x2="439" y2="130.0" stroke="#101010" stroke-width="1.25" marker-end="url(#mk)"/>
+<text x="410.5" y="123.0" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle" font-weight="normal">new only</text>
+<line x1="597" y1="130.0" x2="654" y2="130.0" stroke="#101010" stroke-width="1.25" stroke-dasharray="4 4" marker-end="url(#mk)"/>
+<text x="625.5" y="123.0" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle" font-weight="normal">k-NN</text>
+<path d="M89.5,92 L89.5,62 L519.5,62 L519.5,89" fill="none" stroke="#6b6b66" stroke-width="1.25" stroke-dasharray="4 4" marker-end="url(#mks)"/>
+<text x="304.5" y="56" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle" font-weight="normal">embed every line: rejected on storage, cost and quality</text>
+<text x="20" y="208" font-family="Menlo, monospace" font-size="11" fill="#101010" text-anchor="start" font-weight="normal" letter-spacing="0.18em">WHAT EACH STEP IS USED FOR</text>
+<rect x="227" y="224" width="155" height="76" fill="#fdf1f0" stroke="#e1251b" stroke-width="1.6"/>
+<text x="304.5" y="248" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" fill="#101010" text-anchor="middle" font-weight="600">Counts per template</text>
+<text x="304.5" y="266" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#6b6b66" text-anchor="middle" font-weight="normal">every 300 s, per family</text>
+<text x="304.5" y="282" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#6b6b66" text-anchor="middle" font-weight="normal">numbers for detectors</text>
+<rect x="442" y="224" width="155" height="76" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+<text x="519.5" y="248" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" fill="#101010" text-anchor="middle" font-weight="600">Semantic search</text>
+<text x="519.5" y="266" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#6b6b66" text-anchor="middle" font-weight="normal">templates, then their</text>
+<text x="519.5" y="282" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#6b6b66" text-anchor="middle" font-weight="normal">lines; ships disabled</text>
+<rect x="657" y="224" width="155" height="76" fill="#ffffff" stroke="#101010" stroke-width="1.1" stroke-dasharray="4 4"/>
+<text x="734.5" y="248" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" fill="#6b6b66" text-anchor="middle" font-weight="600">Not built</text>
+<text x="734.5" y="266" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#6b6b66" text-anchor="middle" font-weight="normal">a new template is</text>
+<text x="734.5" y="282" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#6b6b66" text-anchor="middle" font-weight="normal">already the signal</text>
+<line x1="304.5" y1="168" x2="304.5" y2="221" stroke="#e1251b" stroke-width="1.25" marker-end="url(#mkr)"/>
+<line x1="519.5" y1="168" x2="519.5" y2="221" stroke="#101010" stroke-width="1.25" marker-end="url(#mk)"/>
+<line x1="734.5" y1="168" x2="734.5" y2="221" stroke="#101010" stroke-width="1.25" stroke-dasharray="4 4" marker-end="url(#mk)"/>
+</svg>

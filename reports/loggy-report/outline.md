@@ -15,7 +15,7 @@ These settle contradictions the briefs flagged. Change any of them before the dr
 3. Storage-tier indices: on staging one primary shard and two replicas (one copy on every storage machine). On the farm three primaries, one per storage node, two replicas each. Both stated, each with its layout.
 4. Counts: 30 monitors (28 post into the alert index, 2 break-glass monitors post straight to the receiver), 17 detectors, 1 forecaster. The deck's 28 is the older count.
 5. The shifter view is built: a small Preact page with a live page and a Templates page, fed by the collectors, holding when the cluster is down. The InfoLogger-like operator view is a separate thing and is not built. The two never merge.
-6. Templating is presented as built for search and for the template catalog. Anomaly detection on the log text is still open, and the report says so. Templating is not called a detector.
+6. Templating is presented as built for search and for the template catalog. (Revised 2026-09-18.) A standalone section after the measurements covers anomaly detection on the log text, which the platform does through templates (new-template rule built, per-template counts published and not yet read): every other route weighed and why each lost, templates embedded instead of lines, template counts as the numeric lane, semantic search as the only use of embeddings, and nearest-neighbour novelty closed because a new template is already the novelty signal.
 7. Semantic retrieval is built and evaluated and ships disabled by configuration. The report gives the 384 MB service ceiling from the configuration and says the model's memory peak was observed in a local run and is not recorded in the results file.
 8. Numbers: round 18 and round 21 figures are quoted as percentages, never as absolute core-seconds. The flush decision uses the three-alternating-run set (36.70 to 27.70 collector core-seconds, 87.1 to 62.7 MB). The ceiling is about 42,000 records a second sustained on the laptop rig, 50,000 held for two minutes with zero loss. Cost per record was measured at 5,000 a second on the re-run rig, and the ceiling separately; the report says both in one sentence.
 9. Buffer hold: the InfoLogger output has its own 256 MB buffer, which holds 865,674 records of 310 bytes. InfoLogger is 60 % of a worker's mix, so the source's 17.4 hours (at 23 records a second) and 5.1 hours (at 78) are correct for that lane and the report quotes them with that meaning. (Corrected after the draft: an earlier version of this decision derived 10.5 and 3.1 hours from the whole-mix rate, which was wrong.)
@@ -97,7 +97,7 @@ One short paragraph per choice, in the deck's form: goal, candidates, the decidi
 - Native systemd on staging; containers only on the shared infra machine.
 - Dashboards; the shifter view as a standalone page rather than a Dashboards plugin (a plugin is rebuilt per store release).
 - The stamper in band with drain3, against PIPLUP and the other parsers, on cost. The masker rewrite.
-- Threshold rules, Random Cut Forest and trend rules inside the cluster, against learned models on the log text (not chosen; the three routes stay open).
+- Threshold rules, Random Cut Forest and trend rules inside the cluster, against learned models on the log text (not chosen; text detection goes through templates, see the log-text section).
 - Episodes, and Alertmanager as receiver only.
 - The two Kafka decisions, two paragraphs.
 - Deployment: push over SSH against Puppet, Salt, Chef and Terraform; placement is data; gates stop the run. Table 6: configuration tools.

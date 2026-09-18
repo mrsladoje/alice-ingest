@@ -1,0 +1,192 @@
+\section{Anomaly detection on the metrics}\label{sec:metrics}
+
+Two store plugins do the work, and they are not the same thing. A \textbf{detector} (Anomaly Detection) grades how surprising an interval is. A \textbf{monitor} (Alerting) runs a scheduled search and fires when a condition is true. \textbf{A detector writes a grade. A monitor decides whether anyone is paged.} Figure~\ref{fig:alerts} in Section~\ref{sec:design-watch} shows the whole path, from the numbers to one alert.
+
+\subsection{What feeds it}\label{sec:metrics-inputs}
+
+We knew from the start what matters on a worker: \textbf{volume}, \textbf{errors} and \textbf{health}. Two indices hold them.
+
+\textbf{The log indices} give volume and errors per EPN and family. They also give two lags that we compute ourselves. Every record carries three clocks: when the line was written, when the collector read it, and when the store received it. The ingest pipeline subtracts them:
+
+\begin{itemize}
+\item \textbf{Entry lag}, written to read: how late the EPN's lines reach the collector.
+\item \textbf{Shipping lag}, read to stored: how long the collector takes to deliver.
+\end{itemize}
+
+Both are read as \textbf{p95, never the mean}. A backlog shows in the slowest records before it moves the average.
+
+\textbf{The metrics index} has two writers, and \textbf{nothing reaches into a worker to scrape it}:
+
+\begin{itemize}
+\item \textbf{Each collector pushes} its own sample every 30~seconds: alive, records out, errors, retries.
+\item \textbf{The poller} samples the cluster and Dashboards every 30~seconds, plus a roster check: which collectors were expected to speak and did not.
+\end{itemize}
+
+A dead collector writes nothing. So ``collector down'' is the poller noticing a missing sample after 90~seconds, not a flag the collector sets.
+
+\subsection{Detectors: Random Cut Forest}\label{sec:metrics-rcf}
+
+A detector does not read log lines. Every interval it runs a few aggregations, split per entity, and each result becomes a point in a small feature space: volume, error count, p95 lag, heap. A Random Cut Forest \cite{ref:rcf} then slices that point cloud at random until every point is isolated. \textbf{A point in a crowd needs many cuts, a loner needs one or two, and few cuts means a high grade.} Many trees vote, so the grade is stable. The properties that matter here:
+
+\begin{itemize}
+\item \textbf{Streaming.} Normal drifts with the data. A run-start spike alarms briefly, then becomes the new baseline. That is also why a slow leak goes quiet: the model absorbs it.
+\item \textbf{Multivariate.} It flags \textbf{combinations that never happened}, such as throughput collapsing while retries climb, or heap rising while indexing falls.
+\item \textbf{One model per entity.} One noisy EPN does not teach the fleet that noise is normal.
+\item \textbf{Shingles.} Each point joins the last eight intervals, so the model reads a short sequence, not one bucket.
+\item \textbf{Window delay.} It waits one minute on metrics and two on logs, so late records still land in their interval.
+\item \textbf{Warm-up.} About 32 live intervals before a detector leaves initialising, and a few hundred before its grades mean much.
+\end{itemize}
+
+\textbf{Same failure, two horizons.} Every log detector runs twice: at \textbf{one minute}, where eight intervals give eight minutes of context, and at \textbf{30 minutes}, where they give four hours. The slow twin has the same features. It catches a change the fast model has already learnt as normal. Table~\ref{tab:detectors} lists all seventeen.
+
+\begin{table}[htbp]\caption{Seventeen detectors: three on health samples, fourteen on the logs as seven fast and slow pairs.}\label{tab:detectors}\centering\footnotesize
+\begin{tabularx}{\textwidth}{L{0.30\textwidth} l Y}
+\toprule
+Detector & Per & Watches \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Health samples}} \\
+\code{ingest-flow} & collector & records out, errors, retries; catches a collector going quiet or retrying before a hard rule trips \\
+\code{node-health} & store node & heap, processor, indexing rate, disk; catches heap climbing while indexing falls \\
+\code{dashboards-health} & whole cluster & event-loop delay, response time, request rate \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Logs, per EPN, each with a 30-minute twin}} \\
+\code{il-per-epn} & EPN & InfoLogger volume and error count: one EPN silent or erroring while the farm looks fine \\
+\code{central-per-epn} & EPN & the same on the central family \\
+\code{local-volume} & EPN & volume of the info lines that stay on the worker \\
+\code{il-per-epn-entry-lag} & EPN & p95 entry lag on InfoLogger \\
+\code{local-per-epn-entry-lag} & EPN & p95 entry lag on local info lines \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Logs, per collector, each with a 30-minute twin}} \\
+\code{il-collector-shipping-lag} & collector & p95 shipping lag on InfoLogger \\
+\code{local-collector-shipping-lag} & collector & p95 shipping lag on local info lines \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Shipping lag is a collector problem, not an EPN problem, so those two are keyed on the collector. One \textbf{forecaster}, from the same family, predicts each store node's disk fill a day ahead from a week of hourly points. Disk is the one metric with a real cliff and a smooth approach.
+
+\textbf{A detector never pages.} It writes a grade from 0 to 1 and a confidence into the results index. The monitor \code{ad-high-grade} turns that into an alert when both pass 0.7. A grade is surprise, not harm.
+
+\subsection{Monitors: the cliffs we know}\label{sec:metrics-monitors}
+
+A monitor is a \textbf{scheduled job inside the cluster}. Every minute, or every ten, the store runs the monitor's search, hands the result to a short script, and fires if the script says yes. Nothing is trained: the script is a threshold, a ratio or a presence test. There are two kinds.
+
+\textbf{Query-level: one question, one answer.} \code{cluster-red} asks every minute whether any health sample in the last two minutes says red. The cluster is red or it is not, so one fleet alert is the right shape.
+
+\textbf{Bucket-level: group, then ask per group.} \code{collector-down} groups the roster samples by collector and fires once per missing one. If two collectors die, two alerts fire, each naming its machine. A query-level monitor could only say ``some collector is down''. Throttling follows the same split, so one dead collector does not mute a later page about another.
+
+Table~\ref{tab:hardrules} lists the hard rules on the health samples.
+
+\begin{table}[htbp]\caption{The hard rules catch failures with a known edge, and each names the machine it is about.}\label{tab:hardrules}\centering\footnotesize
+\begin{tabularx}{\textwidth}{L{0.22\textwidth} Y Y}
+\toprule
+Monitor & Fires when & Means \\
+\midrule
+\code{collector-down} & an expected collector sent no sample & that machine, or its collector, is gone \\
+\code{collector-unhealthy} & the collector is alive but its health check fails & the box is up, the pipeline inside it is sick \\
+\code{fleet-fb-silence} & half the roster is silent at once & one shared failure, so one fleet page instead of a storm \\
+\code{shipping-breaking} & a collector retried a write and still failed & the pipe is failing; records may still be buffered \\
+\code{data-loss} & a collector discarded records & those lines are gone \\
+\code{cluster-red} & cluster health is red & a primary shard has no home \\
+\code{shards-stuck} & a shard has had no home for 5 minutes & allocation is blocked \\
+\code{disk-cliff-warn}, \code{-page} & a store node's disk is 85 to 92~\%, or above 92~\% & approaching the read-only line near 95~\% \\
+\code{heap-spiral} & heap above 90~\% for 5 minutes & not a brief spike: the node is thrashing \\
+\code{admission-rejections} & a node refused a search or a write & overload; a refused write drops logs \\
+\code{telemetry-silence} & no cluster or Dashboards sample for 5 minutes & the poller is dead \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Trend rules: the baseline a forest never keeps}\label{sec:metrics-trend}
+
+\textbf{Static rules catch cliffs. The forest catches unfamiliar shapes. Neither catches a slow drift}, because the forest learns it as normal. The trend lane compares against a fixed week instead.
+
+It rests on our own \textbf{trend rollup} service:
+
+\begin{enumerate}
+\item Every ten minutes it writes \textbf{one small row per host and family}: records, errors and fatals, and the p95 and mean of both lags.
+\item It waits 120~seconds for late records and rewrites the last three slices. Row identifiers are fixed, so a rewrite never duplicates.
+\item A host that logged in the last day and is silent now gets a \textbf{zero row}. The store's own rollup writes nothing for silence, which is why this one is ours.
+\item A commit row closes each slice, so no rule reads half a slice.
+\end{enumerate}
+
+Nine rules read those rows. Each compares \textbf{three consecutive ten-minute slices} with the \textbf{previous seven days}, leaving out the last 40 minutes so the slices are not part of their own baseline. It fires only when all three slices agree (Table~\ref{tab:trendrules}).
+
+\begin{table}[htbp]\caption{Each trend rule compares a ratio, not a raw count, so a fleet-wide change cancels and one fact raises one alert.}\label{tab:trendrules}\centering\footnotesize
+\begin{tabularx}{\textwidth}{L{0.14\textwidth} Y Y}
+\toprule
+Rule & Compares & Fires when, in all three slices \\
+\midrule
+Volume & the host's \textbf{share of the fleet} & twice the week's share, or half of it; a run start moves every host and cancels \\
+Errors & errors as a \textbf{share of the host's own records} & twice the week's share; doubling traffic and errors together stays quiet \\
+Entry lag & the host's own p95 & twice the week's; a slice above one hour is archive age and is ignored \\
+Shipping lag & the collector's own p95 & twice the week's; no ceiling, because a long backlog is real \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Feature engineering was the hard part}\label{sec:metrics-features}
+
+The models were the easy choice. Every number fed to them could mislead in its own way:
+
+\begin{itemize}
+\item \textbf{Which machine?} A record names the EPN that wrote it and the collector that shipped it. Keyed on the collector, one model covers a rack and hides a bad EPN. Per-EPN detectors key on the writer.
+\item \textbf{Silence is not zero.} An EPN that stops logging produces no point, and the forest ignores it. Volume detectors fill the gap with zero, so silence becomes the loudest thing they see. Lag detectors do not: a missing lag is unknown, not 0~ms.
+\item \textbf{The mean hides a backlog.} So lag is p95. A p95 over a handful of records is just the maximum, so lag rules need 100 records a slice. The plugin reads only the first percentile it is given, so each lag detector asks for exactly one.
+\item \textbf{A run start moves everything.} Shares of the fleet and of the host's own volume cancel it.
+\item \textbf{Replay lies about entry lag.} The replay keeps the original timestamps, so entry lag is the archive's age, about a month. Shipping lag stays real on replay.
+\item \textbf{Small numbers.} Rules need 50 records a slice and 10 errors for an error rule. The floors come from the archive, where daily volume ranges 220 times.
+\item \textbf{Retired hosts.} A collapse needs a host that was busy in the last day, so a decommissioned machine clears itself after 24~hours.
+\end{itemize}
+
+\subsection{The signal projector: one history for every alert}\label{sec:metrics-projector}
+
+\textbf{In one sentence: the projector turns every alert and every grade into signals and episodes that are stored, deduplicated and have a start and an end.}
+
+Thirty monitors and seventeen detectors write to different indices, and a firing monitor writes a new row every minute. Alertmanager \cite{ref:alertmanager} groups and routes well, but it keeps nothing: it forgets an alert five minutes after the last post. Every 30~seconds the projector reads all of it and writes:
+
+\begin{itemize}
+\item \textbf{Signals}: one index for every alert and grade, firing and cleared, named from one catalogue.
+\item \textbf{Episodes}: all signals of one alert name on one entity become one incident with a \textbf{start and an end}. It goes open, recovering, resolved. It closes after one healthy window for a hard rule, three for a trend rule or detector. A missing evaluation is never a recovery, so a lane that stops reporting leaves its episode open and marked stale. When half the roster goes silent at once, one fleet incident opens instead of hundreds.
+\item \textbf{Re-posts}: every open episode goes to Alertmanager on every cycle, well inside its five-minute memory.
+\end{itemize}
+
+\begin{table}[htbp]\caption{The projector remembers and deduplicates, and Alertmanager decides when a person is told.}\label{tab:projector}\centering\footnotesize
+\begin{tabularx}{\textwidth}{L{0.24\textwidth} Y Y}
+\toprule
+ & Signal projector & Alertmanager \\
+\midrule
+Memory & 30 days, replicated & forgets an alert after 5 minutes \\
+Duplicates & thirty rows about one fault are one episode & repeats whatever it is sent \\
+Start and end of a trouble & on every episode & not kept \\
+Read by & the cockpit and the shifter view & the notification receiver \\
+Notification & none of its own & grouping, silences, routing \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Why it needed a watermark.} Its sources arrive late and out of order: a grade lands after its window closes, a history row when its alert ends, and the projector itself restarts. So it keeps one \textbf{watermark} per source, the last moment it fully processed:
+
+\begin{enumerate}
+\item Read from the watermark minus a short overlap, 15 minutes for alert history and 3 for grades, so late rows are caught.
+\item Move the watermark only after a complete read. A failed cycle leaves it, and the next cycle reads the same window again.
+\item Build every signal's identifier from its source row, so reading the overlap twice overwrites and never duplicates.
+\end{enumerate}
+
+\textbf{Who watches the watchers.} Every monitor runs inside the cluster, so a dead cluster silences all of them at once, and silence reads as health. Table~\ref{tab:watchdogs} gives the checks on the detection machinery itself.
+
+\begin{table}[htbp]\caption{The watchdogs cover the machinery the other rules depend on, and the two break-glass ones skip the path they report dead.}\label{tab:watchdogs}\centering\footnotesize
+\begin{tabularx}{\textwidth}{L{0.22\textwidth} Y Y}
+\toprule
+Check & Fires when & Why it exists \\
+\midrule
+\code{opensearch-unreachable} & the projector fails two cluster probes in a row & raised by the projector straight to Alertmanager; the one alert that survives a dead cluster \\
+\code{signal-projector-stale} & the projector wrote nothing for 10 minutes & break-glass: posts straight to the receiver, since the projector is the thing that is dead \\
+\code{alertmanager-down} & the projector saw Alertmanager unreachable for 5 minutes & break-glass: nobody is receiving pages \\
+\code{trend-rollup-stale} & no complete rollup commit for 40 minutes & every trend rule is reading stale rows \\
+\code{trend-entity-cap} & a rollup group nears its host cap & hosts past the cap are silently unwatched \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+A dead projector and a dead cluster at the same moment, a site or network loss, needs an off-site heartbeat. That does not exist yet.
