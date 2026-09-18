@@ -10,7 +10,7 @@ No run measured a burst. The soak plan's per-worker burst of 10,000 to 20,000 re
 
 The whole stack's cost was measured at 5,000~records a second only. The collector alone was also costed at 1,000 and 20,000. Round 1's 53,000 was read against a test output that always accepts, so the collector's ceiling with a real store is unknown above 50,000.
 
-The dead-collector chain of Section~\ref{sec:design-walk-dead} is bounded at 90 to 270~seconds by cadence, and no run timed it.
+The dead-collector chain of Section~\ref{sec:design-walk-dead} is bounded at about 90 to 240~seconds by cadence, and no run timed it.
 
 A detector needs a few hundred one-minute windows, three to five hours, before its grades mean anything. The injection harness waits 32 one-minute windows. Neither the real warm-up nor that wait was measured on a live feed.
 

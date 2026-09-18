@@ -53,9 +53,9 @@ Two rates reopen the question: a sustained worker rate above about 1,000 records
 
 The collector now reads three log sources it had never read before. They are the second process-tree format, written by the data-distribution processes, the InfoLogger daemon log and the system journal. Severity now comes out of 99.83~\% of process-tree lines, against a 99~\% gate, and 96.94~\% of that family stays on the worker. The first fixture run sent 41.8~\% of the corpus to the storage tier with no severity. A parser anchor missed a date the replay prepends.
 
-The design now matches the farm on four facts, which a read-only census of four farm machines corrected. Four installations run there, on three releases where we assumed two. The storage machine's release is two majors behind and untested. A worker's journal is small beside millions of process-tree lines, so the collector reads all of it.
+Four facts in the design now come from a read-only census of four farm machines. Four installations run there, on three releases where we assumed two. The storage machine's release is two majors behind and untested. A worker's journal is small beside millions of process-tree lines, so the collector reads all of it.
 
-The collector passes the fixture and restart checks on the three farm releases and on one newer. Release 5.0.8 is blocked: it loses every byte appended after rotation, in five of five runs. The rotation check shows this only since its own flakiness was fixed, because before that some runs passed by chance.
+The collector passes the fixture and restart checks on the three farm releases and on one newer. Release 5.0.8 is blocked: it loses every byte appended after rotation, in five of five runs. The rotation check now rotates only after a line written before it has reached the output, so the loss shows on every run.
 
 No regex change in the collector is worth making on cost. Two identical configurations differ by up to 19.3~\% in processor time, so the rig cannot resolve a change below about a fifth. For that reason an external review retracted every collector regex cost figure.
 

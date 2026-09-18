@@ -125,7 +125,7 @@ We did not port the miner into the collector. Fluent Bit filters are written in 
 
 \subsection{Detection on numbers, inside the cluster}\label{sec:why-detection}
 
-The platform must catch three kinds of trouble: known cliffs, unfamiliar shapes and slow drift. Threshold monitors, Random Cut Forest detectors~\cite{ref:rcf} and trend rules each catch one kind (Section~\ref{sec:design-watch}). A Random Cut Forest learns the usual shape of a number from the stream itself. So it needs no labelled faults, which ALICE does not have. All three lanes run inside OpenSearch, as the detection and alerting plugins that ship with it, so they add no service to keep alive. No learned model reads the log text in the detection path. Section~\ref{sec:logtext} gives the reasons, and Section~\ref{sec:metrics} gives the detectors and rules.
+The platform must catch three kinds of trouble: known cliffs, unfamiliar shapes and slow drift. Threshold monitors, Random Cut Forest detectors~\cite{ref:rcf} and trend rules each catch one kind (Section~\ref{sec:design-watch}). A Random Cut Forest learns the usual shape of a number from the stream itself, so it needs no labelled faults. ALICE has none. All three lanes run inside OpenSearch, as the detection and alerting plugins that ship with it, so they add no service to keep alive. No learned model reads the log text in the detection path. Section~\ref{sec:logtext} gives the reasons, and Section~\ref{sec:metrics} gives the detectors and rules.
 
 \subsection{Episodes, and Alertmanager as messenger}\label{sec:why-episodes}
 
