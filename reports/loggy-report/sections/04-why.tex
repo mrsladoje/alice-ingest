@@ -15,8 +15,8 @@ Fluentd is the same project one size up, and the older of the two. Its core is R
 \toprule
 Candidate & Language & Licence & Memory at rest, vendor's figure & Governed by & Verdict \\
 \midrule
-Fluent Bit & C & Apache 2.0 & about 450~KB & CNCF, graduated & chosen \\
-Fluentd & C and Ruby & Apache 2.0 & over 60~MB & CNCF, graduated & a Ruby package tree on every worker \\
+Fluent Bit & C & Apache 2.0 & about 450~KB & CNCF, inside the Fluentd project & chosen \\
+Fluentd & C and Ruby & Apache 2.0 & over 60~MB & CNCF, graduated 2019 & a Ruby package tree on every worker \\
 Vector & Rust & MPL 2.0 & not published & Datadog & one company decides its future \\
 Telegraf & Go & MIT & not published & InfluxData & emits metrics, not log lines \\
 \bottomrule
@@ -125,11 +125,7 @@ We did not port the miner into the collector. Fluent Bit filters are written in 
 
 \subsection{Detection on numbers, inside the cluster}\label{sec:why-detection}
 
-The platform must catch three kinds of trouble: known cliffs, unfamiliar shapes and slow drift. Three lanes read numbers about the logs, such as counts, error rates and lags, and each lane catches one kind. Threshold monitors catch the cliffs we know. Random Cut Forest detectors~\cite{ref:rcf} catch unfamiliar shapes. A Random Cut Forest is an unsupervised model: it learns the usual shape of a number from the stream itself and needs no labelled faults, which ALICE does not have. Trend rules compare against a fixed seven days and catch the drift a detector slowly learns as normal.
-
-All three lanes run inside OpenSearch, as the detection and alerting plugins that ship with it. They cost no extra service to run and keep alive. The work was choosing the features, not building the machinery (Section~\ref{sec:metrics-features}). A volume detector reads a silent host as zero records, so it can grade silence itself.
-
-We did not put a learned model on the log text in the detection path. Deep sequence models flag every message they have not seen as an anomaly, and O2 software changes across the farm all the time. A language model per line costs processor time and latency at ingest, with no fair benchmark win. Section~\ref{sec:logtext} gives the numbers and every route on the text. Detection on the text goes through template counts instead.
+The platform must catch three kinds of trouble: known cliffs, unfamiliar shapes and slow drift. Threshold monitors, Random Cut Forest detectors~\cite{ref:rcf} and trend rules each catch one kind (Section~\ref{sec:design-watch}). A Random Cut Forest learns the usual shape of a number from the stream itself. So it needs no labelled faults, which ALICE does not have. All three lanes run inside OpenSearch, as the detection and alerting plugins that ship with it, so they add no service to keep alive. No learned model reads the log text in the detection path. Section~\ref{sec:logtext} gives the reasons, and Section~\ref{sec:metrics} gives the detectors and rules.
 
 \subsection{Episodes, and Alertmanager as messenger}\label{sec:why-episodes}
 

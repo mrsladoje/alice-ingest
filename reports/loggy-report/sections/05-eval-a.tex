@@ -51,12 +51,12 @@ Two rates reopen the question: a sustained worker rate above about 1,000 records
 
 \subsection{The other sources and the real node}\label{sec:eval-sources}
 
-The collector had never read three of the six log sources. Those are the second process-tree format, written by the data-distribution processes, the InfoLogger daemon log and the system journal. The first fixture run sent 41.8~\% of the corpus to the storage tier with no severity: a parser anchor missed a date the replay prepends. Severity now comes out of 99.83~\% of process-tree lines, against a 99~\% gate. 96.94~\% of that family stays on the worker.
+The collector now reads all six log sources. Three of them had never been read before: the second process-tree format, written by the data-distribution processes, the InfoLogger daemon log and the system journal. Severity now comes out of 99.83~\% of process-tree lines, against a 99~\% gate, and 96.94~\% of that family stays on the worker. That took one parser fix. A parser anchor missed a date the replay prepends, so the first fixture run sent 41.8~\% of the corpus to the storage tier with no severity.
 
-A read-only census of four farm machines corrected four facts. Four installations run there, on three releases where we assumed two. The storage machine's release is two majors behind and untested. A worker's journal is small beside millions of process-tree lines, so the collector reads all of it.
+The design now matches the farm on four facts, which a read-only census of four farm machines corrected. Four installations run there, on three releases where we assumed two. The storage machine's release is two majors behind and untested. A worker's journal is small beside millions of process-tree lines, so the collector reads all of it.
 
-The fixture and restart checks passed on the three farm releases and on one newer. A later review found the rotation check itself was flaky. Release 5.0.8 loses every byte appended after rotation, in five of five runs, so it is blocked.
+The collector passes the fixture and restart checks on the three farm releases and on one newer. Release 5.0.8 is blocked: it loses every byte appended after rotation, in five of five runs. The rotation check shows this only since its own flakiness was fixed, because before that some runs passed by chance.
 
-An external review retracted every collector regex cost figure. Two identical configurations differ by up to 19.3~\% in processor time, so the rig cannot resolve a change below about a fifth. No regex change is worth making on cost.
+No regex change in the collector is worth making on cost. Two identical configurations differ by up to 19.3~\% in processor time, so the rig cannot resolve a change below about a fifth. For that reason an external review retracted every collector regex cost figure.
 
-We fixed 99 defects, 32 in the instrument, the rest in the collector, the stamper and the catalogue. A retried bulk write duplicated every record, so the product now writes with create under a stamped document identifier.
+The product now writes with create under a stamped document identifier, so a retried bulk write no longer duplicates every record. That was one of 99 defects fixed in the test rounds: 32 in the instrument, the rest in the collector, the stamper and the catalogue.

@@ -50,7 +50,7 @@ An error line crosses the wire twice (Figure~\ref{fig:errorline}).
 
 \subsection{Walkthrough: an info line stays on its worker}\label{sec:design-walk-info}
 
-An info line takes the same road as far as the routing rule, then stays on its worker. A placement setting pins the index there. Under severity routing 96.94~\% of the O2 process-tree family stays local and 3.06~\% crosses the wire. The trend rollup, six of the seventeen detectors of Section~\ref{sec:design-watch}, and the shifter view's line sampler read the local index. If the worker dies, its raw lines die with it, but the rollup rows, template counts and detector results survive. One search still finds the line. That search is as slow as the slowest worker, which is why the live lane exists.
+An info line takes the same road as far as the routing rule, then stays on its worker. A placement setting pins the index there. Under severity routing 96.94~\% of the O2 process-tree family stays local and 3.06~\% crosses the wire. The trend rollup, six of the seventeen detectors of Section~\ref{sec:design-watch}, and the shifter view's line sampler read the local index. If the worker dies, its raw lines die with it, but the rollup rows, template counts and detector results survive. The live lane never sees an info line, so only a search over the worker indices finds it. That search is as slow as the slowest worker. Section~\ref{sec:why-cluster} explains why we accept that cost.
 
 \subsection{Inside the collector}\label{sec:design-collector}
 

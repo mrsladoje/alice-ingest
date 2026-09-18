@@ -1,4 +1,4 @@
-\section{Anomaly detection on the log text}\label{sec:logtext}
+\section{The log text: detection and search}\label{sec:logtext}
 
 The platform \textbf{does detect on the log text, through templates}. The stamper turns every line into a message form, and the detectors watch those forms: a form never seen before, and how often each known form appears. What we rejected is detection on raw lines and on embeddings. Figure~\ref{fig:textroutes} shows where each step of the standard route ended.
 
@@ -97,7 +97,7 @@ DDS & \code{=} & a shell command line uses \code{;} between commands \\
 \item a message whose rate \textbf{drifts} from its own week-old baseline.
 \end{itemize}
 
-Read that way, they would enter the same moving windows as a family's counts (Table~\ref{tab:windows}): a per-template detector would compare each minute with a rolling sample of recent minutes, and a trend rule would compare the last half hour with the previous seven days. No detector or trend rule reads these counts yet. Wiring them in is the next detection step (Section~\ref{sec:limits-remains}).
+Read that way, they would enter the same moving windows as a family's counts (Section~\ref{sec:design-watch}): a per-template detector would compare each minute with a rolling sample of recent minutes, and a trend rule would compare the last half hour with the previous seven days. No detector or trend rule reads these counts yet. Wiring them in is the next detection step (Section~\ref{sec:limits-remains}).
 
 \subsection{Embeddings are for search}\label{sec:logtext-search}
 
