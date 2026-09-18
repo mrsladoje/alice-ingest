@@ -35,7 +35,7 @@ Every threading arm cost more against the 1.61~\% floor: a second collector proc
 
 The live lane of Section~\ref{sec:design-tiers} is the largest cost any setting adds: 41 to 68~\% more collector processor time on the healthy rig.
 
-A fifteen-minute sink outage at 20,000 records a second loses 66.7~\% of InfoLogger at the buffer cap. That buffer holds 865,674 InfoLogger records of 310~bytes, and InfoLogger is 60~\% of a worker's mix. At a median worker's 23 records a second InfoLogger is 13.8, and the buffer covers 17.4~hours. At the busiest worker-second, 78, it is 46.8 and the buffer covers 5.1~hours.
+A fifteen-minute sink outage at 20,000 records a second loses 66.7~\% of \textit{InfoLogger} at the buffer cap. That buffer holds 865,674 \textit{InfoLogger} records of 310~bytes, and \textit{InfoLogger} is 60~\% of a worker's mix. At a median worker's 23 records a second \textit{InfoLogger} is 13.8, and the buffer covers 17.4~hours. At the busiest worker-second, 78, it is 46.8 and the buffer covers 5.1~hours.
 
 The stack sustains about 42,000 records a second. It holds 50,000 for two minutes with zero loss. The storage tier runs at 86~\% of its four cores. The decline starts near six million documents, where index merging cuts throughput, so the ceiling is the storage tier's.
 
@@ -51,7 +51,7 @@ Two rates reopen the question: a sustained worker rate above about 1,000 records
 
 \subsection{The other sources and the real node}\label{sec:eval-sources}
 
-The collector now reads three log sources it had never read before. They are the second process-tree format, written by the data-distribution processes, the InfoLogger daemon log and the system journal. Severity now comes out of 99.83~\% of process-tree lines, against a 99~\% gate, and 96.94~\% of that family stays on the worker. The first fixture run sent 41.8~\% of the corpus to the storage tier with no severity. A parser anchor missed a date the replay prepends.
+The collector now reads three log sources it had never read before. They are the second process-tree format, written by the data-distribution processes, the \textit{InfoLogger} daemon log and the system journal. Severity now comes out of 99.83~\% of process-tree lines, against a 99~\% gate, and 96.94~\% of that family stays on the worker. The first fixture run sent 41.8~\% of the corpus to the storage tier with no severity. A parser anchor missed a date the replay prepends.
 
 Four facts in the design now come from a read-only census of four farm machines. Four installations run there, on three releases where we assumed two. The storage machine's release is two majors behind and untested. A worker's journal is small beside millions of process-tree lines, so the collector reads all of it.
 

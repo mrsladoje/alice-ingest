@@ -19,7 +19,7 @@ Both are read as p95, never the mean. A backlog shows in the slowest records bef
 
 \begin{itemize}
 \item \textbf{Each collector pushes} its own sample every 30~seconds: alive, records out, errors, retries.
-\item \textbf{The poller} samples the cluster and Dashboards every 30~seconds, plus a roster check: which collectors were expected to speak and did not.
+\item \textbf{The poller} samples the cluster and \textit{Dashboards} every 30~seconds, plus a roster check: which collectors were expected to speak and did not.
 \end{itemize}
 
 A dead collector writes nothing. So ``collector down'' is the poller noticing a missing sample after 90~seconds, not a flag the collector sets.
@@ -50,14 +50,14 @@ Detector & Per & Watches \\
 \code{dashboards-health} & whole cluster & event-loop delay, response time, request rate \\
 \midrule
 \multicolumn{3}{@{}l}{\emph{Logs, per EPN, each with a 30-minute twin}} \\
-\code{il-per-epn} & EPN & InfoLogger volume and error count: one EPN silent or erroring while the farm looks fine \\
+\code{il-per-epn} & EPN & \textit{InfoLogger} volume and error count: one EPN silent or erroring while the farm looks fine \\
 \code{central-per-epn} & EPN & the same on the central family \\
 \code{local-volume} & EPN & volume of the info lines that stay on the worker \\
-\code{il-per-epn-entry-lag} & EPN & p95 entry lag on InfoLogger \\
+\code{il-per-epn-entry-lag} & EPN & p95 entry lag on \textit{InfoLogger} \\
 \code{local-per-epn-entry-lag} & EPN & p95 entry lag on local info lines \\
 \midrule
 \multicolumn{3}{@{}l}{\emph{Logs, per collector, each with a 30-minute twin}} \\
-\code{il-collector-shipping-lag} & collector & p95 shipping lag on InfoLogger \\
+\code{il-collector-shipping-lag} & collector & p95 shipping lag on \textit{InfoLogger} \\
 \code{local-collector-shipping-lag} & collector & p95 shipping lag on local info lines \\
 \bottomrule
 \end{tabularx}
@@ -92,7 +92,7 @@ Monitor & Fires when & Means \\
 \code{disk-cliff-warn}, \code{-page} & a store node's disk is 85 to 92~\%, or above 92~\% & approaching the read-only line near 95~\% \\
 \code{heap-spiral} & heap above 90~\% for 5 minutes & not a brief spike: the node is thrashing \\
 \code{admission-rejections} & a node refused a search or a write & overload; a refused write drops logs \\
-\code{telemetry-silence} & no cluster or Dashboards sample for 5 minutes & the poller is dead \\
+\code{telemetry-silence} & no cluster or \textit{Dashboards} sample for 5 minutes & the poller is dead \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -143,18 +143,18 @@ The models were the easy choice. Every number fed to them could mislead in its o
 
 The projector turns every alert and every grade into stored, deduplicated signals and episodes, and each episode has a start and an end.
 
-Thirty monitors and seventeen detectors write to different indices, and a firing monitor writes a new row every minute. Alertmanager \cite{ref:alertmanager} groups and routes well, but it keeps nothing: it forgets an alert five minutes after the last post. Every 30~seconds the projector reads all of it and writes:
+Thirty monitors and seventeen detectors write to different indices, and a firing monitor writes a new row every minute. \textit{Alertmanager} \cite{ref:alertmanager} groups and routes well, but it keeps nothing: it forgets an alert five minutes after the last post. Every 30~seconds the projector reads all of it and writes:
 
 \begin{itemize}
 \item \textbf{Signals}: one index for every alert and grade, firing and cleared, named from one catalogue.
 \item \textbf{Episodes}: all signals of one alert name on one entity become one incident with a start and an end. It goes open, recovering, resolved. It closes after one healthy window for a hard rule, three for a trend rule or detector. A missing evaluation is never a recovery, so a lane that stops reporting leaves its episode open and marked stale. When half the roster goes silent at once, one fleet incident opens instead of hundreds.
-\item \textbf{Re-posts}: every open episode goes to Alertmanager on every cycle, well inside its five-minute memory.
+\item \textbf{Re-posts}: every open episode goes to \textit{Alertmanager} on every cycle, well inside its five-minute memory.
 \end{itemize}
 
-\begin{table}[htbp]\caption{The projector remembers and deduplicates, and Alertmanager decides when a person is told.}\label{tab:projector}\centering\footnotesize
+\begin{table}[htbp]\caption{The projector remembers and deduplicates, and \textit{Alertmanager} decides when a person is told.}\label{tab:projector}\centering\footnotesize
 \begin{tabularx}{\textwidth}{L{0.24\textwidth} Y Y}
 \toprule
- & Signal projector & Alertmanager \\
+ & Signal projector & \textit{Alertmanager} \\
 \midrule
 Memory & 30 days, replicated & forgets an alert after 5 minutes \\
 Duplicates & thirty rows about one fault are one episode & repeats whatever it is sent \\
@@ -180,9 +180,9 @@ Notification & none of its own & grouping, silences, routing \\
 \toprule
 Check & Fires when & Why it exists \\
 \midrule
-\code{opensearch-unreachable} & the projector fails two cluster probes in a row & raised by the projector straight to Alertmanager; the one alert that survives a dead cluster \\
+\code{opensearch-unreachable} & the projector fails two cluster probes in a row & raised by the projector straight to \textit{Alertmanager}; the one alert that survives a dead cluster \\
 \code{signal-projector-stale} & the projector wrote nothing for 10 minutes & break-glass: posts straight to the receiver, since the projector is the thing that is dead \\
-\code{alertmanager-down} & the projector saw Alertmanager unreachable for 5 minutes & break-glass: nobody is receiving pages \\
+\code{alertmanager-down} & the projector saw \textit{Alertmanager} unreachable for 5 minutes & break-glass: nobody is receiving pages \\
 \code{trend-rollup-stale} & no complete rollup commit for 40 minutes & every trend rule is reading stale rows \\
 \code{trend-entity-cap} & a rollup group nears its host cap & hosts past the cap are silently unwatched \\
 \bottomrule

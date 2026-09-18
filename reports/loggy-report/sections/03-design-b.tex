@@ -10,29 +10,29 @@ A detector is a scheduled Random Cut Forest model \cite{ref:rcf}. It learns a nu
 
 Every lane compares a recent window with the stretch of time before it, so what counts as normal moves with the farm. A threshold monitor checks every minute or every ten minutes against a fixed limit. A fast detector reads one-minute windows and a slow one 30-minute windows, and each point joins the last eight windows. A trend rule compares three ten-minute slices with the previous seven days. Tables~\ref{tab:detectors} and~\ref{tab:trendrules} in Section~\ref{sec:metrics} list every detector and trend rule. A detector keeps no fixed number of days. It holds a rolling sample of recent points and forgets older ones gradually, so a new level of traffic becomes normal after a while. The length of that memory follows from the detection plugin's defaults, which we neither changed nor measured. The trend rules cover what a detector forgets: they compare against a fixed seven days, so a slow drift that a detector absorbs still fires.
 
-Thirty monitors run: 13 every minute and four every ten minutes on thresholds and detector results. Nine are trend comparisons, two run hourly on templates, two watch the projector and Alertmanager themselves. The two template rules are the detection on the log text today (Section~\ref{sec:logtext}).
+Thirty monitors run: 13 every minute and four every ten minutes on thresholds and detector results. Nine are trend comparisons, two run hourly on templates, two watch the projector and \textit{Alertmanager} themselves. The two template rules are the detection on the log text today (Section~\ref{sec:logtext}).
 
 The projector reads every alert and detector result every 30~seconds (Figure~\ref{fig:alerts}). A signal is one stored row: which rule or detector fired, on which entity, when. An incident is one condition on one entity, for example collector-down on one collector. An episode is one occurrence of an incident, with a start and an end. The projector stores each episode as one document. When the same incident returns later, a new episode opens. An episode closes after consecutive healthy windows: one for a threshold monitor, three for a trend monitor or detector. A grade above 0.5 opens an episode.
 
-\begin{figure}[tbp]\centering\includegraphics[width=0.8\textwidth]{fig06-alerts.pdf}\caption{Pushed samples feed three lanes, the projector makes episodes, Alertmanager decides when a person is told, and the receiver stores what was sent.}\label{fig:alerts}\end{figure}
+\begin{figure}[tbp]\centering\includegraphics[width=0.8\textwidth]{fig06-alerts.pdf}\caption{Pushed samples feed three lanes, the projector makes episodes, \textit{Alertmanager} decides when a person is told, and the receiver stores what was sent.}\label{fig:alerts}\end{figure}
 
-Alertmanager owns notification semantics only: grouping timers, silences and routing \cite{ref:alertmanager}. It forgets an alert five minutes after the last post, so the projector re-posts every open episode every 30~seconds. It holds a page 30~seconds and a warn five minutes, then sends one batch to the receiver. Nothing pages a human today.
+\textit{Alertmanager} owns notification semantics only: grouping timers, silences and routing \cite{ref:alertmanager}. It forgets an alert five minutes after the last post, so the projector re-posts every open episode every 30~seconds. It holds a page 30~seconds and a warn five minutes, then sends one batch to the receiver. Nothing pages a human today.
 
-The two monitors that watch the projector and Alertmanager post straight to the receiver, because that part can be dead. That is the break-glass path. The stale-projector monitor fires after ten minutes without a projector heartbeat. The other fires after the projector reports Alertmanager down for five minutes.
+The two monitors that watch the projector and \textit{Alertmanager} post straight to the receiver, because that part can be dead. That is the break-glass path. The stale-projector monitor fires after ten minutes without a projector heartbeat. The other fires after the projector reports \textit{Alertmanager} down for five minutes.
 
 \subsection{Walkthrough: a dead collector becomes a notification}\label{sec:design-walk-dead}
 
 A dead collector is silent, so the platform reasons from absence (Figure~\ref{fig:alerts}).
 
-\begin{enumerate}[nosep]
-\item While it runs, each collector writes one health sample to \code{cockpit-metrics} every 30~seconds. The collector dies, and its samples stop.
-\item Every 30~seconds the poller reads the roster and the samples of the last 90~seconds. It writes one fleet row per rostered collector to \code{cockpit-metrics}. The dead collector's row marks its heartbeat missing, because three pushes in a row did not arrive.
-\item Every minute the collector-down monitor reads the fleet rows of the last two minutes, one bucket per collector. One missing flag is enough. It writes a page-tier alert that names the collector into the alerting plugin's alert index.
-\item Within 30~seconds the projector reads the alert. It writes a signal row to \code{alice-signals} and opens an episode, stored in \code{alice-incidents}.
-\item The projector posts the open episode to Alertmanager, and posts it again every 30~seconds. Alertmanager forgets an alert five minutes after the last post, so the re-posts keep it alive.
-\item Alertmanager groups the alert on alert name and collector, waits 30~seconds, and posts one batch to the receiver.
-\item The receiver writes one document to \code{alice-notifications}. That document records that a person should be told.
-\item The open episode shows as a card on the maintainer cockpit and in the shifter view's list of open episodes.
+\begin{enumerate}[itemsep=3pt]
+\item \emph{Heartbeats stop.} While it runs, each collector pushes a health sample to \code{cockpit-metrics} every 30~seconds. The sample says whether the collector is up, and how many records it read, wrote, retried and dropped. When the collector dies, the samples stop, and nothing reports the death.
+\item \emph{The poller turns absence into a row.} Every 30~seconds the poller reads the roster, the list of collectors that must run. It writes one fleet row per rostered collector to \code{cockpit-metrics}. A collector with no sample in the last 90~seconds, three push periods, gets a row that marks its heartbeat missing. The health sample comes from the worker. The fleet row is the control host's verdict, written because the dead collector cannot write anything.
+\item \emph{The collector-down monitor fires.} Every minute the monitor reads the fleet rows of the last two minutes, one bucket per collector. One missing flag is enough for a page-tier alert that names the collector.
+\item \emph{The projector makes a signal and an episode.} Within 30~seconds the projector reads the alert. It writes one signal row to \code{alice-signals} with the collector, the alert name and the tier. It opens an episode in \code{alice-episodes}: collector-down on this collector, since now.
+\item \emph{The projector keeps \textit{Alertmanager} told.} The projector posts the open episode to \textit{Alertmanager} as one alert. \textit{Alertmanager} keeps no database and forgets an alert five minutes after the last post. So the projector posts it again every 30~seconds, and posts an end time when the episode resolves.
+\item \emph{\textit{Alertmanager} groups and delivers.} It treats the repeated posts as one alert and groups it with any other alert of the same name and collector. A page waits 30~seconds before the batch goes to the receiver.
+\item \emph{The receiver stores the notification.} The receiver writes one document to \code{alice-notifications} with the episode's identifier. Nothing pages a person yet, so that document records what a person would have been told.
+\item \emph{A person sees it.} The episode shows as a card on the maintainer cockpit and in the shifter view's list of open episodes.
 \end{enumerate}
 
 The cadences bound death-to-document at about 90 to 240~seconds. The first missing flag arrives 60 to 120~seconds after the death. No run has timed it (Section~\ref{sec:limits-unmeasured}).
@@ -41,22 +41,22 @@ The cadences bound death-to-document at about 90 to 240~seconds. The first missi
 
 The trend rules never scan raw lines when they check. They compare small rows with seven days of the same rows (Figure~\ref{fig:alerts}).
 
-\begin{enumerate}[nosep]
-\item Every ten minutes the rollup service waits 120~seconds for late records. Then it reads the last three finished ten-minute slices from the log indices.
-\item It writes one row per family and entity per slice to \code{trend-rollup}. The row's identifier is built from those three, so a recount overwrites the row instead of adding a second. An entity is a host, or a collector for the lags. Each row holds record, error and fatal counts, the 95th percentile of two lags, and the fleet total of its family. The lags are the line's age when the collector read it, and its trip from there into the store.
-\item For an entity that logged in the last 24~hours but not in this slice, the rollup writes a zero-count row. An entity silent for longer gets none. A commit row closes the slice when every row has landed.
-\item Every ten minutes the nine trend monitors read those rows. Each compares the three latest slices, ending ten minutes before the check, with the same entity over the previous seven days. With no seven-day history, a monitor falls back to 24~hours.
-\item A volume rule compares the host's share of its fleet, so a fleet-wide ramp cancels. It fires on twice the baseline share or half of it, in all three slices. A rise needs 50~records in every slice, and every rule needs six baseline slices.
-\item The two shipping-lag rules compare the entity's own lag with twice its seven-day baseline, floored at 250~ms. Each writes a warn-tier alert when it fires.
-\item A separate monitor writes a page-tier alert when a whole family stops. It fires when a family averaging at least 50~records a slice over 24~hours writes nothing for 40~minutes. The per-host volume rules then skip the slice, so a dead stream raises one alert for its family.
-\item Another page-tier monitor fires when the rollup service itself has closed no slice for 40~minutes. Without the rollup, the trend rules have no rows to read.
-\item The projector turns each alert into a signal and an episode, as in Section~\ref{sec:design-walk-dead}. Alertmanager holds warn-tier alerts five minutes and batches them by rule name. It also splits the shipping-lag batches by collector.
+\begin{enumerate}[itemsep=3pt]
+\item \emph{The rollup reads finished slices.} Every ten minutes the rollup service waits 120~seconds for late records. Then it reads the last three finished ten-minute slices from the log indices.
+\item \emph{It writes small rows.} The rollup writes one row per family, entity and slice to \code{trend-rollup}. An entity is a host, or a collector for the lags. A row holds the record, error and fatal counts, the 95th percentile of both lags, and the family's fleet total. The row identifier comes from family, entity and slice, so a recount overwrites the row.
+\item \emph{Silence becomes a zero.} A host that logged in the last 24~hours but not in this slice gets a row with a zero count. A commit row closes the slice once every row has landed.
+\item \emph{Nine rules compare with the last week.} Every ten minutes the nine trend monitors compare each entity's three latest slices with its own previous seven days. Without seven days of history, a monitor falls back to 24~hours.
+\item \emph{Volume rules compare shares.} A volume rule reads the host's share of its fleet, so a fleet-wide ramp cancels out. It fires when the share doubles or halves against the baseline in all three slices.
+\item \emph{Lag rules compare with the entity's own past.} The two shipping-lag rules fire when a lag passes twice its seven-day baseline. Trend alerts are warn tier.
+\item \emph{A dead family raises one page.} A separate monitor pages when a whole family writes nothing for 40~minutes, although it averaged at least 50~records a slice over the last day. The per-host volume rules skip that slice, so the dead stream raises one alert, for its family.
+\item \emph{A dead rollup raises its own page.} Another monitor pages when the rollup service has closed no slice for 40~minutes, because the trend rules then have no rows to read.
+\item \emph{The tail is the same as for any alert.} The projector turns each alert into a signal and an episode, as in Section~\ref{sec:design-walk-dead}. \textit{Alertmanager} holds warn-tier alerts five minutes and batches them by rule name, and splits the shipping-lag batches by collector.
 \end{enumerate}
 
 Which messages changed is the template lane's question (Section~\ref{sec:design-templates}).
 
 \subsection{The surfaces}\label{sec:design-surfaces}
 
-A person reaches all four surfaces through one web address and one account. Dashboards, the store's own web interface, holds the maintainer cockpit and Discover, its search screen for the archive \cite{ref:opensearch}. The shifter view is separate. Its live page keeps what collectors post: every InfoLogger record, the daemon log and every line above info severity. It never queries the cluster, so it holds when the cluster is down. Its Templates page shows the catalogue, counts and open episodes.
+A person reaches all four surfaces through one web address and one account. \textit{Dashboards}, the store's own web interface, holds the maintainer cockpit and Discover, its search screen for the archive \cite{ref:opensearch}. The shifter view is separate. Its live page keeps what the collectors write to the bus: every \textit{InfoLogger} record, the daemon log and every line above info severity. It never queries the cluster, so it holds when the cluster is down. Its Templates page shows the catalogue, counts and open episodes.
 
-Two clocks run. Health samples and the log-counting detectors use the collector's accept time. Discover uses the time the line was written. The operator view close to InfoLogger is not built.
+Two clocks run. Health samples and the log-counting detectors use the collector's accept time. Discover uses the time the line was written. The operator view close to \textit{InfoLogger} is not built.

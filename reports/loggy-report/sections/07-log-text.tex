@@ -44,7 +44,7 @@ The model that wins on quality & 113 templates a second on a laptop, so out of r
 
 \subsection{Choosing the template miner}\label{sec:logtext-miner}
 
-\textbf{Decision:} drain3 \cite{ref:drain,ref:drain3}, with one tree and one recipe per log family, behind a rewritten masker. No parser can be scored for accuracy on our logs. The correct template for an O2 line is the format string in the O2 source, and nobody has extracted those. Cost, memory, streaming and readability decided instead. Table~\ref{tab:parsers} gives the reason each candidate lost.
+\textbf{Decision:} \textit{drain3} \cite{ref:drain,ref:drain3}, with one tree and one recipe per log family, behind a rewritten masker. No parser can be scored for accuracy on our logs. The correct template for an \textit{O2} line is the format string in the \textit{O2} source, and nobody has extracted those. Cost, memory, streaming and readability decided instead. Table~\ref{tab:parsers} gives the reason each candidate lost.
 
 \begin{table}[htbp]\caption{Every other parser lost on cost, streaming or readability, and the store's own command works at query time.}\label{tab:parsers}\centering\footnotesize
 \begin{tabularx}{\textwidth}{L{0.19\textwidth} Y}
@@ -52,29 +52,29 @@ The model that wins on quality & 113 templates a second on a laptop, so out of r
 Candidate & Why it lost, measured on the same archive lines \\
 \midrule
 \textbf{drain3} & chosen: streams, 26.3~MB, readable once configured per family \\
-PIPLUP & 2.56 times the cost and 7.8 times the memory of drain3; one placeholder type for every variable \\
-LogLSHD & slower than the Drain it claims to beat; needs a threshold tuned against ground truth we lack \\
-KELP & crashed three times on real lines, ships no masking, lost on every column once patched \\
-IPLoM, AEL & batch algorithms: they cannot stream \\
-LFA & cheap, but 78.3~\% of its templates keep one literal word or none \\
-SHISO, LenMa, Logram & 4.8 to 13.3 times the reference Drain's cost \\
-Spell, LogMine & no result in ten minutes \\
-EFParser & calls a language model for every line \\
+\textit{PIPLUP} & 2.56 times the cost and 7.8 times the memory of \textit{drain3}; one placeholder type for every variable \\
+\textit{LogLSHD} & slower than the \textit{Drain} it claims to beat; needs a threshold tuned against ground truth we lack \\
+\textit{KELP} & crashed three times on real lines, ships no masking, lost on every column once patched \\
+\textit{IPLoM}, \textit{AEL} & batch algorithms: they cannot stream \\
+\textit{LFA} & cheap, but 78.3~\% of its templates keep one literal word or none \\
+\textit{SHISO}, \textit{LenMa}, \textit{Logram} & 4.8 to 13.3 times the reference \textit{Drain}'s cost \\
+\textit{Spell}, \textit{LogMine} & no result in ten minutes \\
+\textit{EFParser} & calls a language model for every line \\
 The store's \code{patterns} command & mines at query time over stored records (reasoning, not measured; see below) \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\textbf{Why one recipe per family.} A recipe sets which separators get padded with spaces and how similar two lines must be to share a template. The three families want different answers to the same setting, as Table~\ref{tab:recipe} shows. One recipe per family costs what one global setting costs, 17.57 against 17.65 weighted core-seconds per million lines. It cuts \emph{contentless templates}, where every token is a placeholder, from 44.9 to 10.4~\% on InfoLogger.
+\textbf{Why one recipe per family.} A recipe sets which separators get padded with spaces and how similar two lines must be to share a template. The three families want different answers to the same setting, as Table~\ref{tab:recipe} shows. One recipe per family costs what one global setting costs, 17.57 against 17.65 weighted core-seconds per million lines. It cuts \emph{contentless templates}, where every token is a placeholder, from 44.9 to 10.4~\% on \textit{InfoLogger}.
 
 \begin{table}[htbp]\caption{Each family wants a different separator setting, which is why each gets its own recipe.}\label{tab:recipe}\centering\footnotesize
 \begin{tabularx}{\textwidth}{l l Y}
 \toprule
 Family & Padded separators & Why \\
 \midrule
-InfoLogger & \code{=}~~\code{;}~~\code{:} & full of \code{key: value}, so it wants the colon \\
+\textit{InfoLogger} & \code{=}~~\code{;}~~\code{:} & full of \code{key: value}, so it wants the colon \\
 Process output & \code{=}~~\code{;} & the colon splits real words \\
-DDS & \code{=} & a shell command line uses \code{;} between commands \\
+\textit{DDS} & \code{=} & a shell command line uses \code{;} between commands \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -101,7 +101,7 @@ Read that way, they would enter the same moving windows as a family's counts (Se
 
 \subsection{Embeddings are for search}\label{sec:logtext-search}
 
-\textbf{Decision:} the template vectors serve semantic search only, and not nearest-neighbour novelty detection. Section~\ref{sec:logtext-knn} gives the reasons. DenseOn scans all 5,301 template vectors exactly, and LateOn reranks the top 30. The search is built and evaluated, and it ships disabled, because no person has judged its results. The service is capped at 384~MB. The model's memory peak was seen in one local run and is not recorded.
+\textbf{Decision:} the template vectors serve semantic search only, and not nearest-neighbour novelty detection. Section~\ref{sec:logtext-knn} gives the reasons. \textit{DenseOn} scans all 5,301 template vectors exactly, and \textit{LateOn} reranks the top 30. The search ships enabled. The service is capped at 384~MB. The model's memory peak was seen in one local run and is not recorded.
 
 \textbf{How the benchmark was built.} We scored every system on nDCG@10, which rewards relevant templates near the top of the first ten results and reaches 1 when the order is perfect \cite{ref:ndcg}.
 
@@ -113,15 +113,15 @@ Read that way, they would enter the same moving windows as a family's counts (Se
 \item \textbf{Sealed held-out set:} 62 intent groups written before any model was compared, then opened once.
 \end{itemize}
 
-Figure~\ref{fig:retrieval} gives the results. The ladder runs cheapest first, from BM25, the store's word-matching score, to LateOn, which scores a question against a template word by word.
+Figure~\ref{fig:retrieval} gives the results. The ladder runs cheapest first, from BM25, the store's word-matching score, to \textit{LateOn}, which scores a question against a template word by word.
 
 \begin{figure}[htbp]\centering\includegraphics[width=\textwidth]{fig10-retrieval.pdf}\caption{The dense model beats word search on the sealed set by 0.318, and reranking 30 candidates adds a further 0.051 on development questions.}\label{fig:retrieval}\end{figure}
 
 \textbf{Why the gap is so large.} In 47.1~\% of relevant question-and-template pairs, the two share no word after analysis. Operators ask in their own words, and developers wrote the templates in theirs. A dense model closes that gap and word search cannot.
 
-\textbf{What we embed.} Writing a template's source and program in front of it gives the largest single gain in the benchmark. We tested three texts per template: the template alone, the template after its source and program, for example \code{source=dpl program=gpu-reconstruction}, and that text with severity and detector added. Source and program gained 0.168 for DenseOn and 0.092 for the static model. Severity and detector added nothing, because 35.4~\% of templates carry no severity. For word search, no text beat another by the 0.032 bar. The shipped search embeds the source, the program and the template.
+\textbf{What we embed.} Writing a template's source and program in front of it gives the largest single gain in the benchmark. We tested three texts per template: the template alone, the template after its source and program, for example \code{source=dpl program=gpu-reconstruction}, and that text with severity and detector added. Source and program gained 0.168 for \textit{DenseOn} and 0.092 for the static model. Severity and detector added nothing, because 35.4~\% of templates carry no severity. For word search, no text beat another by the 0.032 bar. The shipped search embeds the source, the program and the template.
 
-\textbf{Why DenseOn, then LateOn.} LateOn scores best, but searching the whole corpus with it needs a store of about forty vectors per template, and no such store was built or verified. Reranking only DenseOn's top 30 takes 0.6~ms and keeps most of the gain: 0.685 against 0.634, with a bootstrap interval on the gain of +0.028 to +0.080. Bigger models bought nothing. The 0.6-billion-parameter model matched DenseOn and took 33 times as long to encode the corpus. Table~\ref{tab:tried} lists what else we tried.
+\textbf{Why \textit{DenseOn}, then \textit{LateOn}.} \textit{LateOn} scores best, but searching the whole corpus with it needs a store of about forty vectors per template, and no such store was built or verified. Reranking only \textit{DenseOn}'s top 30 takes 0.6~ms and keeps most of the gain: 0.685 against 0.634, with a bootstrap interval on the gain of +0.028 to +0.080. Bigger models bought nothing. The 0.6-billion-parameter model matched \textit{DenseOn} and took 33 times as long to encode the corpus. Table~\ref{tab:tried} lists what else we tried.
 
 \begin{table}[htbp]\caption{Every idea tried on top of the dense model either lost or did not clear the bar the project set for itself.}\label{tab:tried}\centering\footnotesize
 \begin{tabularx}{\textwidth}{L{0.40\textwidth} r Y}
@@ -131,8 +131,8 @@ Idea & Effect, nDCG@10 & Verdict \\
 Source and program written before the template & $+0.168$ & kept: the largest single gain \\
 Severity and detector added as well & no gain & dropped: 35.4~\% of templates carry no severity \\
 Word search fused with the dense model, unweighted & $-0.048$ & dropped: worse than the dense model alone \\
-The same fusion with tuned weights, or three-way with LateOn & $+0.008$ & dropped: below the 0.032 bar \\
-Word and dense candidates pooled, then reranked by LateOn & $+0.059$ & no gain over reranking dense candidates alone \\
+The same fusion with tuned weights, or three-way with \textit{LateOn} & $+0.008$ & dropped: below the 0.032 bar \\
+Word and dense candidates pooled, then reranked by \textit{LateOn} & $+0.059$ & no gain over reranking dense candidates alone \\
 Approximate vector index & $-0.020$ & dropped: results changed after each rebuild \\
 Multilingual model & no gain & dropped: the logs are English \\
 Static model distilled with 3,202 ALICE words & $+0.039$ & not promoted: fails the correction for 15 comparisons \\
@@ -142,7 +142,7 @@ Static model trained on our own relevance grades & $+0.063$ & a lead only: measu
 \end{tabularx}
 \end{table}
 
-\textbf{Hybrid search.} Adding word search to the dense pipeline never gained as much as the 0.032 bar. We tried six hybrids: rank fusion, unweighted and with tuned weights, two score fusions, a three-way fusion that adds LateOn, and a candidate pool that LateOn reranks. Unweighted fusion loses, because 28.6~\% of the relevant templates in the dense top ten are absent from word search's top 200. In the final judging round, which scored every arm on the same pool, tuned fusion and the three-way fusion beat the dense model alone by 0.008. The reranked pool scored 0.694, and reranking dense candidates alone scored 0.695.
+\textbf{Hybrid search.} Adding word search to the dense pipeline never gained as much as the 0.032 bar. We tried six hybrids: rank fusion, unweighted and with tuned weights, two score fusions, a three-way fusion that adds \textit{LateOn}, and a candidate pool that \textit{LateOn} reranks. Unweighted fusion loses, because 28.6~\% of the relevant templates in the dense top ten are absent from word search's top 200. In the final judging round, which scored every arm on the same pool, tuned fusion and the three-way fusion beat the dense model alone by 0.008. The reranked pool scored 0.694, and reranking dense candidates alone scored 0.695.
 
 \textbf{A static model built for our logs.} No static model reached the dense model, including tables we built for our own logs. A static model such as potion is a lookup table with one vector per token. It averages the vectors of a line's tokens and runs no transformer, so it is the only model cheap enough to run per line (Section~\ref{sec:logtext-unit}). We expected a table built for ALICE logs to match or beat a general dense model, because the log vocabulary is narrow. We built our own table instead of reusing potion's. We distilled it from a transformer over 3,202 ALICE words, trained it further on 15,647 ALICE lines, and finally trained it on our relevance grades. Figure~\ref{fig:retrieval} shows the stock potion table at 0.479 on development questions, against 0.640 for the dense model. Our distilled table gains 0.039 over stock, and all of that gain comes from the ALICE vocabulary. The gain fails the correction for 15 comparisons. Training on log text adds 0.0002. Training on relevance grades scores 0.533 on 43 questions it never saw, against 0.470 for our distilled table. That closes about half the distance to the dense model, but on one small split, so it stays a lead.
 
@@ -152,4 +152,4 @@ Two limits apply to every number here. A machine wrote every question and made e
 
 \textbf{Decision:} no nearest-neighbour novelty score, and embeddings serve search only. The new-template signal of Section~\ref{sec:logtext-counts} already answers the question a novelty score asks, the moment a form is mined, with no vector and no threshold to tune. A distance in the vector space would repeat that signal with a threshold added.
 
-Novelty alone is also a weak signal. O2 software changes across the farm all the time, and a new release prints new forms that are not faults. Detectors that treat every unseen form as an anomaly score 0.23 to 0.27 on F1, where 1 is perfect, once the logs drift from the text they learnt on. Plain principal component analysis scores about 0.71 on the same logs. That is why the counts per template matter more than novelty: a known message that stops or floods is rarely a release. The closest published work on ALICE logs, topic modelling over InfoLogger messages \cite{ref:aliceilad}, is the comparison for any later text detector.
+Novelty alone is also a weak signal. \textit{O2} software changes across the farm all the time, and a new release prints new forms that are not faults. Detectors that treat every unseen form as an anomaly score 0.23 to 0.27 on F1, where 1 is perfect, once the logs drift from the text they learnt on. Plain principal component analysis scores about 0.71 on the same logs. That is why the counts per template matter more than novelty: a known message that stops or floods is rarely a release. The closest published work on ALICE logs, topic modelling over \textit{InfoLogger} messages \cite{ref:aliceilad}, is the comparison for any later text detector.

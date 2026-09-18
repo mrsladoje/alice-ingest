@@ -169,7 +169,7 @@
   <path d="M126,632 V662" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
   <text x="134" y="652" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">writes, every 30 s</text>
   <rect x="16" y="662" width="220" height="48" fill="#f1f1ec" stroke="#d6d6cf" stroke-width="1"/>
-  <text x="126" y="683" font-family="Menlo, monospace" font-size="11" fill="#101010" text-anchor="middle">alice-signals · alice-incidents</text>
+  <text x="126" y="683" font-family="Menlo, monospace" font-size="11" fill="#101010" text-anchor="middle">alice-signals · alice-episodes</text>
   <text x="126" y="700" font-size="10" fill="#6b6b66" text-anchor="middle">every hit, and one document per episode</text>
 
   <path d="M700,632 V662" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
@@ -185,7 +185,7 @@
 
   <rect x="16" y="742" width="160" height="52" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
   <text x="96" y="764" font-size="14" font-weight="600" fill="#101010" text-anchor="middle">The cockpit</text>
-  <text x="96" y="782" font-size="10.5" fill="#6b6b66" text-anchor="middle">the incident board</text>
+  <text x="96" y="782" font-size="10.5" fill="#6b6b66" text-anchor="middle">the episode board</text>
 
   <rect x="196" y="742" width="160" height="52" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
   <text x="276" y="764" font-size="14" font-weight="600" fill="#101010" text-anchor="middle">The shifter view</text>

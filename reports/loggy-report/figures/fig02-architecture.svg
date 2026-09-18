@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 820 592" width="820" height="592" role="img" aria-label="The target architecture of loggy: a worker tier and a storage tier.">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 820 564" width="820" height="564" role="img" aria-label="The target architecture of loggy: a worker tier and a storage tier.">
 <defs>
 <marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#101010"/></marker>
 <marker id="ghosthead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#101010" fill-opacity="0.32"/></marker>
@@ -76,6 +76,7 @@
 <rect x="138" y="496" width="106" height="18" fill="#f1f1ec" stroke="#6b6b66" stroke-width="1"/>
 <text x="146" y="508.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10.5" fill="#3a3a36" text-anchor="start">the receiver</text>
 <rect x="24" y="518" width="106" height="18" fill="#f1f1ec" stroke="#6b6b66" stroke-width="1"/>
+<text x="32" y="530.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10.5" fill="#3a3a36" text-anchor="start">the ops page</text>
 <rect x="266" y="400" width="244" height="146" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
 <text x="278" y="418" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="start">storage node 2 · background host</text>
 <image xlink:href="logos/opensearch-logo-official.svg" href="logos/opensearch-logo-official.svg" x="278" y="428" width="76" height="14.7"/>
@@ -100,24 +101,16 @@
 <path d="M400,262 V348" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
 <rect x="92.0" y="253" width="296" height="18" fill="#ffffff" stroke="#6b6b66" stroke-width="1"/>
 <text x="240" y="265.5" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">warn+, InfoLogger, health · one hop, transport</text>
-<path d="M258,88 V32" fill="none" stroke="#6b6b66" stroke-width="1.25" stroke-dasharray="4 4"/>
-<path d="M658,88 V32" fill="none" stroke="#6b6b66" stroke-width="1.25" stroke-dasharray="4 4"/>
-<path d="M258,32 H810" fill="none" stroke="#6b6b66" stroke-width="1.25" stroke-dasharray="4 4"/>
-<path d="M810,32 V490 H756" fill="none" stroke="#6b6b66" stroke-width="1.25" stroke-dasharray="4 4" marker-end="url(#head)"/>
-<rect x="303.0" y="23" width="334" height="18" fill="#ffffff" stroke="#6b6b66" stroke-width="1"/>
-<text x="470" y="35.5" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">live lane today · http · InfoLogger, daemon log, warn+</text>
-<rect x="430" y="254" width="200" height="54" fill="#ffffff" stroke="#101010" stroke-width="1.1" stroke-opacity="0.32"/>
-<text x="530" y="278" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12.5" fill="#101010" text-anchor="middle" font-weight="600" fill-opacity="0.55">the bus · Kafka</text>
+<path d="M258,88 V32" fill="none" stroke="#101010" stroke-width="1.25"/>
+<path d="M658,88 V32" fill="none" stroke="#101010" stroke-width="1.25"/>
+<path d="M258,32 H810" fill="none" stroke="#101010" stroke-width="1.25"/>
+<path d="M810,32 V268 H634" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+<rect x="323.0" y="23" width="294" height="18" fill="#ffffff" stroke="#6b6b66" stroke-width="1"/>
+<text x="470" y="35.5" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">live lane · InfoLogger, daemon log, warn+</text>
+<rect x="430" y="254" width="200" height="54" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+<text x="530" y="278" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12.5" fill="#101010" text-anchor="middle" font-weight="600">the bus · Kafka</text>
 <text x="530" y="293" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#6b6b66" text-anchor="middle">live lane only · one topic, one consumer</text>
-<path d="M806,268 H634" fill="none" stroke="#101010" stroke-width="1.25" stroke-opacity="0.32" marker-end="url(#ghosthead)"/>
-<text x="719" y="281" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">InfoLogger, daemon log, warn+</text>
-<text x="719" y="292" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">kafka produce</text>
-<path d="M630,303 H802" fill="none" stroke="#101010" stroke-width="1.25" stroke-opacity="0.32" marker-end="url(#ghosthead)"/>
-<text x="719" y="316" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">one consumer · kafka fetch</text>
-<rect x="12" y="570" width="22" height="12" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
-<text x="40" y="580" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#3a3a36" text-anchor="start">built and running on staging</text>
-<rect x="210" y="570" width="22" height="12" fill="#ffffff" stroke="#101010" stroke-width="1.1" stroke-opacity="0.32"/>
-<text x="238" y="580" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#3a3a36" text-anchor="start">agreed, not built</text>
-<path d="M360,576 H392" fill="none" stroke="#6b6b66" stroke-width="1.25" stroke-dasharray="4 4"/>
-<text x="398" y="580" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#3a3a36" text-anchor="start">the live lane as built today, replaced by the bus</text>
+<text x="719" y="281" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">kafka produce</text>
+<path d="M630,303 H790 V490 H756" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+<text x="710" y="316" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">one consumer · kafka fetch</text>
 </svg>

@@ -122,8 +122,8 @@
   </g>
 
   <path d="M200,386 H226 V306 H426" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#ah)"/>
-  <text x="322" y="298" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">http · second copy · per record</text>
-  <text x="326" y="320" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">the bus will replace this edge</text>
+  <text x="322" y="298" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">kafka · second copy · per record</text>
+  <text x="326" y="320" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">through the bus, one consumer</text>
 
   <g fill="none" stroke="#101010" stroke-width="1.25">
     <path d="M400,433 H412"/>

@@ -1,10 +1,10 @@
 \subsection{Templating}\label{sec:eval-templating}
 
-Templating is built, and the September rewrite of the steps around the miner made it 31 to 57\,\% cheaper per family (Table~\ref{tab:templating}). Section~\ref{sec:logtext-miner} gives why drain3 was chosen, the recipe per family and the masker rewrite.
+Templating is built, and the September rewrite of the steps around the miner made it 31 to 57\,\% cheaper per family (Table~\ref{tab:templating}). Section~\ref{sec:logtext-miner} gives why \textit{drain3} was chosen, the recipe per family and the masker rewrite.
 
-The template count grows with runs sampled, not lines. One run of each family on 45,596,613 lines gave 3,011, a floor. Sixteen runs and eighty InfoLogger partitions gave 4,092. One tree carried across that corpus and two further archive pulls, 55,963,050 lines, gave 4,221. New templates arrive at 48.9 per million, about one a second at 20,000 records a second.
+The template count grows with runs sampled, not lines. One run of each family on 45,596,613 lines gave 3,011, a floor. Sixteen runs and eighty \textit{InfoLogger} partitions gave 4,092. One tree carried across that corpus and two further archive pulls, 55,963,050 lines, gave 4,221. New templates arrive at 48.9 per million, about one a second at 20,000 records a second.
 
-Splicing the stamped fields into the record's own bytes cut transport 15\,\%. Transport is roughly a quarter of the collector-to-stamper hop, which fell 6.5\,\% on InfoLogger and 4.0\,\% on the process tree. Repeated key names are 32\,\% of that wire, free on a Unix socket, so we rejected protobuf and gzip unmeasured.
+Splicing the stamped fields into the record's own bytes cut transport 15\,\%. Transport is roughly a quarter of the collector-to-stamper hop, which fell 6.5\,\% on \textit{InfoLogger} and 4.0\,\% on the process tree. Repeated key names are 32\,\% of that wire, free on a Unix socket, so we rejected protobuf and gzip unmeasured.
 
 \begin{table}[htbp]\caption{Every row is a ratio or a ceiling measured on one host, and the rewrite left the output byte-identical.}\label{tab:templating}\centering\footnotesize
 \begin{tabularx}{\textwidth}{L{0.42\textwidth}rX}

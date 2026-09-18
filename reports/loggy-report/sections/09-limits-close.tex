@@ -18,30 +18,28 @@ The semantic path was timed on a laptop with a warm index. The collector's 64-ch
 
 \subsection{Limits found in the design}\label{sec:limits-design}
 
-The stale-projector monitor fires only while one projector heartbeat exists in the last 24~hours, so a day of silence mutes it. The Alertmanager-down monitor reads the projector's own report, so a dead projector silences it too.
+The stale-projector monitor fires only while one projector heartbeat exists in the last 24~hours, so a day of silence mutes it. The \textit{Alertmanager}-down monitor reads the projector's own report, so a dead projector silences it too.
 
 No inhibition rule is active, because all 22 causal edges between alerts ship unproven.
 
 Nothing authenticates inside the cluster, so one password and a firewall rule are the whole boundary, on five machines we own.
 
-The live lane carries InfoLogger, the daemon log and the central family only. Process output lines with no severity went central before the fix of Section~\ref{sec:eval-sources}, so the live page now shows fewer.
+The live lane carries \textit{InfoLogger}, the daemon log and the central family only. Process output lines with no severity went central before the fix of Section~\ref{sec:eval-sources}, so the live page now shows fewer.
 
-DDS is the largest family during data-taking and the dearest per line. The recipe runs under-sample it at 43,972 lines, 0.1~\% of the weight, and the later runs used 1,236,971 lines.
+\textit{DDS} is the largest family during data-taking and the dearest per line. The recipe runs under-sample it at 43,972 lines, 0.1~\% of the weight, and the later runs used 1,236,971 lines.
 
 At its 20,000-template ceiling the stamper evicts a template, a rebuilt one restarts its count at one, and the change to keep counting is open.
 
 \subsection{What remains, in build order}\label{sec:limits-remains}
 
-Nine things remain. Figure~\ref{fig:layouts} shows the three layouts. Staging is two workers and three storage machines. The farm pilot is three workers and three storage containers on one infra machine, and it ran the cluster, the collectors and Dashboards. Whether the stamper, the projector and the shifter view ran on the farm is not recorded. Production, the whole farm with at least three storage machines, two replicas and the bus, is not real.
+Seven things remain. Figure~\ref{fig:layouts} shows the three layouts. Staging is two workers and three storage machines. The farm pilot is three workers and three storage containers on one infra machine, and it ran the cluster, the collectors and \textit{Dashboards}. Whether the stamper, the projector and the shifter view ran on the farm is not recorded. Production, the whole farm with at least three storage machines and two replicas, is not real.
 
-\begin{figure}[htbp]\centering\includegraphics[width=0.86\textwidth]{fig07-layouts.pdf}\caption{Staging and the farm pilot exist, and production is the same design with a bus and a bigger storage tier.}\label{fig:layouts}\end{figure}
+\begin{figure}[htbp]\centering\includegraphics[width=0.86\textwidth]{fig07-layouts.pdf}\caption{Staging and the farm pilot exist, and production is the same design on the whole farm with a bigger storage tier.}\label{fig:layouts}\end{figure}
 
 \begin{enumerate}[nosep]
-\item The live-lane bus is agreed and not built: one topic from every collector, the shifter view its one consumer, brokers not placed.
-\item The shared Python becomes one versioned package, agreed.
-\item The Telegraf decision is open: whether CERN's metrics estate takes over the samples.
+\item The \textit{Telegraf} decision is open: whether CERN's metrics estate takes over the samples.
 \item Catalogue maintenance as ISM policies plus monitors is open. ISM, Index State Management, deletes whole indices by age, so the two counting checks need a home.
-\item The operator view beside InfoLogger waits for farm access and a live run.
+\item The operator view beside \textit{InfoLogger} waits for farm access and a live run.
 \item The system journal and per-device process logs are absent from the archive.
 \item Detectors on per-template counts. The bucket counts exist, and no detector or trend rule reads them yet. Nearest-neighbour novelty on the text is closed (Section~\ref{sec:logtext}).
 \item Authentication inside the cluster is required before the farm.
@@ -56,7 +54,7 @@ A median worker carries 23~records a second in the busiest hour of six months of
 
 One limit binds every figure: all come from a laptop, so shapes and rankings transfer to the farm and absolute rates do not.
 
-Today \loggy{} runs on five staging machines, and one farm deployment passed every check. Production, the whole farm with the bus and a larger storage tier, is not built yet.
+Today \loggy{} runs on five staging machines, and one farm deployment passed every check. Production, the whole farm with a larger storage tier, is not built yet.
 
 \section*{Acknowledgements}
 
@@ -66,17 +64,17 @@ I thank my supervisors, Lubos Krcal and Federico Ronchetti, for their direction 
 
 \section{Upstream roles weighed and not used}\label{app:upstream}
 
-Every deployment role is our own, and Table~\ref{tab:upstream} records why each candidate lost.
+Every deployment role except \textit{Kafka} is our own. The \textit{Kafka} role comes from the deployment of the 2025 reference design. Table~\ref{tab:upstream} records why each other candidate lost.
 
 \begin{table}[htbp]\caption{Each upstream role replaces a few stable tasks and hides something the deployment needs.}\label{tab:upstream}\centering\footnotesize
 \begin{tabularx}{\textwidth}{L{0.17\textwidth} L{0.33\textwidth} X}
 \toprule
 Component & What it offered & Why it was not used \\
 \midrule
-Store, Dashboards, nginx & Vendor playbooks, two community roles, nginx role & Built around the security plugin we disable. Community roles stale, single-tier. The nginx role owns the site. \\
+Store, \textit{Dashboards}, nginx & Vendor playbooks, two community roles, nginx role & Built around the security plugin we disable. Community roles stale, single-tier. The nginx role owns the site. \\
 Collector & Six community roles & One Debian-only, one without multiline parsers, four only install. The pipeline is the role. \\
-Alertmanager, detection & Prometheus collection role, vendor playbook, Terraform provider & The closest moves the route tree into Jinja. None talks to the detection API. Terraform keeps its own state. \\
-Cockpit metrics, trend rollup & Exporter, Metricbeat, performance analyzer, systemd role, native rollup & Each writes to a store the monitors do not read. A native rollup writes nothing for silence. \\
+\textit{Alertmanager}, detection & \textit{Prometheus} collection role, vendor playbook, \textit{Terraform} provider & The closest moves the route tree into \textit{Jinja}. None talks to the detection API. \textit{Terraform} keeps its own state. \\
+Cockpit metrics, trend rollup & Exporter, \textit{Metricbeat}, performance analyzer, \textit{systemd} role, native rollup & Each writes to a store the monitors do not read. A native rollup writes nothing for silence. \\
 Host preparation, template catalogue & Swap, timesync, firewall, kernel roles, ISM, rollover & ISM deletes whole indices by age. Rollover duplicates a catalogue upserted by version. \\
 Replay, faults, ops page, projector, shifter view & None & The software exists only here. \\
 \bottomrule
