@@ -45,8 +45,6 @@ The soak, the project's measurement campaign of twenty-one rounds, tested one co
 
 A worker gives the platform four of its 64 physical cores, eight of its 128 logical processors, and little memory. No bulk crosses the wire: each worker indexes its info-severity lines on its own disk. Physicists' staging runs occupy two of the three farm workers and a build pipeline wipes the third, so hard memory and processor caps apply.
 
-The infra machine's default ports belong to a second search cluster, so the storage nodes and Alertmanager take other ports. CERN hosts take no long-running agent, so we push over SSH. Two of the three workers cannot install a collector newer than release 4.0.1, because newer releases need OpenSSL 3.4.0 and their system ships OpenSSL 3.2.2. The third worker runs a newer release, so every deployed release must accept every configuration.
-
 \subsection{What the platform must do}\label{sec:problem-objectives}
 
 Table~\ref{tab:objectives} lists the six objectives and the part of the design that meets each.
