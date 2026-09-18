@@ -42,8 +42,8 @@ The trend rules never scan raw lines when they check. They compare small rows wi
 
 \begin{enumerate}[nosep]
 \item Every ten minutes the rollup service waits 120~seconds for late records. Then it reads the last three finished ten-minute slices from the log indices.
-\item It writes one row per family and host per slice to \code{trend-rollup}. Each row holds record, error and fatal counts and the 95th percentile of two lags. The lags are the line's age when the collector read it, and its trip from there into the store.
-\item For a host that logged in the last 24~hours but not in this slice, the rollup writes a zero-count row. A host silent for longer gets none. A commit row closes the slice when every row has landed.
+\item It writes one row per family and entity per slice to \code{trend-rollup}. An entity is a host, or a collector for the lags. Each row holds record, error and fatal counts and the 95th percentile of two lags. The lags are the line's age when the collector read it, and its trip from there into the store.
+\item For an entity that logged in the last 24~hours but not in this slice, the rollup writes a zero-count row. An entity silent for longer gets none. A commit row closes the slice when every row has landed.
 \item Every ten minutes the nine trend monitors read those rows. Each compares the three latest slices, ending ten minutes before the check, with the same entity over the previous seven days. With no seven-day history, a monitor falls back to 24~hours.
 \item A volume rule compares the host's share of its fleet, so a fleet-wide ramp cancels. It fires on twice the baseline share or half of it, in all three slices. A rise needs 50~records in every slice, and every rule needs six baseline slices.
 \item The two shipping-lag rules compare the entity's own lag with twice its seven-day baseline, floored at 250~ms. Each writes a warn-tier alert when it fires.

@@ -51,7 +51,7 @@ Two rates reopen the question: a sustained worker rate above about 1,000 records
 
 \subsection{The other sources and the real node}\label{sec:eval-sources}
 
-The collector now reads all six log sources. Three of them had never been read before: the second process-tree format, written by the data-distribution processes, the InfoLogger daemon log and the system journal. Severity now comes out of 99.83~\% of process-tree lines, against a 99~\% gate, and 96.94~\% of that family stays on the worker. That took one parser fix. A parser anchor missed a date the replay prepends, so the first fixture run sent 41.8~\% of the corpus to the storage tier with no severity.
+The collector now reads three log sources it had never read before. They are the second process-tree format, written by the data-distribution processes, the InfoLogger daemon log and the system journal. Severity now comes out of 99.83~\% of process-tree lines, against a 99~\% gate, and 96.94~\% of that family stays on the worker. The first fixture run sent 41.8~\% of the corpus to the storage tier with no severity. A parser anchor missed a date the replay prepends.
 
 The design now matches the farm on four facts, which a read-only census of four farm machines corrected. Four installations run there, on three releases where we assumed two. The storage machine's release is two majors behind and untested. A worker's journal is small beside millions of process-tree lines, so the collector reads all of it.
 
