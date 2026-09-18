@@ -39,18 +39,18 @@ An error line crosses the wire twice (Figure~\ref{fig:errorline}).
 \begin{figure}[htbp]\centering\includegraphics[width=0.9\textwidth]{fig03-error-line.pdf}\caption{An error line is stamped on the worker, crosses the wire to the storage primary and two replicas, and again to the live lane.}\label{fig:errorline}\end{figure}
 
 \begin{enumerate}[nosep]
-\item The collector tails the file an O2 process writes and reads machine, program and event time. It adds a document identifier and its own accept time.
+\item The collector tails the file an O2 process writes. From the path it reads the machine and the program, and from the line the event time. It adds a document identifier and its own accept time.
 \item A routing rule reads the raw severity: info, debug and trace go local, an error goes central.
-\item Each chunk, the block of records moved as one unit, crosses a local socket to the stamper and returns with template version and status.
-\item The local node's ingest pipeline, a set of processors that touch every document before storage, stamps the ingest time and normalises the severity.
+\item Each chunk, the block of records moved as one unit, crosses a local socket to the stamper and returns with template version and status. Only returned chunks reach the store, so no record is indexed unstamped.
+\item The collector writes to the worker's own node. Its ingest pipeline, a set of processors that touch every document before storage, runs there. It stamps the ingest time and the two lags, normalises the severity and records the machine the line came from.
 \item The document hops once to the storage node holding the primary shard of \code{application-logs-central}, which copies it to two replicas.
 \item The collector also posts it over HTTP to the live lane on the shifter host. That lane keeps the last 500 records in memory and streams them to every open browser.
-\item Dashboards and the shifter view's query lane, capped at 20,000 rows, read the line from the central index.
+\item Dashboards and the shifter view's query lane, capped at 20,000 rows, read the line from the central index. Both reads go to the storage tier and never touch the worker.
 \end{enumerate}
 
 \subsection{Walkthrough: an info line stays on its worker}\label{sec:design-walk-info}
 
-An info line takes the same road as far as the routing rule, then stays on its worker. A placement setting pins the index there. Under severity routing 96.94~\% of the O2 process-tree family stays local and 3.06~\% crosses the wire. The trend rollup, six of the seventeen detectors of Section~\ref{sec:design-watch}, and the shifter view's line sampler read the local index. If the worker dies, its raw lines die with it, but the rollup rows, template counts and detector results survive. The live lane never sees an info line, so only a search over the worker indices finds it. That search is as slow as the slowest worker. Section~\ref{sec:why-cluster} explains why we accept that cost.
+An info line takes the same road through the stamper and the ingest pipeline, so the template counts cover the bulk too. A placement setting pins the worker's own index to that worker, with no replica, so the line never crosses the wire. Under severity routing 96.94~\% of the O2 process-tree family stays local and 3.06~\% crosses the wire. The trend rollup, six of the seventeen detectors of Section~\ref{sec:design-watch}, and the shifter view's line sampler read the local index. If the worker dies, its raw lines die with it, but the rollup rows, template counts and detector results survive. The live lane never sees an info line, because the bulk of more than 200 workers would saturate the wire and flood the live view. Only a search over the worker indices finds one. That search is as slow as the slowest worker. Section~\ref{sec:why-cluster} explains why we accept that cost.
 
 \subsection{Inside the collector}\label{sec:design-collector}
 
