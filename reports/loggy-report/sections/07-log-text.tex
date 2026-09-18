@@ -18,7 +18,7 @@ Each step can run on the worker or on the storage tier, per line or per template
 
 \subsection{Embed templates, not lines}\label{sec:logtext-unit}
 
-We compute one vector per template, once, and none per line. Table~\ref{tab:unit} sets the two side by side.
+\textbf{Decision:} one vector per template, computed once, and none per line. Table~\ref{tab:unit} sets the two side by side.
 
 \begin{table}[htbp]\caption{A vector per line costs ten times the logs it describes, and the only model fast enough to run per line does not beat plain word search.}\label{tab:unit}\centering\footnotesize
 \begin{tabularx}{\textwidth}{L{0.30\textwidth} Y Y}
@@ -44,7 +44,7 @@ The model that wins on quality & 113 templates a second on a laptop, so out of r
 
 \subsection{Choosing the template miner}\label{sec:logtext-miner}
 
-We chose drain3 \cite{ref:drain,ref:drain3}, with one tree and one recipe per log family, behind a rewritten masker. No parser can be scored for accuracy on our logs. The correct template for an O2 line is the format string in the O2 source, and nobody has extracted those. Cost, memory, streaming and readability decided instead. Table~\ref{tab:parsers} gives the reason each candidate lost.
+\textbf{Decision:} drain3 \cite{ref:drain,ref:drain3}, with one tree and one recipe per log family, behind a rewritten masker. No parser can be scored for accuracy on our logs. The correct template for an O2 line is the format string in the O2 source, and nobody has extracted those. Cost, memory, streaming and readability decided instead. Table~\ref{tab:parsers} gives the reason each candidate lost.
 
 \begin{table}[htbp]\caption{Every other parser lost on cost, streaming or readability, and the store's own command works at query time.}\label{tab:parsers}\centering\footnotesize
 \begin{tabularx}{\textwidth}{L{0.19\textwidth} Y}
@@ -101,7 +101,7 @@ Read that way, they would enter the same moving windows as a family's counts (Se
 
 \subsection{Embeddings are for search}\label{sec:logtext-search}
 
-We use the template vectors for semantic search only, and not for nearest-neighbour novelty detection. Section~\ref{sec:logtext-knn} gives the reasons. DenseOn scans all 5,301 template vectors exactly, and LateOn reranks the top 30. The search is built and evaluated, and it ships disabled, because no person has judged its results. The service is capped at 384~MB. The model's memory peak was seen in one local run and is not recorded.
+\textbf{Decision:} the template vectors serve semantic search only, and not nearest-neighbour novelty detection. Section~\ref{sec:logtext-knn} gives the reasons. DenseOn scans all 5,301 template vectors exactly, and LateOn reranks the top 30. The search is built and evaluated, and it ships disabled, because no person has judged its results. The service is capped at 384~MB. The model's memory peak was seen in one local run and is not recorded.
 
 \textbf{How the benchmark was built.} We scored every system on nDCG@10, which rewards relevant templates near the top of the first ten results and reaches 1 when the order is perfect \cite{ref:ndcg}.
 
@@ -150,6 +150,6 @@ Two limits apply to every number here. A machine wrote every question and made e
 
 \subsection{No novelty detector on the vectors}\label{sec:logtext-knn}
 
-We built no nearest-neighbour novelty score, and embeddings serve search only. The new-template signal of Section~\ref{sec:logtext-counts} already answers the question a novelty score asks, the moment a form is mined, with no vector and no threshold to tune. A distance in the vector space would repeat that signal with a threshold added.
+\textbf{Decision:} no nearest-neighbour novelty score, and embeddings serve search only. The new-template signal of Section~\ref{sec:logtext-counts} already answers the question a novelty score asks, the moment a form is mined, with no vector and no threshold to tune. A distance in the vector space would repeat that signal with a threshold added.
 
 Novelty alone is also a weak signal. O2 software changes across the farm all the time, and a new release prints new forms that are not faults. Detectors that treat every unseen form as an anomaly score 0.23 to 0.27 on F1, where 1 is perfect, once the logs drift from the text they learnt on. Plain principal component analysis scores about 0.71 on the same logs. That is why the counts per template matter more than novelty: a known message that stops or floods is rarely a release. The closest published work on ALICE logs, topic modelling over InfoLogger messages \cite{ref:aliceilad}, is the comparison for any later text detector.
