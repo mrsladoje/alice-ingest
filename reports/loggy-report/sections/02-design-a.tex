@@ -1,8 +1,8 @@
 \section{The design}\label{sec:design}
 
-\loggy{} is one cluster, split in two by severity.
+\loggy{} is one OpenSearch cluster, split into two tiers by severity.
 
-\subsection{One cluster, two tiers}\label{sec:design-tiers}
+\subsection{One OpenSearch cluster, two tiers}\label{sec:design-tiers}
 
 The worker tier runs on every EPN in the target design. The collector reads the six log sources. The stamper beside it names every line's template, the skeleton of the line with every variable token a wildcard, before indexing. The health sample pushes the collector's heartbeat up. The local OpenSearch data node holds one index per worker. The four share the worker's four-core budget of Section~\ref{sec:problem-constraints}. Memory is a 384~MB cap on the collector and a 1~GB heap on the local node.
 

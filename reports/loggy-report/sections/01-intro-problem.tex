@@ -58,7 +58,7 @@ Objective & Design element that meets it \\
 \midrule
 No bulk over the wire & A local index on every worker, written by a collector that talks only to the search node on its own machine \\
 Split by severity & The collector routes each line by severity to the local index or the storage tier \\
-Distributed & One cluster of two tiers, and every worker answers a search over its own index \\
+Distributed & One OpenSearch cluster of two tiers, and every worker answers a search over its own index \\
 Durable & Three machines, each holding a copy of every record above info and of every InfoLogger record \\
 Workers stay cheap & Four physical cores, no cluster management on a worker, and health numbers pushed up rather than polled down \\
 Fault tolerant & The cluster runs while two of the three storage machines agree, and a lost worker loses only its own local index \\
@@ -68,4 +68,4 @@ Fault tolerant & The cluster runs while two of the three storage machines agree,
 
 \subsection{The 2025 reference design}\label{sec:problem-reference}
 
-\loggy{} kept the shape of the 2025 reference design and changed its rules \cite{ref:papadopoulos2025}. We kept its collector on every node and widened it from two log families to five. Its one cluster of two tiers, three index families, lifecycle policies and Alertmanager stayed. We changed its tier rule from source to severity, because a source rule ships one program's bulk and drops another's errors. We replaced Grafana with OpenSearch Dashboards, the store's own web interface, because detection and alerting come with the store~\cite{ref:opensearch}. We dropped its queue on the numbers in Section~\ref{sec:eval-kafka}, and the aggregator it fed. The collectors feed the live lane, the second copy of every record that leaves a worker, directly. We dropped Kubernetes for native system services.
+\loggy{} kept the shape of the 2025 reference design and changed its rules \cite{ref:papadopoulos2025}. We kept its collector on every node and widened it from two log families to five. Its one OpenSearch cluster of two tiers, three index families, lifecycle policies and Alertmanager stayed. We changed its tier rule from source to severity, because a source rule ships one program's bulk and drops another's errors. We replaced Grafana with OpenSearch Dashboards, the store's own web interface, because detection and alerting come with the store~\cite{ref:opensearch}. We dropped its queue on the numbers in Section~\ref{sec:eval-kafka}, and the aggregator it fed. The collectors feed the live lane, the second copy of every record that leaves a worker, directly. We dropped Kubernetes for native system services.
