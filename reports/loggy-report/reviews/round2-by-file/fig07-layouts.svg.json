@@ -1,0 +1,32 @@
+[
+ {
+  "file": "reports/loggy-report/figures/fig07-layouts.svg",
+  "line": 8,
+  "quote": "built and measured",
+  "problem": "The staging band is marked as measured, but no measurement was taken on the five staging virtual machines; every cost figure comes from a laptop rig.",
+  "source": "reports/loggy-report/briefs/soak-index.md:7 (\"Every number comes from a laptop. Shapes, knees and rankings transfer. Absolute rates and core-seconds do not\"); reports/loggy-report/sections/07-limits-close.tex:5 (\"Every cost figure in Section~\\ref{sec:eval} comes from a laptop\")",
+  "fix": "Write \"built and running \u00b7 load not measured\", keeping the green for \"built\". The slot sits beside the farm band's \"one green deploy \u00b7 load not measured\", so as written it reads as a claim that staging was measured under load.",
+  "severity": "must",
+  "lens": "figures"
+ },
+ {
+  "file": "reports/loggy-report/figures/fig07-layouts.svg",
+  "line": 147,
+  "quote": "Alertmanager",
+  "problem": "Alertmanager, the poller, the trend rollup and the live lane appear in the staging and production bands but vanish from the farm-pilot containers, instead of being set in the grey italic the figure reserves for services not stated on the farm.",
+  "source": "reports/loggy-report/figures/fig07-layouts.svg:187 (legend: \"not stated on the farm\"); reports/loggy-report/sections/07-limits-close.tex:33 (\"Only the cluster, the collector and Dashboards are stated to run there\"); reports/loggy-report/briefs/target-architecture.md:75 (\"built and running on staging ...; farm not stated\")",
+  "fix": "List Alertmanager, the poller, the trend rollup and the live lane in the farm-pilot containers in the same grey italic already used for the projector and the shifter view, so absence is not read as removal.",
+  "severity": "should",
+  "lens": "figures"
+ },
+ {
+  "file": "reports/loggy-report/figures/fig07-layouts.svg",
+  "line": 18,
+  "quote": "replay engine",
+  "problem": "Both staging worker cards list a replay engine that the report never defines and that is not one of the four worker-tier services the body names.",
+  "source": "reports/loggy-report/sections/02-design-a.tex:7 (\"The collector reads the five log sources. The stamper beside it names every line's template ... The health sample pushes the collector's heartbeat up. The local OpenSearch data node holds one index per worker.\"); reports/inputs/dataflow-atlas.md:509 (the replay engine writes files and InfoLogger rows into a worker's log paths); the only body mention is sections/07-limits-close.tex:79",
+  "fix": "Add a half-sentence to the fig07 caption saying the replay engine feeds staging workers with archived farm logs, or drop the line from the two staging worker cards.",
+  "severity": "should",
+  "lens": "figures"
+ }
+]

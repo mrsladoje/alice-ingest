@@ -1,0 +1,232 @@
+[
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 3,
+  "quote": "Templating is built, at a third to a half of its former cost per line.",
+  "problem": "A cut of 31 to 57 % leaves 43 % to 69 % of the former cost, so \"a third to a half\" overstates the saving at both ends.",
+  "source": "docs/SOAK_RESULTS.md:5428-5429 (\"The whole pipeline is 31 to 57 % cheaper per family\"); reports/loggy-report/briefs/soak-index.md section 2l",
+  "fix": "Write \"at between two fifths and seven tenths of its former cost per line\", or drop the fraction and state the 31 to 57 % range that the subsection already gives.",
+  "severity": "must",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 9,
+  "quote": "One per family costs the same as one global setting, 17.65 against 17.57~core-seconds per million weighted.",
+  "problem": "The numbers are the wrong way round: 17.65 is the shipped global setting and 17.57 the per-family recipe, so the sentence's subject carries the comparator's value.",
+  "source": "docs/SOAK_RESULTS.md:2275 (weighted whole corpus: 17.65 now, 17.57 recipe); reports/loggy-report/briefs/templating-embedding.md:179",
+  "fix": "Write: \"One per family costs the same as one global setting, 17.57 against 17.65 core-seconds per million weighted.\"",
+  "severity": "should",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 36,
+  "quote": "The configured ceiling is 384~MB.",
+  "problem": "Two different 384 MB ceilings exist in the design and Section 5.2 has just used the other one, so the sentence does not say which service the ceiling governs.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:174 and :177 (\"The 384 MB figure appears twice with two meanings: the collector's MemoryHigh and the shifter view's semantic model ceiling. The report must not conflate them.\")",
+  "fix": "Write: \"The semantic service is configured with a 384 MB ceiling on the shifter host.\"",
+  "severity": "should",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 11,
+  "quote": "One run per family gave 3,011 templates. One tree per family across three corpora gave 4,221.",
+  "problem": "The template count is the figure of record as a three-point curve with its corpora, and giving two points without line counts hides that it is a curve.",
+  "source": "reports/loggy-report/briefs/soak-index.md section 2j (3,011 on 45,596,613 lines; 4,092; 4,221 on 55,963,050 lines), docs/SOAK_RESULTS.md:2468, 2523-2533, 2632-2652",
+  "fix": "Write: \"One run per family gave 3,011 templates on 45,596,613 lines, sixteen runs plus eighty InfoLogger partitions gave 4,092, and one tree per family across all three corpora gave 4,221 on 55,963,050 lines.\"",
+  "severity": "nit",
+  "lens": "numbers"
+ },
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/06-eval-b.tex",
+  "line": 11,
+  "quote": "One run per family gave 3,011 templates. One tree per family across three corpora gave 4,221.",
+  "problem": "3,011 is the whole-corpus count with the recipe and the fast masker on 45,596,613 lines, not \"one run per family\", and the curve loses its middle reading of 4,092, which is what shows the count grows with the runs and partitions sampled.",
+  "source": "briefs/soak-3.md:59 (\"3,011 templates on 45,596,613 lines ... a floor, not a total\"); briefs/soak-3.md:73 (4,092 from 80 partitions and 16 runs); briefs/soak-3.md:81 (4,221 on 55,963,050 lines); briefs/soak-index.md:22",
+  "fix": "\"The whole corpus of 45,596,613 lines gave 3,011 templates, a floor. Sampling more runs and partitions gave 4,092, and one tree per family carried across all three corpora, 55,963,050 lines, gave 4,221. The count is a curve driven by the runs sampled, not by the lines.\"",
+  "severity": "should",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 52,
+  "quote": "A fault agent on each worker may kill its collector, and the agent on the projector's machine may stop only the projector.",
+  "problem": "Two forbidden modals, where the meaning is capability: the agent can kill the collector, and the other agent can stop only the projector.",
+  "source": ".claude/skills/simple-english/SKILL.md:36",
+  "fix": "\"A fault agent on each worker can kill its collector. The agent on the projector's machine can stop only the projector.\"",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 13,
+  "quote": "The whole-pipeline rewrite made seven families 31 to 57\\,\\% cheaper, and every line kept its cluster.",
+  "problem": "\"cluster\" means the group of lines under one template here, but everywhere else in the report it means the search cluster, so one word carries two meanings.",
+  "source": ".claude/skills/simple-english/SKILL.md:39 (one word, one meaning, for the whole document); reports/loggy-report/sections/02-design-a.tex:3 (\"\\loggy{} is one cluster\")",
+  "fix": "\"The whole-pipeline rewrite made seven families 31 to 57\\,\\% cheaper, and every line kept the same template.\"",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 52,
+  "quote": "Injection proves the chain from a fault to a stored notification.",
+  "problem": "The first sentence repeats the heading \"The detection chain, proven by injection\" before the section says anything.",
+  "source": ".claude/skills/humanizer/SKILL.md:338",
+  "fix": "Open on the result instead: \"Seven injected faults reached a stored notification, and one of them proved the break-glass path.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 32,
+  "quote": "It finds a template by meaning, closing a measured gap: 47.1\\,\\% of relevant question-and-template pairs share no analysed term.",
+  "problem": "An \"-ing\" phrase after a comma bolts the reason onto the fact, which the style forbids.",
+  "source": ".claude/skills/simple-english/SKILL.md:35; .claude/skills/humanizer/SKILL.md:233",
+  "fix": "\"It finds a template by meaning. The gap it closes is measured: 47.1\\,\\% of relevant question-and-template pairs share no analysed term.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 36,
+  "quote": "The standing recommendation is a dense scan by exact cosine over all templates, 30 candidates, then a late-interaction reranker.",
+  "problem": "Three terms arrive undefined in one sentence, and the \"interval\" two sentences later is never said to be a bootstrap interval.",
+  "source": "reports/loggy-report/briefs/semantic-2.md:13 (\"Dense model scans all templates by exact cosine, returns 30 candidates, late-interaction model reranks them by MaxSim\"); reports/loggy-report/briefs/semantic-2.md:47 (bootstrap intervals)",
+  "fix": "\"The standing recommendation has two steps. First a dense scan: the search compares the question's vector with every template's vector and keeps the 30 nearest. Then a reranker scores those 30 word by word and reorders them.\" Call the interval a bootstrap interval where it appears.",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 34,
+  "quote": "An embedding is paid once per template, not per line.",
+  "problem": "The passive hides who pays, and \"an embedding is paid\" is not what a reader can picture.",
+  "source": ".claude/skills/humanizer/SKILL.md:186 (passive voice and missing subjects); reports/loggy-report/briefs/style.md:47",
+  "fix": "\"The platform computes one embedding per template, not one per line. An embedding is a vector that stands for the template's meaning.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 11,
+  "quote": "The tree stops learning at 20,000 templates, inside the 512~MB unit.",
+  "problem": "\"unit\" is deployment shorthand for the service's memory limit, and the report never uses the word that way anywhere else.",
+  "source": "reports/loggy-report/briefs/soak-5.md:34 (\"20,000 clusters: 61.5 MB tree, 208.1 MB peak serialising ... unit limit 512 MB\")",
+  "fix": "\"The tree stops learning at 20,000 templates. At that ceiling it peaks at 208.1~MB, inside the stamper's 512~MB memory limit.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 5,
+  "quote": "Drain3, the parser we keep, mined the archive into 3,822 templates at 19.91~core-seconds per million",
+  "problem": "The tool is spelled \"Drain3\" here and \"drain3\" in 3.5 and 4, so one name has two forms.",
+  "source": "reports/loggy-report/sections/02-design-a.tex:71 (\"The stamper runs drain3, a template miner\"); .claude/skills/simple-english/SKILL.md:39",
+  "fix": "Use \"drain3\" everywhere, and open the sentence with the subject: \"The parser we keep, drain3, mined the archive into 3,822 templates ...\"",
+  "severity": "nit",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 15,
+  "quote": "Splicing the stamped fields into a record's own bytes made the collector-to-stamper hop 15\\,\\% cheaper per record. Transport is about a quarter, so the whole hop fell 6.5\\,\\% on \\code{infologger}.",
+  "problem": "The hop cannot fall 15 % and 6.5 % in consecutive sentences: the 15 % is the transport step alone, and as written a quarter of 15 % is under 4 %, so the arithmetic fails too.",
+  "source": "briefs/soak-5.md:72 \u2014 \"\u221215.1 / \u221215.4 %, \u22126.5 % | infologger transport alone and whole stamper hop, median of 15 pairs, two passes | shipped path | Transport is about a quarter of the hop.\"",
+  "fix": "\"Splicing the stamped fields into a record's own bytes made the transport step 15~\\% cheaper per record. Transport is about a quarter of the whole collector-to-stamper hop, so the hop fell 6.5~\\% on \\code{infologger}.\"",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 11,
+  "quote": "The tree stops learning at 20,000 templates, inside the 512~MB unit.",
+  "problem": "\"Unit\" is used in the systemd sense for the first and only time; the reader cannot tell whether 512 MB is a machine, a service, a file or a cap, so the claim is lost.",
+  "source": "briefs/soak-5.md:38 \u2014 \"20,000 templates; 4.7 times 4,221 | the growth ceiling across all families\"; the report's Table 8 row gives \"208.1~MB against 512~MB\"",
+  "fix": "\"The tree stops learning at 20,000 templates, and holds 208.1~MB there, inside the stamper's 512~MB memory limit.\"",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 11,
+  "quote": "One run per family gave 3,011 templates. One tree per family across three corpora gave 4,221.",
+  "problem": "Three template counts appear within six lines (3,822, 3,011, 4,221) and none carries the number of lines behind it, so the reader cannot tell a corpus effect from a method effect.",
+  "source": "briefs/soak-3.md:59 \u2014 \"3,011 templates on 45,596,613 lines... baseline H1b's 3,822\"; briefs/soak-5.md:38 \u2014 \"the template count of the 55,963,050-line archive pass\" for 4,221",
+  "fix": "\"One run per family gave 3,011 templates on 45,596,613 lines. One tree per family across three corpora, 55,963,050 lines, gave 4,221. The count is a curve driven by how many runs were sampled, not a total.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 32,
+  "quote": "It searches 5,301 template groups.",
+  "problem": "5,301 is given with no reference beside it, while every other corpus in the report is quoted in lines, so the reader cannot judge the size of the search problem.",
+  "source": "briefs/semantic-1.md:21 \u2014 \"5,301 canonical template groups built from 18,011 source instances and 56,628,579 real log lines\"; outline.md:124 \u2014 \"Corpus 5,301 groups from 56,628,579 lines\"",
+  "fix": "\"It searches 5,301 template groups, the whole of 56,628,579 real log lines reduced to their skeletons.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 34,
+  "quote": "A static model encodes 18,037 templates a core-second, 31 times the small transformer.",
+  "problem": "Two unnamed comparison systems, \"the small transformer\" and later \"the lexical engine\", carry four numbers including the headline held-out result, and the reader never learns the lexical engine is the store's ordinary word-matching search.",
+  "source": "briefs/semantic-1.md:74 \u2014 \"lexical index size for 5,301 groups | one primary shard\"; briefs/semantic-2.md:35-36 \u2014 the dense path scans \"a 5,301 by 768 matrix\" against the store's own text search",
+  "fix": "Name both at first use: \"31 times a small transformer model\", and \"0.371 for the store's ordinary word-matching search, the lexical engine\".",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 36,
+  "quote": "The standing recommendation is a dense scan by exact cosine over all templates, 30 candidates, then a late-interaction reranker.",
+  "problem": "The sentence stating what the project recommends contains unexplained vocabulary; a reader who knows search engines can decode \"exact cosine\" and \"30 candidates\" but not \"late-interaction\".",
+  "source": "briefs/semantic-1.md:85 \u2014 \"194 MB reranking token matrix for 5,301 templates... the one real deployment cost of the recommendation\"",
+  "fix": "\"then a reranker that scores the 30 candidates by matching the question's words against each template's words one by one, rather than by one vector each.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 36,
+  "quote": "An approximate vector index costs 0.020 and moves between builds, so we use none.",
+  "problem": "0.020 has no unit, and the next sentence repeats the fault with \"scores 0.048 worse\"; the unit is nDCG@10.",
+  "source": "briefs/semantic-1.md:88 \u2014 \"0.020 | nDCG@10 cost of the approximate vector index in the Morning report\"; briefs/semantic-2.md:99 \u2014 \"0.685 exact vs 0.665 approximate\"",
+  "fix": "\"An approximate vector index costs 0.020 nDCG@10, 0.685 falling to 0.665, and moves between builds, so we use none.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/06-eval-b.tex",
+  "line": 11,
+  "quote": "One run per family gave 3,011 templates. One tree per family across three corpora gave 4,221.",
+  "problem": "The reader met five template counts (3,822, 3,011, 4,092, 4,221, 5,301) with nothing connecting them.",
+  "source": "briefs/soak-3.md:157 and :205 (the count is a curve driven by the runs and partitions sampled, not by lines; 3,011 is a floor); briefs/semantic-2.md:35 (5,301 is the later semantic corpus)",
+  "fix": "Add \"The count is a curve, not a number: it grows with the runs and partitions sampled, not with lines\", and mark 5,301 in Section 5.6 as the larger corpus the search was built on.",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "sections/06-eval-b.tex",
+  "line": 36,
+  "quote": "It scores 0.685 against 0.634 for the dense model alone, with an interval of +0.028 to +0.080.",
+  "problem": "0.685 is a development-set score on machine-made judgements and the report neither says so nor gives the number of questions, so it reads as the standing figure of record.",
+  "source": "briefs/semantic-1.md:83 (\"development, interval +0.028 to +0.080 ... reranking is real on development, untested on held-out\") and briefs/semantic-1.md:52 (97 intent groups, 130 queries)",
+  "fix": "Write: \"On the development set of 130 questions over 97 intent groups it scores 0.685 against 0.634 ... Reranking was never scored on the sealed held-out set.\"",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "sections/06-eval-b.tex",
+  "line": 24,
+  "quote": "Masking step removed by the rewrite & 85 to 87\\,\\% & zero differences on 3,000,000 lines per family \\\\",
+  "problem": "The row can be read as the share of mining removed rather than the share of the masking step.",
+  "source": "briefs/soak-3.md:203 (the rewrite cut masking by 85 to 87 %, and masking was 74 to 87 % of mining)",
+  "fix": "Label the row \"Share of the masking step the rewrite removed\".",
+  "severity": "nit",
+  "lens": "reader"
+ }
+]

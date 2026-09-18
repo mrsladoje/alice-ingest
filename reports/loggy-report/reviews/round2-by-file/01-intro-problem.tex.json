@@ -1,0 +1,112 @@
+[
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 3,
+  "quote": "the ALICE Online--Offline computing system~\\cite{ref:o2tdr}",
+  "problem": "An en dash survives in prose against the no-dashes rule.",
+  "source": "task rules (no semicolons or dashes in prose)",
+  "fix": "Write \"Online-Offline\" with a hyphen, as the cited report's title does.",
+  "severity": "nit",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 7,
+  "quote": "\\includegraphics[width=0.78\\textwidth]{fig01-logging-today.pdf}",
+  "problem": "Four figures are placed narrower than \\textwidth, so their 10 px labels render at 4.5 to 5.1 pt, below the 9 px floor the figure style sets.",
+  "source": "reports/loggy-report/figures/STYLE.md (Type: \"viewBox 0 0 820 H ... so every figure is the same text size when placed at \\textwidth (160 mm). Keep text at 10 to 14 px in that box; smaller than 9 px is unreadable in print\"); reports/loggy-report/report/preamble.tex:2 (a4paper, margin=22mm, so \\textwidth is 166 mm and 10 px is 5.7 pt)",
+  "fix": "Set width=\\textwidth on fig01 (0.78), fig05 (sections/02-design-a.tex:69, 0.86), fig06 (sections/03-design-b.tex:9, 0.88) and fig07 (sections/07-limits-close.tex:35, 0.86), or raise their smallest font-size so the printed size stays at or above 5.2 pt.",
+  "severity": "should",
+  "lens": "figures"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 62,
+  "quote": "Durable & A storage tier of three machines, with two copies of every record above info and of every InfoLogger record \\\\",
+  "problem": "One primary and two replicas is three copies, one on every storage machine, which is what Section 3.2 and Section 6.3 say; the objective row reads as two copies in total.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:94-95 (2 replicas on both storage families); reports/inputs/deck-text.md:143-144 via briefs/constraints.md:282",
+  "fix": "Write: \"three copies of every record above info and of every InfoLogger record, one on each storage machine\".",
+  "severity": "should",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 71,
+  "quote": "We replaced Grafana with Dashboards, because detection and alerting come with the store, OpenSearch~\\cite{ref:opensearch}.",
+  "problem": "First use of a product name a reader takes for a common noun, with the gloss eight pages later at 03-design-b.tex:29 and two more uses in between.",
+  "source": "reports/inputs/dataflow-atlas.md:24 (\"The Discover view inside OpenSearch Dashboards\"); round1-simplicity.md S3 asked for the gloss at first use and it was not moved.",
+  "fix": "\"We replaced Grafana with OpenSearch Dashboards, the store's own web interface\".",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 46,
+  "quote": "A worker gives the platform four of its 64 physical cores, eight of its 128 logical processors, and little memory.",
+  "problem": "64 physical and 128 logical describe epn228; one of the three farm workers has 192 logical processors, so the sentence over-generalises a hardware count that Table 2 and Section 3.1 then repeat.",
+  "source": "docs/SOAK_RESULTS.md:268-271; briefs/constraints.md:26-30",
+  "fix": "Write: \"A worker gives the platform four physical cores, eight logical processors of the 128 an EPN of the reference generation has, and little memory.\"",
+  "severity": "should",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 17,
+  "quote": "A worker holds five log families, and InfoLogger is one of them (Table~\\ref{tab:sources}).",
+  "problem": "Table 1 has six rows, because it also lists the run orchestrator log that nothing collects, so a reader counting the table gets six, not five.",
+  "source": "outline.md section 2.1; sections/01-intro-problem.tex:19-32",
+  "fix": "Write: \"A worker holds five log families, and InfoLogger is one of them. Table 1 adds the run orchestrator's log, which nothing collects.\"",
+  "severity": "nit",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 13,
+  "quote": "\\section{The problem and the constraints}\\label{sec:problem}",
+  "problem": "The section drops straight into a subsection, so the claim that the constraints made the design is never stated; Section 4 opens the same way.",
+  "source": "reports/loggy-report/outline.md:50; reports/loggy-report/briefs/style.md:7",
+  "fix": "Add one sentence under the heading: \"The constraints made the design, so they come first: what a node writes, how much of it, and what the farm will not give up.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 71,
+  "quote": "We kept its collector on every node, widened from two sources to five.",
+  "problem": "Seven sentences in the paragraph open with We kept, We kept, We changed, We replaced, We dropped, We dropped, We dropped, which reads as a template.",
+  "source": ".claude/skills/humanizer/SKILL.md section 7 (repeated sentence openings)",
+  "fix": "Merge the two kept sentences and the three dropped ones so the paragraph varies its subject.",
+  "severity": "nit",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 17,
+  "quote": "Collecting the run orchestrator's log is a deployment decision not taken.",
+  "problem": "The phrase drops \"that was\", and the sentence sits between two unrelated facts with no connection to either.",
+  "source": ".claude/skills/simple-english/SKILL.md:37",
+  "fix": "\"Nobody has decided yet whether to collect the run orchestrator's log.\"",
+  "severity": "nit",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 64,
+  "quote": "A storage quorum of two of three, and a lost worker loses only its own local index",
+  "problem": "Shard, primary, replica, heap and quorum are never defined, yet Tables 2 and 3, Section 3.1 and the shard budget in Section 4 all rest on them.",
+  "source": "briefs/style.md (define a term at first use); the reader's undefined-terms list repeats round 1 (reviews/round1-reader.md, terms section)",
+  "fix": "Add one sentence in Section 3.1: \"An index is split into shards. Each shard has one primary copy and any number of replica copies on other machines. A quorum is the number of cluster managers that must agree.\"",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 36,
+  "quote": "The replayed archive holds InfoLogger, DDS and the process tree, and no journal.",
+  "problem": "The replay is never explained, so the reader cannot tell where staging's data comes from, although every measurement in Section 5 rests on it and Figure 7 puts a replay engine on each staging worker.",
+  "source": "briefs/target-architecture.md:37 (the replay engine \"stands in for a live EPN: writes the same files and sends the same InfoLogger rows a real node would\", fed from the CERN S3 archive, staging only); briefs/constraints.md:125",
+  "fix": "At first use write \"the archive we replay, a recorded six months of real farm logs fed back through the collector at a chosen rate\".",
+  "severity": "should",
+  "lens": "reader"
+ }
+]

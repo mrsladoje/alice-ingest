@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" viewBox="0 0 820 582" role="img"
+             aria-label="Two bands. Band one, what the collector does to a line, drawn as five stages left to right with arrows between them. Input: read each line, from a file, a socket or a script. Tag: give it a name — dds, stdout, infologger or health. Filter: parse and stamp, pulling fields out of the text and adding the arrival clock. Retag, drawn in red as the design decision: sort by severity into info or everything else. Output: send it on, to the OpenSearch node on this machine. Band two, drawn in red, what the disk buffer really is. If OpenSearch is down the collector keeps reading lines and writes them into a 256 megabyte buffer on disk, one for each lane with ten retries, while the connection to OpenSearch is broken. That buffer holds an outage between 50 seconds and 109 minutes. After that the record is gone, because there is no second destination. Below a rule, the verdict: it is a hiccup safety layer, not durability. Every input writes to this local disk buffer first, and it survives a restart of Fluent Bit and a short network outage. It does not survive losing the node, and those records are gone. Real durability is a replicated queue, and Kafka is on the roadmap.">
+          <defs>
+            <marker id="mk08a" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,1 L10,5 L0,9 z" class="d-head" style="fill:#101010"></path>
+            </marker>
+            <marker id="mk08b" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,1 L10,5 L0,9 z" class="d-head is-soft" style="fill:#6b6b66"></path>
+            </marker>
+          </defs>
+
+          <image href="logos/fluentbit-logo-official.svg" x="0" y="0" width="96" height="28"></image>
+          <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="108" y="19">one process on every worker VM</text>
+          <text class="d-fact is-end" style="font-size:10.5px;fill:#3a3a36;text-anchor:end" x="820" y="19">4 inputs · 4 tags · 5 outputs</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M0,34 H820"></path>
+
+          <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="70">01</text>
+          <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="70">What it does to a line</text>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="1" y="86" width="146" height="150"></rect>
+          <text class="d-stage is-mid" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010;text-anchor:middle" x="74" y="130">INPUT</text>
+          <text class="d-s is-mid" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="74" y="166">Read each line</text>
+          <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="74" y="198">from a file,</text>
+          <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="74" y="212">a socket, a script</text>
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M147,161 H163" marker-end="url(#mk08a)"></path>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="169" y="86" width="146" height="150"></rect>
+          <text class="d-stage is-mid" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010;text-anchor:middle" x="242" y="130">TAG</text>
+          <text class="d-s is-mid" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="242" y="166">Give it a name</text>
+          <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="242" y="198">dds, stdout,</text>
+          <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="242" y="212">infologger, health</text>
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M315,161 H331" marker-end="url(#mk08a)"></path>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="337" y="86" width="146" height="150"></rect>
+          <text class="d-stage is-mid" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010;text-anchor:middle" x="410" y="130">FILTER</text>
+          <text class="d-s is-mid" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="410" y="166">Parse and stamp</text>
+          <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="410" y="198">fields out of text,</text>
+          <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="410" y="212">and the clock</text>
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M483,161 H499" marker-end="url(#mk08a)"></path>
+
+          <rect class="d-card is-hot" style="fill:#fdf1f0;stroke:#e1251b;stroke-width:1.6" x="505" y="86" width="146" height="150"></rect>
+          <text class="d-stage is-mid is-hot" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#e1251b;text-anchor:middle" x="578" y="130">RETAG</text>
+          <text class="d-s is-mid is-hot" style="font-size:12px;fill:#e1251b;text-anchor:middle" x="578" y="166">Sort by severity</text>
+          <text class="d-l is-mid is-hot" style="font-family:Menlo, monospace;font-size:10px;fill:#e1251b;text-anchor:middle" x="578" y="198">info,</text>
+          <text class="d-l is-mid is-hot" style="font-family:Menlo, monospace;font-size:10px;fill:#e1251b;text-anchor:middle" x="578" y="212">or everything else</text>
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M651,161 H667" marker-end="url(#mk08a)"></path>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="673" y="86" width="146" height="150"></rect>
+          <text class="d-stage is-mid" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010;text-anchor:middle" x="746" y="130">OUTPUT</text>
+          <text class="d-s is-mid" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="746" y="166">Send it on</text>
+          <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="746" y="198">to the OpenSearch</text>
+          <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="746" y="212">node on this VM</text>
+
+          <text class="d-num is-hot" style="font-family:Menlo, monospace;font-size:11px;fill:#e1251b" x="0" y="302">02</text>
+          <text class="d-stage is-hot" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#e1251b" x="24" y="302">What the disk buffer really is</text>
+
+          <rect class="d-panel" style="fill:#f1f1ec" x="1" y="315" width="818" height="255"></rect>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="20" y="349" width="160" height="84"></rect>
+          <text class="d-t is-mid" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="100" y="384">The collector</text>
+          <text class="d-s is-mid" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="100" y="410">still reading lines</text>
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M180,391 H196" marker-end="url(#mk08a)"></path>
+
+          <rect class="d-card is-hot" style="fill:#fdf1f0;stroke:#e1251b;stroke-width:1.6" x="208" y="349" width="246" height="84"></rect>
+          <text class="d-t is-mid is-hot" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#e1251b;text-anchor:middle" x="331" y="384">256 MB on disk</text>
+          <text class="d-s is-mid" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="331" y="410">one buffer for each lane, 10 retries</text>
+
+          <path class="d-line is-dash" style="fill:none;stroke:#6b6b66;stroke-width:1.25;stroke-dasharray:4 4" d="M454,391 H478"></path>
+          <path class="d-x" style="fill:none;stroke:#e1251b;stroke-width:1.8" d="M484,385 L496,397"></path>
+          <path class="d-x" style="fill:none;stroke:#e1251b;stroke-width:1.8" d="M496,385 L484,397"></path>
+          <path class="d-line is-dash" style="fill:none;stroke:#6b6b66;stroke-width:1.25;stroke-dasharray:4 4" d="M502,391 H520" marker-end="url(#mk08b)"></path>
+
+          <rect class="d-card is-soft" style="fill:#f1f1ec;stroke:#6b6b66;stroke-width:1.1" x="526" y="349" width="180" height="84"></rect>
+          <text class="d-t is-mid" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="616" y="384">OpenSearch</text>
+          <text class="d-s is-mid" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="616" y="410">not answering</text>
+
+          <path class="d-brace" style="fill:none;stroke:#e1251b;stroke-width:1.1" d="M208,453 V459 H454 V453"></path>
+          <text class="d-bracelabel" style="font-size:12.5px;letter-spacing:-0.005em;fill:#e1251b;text-anchor:middle" x="331" y="475">holds 50 seconds to 109 minutes</text>
+
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="526" y="466">After that the record is gone.</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="526" y="480">There is no second destination.</text>
+
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M20,500 H800"></path>
+          <text class="d-t is-sm is-hot is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#e1251b;text-anchor:start" x="20" y="522">A hiccup safety layer, not durability.</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="20" y="544">Every input writes to this local disk buffer first. It survives a restart of Fluent Bit and a short network outage.</text>
+          <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="20" y="560">It does not survive losing the node, and those records are gone. Real durability is a replicated queue, and Kafka is on the roadmap.</text>
+        </svg>

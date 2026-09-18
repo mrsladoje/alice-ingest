@@ -1,0 +1,332 @@
+[
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 25,
+  "quote": "\\code{template-buckets-5m}, \\code{-1h} & counts per template version per worker and window & storage & not stated & 4 and 66 days \\\\",
+  "problem": "The shard cell says \"not stated\" while the index templates state 1 shard and 1 replica.",
+  "source": "deploy/roles/loggy_opensearch/templates/schema/index-template-buckets-5m.json.j2:6-7 (number_of_shards 1, number_of_replicas {{ template_buckets_replicas }}); deploy/roles/loggy_opensearch/defaults/main.yml:228 template_buckets_replicas: 1; no override in deploy/group_vars/all.yml",
+  "fix": "Replace \"not stated\" with \"1 shard, 1 replica\".",
+  "severity": "must",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 17,
+  "quote": "\\caption{The bulk sits in one unreplicated index per worker, and every other family sits on the storage tier with two replicas.}",
+  "problem": "The caption claims two replicas for every non-local family, and the bucket indices carry one.",
+  "source": "deploy/roles/loggy_opensearch/defaults/main.yml:228 template_buckets_replicas: 1",
+  "fix": "\"The bulk sits in one unreplicated index per worker, and every other family sits replicated on the storage tier.\"",
+  "severity": "must",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 73,
+  "quote": "The catalogue maintenance proves that up to 5,000 hourly buckets sum to their totals, and that both storage families agree on versions per worker and hour.",
+  "problem": "This sentence has 26 words and the next (\"Two hourly rules read the catalogue: one fires on a template catalogued in the last hour, the other on any failed check in the last two hours.\") has 27, against the 25-word rule.",
+  "source": "task rules (at most 25 words per sentence); word counts 26 and 27",
+  "fix": "Split each at the comma or colon: \"...sum to their totals. It also proves that both storage families agree on versions per worker and hour.\" and \"Two hourly rules read the catalogue. One fires on a template catalogued in the last hour, the other on any failed check in the last two hours.\"",
+  "severity": "must",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 22,
+  "quote": "info and debug lines, one index per worker",
+  "problem": "The justified X column of Table 3 prints this cell with wide word gaps.",
+  "source": "report/report.log:1105 \"Underfull \\hbox (badness 2662) in paragraph at lines 28--28\"; printed page 4",
+  "fix": "Define \\newcolumntype{Y}{>{\\raggedright\\arraybackslash}X} in the preamble and use Y for the \"What lands there\" column.",
+  "severity": "nit",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 13,
+  "quote": "The live lane is the second copy of every severe record, posted by the collector straight to the shifter view.",
+  "problem": "The live lane carries every InfoLogger record at any severity, plus the daemon log and the central family, so \"every severe record\" understates it by the largest family in the mix.",
+  "source": "deploy/roles/loggy_collector/templates/collector.yaml.j2:658 (match_regex ^stamped\\.(infologger|ildaemon|family\\.central)$); reports/inputs/dataflow-atlas.md:30 (audited walkthrough 2, step 5)",
+  "fix": "Write: \"The live lane is the second copy of every record that leaves the worker: every InfoLogger record, the daemon log and every line above info severity.\" Correct the echo at 03-design-b.tex:29 (\"Its live page keeps the severe lines collectors post to it\") the same way.",
+  "severity": "must",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 71,
+  "quote": "The stamper holds at most 20,000 clusters per worker and drops the least recently used. The archive pass in Section~\\ref{sec:eval-templating} stops learning at that ceiling and keeps counting.",
+  "problem": "Section 3.5 and Section 5.5 state opposite behaviours at the same 20,000-template ceiling, and the archive pass produced 4,221 templates so it never reached that ceiling at all.",
+  "source": "deploy/roles/loggy_collector/files/stamper.py:301-311 and :276-281 (LRU eviction at STAMPER_MAX_TEMPLATES 20000, stamper.py:40); the \"stops learning and keeps counting\" wording is the soak's prescription at docs/SOAK_RESULTS.md:5129-5136, which the shipped code does not implement",
+  "fix": "Keep the eviction sentence, delete \"The archive pass ... stops learning at that ceiling and keeps counting\", and rewrite 06-eval-b.tex:11 as \"The tree is capped at 20,000 templates, 4.7 times what the whole archive produced, and holds 208.1~MB there, inside the stamper's 512~MB memory limit.\"",
+  "severity": "must",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 11,
+  "quote": "The background host runs the projector, which turns alerts into episodes, and the trend rollup. The shifter host serves the shifter view, the page the person on shift watches. Staging is five machines: two workers and three storage nodes.",
+  "problem": "Three service hosts are named and then five machines are counted, and no sentence says the three storage nodes are those hosts, so the projector, the rollup and the shifter view are never placed on a real machine.",
+  "source": "deploy/README.md:75-80 (control machine is the first storage node, projector on -4, live lane on -5); reports/loggy-report/briefs/target-architecture.md:46, 61, 71",
+  "fix": "Add before the count: \"The three storage nodes carry these services as well: the first is the control host, the second the background host, the third the shifter host.\"",
+  "severity": "must",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 73,
+  "quote": "The catalogue maintenance proves that up to 5,000 hourly buckets sum to their totals, and that both storage families agree on versions per worker and hour.",
+  "problem": "The second check compares what the workers stamped against what the two shared indices hold, not the two families against each other.",
+  "source": "deploy/roles/loggy_template_catalog/files/catalog_maintenance.py:406-427 and :430-447; reports/loggy-report/briefs/walkthroughs-6-9.md:74, 87",
+  "fix": "Write: \"...and that neither shared index holds more records of a template version than the workers stamped for that worker and hour.\"",
+  "severity": "should",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 38,
+  "quote": "\\item The collector tails the file an O2 process writes, reads machine, program and event time, and adds a document identifier.",
+  "problem": "The collector stamps its own accept time in the same filter that mints the identifier, and Section 3.9's two clocks, the detector windows and the shipping-lag rules all rest on it, yet the condensed walkthrough names only the event time and the later ingest time.",
+  "source": "deploy/roles/loggy_collector/templates/collector.yaml.j2:279-288 (doc_id then collector_time in one Lua filter); reports/inputs/dataflow-atlas.md:15 (audited); briefs/why.md:35",
+  "fix": "Write: \"...reads machine, program and event time, and adds a document identifier and the collector's own accept time.\"",
+  "severity": "should",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 7,
+  "quote": "The four take four of a worker's 64 physical cores, eight of its 128 logical processors.",
+  "problem": "The third farm worker has 192 logical processors and a terabyte of memory, so 64 and 128 are not properties of every worker.",
+  "source": "docs/LOG_TYPES.md:267 via reports/loggy-report/briefs/constraints.md:30",
+  "fix": "Say the budget is four physical cores, eight logical processors, and name 64 and 128 as the machines that were measured.",
+  "severity": "nit",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 11,
+  "quote": "Staging is five machines: two workers and three storage nodes.",
+  "problem": "The same paragraph introduces three storage nodes and then a control host, a background host and a shifter host without saying they are the same three machines, so the reader counts six and meets five.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:25 (\"The control host is the first storage node\") and :183 (control, background and shifter hosts as the storage tier's further jobs); Figure 2 already draws \"storage node 1 \u00b7 control host\"; round1-simplicity.md M6 asked for this sentence and it is absent.",
+  "fix": "Before the host list add: \"The three storage nodes carry three further jobs. The first is the control host, the second the background host, the third the shifter host.\"",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 71,
+  "quote": "The stamper holds at most 20,000 clusters per worker and drops the least recently used.",
+  "problem": "Section 5.5 says the tree stops learning at that ceiling, so the report gives two behaviours, and \"cluster\" means the search cluster everywhere else.",
+  "source": "reports/loggy-report/briefs/soak-5.md:185 \u2014 \"at the ceiling the worker stops learning and keeps counting; drain3's LRU eviction is not used. [A] | eviction would reset counts to one\"; briefs/soak-index.md:267 agrees; only the unaudited briefs/walkthroughs-6-9.md:83 says otherwise.",
+  "fix": "Write: \"The stamper holds at most 20,000 templates per worker. At that ceiling it stops learning and keeps counting, because dropping a template would reset its counts to one.\" Then delete the following sentence about the archive pass.",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 7,
+  "quote": "The stamper beside it names every line's template before indexing.",
+  "problem": "A template is not defined until 02-design-a.tex:67, after the component list and the whole error-line walkthrough, so the stamper's purpose cannot be judged.",
+  "source": "The report's own definition at sections/02-design-a.tex:67 \u2014 \"A template is the skeleton of a log line: its fixed words, every variable token a wildcard.\"",
+  "fix": "Gloss it here: \"names every line's template, the skeleton of the line with its variable parts masked, before indexing.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 49,
+  "quote": "The trend rollup, six local anomaly detectors and the shifter view's line sampler read the local index.",
+  "problem": "\"Detector\" is defined a page later, and the reader never learns that these six belong to the seventeen rather than forming a separate lane.",
+  "source": "reports/inputs/dataflow-atlas.md:30 (audited walkthrough 2, \"six local-* detectors read it per minute\") and dataflow-atlas.md:193 (fourteen log plus three metric detectors make seventeen).",
+  "fix": "\"The trend rollup, the six detectors of Section~\\ref{sec:design-watch} that read a worker's own logs, and the shifter view's line sampler read the local index.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 63,
+  "quote": "The document identifier, node id plus boot id plus a counter, is the record's id in the store, and the output uses bulk action create.",
+  "problem": "The deciding fact is missing: a create action is refused when the id already exists, so the reader cannot see why a resend cannot duplicate.",
+  "source": "reports/loggy-report/sections/05-eval-a.tex:60 (\"A retried bulk write duplicated every record, so the product now writes with create under a stamped document identifier\") and briefs/soak-index.md:323.",
+  "fix": "Add the clause: \"the output writes with create, which the store refuses when that id already exists.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 43,
+  "quote": "\\item The collector also posts it over HTTP to the live lane, which keeps the last 500 in memory and pushes each to every open browser.",
+  "problem": "Every other step names its machine; this one does not, in a walkthrough titled from an EPN to a screen, and \"the last 500\" has no noun.",
+  "source": "reports/inputs/dataflow-atlas.md:22 (audited) \u2014 \"posted over HTTP to the live lane inside the Shifter on node-05. The Shifter keeps it in memory and streams it to every open browser over Server-Sent Events\"; round1-simplicity.md M13 asked for the machine.",
+  "fix": "\"The collector also posts it over HTTP to the live lane on the shifter host, which keeps the last 500 records in memory and streams each one to every open browser.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 15,
+  "quote": "Three primaries are set for the farm and have never carried farm volume.",
+  "problem": "Section 4 says \"The farm runs three primaries, agreed and not applied\", so the two passages disagree on status and the Section 4 sentence contradicts itself.",
+  "source": "reports/loggy-report/briefs/why.md:68 and :70 \u2014 three primaries are what the plan asks, and \"The primary count is one setting and reaches an existing family at its next rollover\".",
+  "fix": "Use one status in both places: \"The farm layout sets three primaries. It is agreed and has never carried farm volume.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 59,
+  "quote": "The documented worst case is twice that with a 20~\\% margin, roughly 307~MB, so the service is throttled at 384~MB and killed at 768.",
+  "problem": "The last memory number carries no unit.",
+  "source": "reports/loggy-report/briefs/constraints.md:182 gives the whole envelope in MB.",
+  "fix": "\"killed at 768~MB\".",
+  "severity": "nit",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 57,
+  "quote": "Writing to the local node every second instead of the shipped 5~seconds cut the collector's processor cost by 24.5~\\% and its peak memory by 28.0~\\%.",
+  "problem": "A measured result is stated in the design section with no pointer to the measurement that produced it.",
+  "source": "reports/loggy-report/sections/05-eval-a.tex:19 and Table 7 carry the evidence.",
+  "fix": "Add \"(Section~\\ref{sec:eval-collector})\".",
+  "severity": "nit",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 7,
+  "quote": "The four take four of a worker's 64 physical cores, eight of its 128 logical processors.",
+  "problem": "The core budget is repeated in the same words two pages after the constraints section states it.",
+  "source": "reports/loggy-report/sections/01-intro-problem.tex:46 \u2014 \"A worker gives the platform four of its 64 physical cores, eight of its 128 logical processors, and little memory.\"",
+  "fix": "\"The four share the worker's four-core budget of Section~\\ref{sec:problem-constraints}.\"",
+  "severity": "nit",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 71,
+  "quote": "The stamper holds at most 20,000 clusters per worker and drops the least recently used.",
+  "problem": "The source states that least-recently-used eviction cannot be used, because an evicted cluster rebuilt later would reset its published count to one, and the report's own Section 5.5 says the tree stops learning instead.",
+  "source": "docs/SOAK_RESULTS.md:5129-5133; briefs/soak-index.md:267; sections/06-eval-b.tex:11",
+  "fix": "Replace with: \"The stamper holds at most 20,000 clusters per worker. At that ceiling it stops learning and keeps counting, because evicting a cluster would reset its published count to one.\"",
+  "severity": "must",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 15,
+  "quote": "Three primaries are set for the farm and have never carried farm volume.",
+  "problem": "Section 4 says of the same number \"The farm runs three primaries, agreed and not applied\"; the two status marks contradict each other for one figure.",
+  "source": "briefs/target-architecture.md:199; outline.md decision 3; sections/04-why.tex:39",
+  "fix": "Use one wording in both places: \"Three primaries are agreed for the farm and have never carried farm volume\", and make the Table 3 cell read \"farm 3, agreed\".",
+  "severity": "should",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 73,
+  "quote": "Two hourly rules read the catalogue: one fires on a template catalogued in the last hour, the other on any failed check in the last two hours.",
+  "problem": "The sentence is 27 words, over the 25-word ceiling, and the same paragraph holds a 26-word sentence about the 5,000 hourly buckets.",
+  "source": "reports/loggy-report/briefs/style.md:11; .claude/skills/simple-english/SKILL.md:32",
+  "fix": "\"Two hourly rules read the catalogue. One fires on a template catalogued in the last hour. The other fires on any failed check in the last two hours.\" Split the 26-word sentence at \"and that\".",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 11,
+  "quote": "The roster lists the collectors that should be alive.",
+  "problem": "\"should\" is a banned modal where the meaning is a requirement, and this is the round-1 must from 03-design-b.tex:3 moved into 3.1 rather than fixed.",
+  "source": ".claude/skills/simple-english/SKILL.md:36; reports/loggy-report/reviews/round1-by-file/03-design-b.tex.json",
+  "fix": "\"The roster lists the collectors that must run.\"",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 55,
+  "quote": "A line takes five steps inside the collector, and the 64 chunks it may hold in memory bound what it can cost the worker.",
+  "problem": "The caption uses the banned modal \"may\" and states no number, so it names a bound without giving it.",
+  "source": ".claude/skills/simple-english/SKILL.md:36; reports/loggy-report/briefs/style.md:82",
+  "fix": "\"A line takes five steps inside the collector, and the 64 chunks it can hold in memory cap its cost to the worker at about 128~MB.\"",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 71,
+  "quote": "The stamper holds at most 20,000 clusters per worker and drops the least recently used.",
+  "problem": "\"cluster\" means the search cluster everywhere else in the report and the group of lines under one template here, which is the round-1 must fixed in 5.5 and left standing in 3.5.",
+  "source": ".claude/skills/simple-english/SKILL.md:39; reports/loggy-report/reviews/round1-by-file/06-eval-b.tex.json; reports/loggy-report/sections/06-eval-b.tex:11",
+  "fix": "\"The stamper holds at most 20,000 templates per worker and drops the least recently used one.\"",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 59,
+  "quote": "The documented worst case is twice that with a 20~\\% margin, roughly 307~MB, so the service is throttled at 384~MB and killed at 768.",
+  "problem": "The sentence is 26 words and carries three numbers, and line 57 is 26 words as well.",
+  "source": "reports/loggy-report/briefs/style.md:11; .claude/skills/simple-english/SKILL.md:32",
+  "fix": "\"The documented worst case is twice that with a 20~\\% margin, roughly 307~MB. The service is throttled at 384~MB and killed at 768.\" Split line 57 at the verb too.",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 15,
+  "quote": "Three primaries are set for the farm and have never carried farm volume.",
+  "problem": "The farm's three primaries are agreed and not applied, so \"set\" states a configuration that does not exist, and Section 4 says the opposite on the same spread.",
+  "source": "briefs/why.md:71 (\"The farm value of one primary per storage node is agreed, not applied\"); contradicted in-report at sections/04-why.tex:39 (\"The farm runs three primaries, agreed and not applied\")",
+  "fix": "Write \"Three primaries on the farm are agreed and not applied.\" and mark the Table 3 cells the same way, for example \"staging 1 primary, farm 3 agreed\".",
+  "severity": "must",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 13,
+  "quote": "The live lane is the second copy of every severe record, posted by the collector straight to the shifter view.",
+  "problem": "The live lane carries every record that crosses to the storage tier, including info-severity InfoLogger records, so \"every severe record\" is wrong and clashes with Section 6.2.",
+  "source": "reports/inputs/dataflow-atlas.md:30 (audited walkthrough 2: \"The http output to the Shifter matches stamped.infologger, stamped.ildaemon and stamped.family.central only\"); in-report Table 1 (\"Storage, every record\") and sections/07-limits-close.tex:27",
+  "fix": "Write \"The live lane is a second copy of every record that crosses to the storage tier: InfoLogger, the daemon log and the central family.\"",
+  "severity": "must",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 11,
+  "quote": "The receiver stores what a person was told.",
+  "problem": "Nothing tells a person, and the report only says so three pages later, so the reader had to reconcile two statements to answer question 2.",
+  "source": "briefs/target-architecture.md:59 (\"Notification delivery beyond the stored document is not built: nothing e-mails or pages a human today\"); briefs/walkthroughs-3-5.md:54 (\"No e-mail or pager is wired beyond that document\")",
+  "fix": "Write \"The receiver stores every notification Alertmanager sends, the record of what would reach a person. Nothing pages a human today.\"",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 22,
+  "quote": "info and debug lines, one index per worker",
+  "problem": "Table 3 drops trace, while the abstract and Section 3.2 step 2 both say info, debug and trace stay local, so the reader met three different sets for the same routing rule.",
+  "source": "reports/inputs/dataflow-atlas.md:16 (audited: \"Info, debug and trace would go to family.local\"); in-report sections/00-abstract.tex:1 and sections/02-design-a.tex:39",
+  "fix": "Write \"info, debug and trace lines, one index per worker\" in Table 3.",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 59,
+  "quote": "Under steady load the collector ran between 133 and 228~MB.",
+  "problem": "The range carries no rig or rate here, so it reads against Table 6's 87.1 and 62.7 MB peaks, although Section 5.2 does name Round 1 and its rate.",
+  "source": "briefs/soak-index.md:59 (133 to 228 MB is Round 1's range); briefs/soak-index.md:55 (87.1 and 62.7 MB are the flush arms at 5,000 a second on the re-run rig)",
+  "fix": "Add \"on the rig of Section 5.1, at up to 53,000 records a second\".",
+  "severity": "nit",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 49,
+  "quote": "The trend rollup, six local anomaly detectors and the shifter view's line sampler read the local index.",
+  "problem": "The six are never placed inside the seventeen detectors of Section 3.6, so the reader listed the two counts as unreconciled objects.",
+  "source": "reports/inputs/dataflow-atlas.md:29 (audited: six local-* detectors read the local index, of the 17 total)",
+  "fix": "Write \"six of the seventeen detectors\".",
+  "severity": "nit",
+  "lens": "reader"
+ }
+]

@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" viewBox="0 0 820 560" role="img"
+           aria-label="A comparison of four log stores and what we gain over the database in use today. Band one, the candidates, is a table of four rows read on three axes: licence and governance, what it can answer, and what it costs us to run. The first row is outlined in red as the choice: OpenSearch, Apache 2.0 under the Linux Foundation, indexes every field and the message, and detection is included free. It was chosen because it is the only candidate that is fully open, indexes the message body, and brings anomaly detection and alerting in the box; the detection slides that follow run on it, and CERN IT's own monitoring service runs it too, so this is not a novel bet. Second row, Elasticsearch: three licences and one company, indexes every field and the message, detection is a paid tier. Anomaly detection and alerting sit in Elastic's paid tiers, so the detection half of this deck becomes a purchase. Third row, ClickHouse: Apache 2.0 but one company, indexes every field and the message, and we would build the detection. It wins on disk and loses on machinery; choosing it means we run seventeen detectors and twenty-eight alerting rules ourselves. Fourth row, Grafana Loki: AGPLv3 and one company, indexes labels only and not the message, and there is no detection to host. It indexes labels, not the text, so counting errors per host is a scan, and its guidance forbids two hundred and eleven hostnames as labels. Band two, what we get that we do not have today, is six cards in two rows of three. Search the text, any word over a bunch of logs. Filter any mapped field, such as host, detector, run and partition. Count over time, errors per host per minute. Detect and alert, included and already running. Replicate every record, three copies, so a machine may die. Shard the index, writes spread, so throughput grows.">
+
+        <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="13">01</text>
+        <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="13">The candidates</text>
+
+        <rect class="d-panel" style="fill:#f1f1ec" x="1" y="30" width="818" height="328"></rect>
+
+        <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="176" y="52">LICENCE AND GOVERNANCE</text>
+        <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="372" y="52">WHAT IT CAN ANSWER</text>
+        <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="556" y="52">WHAT IT COSTS US TO RUN</text>
+        <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M12,64 H808"></path>
+
+        <rect class="d-card is-hot" style="fill:#fdf1f0;stroke:#e1251b;stroke-width:1.6" x="1" y="64" width="818" height="96"></rect>
+        <image href="logos/opensearch-logo-official.svg" x="12" y="86" width="104" height="19.9"></image>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="176" y="100">Apache 2.0, Linux Foundation</text>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="372" y="100">Every field and the message</text>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="556" y="100">Detection included, free</text>
+        <text class="d-tag is-lg is-end" style="font-family:Menlo, monospace;font-size:12px;font-weight:700;letter-spacing:0.2em;fill:#e1251b;text-anchor:end" x="808" y="100">CHOSEN</text>
+        <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="176" y="128">The only candidate that is fully open, indexes the message body, and brings anomaly detection and alerting in the box.</text>
+        <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="176" y="142">The detection slides that follow run on it. CERN IT’s own monitoring service runs it too, so this is not a novel bet.</text>
+
+        <image href="logos/elasticsearch-logo-official.svg" x="12" y="177" width="104" height="21.3"></image>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="176" y="192">Three licences, one company</text>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="372" y="192">Every field and the message</text>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="556" y="192">Detection is a paid tier</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="176" y="218">Anomaly detection and alerting sit in Elastic’s paid tiers, so the detection half of this deck becomes a purchase.</text>
+        <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M12,225 H808"></path>
+
+        <image href="logos/clickhouse-logo-official.svg" x="12" y="244" width="104" height="18.4"></image>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="176" y="258">Apache 2.0, one company</text>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="372" y="258">Every field and the message</text>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="556" y="258">We build the detection</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="176" y="284">It wins on disk and loses on machinery. Choosing it means we run 17 detectors and 28 alerting rules ourselves.</text>
+        <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M12,291 H808"></path>
+
+        <image href="logos/grafana-logo-official.svg" x="12" y="310" width="76" height="18"></image>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="96" y="324">Loki</text>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="176" y="324">AGPLv3, one company</text>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="372" y="324">Labels only, not the message</text>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="556" y="324">No detection to host</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="176" y="350">It indexes labels, not the text, so counting errors per host is a scan. Its guidance forbids 211 hostnames as labels.</text>
+
+        <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="392">02</text>
+        <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="392">What we get that we do not have today</text>
+
+        <rect class="d-panel" style="fill:#f1f1ec" x="1" y="407" width="818" height="152"></rect>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="12" y="423" width="260" height="58"></rect>
+        <circle class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" cx="35" cy="450" r="5.4"></circle><path class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" d="M39,454 L44.5,459.5"></path>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="58" y="448">Search the text</text>
+        <text class="d-s is-sm is-start" style="font-size:10.5px;fill:#6b6b66;text-anchor:start" x="58" y="468">any word, over a bunch of logs</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="280" y="423" width="260" height="58"></rect>
+        <path class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" d="M297,445.5 H313 L307,452.5 V459.5 L303,457 V452.5 Z"></path>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="326" y="448">Filter any mapped field</text>
+        <text class="d-s is-sm is-start" style="font-size:10.5px;fill:#6b6b66;text-anchor:start" x="326" y="468">host, detector, run, partition</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="548" y="423" width="260" height="58"></rect>
+        <path class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" d="M565.5,459.5 H581"></path><path class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" d="M568,459.5 V453"></path><path class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" d="M573,459.5 V447"></path><path class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" d="M578,459.5 V450.5"></path>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="594" y="448">Count over time</text>
+        <text class="d-s is-sm is-start" style="font-size:10.5px;fill:#6b6b66;text-anchor:start" x="594" y="468">errors per host, per minute</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="12" y="493" width="260" height="58"></rect>
+        <path class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" d="M32,526 V521.5 A5,5 0 0 1 42,521.5 V526 L44,528 H30 Z"></path><path class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" d="M35.5,528 A1.6,1.6 0 0 0 38.5,528"></path>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="58" y="518">Detect and alert</text>
+        <text class="d-s is-sm is-start" style="font-size:10.5px;fill:#6b6b66;text-anchor:start" x="58" y="538">included, and already running</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="280" y="493" width="260" height="58"></rect>
+        <rect class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" x="297.5" y="514.5" width="10" height="10"></rect><rect class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" x="302.5" y="519.5" width="10" height="10"></rect>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="326" y="518">Replicate every record</text>
+        <text class="d-s is-sm is-start" style="font-size:10.5px;fill:#6b6b66;text-anchor:start" x="326" y="538">three copies, so a machine may die</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="548" y="493" width="260" height="58"></rect>
+        <rect class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" x="565.5" y="516" width="15" height="12"></rect><path class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" d="M570.5,516 V528"></path><path class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" d="M575.5,516 V528"></path>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="594" y="518">Shard the index</text>
+        <text class="d-s is-sm is-start" style="font-size:10.5px;fill:#6b6b66;text-anchor:start" x="594" y="538">writes spread, so throughput grows</text>
+      </svg>

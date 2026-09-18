@@ -1,0 +1,22 @@
+[
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/figures/fig03-error-line.svg",
+  "line": 12,
+  "quote": "SHIFTER HOST",
+  "problem": "The column headers present the storage tier, the shifter host and the control host as separate machines, but the control, background and shifter hosts are the three storage nodes, as fig02 draws them.",
+  "source": "reports/loggy-report/sections/02-design-a.tex:11",
+  "fix": "Retitle the right-hand columns so the shared machines show, for example \"STORAGE TIER \u00b7 THE INDEX\", \"STORAGE NODE 3 \u00b7 SHIFTER HOST\", \"STORAGE NODE 1 \u00b7 CONTROL HOST\".",
+  "severity": "should",
+  "lens": "figures"
+ },
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/figures/fig03-error-line.svg",
+  "line": 140,
+  "quote": "or alice-unified",
+  "problem": "The figure names an index pattern that the report body never introduces, so the reader meets a bare identifier with no definition.",
+  "source": "reports/loggy-report/sections/02-design-a.tex:44; reports/inputs/dataflow-atlas.md:20",
+  "fix": "or every log index at once",
+  "severity": "should",
+  "lens": "figures"
+ }
+]

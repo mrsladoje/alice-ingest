@@ -1,0 +1,69 @@
+\section{Why these choices}\label{sec:why}
+
+\paragraph{The collector}\label{sec:why-collector}
+Maturity and size decided it. Fluent Bit~\cite{ref:fluentbit} is graduated at the Cloud Native Computing Foundation, its top maturity level~\cite{ref:cncf}. Table~\ref{tab:collectors} lists the four.
+
+\begin{table}[htbp]\caption{Fluent Bit won on maturity and size.}\label{tab:collectors}\centering\footnotesize
+\begin{tabularx}{\textwidth}{l l X l X}
+\toprule
+Candidate & Language & Memory at rest & Governed by & Verdict \\
+\midrule
+Fluent Bit & C & about 450~KB idle & CNCF, graduated & chosen \\
+Fluentd & C and Ruby & over 60~MB & same project & Ruby tree on every worker \\
+Vector & Rust & not published & Datadog & one company decides it \\
+Telegraf & Go & not published & InfluxData & a metric, not a log line \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{The store}\label{sec:why-store}
+An open licence was the floor, and detection decided it. Only OpenSearch~\cite{ref:opensearch} indexes the message body, counts over time and ships detection under an open licence. Table~\ref{tab:stores} lists the four.
+
+\begin{table}[htbp]\caption{OpenSearch is the only open store that ships detection.}\label{tab:stores}\centering\footnotesize
+\begin{tabularx}{\textwidth}{l l X l X}
+\toprule
+Candidate & Licence & What it answers & Governed by & Verdict \\
+\midrule
+OpenSearch & Apache 2.0 & body, counts, detection and alerting & Linux Foundation & chosen \\
+Elasticsearch & three licences & body and counts, detection paid & one company & detection is a purchase \\
+ClickHouse & Apache 2.0 & counts on disk, no detection & one company & detection is ours to build and run \\
+Loki & AGPLv3 & labels, not the text & one company & a count is a scan \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{One cluster}\label{sec:why-cluster}
+We run one cluster, and Dashboards asks it once. Many clusters joined by cross-cluster search, one query forwarded to all, do not scale to 100 machines. The cost is fanout: a search is as slow as the slowest machine. One cluster places its shards itself, keeps one set of users and saved searches, and needs no joining layer. Three hundred data nodes in one cluster, one per worker in the archive, is an untested risk for the cluster manager.
+
+\paragraph{The split by severity}\label{sec:why-severity}
+We split by severity, not by source, because info is the bulk and the trash and stays local. A heap holds roughly 20 shards per gigabyte, so three 1~GB heaps hold about 60 shards. Staging runs one primary, because three primaries reach about 135 shards at full retention.
+
+\paragraph{Native services, and containers on one machine}\label{sec:why-systemd}
+Staging runs vendor packages as system services, because a container runtime on OpenStack is a second runtime. The farm gives the storage tier one shared machine, so its three nodes run there as containers. Three replicas on one disk rehearse no fault tolerance.
+
+\paragraph{The surfaces}\label{sec:why-surfaces}
+Dashboards holds the maintainer cockpit and Discover because it ships the detection and alerting screens. We did not compare Dashboards and Grafana on numbers. The shifter view is a standalone page, because a plugin must match the store's exact version.
+
+\paragraph{The stamper in band}\label{sec:why-stamper}
+The stamper runs beside the collector, so no raw line leaves its machine. It runs drain3~\cite{ref:drain3}, because no collector filter language can host it. Without ground truth, cost chose the parser: PIPLUP, another log-template parser, costs 2.56~times drain3 against a gate of plus or minus 25~\%. The masker, which replaces variable parts of a line with placeholders, was 74 to 87~\% of the mining cost, so we rewrote it. Masking fell from 11.93 to 1.82 core-seconds per million lines on InfoLogger, one core-second being one core busy for one second. It fell as far on the process tree and on DDS, and no template changed. Mining the parser corpus of 45,596,613 lines now costs 8.33 core-seconds per million. Those figures price the miner on a stored corpus. What the stamper costs beside a running collector is not measured.
+
+\paragraph{Detection on numbers, not on text}\label{sec:why-detection}
+Three lanes read numbers about the logs inside the cluster, and Random Cut Forest detectors~\cite{ref:rcf} read a silent host as zero records. Deep sequence models score about 0.23 to 0.27 on F1 once the logs drift from the data they learnt on. F1 weighs faults caught against false alarms, and 1 is perfect. Plain principal component analysis scores about 0.71 on the same logs. One route on the log text stays open: mine the templates, then run nearest-neighbour search on those. Search on raw messages lost on cost, and templating as the detector lost because the signal runs out.
+
+\paragraph{Episodes, and Alertmanager as messenger}\label{sec:why-episodes}
+The projector turns thirty rows about one dead collector into one episode. Alerting alone repeats the alert every minute. Alertmanager~\cite{ref:alertmanager} stores nothing durable, so the projector re-posts every open episode. Inhibition, where one alert silences another it causes, is built and ships off. All 22 cause-and-effect links between alerts are unproven.
+
+\paragraph{Kafka between the collector and the store}\label{sec:why-kafka-store}
+The soak rejected a queue between the collector and the store. Decoupling: one worker's stack sustains about 42,000 records a second, 538~times its busiest second in six months. Durability: only InfoLogger is lost in an outage, and its 256~MB disk buffer covers 17.4~hours of it at a median worker's rate. Cost: three brokers on memory the staging machines lack, and the tier rule splits into two places. Section~\ref{sec:eval-kafka} gives the four conditions that reopen it.
+
+\paragraph{Kafka for the live lane}\label{sec:why-kafka-live}
+The September 2026 rework agreed a Kafka~\cite{ref:kafka} bus for the live lane only, for decoupling and not durability, and it is not built. Today a moved shifter view means editing more than 200 collectors. It must be Apache Kafka, because CERN requires fully open source software. It must be the primary path, because the collector held at release 4.0.1 has no route for a failed output. Where the brokers run is not decided.
+
+\paragraph{Deployment}\label{sec:why-deploy}
+The agent decided it. An agent is a program the tool installs and leaves running on every machine. Ansible~\cite{ref:ansible} has none: it pushes over SSH when a person starts a run, and creates the machines too. Puppet wants an agent and a certificate on every machine. That is likely right for the farm. It is wrong for five machines that one person deploys by hand. Salt and Chef also want an agent, and Terraform builds machines but does not configure them.
+
+\paragraph{Cockpit metrics beside Telegraf and Mimir}\label{sec:why-metrics}
+The poller marks absence against a roster. CERN already runs Telegraf and Mimir for machine metrics, and our cluster and node samples overlap them. Whether that estate takes the samples over is open. The roster and absence logic have no equivalent there, so they stay.
+
+\paragraph{Shared code as one package}\label{sec:why-package}
+Shared Python becomes one versioned package, agreed and not built. About 31,000 lines of Python run the services, and five modules are byte-identical copies across them. Appendix~\ref{app:upstream} lists the upstream roles that lost.

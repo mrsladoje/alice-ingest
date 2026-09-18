@@ -1,0 +1,32 @@
+[
+ {
+  "file": "reports/loggy-report/figures/fig05-templates.svg",
+  "line": 130,
+  "quote": "<text x=\"728\" y=\"413\" font-size=\"12\" font-weight=\"600\" fill=\"#101010\" text-anchor=\"middle\">The Templates page</text>",
+  "problem": "The Templates page sits in the column headed CONTROL HOST, but it is a page of the shifter view, which runs on the shifter host.",
+  "source": "reports/loggy-report/briefs/walkthroughs-6-9.md:9 (node-05 runs the shifter view); reports/loggy-report/briefs/target-architecture.md:183 (the shifter host holds the shifter view); reports/loggy-report/figures/fig02-architecture.svg:96-98 places it on storage node 3",
+  "fix": "Give the Templates page its own band headed SHIFTER HOST, or retitle column 03 \"CONTROL AND SHIFTER HOSTS\" and mark which card sits on which.",
+  "severity": "must",
+  "lens": "figures"
+ },
+ {
+  "file": "reports/loggy-report/figures/fig05-templates.svg",
+  "line": 123,
+  "quote": "<text x=\"728\" y=\"317\" font-size=\"12\" font-weight=\"600\" fill=\"#101010\" text-anchor=\"middle\">Two monitors, hourly</text>",
+  "problem": "Monitors are saved rules the cluster runs, not a service on the control host, so this figure and fig06 disagree on where the rules live.",
+  "source": "reports/loggy-report/sections/03-design-b.tex:5 (\"A monitor is a saved rule the cluster runs on a schedule\"); reports/loggy-report/figures/fig06-alerts.svg:124 (\"the alerts and the grades, written by the plugins inside the cluster\")",
+  "fix": "Move the monitor card into the storage-tier column, or add \"run by the cluster\" under its title.",
+  "severity": "should",
+  "lens": "figures"
+ },
+ {
+  "file": "reports/loggy-report/figures/fig05-templates.svg",
+  "line": 41,
+  "quote": "<text x=\"143\" y=\"265\" font-family=\"Menlo, monospace\" font-size=\"10\" fill=\"#6b6b66\" text-anchor=\"middle\">at most 20000 clusters per worker</text>",
+  "problem": "The figure drops the thousands separator the report uses for the same number.",
+  "source": "reports/loggy-report/sections/02-design-a.tex:71 (\"The stamper holds at most 20,000 clusters per worker\")",
+  "fix": "Write \"at most 20,000 clusters per worker\".",
+  "severity": "nit",
+  "lens": "figures"
+ }
+]

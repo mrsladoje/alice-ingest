@@ -1,0 +1,112 @@
+[
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 39,
+  "quote": "The farm runs three primaries, agreed and not applied, because one primary funnels all InfoLogger through one machine.",
+  "problem": "Section 3.1 says the three primaries are set for the farm, and the farm inventory carries the setting, so the two parts disagree on the status.",
+  "source": "deploy/inventory.epn.yml:204 (log_primary_shards_storage: 3, comment at :193); reports/loggy-report/briefs/target-architecture.md:199",
+  "fix": "Write: \"The farm sets three primaries, one per storage node, because one primary funnels all InfoLogger through one machine. No farm run has yet carried that volume.\"",
+  "severity": "must",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 39,
+  "quote": "The shard budget is about 60 across three 1~GB heaps, so staging runs one primary.",
+  "problem": "The condense pass cut the conversion rule, so 60 and the 135 in the next sentence are bare counts with no way to see why a 1 GB heap implies 20 shards.",
+  "source": "reports/loggy-report/briefs/why.md:70 \u2014 \"shard budget is the binding constraint, roughly 20 shards per GB of heap, about 60 across three 1 GB nodes (deploy/README.md:2295-2296, docs/PLAN.md:245)\".",
+  "fix": "\"A node carries roughly 20 shards per gigabyte of heap, so three 1~GB heaps hold about 60. Staging therefore runs one primary, because three would reach about 135 at full retention.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 36,
+  "quote": "Many clusters joined by cross-cluster search, one query forwarded to all, do not scale to 100 machines.",
+  "problem": "The 100 machines here and the 300 data nodes in the next sentence mean nothing, because the body never states how many workers the farm has.",
+  "source": "reports/loggy-report/briefs/constraints.md:40 \u2014 \"Mark the count as 'about 300 hosts appear in the six-month archive' and cite docs/SOAK_RESULTS.md:327\"; constraints.md:307.",
+  "fix": "State the size once in Section 1 or 2.2, \"about 300 worker machines appear in six months of archive\", so both numbers can be read.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 48,
+  "quote": "one core-second being one core busy for one second",
+  "problem": "Section 5.1 defines the same unit again in the same words.",
+  "source": "reports/loggy-report/sections/05-eval-a.tex:7 \u2014 \"The instrument sums every container's processor time into core-seconds, one core busy for one second.\"",
+  "fix": "Keep the definition at its first use in Section 4 and drop the repeat in Section 5.1.",
+  "severity": "nit",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 48,
+  "quote": "The shipped control of 19.91 was not re-measured, so no multiple stands.",
+  "problem": "\"multiple\" is used as a noun for a cost ratio and \"control\" as a noun for a reference run, and neither is defined before Section 5.1.",
+  "source": "reports/loggy-report/briefs/soak-3.md:174; .claude/skills/simple-english/SKILL.md:40",
+  "fix": "\"The old pipeline's 19.91 was measured once and never re-measured, so we quote no ratio between the two figures.\"",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 60,
+  "quote": "It must be Apache Kafka, because CERN requires fully open source, and the primary path, because the pinned collector has no on-failure route.",
+  "problem": "The second half elides its verb, so \"and the primary path\" hangs off \"It must be\", and \"pinned\" is never explained as held at release 4.0.1 by the OpenSSL wall.",
+  "source": "reports/loggy-report/briefs/why.md:123; .claude/skills/simple-english/SKILL.md:37",
+  "fix": "\"It must be Apache Kafka, because CERN requires fully open source software. It must carry the live lane as the primary path, because the collector held at release 4.0.1 has no route for a failed output.\"",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 54,
+  "quote": "Inhibition is built and ships off, because all 22 causal edges are unproven.",
+  "problem": "Neither \"inhibition\" nor \"causal edge\" is explained here or at 07-limits-close.tex:23, so the reason a built feature ships disabled cannot be read.",
+  "source": "reports/loggy-report/briefs/style.md:22; .claude/skills/simple-english/SKILL.md:40",
+  "fix": "\"Inhibition, where one alert silences another it causes, is built and ships off. All 22 cause-and-effect links between alerts are unproven.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 48,
+  "quote": "Masking fell from 11.93 to 1.82 core-seconds per million lines on InfoLogger, one core-second being one core busy for one second.",
+  "problem": "The core-second is defined again at 05-eval-a.tex:7, the masker again at 02-design-a.tex:71 and the template again at 06-eval-b.tex:3, which the condense passes left behind.",
+  "source": ".claude/skills/simple-english/SKILL.md:40",
+  "fix": "Keep the first definition of each term and cut the later one; here, end the sentence at \"on InfoLogger\".",
+  "severity": "nit",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 36,
+  "quote": "300 data nodes in one cluster is an untested risk for the cluster manager.",
+  "problem": "Round 1 fixed \"17 detectors run\" to \"Seventeen detectors run\", and three sentences still open on digits, here and at 04-why.tex:39 and 06-eval-b.tex:30.",
+  "source": "reports/loggy-report/reviews/round1-by-file/03-design-b.tex.json",
+  "fix": "\"Three hundred data nodes in one cluster is an untested risk for the cluster manager.\" Recast the other two so a word starts the sentence.",
+  "severity": "nit",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 48,
+  "quote": "Without ground truth, cost chose the parser: PIPLUP costs 2.56~times drain3 against a gate of plus or minus 25~\\%.",
+  "problem": "PIPLUP decides the parser choice, appears four times and in Table 7, and is never expanded, described or cited, so the reader listed it as an unexplained name.",
+  "source": "briefs/why.md:154 (what PIPLUP is and every figure against it); outline.md:152 lists PIPLUP in the reference set",
+  "fix": "Write \"PIPLUP, another log-template parser, costs 2.56 times drain3 ...\" and add a reference entry for it.",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 29,
+  "quote": "ClickHouse & Apache 2.0 & counts on disk, no detection & one company & 17 detectors run by us",
+  "problem": "The verdict cell is a fragment, so the reader could not tell that it means the project would have to run the detectors itself.",
+  "source": "briefs/why.md (store entry: the store must ship detection, or the project runs the 17 detectors itself); in-report sections/03-design-b.tex:5 (\"Seventeen detectors run\")",
+  "fix": "Write \"we would run the 17 detectors ourselves\".",
+  "severity": "nit",
+  "lens": "reader"
+ }
+]

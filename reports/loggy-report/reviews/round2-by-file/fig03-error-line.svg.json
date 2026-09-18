@@ -1,0 +1,12 @@
+[
+ {
+  "file": "reports/loggy-report/figures/fig03-error-line.svg",
+  "line": 166,
+  "quote": "5",
+  "problem": "The figure carries six numbered circles against the seven-step list printed beside it, and from step 5 on the numbers name different edges.",
+  "source": "reports/loggy-report/sections/02-design-a.tex:42 (step 5: \"The document hops once to the storage node holding the primary shard of \\code{application-logs-central}\"), :43 (step 6, the live lane), :44 (step 7, the queries); audited walkthrough reports/inputs/dataflow-atlas.md:15-21",
+  "fix": "Number the unnumbered \"document / one hop\" edge 5, move the live-lane circle to 6 and the query circle at fig03-error-line.svg:168 to 7, so seven circles match the seven list items.",
+  "severity": "must",
+  "lens": "figures"
+ }
+]

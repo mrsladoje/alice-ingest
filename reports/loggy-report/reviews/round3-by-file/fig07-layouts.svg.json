@@ -1,0 +1,22 @@
+[
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/figures/fig07-layouts.svg",
+  "line": 113,
+  "quote": "two replicas, so a copy on every storage node \u00b7 cluster manager quorum two",
+  "problem": "The farm pilot panel repeats the staging wording and omits the primary count, so the reader concludes the pilot runs one primary when the farm inventory sets three.",
+  "source": "reports/loggy-report/sections/02-design-a.tex:15; reports/loggy-report/sections/02-design-a.tex:23",
+  "fix": "three primaries, two replicas each \u00b7 cluster manager quorum two",
+  "severity": "should",
+  "lens": "figures"
+ },
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/figures/fig07-layouts.svg",
+  "line": 192,
+  "quote": "not stated on the farm",
+  "problem": "The legend understates the report, which says outright that the stamper, the projector and the shifter view have run on staging only.",
+  "source": "reports/loggy-report/sections/07-limits-close.tex:35",
+  "fix": "not run on the farm",
+  "severity": "should",
+  "lens": "figures"
+ }
+]

@@ -1,0 +1,32 @@
+[
+ {
+  "file": "reports/loggy-report/figures/fig06-alerts.svg",
+  "line": 60,
+  "quote": "15 monitors, every minute",
+  "problem": "The arrow from cockpit-metrics into the THRESHOLD RULES card is labelled 15, while the card it enters says 13 every minute and the body says 13.",
+  "source": "reports/inputs/dataflow-atlas.md:539 (\"cockpit-metrics -> 30 alerting monitors [14 health monitors] ... every 1 min\"); reports/loggy-report/sections/03-design-b.tex:5 (\"17 are threshold and detector monitors, 13 every minute and four every ten\"); reports/loggy-report/figures/fig06-alerts.svg:109 (\"17 monitors: 13 every minute, 4 every ten\")",
+  "fix": "Write \"13 monitors, every minute\". Fifteen counts the two break-glass monitors that this figure already draws on their own path. The four ten-minute threshold monitors read trend-rollup and the forecast results, not cockpit-metrics (dataflow-atlas.md:538, 542), so draw that second inbound edge or drop \"4 every ten\" from the card.",
+  "severity": "must",
+  "lens": "figures"
+ },
+ {
+  "file": "reports/loggy-report/figures/fig06-alerts.svg",
+  "line": 48,
+  "quote": "health sample, HTTP, every 30 s",
+  "problem": "The label, anchored end at x 404, starts near x 224 and is crossed by the vertical segment of the neighbouring edge at x 230.",
+  "source": "reports/loggy-report/figures/fig06-alerts.svg:38 (the \"log records, 14 detectors\" edge, path M230,84 V232); visible in the render from rsvg-convert -f png -w 1600",
+  "fix": "Shorten the label to \"health sample, every 30 s\", or move its anchor right so the text clears x 236.",
+  "severity": "should",
+  "lens": "figures"
+ },
+ {
+  "file": "reports/loggy-report/figures/fig06-alerts.svg",
+  "line": 60,
+  "quote": "15 monitors, every minute",
+  "problem": "The same figure's threshold box says \"17 monitors: 13 every minute, 4 every ten\", so the reader cannot reconcile 15 with 13; the 15 silently includes the two break-glass monitors.",
+  "source": "reports/inputs/dataflow-atlas.md:211-216 as quoted in reviews/round1-reader.md must 4: \"15 monitors every minute (two of them break-glass), 13 every ten minutes (nine of them the trend comparisons), two every hour\"",
+  "fix": "Label the edge \"13 threshold and 2 break-glass monitors, every minute\".",
+  "severity": "should",
+  "lens": "reader"
+ }
+]

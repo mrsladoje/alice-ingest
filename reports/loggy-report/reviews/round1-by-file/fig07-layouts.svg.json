@@ -1,0 +1,32 @@
+[
+ {
+  "file": "reports/loggy-report/figures/fig07-layouts.svg",
+  "line": 96,
+  "quote": "<text x=\"646.0\" y=\"326\" font-family=\"Helvetica Neue, Helvetica, Arial, sans-serif\" font-size=\"11\" fill=\"#3a3a36\" text-anchor=\"middle\">the projector</text>",
+  "problem": "The farm-pilot containers are solid cards and the legend reads solid as \"built and running\", but no source says the projector or the shifter view (line 101) ran on the farm.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:215 (\"Nothing read says whether the stamper, the poller, the projector, the rollup, Alertmanager, the receiver or the shifter view ran on the farm. Say 'not stated' rather than 'deployed'.\"); briefs/inputs/memory-extracts.md:85-87",
+  "fix": "Keep the container cards solid for the OpenSearch nodes, set the service lines in ink-soft, and add one note \"services on the farm: not stated\"; or drop the service lines from the farm row.",
+  "severity": "must",
+  "lens": "figures"
+ },
+ {
+  "file": "reports/loggy-report/figures/fig07-layouts.svg",
+  "line": 163,
+  "quote": "<text x=\"404\" y=\"634\" font-family=\"Helvetica Neue, Helvetica, Arial, sans-serif\" font-size=\"10\" fill=\"#6b6b66\" text-anchor=\"start\">two replicas, so a copy on every storage node; cluster manager quorum two</text>",
+  "problem": "The production panel is headed \"storage tier \u00b7 three or more machines\" and draws a storage N card, so two replicas are three copies, not one per node; the sentence holds only for the two rows above.",
+  "source": "reports/loggy-report/outline.md:16-17 (decision 3: on the farm three primaries, one per storage node, two replicas each); reports/loggy-report/briefs/target-architecture.md:90-93",
+  "fix": "In the production row only, write \"three primaries, two replicas each; cluster manager quorum two\".",
+  "severity": "must",
+  "lens": "figures"
+ },
+ {
+  "file": "reports/loggy-report/figures/fig07-layouts.svg",
+  "line": 99,
+  "quote": "<text x=\"64.0\" y=\"341\" font-family=\"Helvetica Neue, Helvetica, Arial, sans-serif\" font-size=\"11\" fill=\"#3a3a36\" text-anchor=\"middle\">local data node</text>",
+  "problem": "The farm-pilot worker cards list collector, local data node and real log sources and omit the stamper, which the staging (line 17) and production (line 122) cards both list, so the middle row reads as a design without templates rather than as a status statement.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:215 (the stamper's farm status is not stated); sections/02-design-a.tex:7 (the stamper is part of every worker)",
+  "fix": "List the stamper on the farm worker cards too and mark that whole service list \"not stated\", in step with the farm-status fix.",
+  "severity": "should",
+  "lens": "figures"
+ }
+]

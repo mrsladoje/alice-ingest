@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" viewBox="0 0 820 496" role="img"
+           aria-label="How trouble is found, in three bands. Band one, where the numbers come from: every worker pushes its own counters into the cluster every thirty seconds, so nothing reaches into a machine to scrape it. Those health rows sit in the same cluster as the logs. One poller asks the cluster and the dashboard for their own health, and notices which worker has gone quiet. Band two, three lanes read those numbers: twenty-eight saved rules and seventeen detectors, all running inside the cluster. Lane one, threshold rules, the cliffs we already know, such as a disk over ninety-two percent full or a collector silent for two minutes; a plain rule, nothing trained. Lane two, Random Cut Forest, which answers how surprising this minute is: a scatter plot shows a crowd of ordinary points that many cuts still leave crowded, and one red point that a single cut isolates. Random Cut Forest keeps one model per machine, so nobody writes a threshold. Lane three, trend rules, for the drift a forest learns as normal, measuring today against a frozen baseline of seven days; nine rules, every ten minutes. Band three, from hits to one alert: many hits from the same rule fold into one episode, one machine and one trouble, opened at the first hit and closed when it is quiet. Alertmanager, marked with the Prometheus flame, then decides when a person is told and how often it repeats. One broken machine is one alert, however many times the rule fires.">
+        <defs>
+          <marker id="a10n" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0,1 L10,5 L0,9 z" class="d-head" style="fill:#101010"></path>
+          </marker>
+        </defs>
+
+        <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="13">01</text>
+        <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="13">Where the numbers come from</text>
+        <text class="d-fact is-end" style="font-size:10.5px;fill:#3a3a36;text-anchor:end" x="820" y="13">Nothing reaches into a worker to scrape it.</text>
+
+        <rect class="d-panel" style="fill:#f1f1ec" x="1" y="24" width="818" height="104"></rect>
+
+        <rect class="d-card is-hot" style="fill:#fdf1f0;stroke:#e1251b;stroke-width:1.6" x="16" y="42" width="250" height="68"></rect>
+        <text class="d-t is-hot" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#e1251b;text-anchor:middle" x="141" y="66">Every worker</text>
+        <text class="d-s is-hot" style="font-size:12px;fill:#e1251b;text-anchor:middle" x="141" y="86">pushes its own counters</text>
+        <text class="d-l is-hot" style="font-family:Menlo, monospace;font-size:10px;fill:#e1251b;text-anchor:middle" x="141" y="103">records in, out, retried, dropped</text>
+
+        <text class="d-l is-hot" style="font-family:Menlo, monospace;font-size:10px;fill:#e1251b;text-anchor:middle" x="283" y="66">push</text>
+        <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M266,76 H300" marker-end="url(#a10n)"></path>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="306" y="42" width="208" height="68"></rect>
+        <text class="d-t" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="410" y="66">The numbers</text>
+        <text class="d-s" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="410" y="86">one row per machine</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="410" y="103">every thirty seconds</text>
+
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="534" y="66">poll</text>
+        <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M548,76 H520" marker-end="url(#a10n)"></path>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="554" y="42" width="250" height="68"></rect>
+        <text class="d-t" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="679" y="66">One poller</text>
+        <text class="d-s" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="679" y="86">asks the cluster and the dashboard</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="679" y="103">and who has gone quiet</text>
+
+        <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="160">02</text>
+        <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="160">Three lanes read those numbers</text>
+        <text class="d-fact is-end" style="font-size:10.5px;fill:#3a3a36;text-anchor:end" x="820" y="160">28 saved rules and 17 detectors, all inside the cluster.</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="1" y="172" width="259" height="148"></rect>
+        <circle class="d-bullet is-hot" style="fill:#e1251b" cx="64" cy="196" r="3.2"></circle>
+        <text class="d-stage is-mid" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010;text-anchor:middle" x="136" y="200">THRESHOLD RULES</text>
+        <text class="d-s is-mid" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="130" y="222">The cliffs we already know</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="130" y="250">a disk over 92 percent full,</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="130" y="264">a collector silent two minutes</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="130" y="298">A plain rule.</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="130" y="312">Nothing is trained.</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="280" y="172" width="260" height="148"></rect>
+        <circle class="d-bullet is-hot" style="fill:#e1251b" cx="334" cy="196" r="3.2"></circle>
+        <text class="d-stage is-mid" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010;text-anchor:middle" x="416" y="200">RANDOM CUT FOREST</text>
+        <text class="d-s is-mid" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="410" y="222">How surprising is this minute?</text>
+
+        <circle class="d-dot" style="fill:#6b6b66" cx="306" cy="268" r="2.6"></circle>
+        <circle class="d-dot" style="fill:#6b6b66" cx="318" cy="250" r="2.6"></circle>
+        <circle class="d-dot" style="fill:#6b6b66" cx="322" cy="278" r="2.6"></circle>
+        <circle class="d-dot" style="fill:#6b6b66" cx="332" cy="262" r="2.6"></circle>
+        <circle class="d-dot" style="fill:#6b6b66" cx="340" cy="244" r="2.6"></circle>
+        <circle class="d-dot" style="fill:#6b6b66" cx="344" cy="272" r="2.6"></circle>
+        <circle class="d-dot" style="fill:#6b6b66" cx="352" cy="256" r="2.6"></circle>
+        <circle class="d-dot" style="fill:#6b6b66" cx="360" cy="282" r="2.6"></circle>
+        <circle class="d-dot" style="fill:#6b6b66" cx="366" cy="266" r="2.6"></circle>
+        <circle class="d-dot" style="fill:#6b6b66" cx="374" cy="248" r="2.6"></circle>
+        <circle class="d-dot" style="fill:#6b6b66" cx="382" cy="274" r="2.6"></circle>
+        <circle class="d-dot" style="fill:#6b6b66" cx="390" cy="258" r="2.6"></circle>
+        <circle class="d-dot" style="fill:#6b6b66" cx="398" cy="242" r="2.6"></circle>
+        <circle class="d-dot" style="fill:#6b6b66" cx="404" cy="270" r="2.6"></circle>
+        <circle class="d-dot" style="fill:#6b6b66" cx="412" cy="254" r="2.6"></circle>
+        <circle class="d-dot is-hot" style="fill:#e1251b" cx="500" cy="246" r="3.2"></circle>
+
+        <path class="d-cut is-hot" style="stroke-dashoffset:0;opacity:1;stroke:#e1251b;stroke-width:1.5" pathLength="100" d="M455,234 V288"></path>
+        <path class="d-cut is-c2" style="stroke-dashoffset:0;opacity:1" pathLength="100" d="M292,264 H455"></path>
+        <path class="d-cut is-c3" style="stroke-dashoffset:0;opacity:1" pathLength="100" d="M358,234 V264"></path>
+        <path class="d-cut is-c4" style="stroke-dashoffset:0;opacity:1" pathLength="100" d="M328,264 V288"></path>
+        <path class="d-cut is-c5" style="stroke-dashoffset:0;opacity:1" pathLength="100" d="M292,252 H358"></path>
+        <path class="d-cut is-c6" style="stroke-dashoffset:0;opacity:1" pathLength="100" d="M396,264 V288"></path>
+
+        <text class="d-l is-hot" style="font-family:Menlo, monospace;font-size:10px;fill:#e1251b;text-anchor:middle" x="500" y="266">one cut</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="410" y="298">Random Cut Forest, one model</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="410" y="312">per machine. No threshold.</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="560" y="172" width="259" height="148"></rect>
+        <circle class="d-bullet is-hot" style="fill:#e1251b" cx="640" cy="196" r="3.2"></circle>
+        <text class="d-stage is-mid" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010;text-anchor:middle" x="696" y="200">TREND RULES</text>
+        <text class="d-s is-mid" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="690" y="222">Slow drift, over days</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="690" y="250">what the forest would</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="690" y="264">otherwise learn as normal</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="690" y="298">A frozen seven-day baseline.</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="690" y="312">Nine rules, every ten minutes.</text>
+
+        <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="352">03</text>
+        <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="352">From hits to one alert</text>
+
+        <rect class="d-panel" style="fill:#f1f1ec" x="1" y="364" width="818" height="96"></rect>
+
+        <rect class="d-ghost" style="fill:#ffffff;stroke:#101010;stroke-width:1.1;opacity:0.32" x="16" y="396" width="170" height="48"></rect>
+        <rect class="d-ghost" style="fill:#ffffff;stroke:#101010;stroke-width:1.1;opacity:0.32" x="16" y="390" width="170" height="48"></rect>
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="16" y="384" width="170" height="48"></rect>
+        <text class="d-t is-sm" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="101" y="404">Many hits</text>
+        <text class="d-s is-sm" style="font-size:10.5px;fill:#6b6b66;text-anchor:middle" x="101" y="422">the same rule, again</text>
+
+        <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M186,408 H222" marker-end="url(#a10n)"></path>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="228" y="376" width="286" height="64"></rect>
+        <text class="d-t" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="371" y="400">One episode</text>
+        <text class="d-s" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="371" y="418">one machine, one trouble</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="371" y="433">opened at the first hit, closed when quiet</text>
+
+        <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M514,408 H550" marker-end="url(#a10n)"></path>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="556" y="376" width="248" height="64"></rect>
+        <image href="logos/prometheus-mark-official.svg" x="572" y="397" width="22" height="22"></image>
+        <text class="d-t" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="690" y="400">Alertmanager</text>
+        <text class="d-s" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="680" y="418">decides when a person is told</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="680" y="433">and how often it repeats</text>
+
+        <path class="d-brace" style="fill:none;stroke:#e1251b;stroke-width:1.1" d="M16,470 V478 H514 V470"></path>
+        <text class="d-bracelabel" style="font-size:12.5px;letter-spacing:-0.005em;fill:#e1251b;text-anchor:middle" x="265" y="492">One broken machine is one alert, however many times the rule fires</text>
+      </svg>

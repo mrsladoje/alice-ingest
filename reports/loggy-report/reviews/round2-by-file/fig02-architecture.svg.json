@@ -1,0 +1,12 @@
+[
+ {
+  "file": "reports/loggy-report/figures/fig02-architecture.svg",
+  "line": 79,
+  "quote": "the ops page",
+  "problem": "The control-host group in the architecture figure omits the catalogue maintenance the paragraph puts there, and adds the ops page and nginx, which that paragraph never names.",
+  "source": "reports/loggy-report/sections/02-design-a.tex:11 (\"The control host holds every screen: Dashboards, and Alertmanager ... The poller samples the cluster. The roster lists the collectors that should be alive. The catalogue maintenance audits the template counts. The receiver stores what a person was told.\"); reports/inputs/dataflow-atlas.md:77 (\"the catalog maintenance on the control host\"); reports/loggy-report/figures/STYLE.md (\"Names follow the report, not the code\")",
+  "fix": "Add a \"the catalogue maintenance\" card to the control-host group, rename \"Dashboards, nginx\" (line 71) to \"Dashboards, the one door\" after the body's own wording, and either name the ops page in Section 3.9 or drop its card.",
+  "severity": "should",
+  "lens": "figures"
+ }
+]

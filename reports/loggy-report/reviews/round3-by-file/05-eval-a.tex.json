@@ -1,0 +1,102 @@
+[
+ {
+  "file": "sections/05-eval-a.tex",
+  "line": 54,
+  "quote": "The collector had never read three of the five families.",
+  "problem": "Table 1 makes the O2 process tree one family, so the reader cannot fit the second process-tree format into the five and loses the family count Sections 2 and 3 rest on.",
+  "source": "briefs/soak-4.md:216",
+  "fix": "The collector had never read three of its log sources. Those are the second process-tree format, written by the data-distribution processes, the InfoLogger daemon log and the system journal.",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/05-eval-a.tex",
+  "line": 7,
+  "quote": "The instrument sums every container's processor time into core-seconds, one core busy for one second.",
+  "problem": "Section 4 says staging deliberately runs no container runtime, and the rig is never introduced as a containerised laptop copy, so the reader thinks the measurements came from the deployment.",
+  "source": "sections/04-why.tex:42",
+  "fix": "The rig is the whole stack in containers on one laptop. The instrument sums every container's processor time into core-seconds, one core busy for one second.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/05-eval-a.tex",
+  "line": 34,
+  "quote": "Every threading arm cost more against the 1.61~\\% floor: two collector processes 7.4~\\%, threaded inputs 11.5~\\%, filters in input processors 26.5~\\%.",
+  "problem": "\"Threaded inputs\" and \"filters in input processors\" name parts the report never describes, so the reader cannot tell what was tried.",
+  "source": "briefs/soak-1.md:112",
+  "fix": "Every threading arm cost more against the 1.61~\\% floor: a second collector process 7.4~\\%, a thread per log source 11.5~\\%, and the parsing moved into those threads 26.5~\\%.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 58,
+  "quote": "Two identical configurations differ by up to 19.3~\\% in wall clock, so the rig cannot resolve a change below about a fifth.",
+  "problem": "The 19.3 % spread is the fixed instrument's processor time, and calling it wall clock inverts round 9's finding that wall clock was the falsely reproducible quantity at 0.8 %.",
+  "source": "docs/SOAK_RESULTS.md:3935-3953 (table columns Min cpu-s, Median cpu-s, cpu-s/M; control lands 9.2 % below on one corpus and 19.3 % above on another); docs/SOAK_RESULTS.md:3900-3912; reports/loggy-report/briefs/soak-index.md:220",
+  "fix": "Two identical configurations differ by up to 19.3~\\% in processor time, so the rig cannot resolve a change below about a fifth.",
+  "severity": "must",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 17,
+  "quote": "The collector's memory sat between 133 and 228~MB at every rate up to 53,000 records a second.",
+  "problem": "That range is round 1 alone, on two cores against a sink that always accepts, and Table 7 two paragraphs later reports 62.7 and 87.1 MB at 5,000 records a second, so \"at every rate\" is false as written.",
+  "source": "docs/SOAK.md:18 (\"Between 133 MB and 228 MB across the working range\"); docs/SOAK_RESULTS.md:26 (62.7 MB and 87.1 MB); reports/loggy-report/briefs/soak-index.md:59",
+  "fix": "Against a sink that always accepts, the collector's memory sat between 133 and 228~MB from 1,000 up to 53,000 records a second. On the four-core rig at 5,000 a second it peaked at 62.7~MB.",
+  "severity": "should",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 54,
+  "quote": "The collector had never read three of the five families. Those are the second process-tree format, written by the data-distribution processes, the InfoLogger daemon log and the system journal.",
+  "problem": "By the report's own Table 1 the second process-tree format is one of the two formats of a family the collector already read, so only two of the five families were unread and the count of three belongs to sources.",
+  "source": "docs/SOAK_RESULTS.md:2999-3021 (\"adds three sources the collector never read, splits a fourth into the two formats it always was\"); reports/loggy-report/briefs/soak-index.md:23; reports/loggy-report/sections/01-intro-problem.tex:28",
+  "fix": "The collector had never read three of its sources. Those are the second process-tree format, written by the data-distribution processes, the InfoLogger daemon log and the system journal.",
+  "severity": "should",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 54,
+  "quote": "The collector had never read three of the five families.",
+  "problem": "The report's own five families (Table 1, 01-intro-problem.tex:19) count the O2 process tree as one family in two line formats, so the three unread sources were two families plus one format, not three families.",
+  "source": "briefs/soak-4.md:216 (\"Three of six log sources had never been read by the collector, and the fourth was two formats. Round 7 added `datadist`, `ildaemon` and `journald`, and split `dpl` out of `stdout`\"); briefs/soak-index.md:23",
+  "fix": "The collector had never read three of the six log sources.",
+  "severity": "must",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 56,
+  "quote": "All four passed the fixture and restart checks.",
+  "problem": "The four that passed were four collector releases, one of which, 5.0.8, is not deployed on the farm, while the preceding sentence counts four farm installations on three releases.",
+  "source": "briefs/soak-4.md:41-42 (\"4 | collector versions deployed on the farm: 4.0.1 on epn146 and epn228, 4.0.14 on epn323, 3.2.8 on epn-infra13\"; \"fixture, journal and restart checks on each of 3.2.8, 4.0.1, 4.0.14, 5.0.8\")",
+  "fix": "The checks ran on the three farm releases and on one newer release. All four passed the fixture and restart checks.",
+  "severity": "should",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 17,
+  "quote": "The collector's memory sat between 133 and 228~MB at every rate up to 53,000 records a second.",
+  "problem": "53,000 was read against a test output that always accepts, which only Section 6.1 states, so 5.2 reads as a rate measured against the real store.",
+  "source": "reports/loggy-report/briefs/soak-index.md:109",
+  "fix": "The collector's memory sat between 133 and 228~MB at every rate up to 53,000 records a second, against a test output that always accepts.",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 54,
+  "quote": "The collector had never read three of the five families. Those are the second process-tree format, written by the data-distribution processes, the InfoLogger daemon log and the system journal.",
+  "problem": "The second process-tree format is one of two formats inside one family, not a family, so the reader counts six families here against five in Section 2.1, and Section 3.1 adds a third name, \"the five log sources\".",
+  "source": "reports/loggy-report/briefs/constraints.md:85",
+  "fix": "The collector had never read three things: the second process-tree format, written by the data-distribution processes, the InfoLogger daemon log and the system journal. Then make Section 3.1 say \"the five log families\".",
+  "severity": "should",
+  "lens": "voice"
+ }
+]

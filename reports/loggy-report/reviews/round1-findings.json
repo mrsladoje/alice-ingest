@@ -1,0 +1,1918 @@
+{
+ "preamble.tex": [
+  {
+   "file": "reports/loggy-report/report/preamble.tex",
+   "line": 1,
+   "quote": "\\documentclass[a4paper,11pt]{article}",
+   "problem": "The built PDF has 18 pages; the target is 16 including the title page.",
+   "source": "pdfinfo report/report.pdf: Pages: 18",
+   "fix": "Place Figures 4, 5 and 6 with [htbp] so they stop leaving part-empty pages, give Appendix B its table in place, then cut text in sections 3 and 5 if two pages are still over.",
+   "severity": "must",
+   "lens": "build"
+  },
+  {
+   "file": "reports/loggy-report/report/preamble.tex",
+   "line": 17,
+   "quote": "\\special{pdf:minorversion 7}",
+   "problem": "The PDF writer warns \"Object @page.1 already defined\" on every build; the reader sees nothing and the cause was not verified.",
+   "source": "tectonic standard output during the build: \"warning: Object @page.1 already defined.\"",
+   "fix": "No action unless a later build turns the warning into an error.",
+   "severity": "nit",
+   "lens": "build"
+  }
+ ],
+ "07-limits-close.tex": [
+  {
+   "file": "reports/loggy-report/sections/07-limits-close.tex",
+   "line": 76,
+   "quote": "\\section{The soak in one line per round}\\label{app:soak}",
+   "problem": "Appendix B has a heading with no body, Table 10 (tab:soak) is referenced nowhere, and it floats past the References heading to land between reference [6] and [7] on printed page 17.",
+   "source": "pdftotext of report/report.pdf pages 17-18; grep 'ref{tab:soak}' over sections returns nothing",
+   "fix": "Add the sentence \"Table~\\ref{tab:soak} gives one line per soak round.\" under the heading, and change the table to \\begin{table}[H] or put \\clearpage before \\input{references} in report/report.tex:39.",
+   "severity": "must",
+   "lens": "build"
+  },
+  {
+   "file": "reports/loggy-report/sections/07-limits-close.tex",
+   "line": 78,
+   "quote": "The review rounds also made the product stamp a document identifier and write with create.",
+   "problem": "The Table 10 caption does not describe the table, whose rows give one result per soak round and never mention a document identifier.",
+   "source": "sections/07-limits-close.tex:82-97 (the table body)",
+   "fix": "Each soak round left one figure of record, and the review rounds fixed the duplicated bulks by writing with create.",
+   "severity": "nit",
+   "lens": "build"
+  },
+  {
+   "file": "reports/loggy-report/sections/07-limits-close.tex",
+   "line": 17,
+   "quote": "Detector warm-up needs about 32 consecutive live intervals, and no run measured its length.",
+   "problem": "32 windows is the injection harness's warm-up, not the detector's; the plugin's own guidance is a few hundred one-minute windows, and the two figures measure different things.",
+   "source": "reports/loggy-report/briefs/walkthroughs-6-9.md:27 (\"deploy/README.md:1081 states ~3-5 h at 1 min ... deploy/README.md:1614 names a 32-window RCF warm-up for the poison harness. The two figures describe different things\")",
+   "fix": "Write: \"A detector needs a few hundred one-minute windows, three to five hours, before its grades mean anything; the injection harness waits 32 intervals. Neither was measured.\"",
+   "severity": "should",
+   "lens": "numbers"
+  },
+  {
+   "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/07-limits-close.tex",
+   "line": 23,
+   "quote": "The stale-projector monitor fires only while one projector heartbeat exists in the last 24~hours, so a day of silence mutes it.",
+   "problem": "The second break-glass rule has a limit of the same kind and it is not listed: Alertmanager-down fires on the projector's report, never on absence, so a dead projector silences it.",
+   "source": "briefs/walkthroughs-6-9.md walkthrough 8 verdict table (alertmanager-down.json:32, 42-47, 59: \"with no heartbeat at all it returns false ... a dead projector silences alertmanager-down\") and flag 3 of the same brief",
+   "fix": "Add: \"The Alertmanager-down monitor reads the projector's own report, so a dead projector silences it too.\"",
+   "severity": "should",
+   "lens": "facts"
+  },
+  {
+   "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/07-limits-close.tex",
+   "line": 35,
+   "quote": "Production, the whole farm with three storage nodes, two replicas and the bus, is not real.",
+   "problem": "The sources disagree on the production tier size and the report picks one silently; the design objective says the tier is bigger in production and the architecture brief says no source gives a number.",
+   "source": "briefs/target-architecture.md:23 and doubt 14 at :225 (\"Not decided in the sources read\"); briefs/constraints.md:221 (deck objective 6, \"In production the tier is bigger, so more can die\"); the opposite reading at briefs/constraints.md:306 is the soak rig's comparison point, not a decision",
+   "fix": "\"Production, the whole farm with a storage tier of at least three machines, two replicas and the bus, is not real. How much larger the tier grows is not decided.\"",
+   "severity": "should",
+   "lens": "facts"
+  },
+  {
+   "file": "reports/loggy-report/sections/07-limits-close.tex",
+   "line": 3,
+   "quote": "This section lists what the platform does not yet do and what was not measured.",
+   "problem": "The opening sentence restates the heading and states no conclusion, so the section starts with nothing.",
+   "source": ".claude/skills/humanizer/SKILL.md:338 (a heading repeated in the first sentence); reports/loggy-report/briefs/style.md:7 (state the conclusion first)",
+   "fix": "Delete it and open on the conclusion: \"The platform runs, and every cost figure in it comes from a laptop. These are the things that were never measured and the limits the design still carries.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/07-limits-close.tex",
+   "line": 11,
+   "quote": "The archive's busiest worker-second is 78~records, the plan's burst figure 10,000 to 20,000, and that gap is unsettled.",
+   "problem": "\"the plan\" points at an internal document the reader has never met, and the second clause has no verb.",
+   "source": "reports/loggy-report/briefs/soak-index.md:1 (\"The plan's 1,000 a second was a farm figure read as a worker figure\")",
+   "fix": "\"The archive's busiest worker-second is 78~records. The design target for a burst is 10,000 to 20,000 a second. Nothing measured a real burst, so the gap stands.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/07-limits-close.tex",
+   "line": 17,
+   "quote": "Detector warm-up needs about 32 consecutive live intervals, and no run measured its length.",
+   "problem": "The number 32 carries no meaning because the length of an interval is never given.",
+   "source": "reports/loggy-report/briefs/why.md:178 (\"Warm-up needs about 32 consecutive live intervals\"); reports/loggy-report/briefs/walkthroughs-6-9.md:27 (\"32-window RCF warm-up\", one-minute windows)",
+   "fix": "\"A detector needs about 32 consecutive one-minute windows of live data before it scores, so roughly half an hour. No run measured how long the scores take to mean something.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/07-limits-close.tex",
+   "line": 39,
+   "quote": "First, the live-lane bus, agreed and not built: one topic from every collector, the shifter view its one consumer, broker placement undecided.",
+   "problem": "Nine ordinals run through one paragraph of verbless clauses, where the style and the skill both ask for a list.",
+   "source": ".claude/skills/simple-english/SKILL.md:42 (a vertical list is for three or more parallel items or steps); reports/loggy-report/briefs/style.md:105 (end with an explicit \"what remains\" list)",
+   "fix": "Set the nine items as a numbered vertical list, one full sentence each with its status mark: \"1. The live-lane bus, agreed and not built. Every collector writes one topic and the shifter view is the only consumer. Broker placement is undecided.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/07-limits-close.tex",
+   "line": 78,
+   "quote": "\\caption{The review rounds also made the product stamp a document identifier and write with create.}",
+   "problem": "The caption states one incidental result instead of the point of a table that lists every round, and \"also\" refers to nothing.",
+   "source": "reports/loggy-report/briefs/style.md:82",
+   "fix": "\\caption{Twenty-one rounds ran, and most of them changed the product rather than confirming it.}",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/07-limits-close.tex",
+   "line": 29,
+   "quote": "The live lane matches InfoLogger and the central family, so after the severity fix of Section~\\ref{sec:eval-sources} it will not see stdout info lines.",
+   "problem": "\"stdout\" is shell shorthand that appears once and is never defined, where the report elsewhere says \"the O2 process tree\".",
+   "source": "reports/loggy-report/sections/01-intro-problem.tex:26 (\"one output and one error file each\"); reports/loggy-report/briefs/style.md:43 (prefer the concrete noun)",
+   "fix": "\"... so after the severity fix of Section~\\ref{sec:eval-sources} it will not see the info lines from the process output files.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "sections/07-limits-close.tex",
+   "line": 7,
+   "quote": "Every cost figure in Section~\\ref{sec:eval} comes from a laptop, and the conversion to a farm worker was never measured.",
+   "problem": "The report never names the one measurement that would fix the laptop-to-farm gap, so question 10 could only be answered by inference.",
+   "source": "briefs/soak-1.md:224 quoting the soak: \"One micro-benchmark on `epn228` would give the conversion factor. It has not been run.\"",
+   "fix": "Add that sentence after this one.",
+   "severity": "must",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/07-limits-close.tex",
+   "line": 11,
+   "quote": "The archive's busiest worker-second is 78~records, the plan's burst figure 10,000 to 20,000, and that gap is unsettled.",
+   "problem": "\"The plan\" is never introduced and the likely reading of the gap is withheld, so the sentence tells the reader nothing.",
+   "source": "briefs/soak-1.md:64 (\"The plan's rates are farm rates that were read as worker rates\") and briefs/soak-3.md:101-102 (the band matches the farm-wide peak of 9,781)",
+   "fix": "Name it as the soak plan's assumed per-worker burst and add that the band matches the farm-wide peak, so it was probably a farm rate read as a worker rate.",
+   "severity": "should",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/07-limits-close.tex",
+   "line": 83,
+   "quote": "1 & Collector alone: 53,000 a second, two cores. \\\\",
+   "problem": "Table 10's 53,000, Section 6.1's \"ceiling above 50,000 is unknown\" and Section 5.2's 42,000 are never ranked, so the reader cannot say what the collector's known ceiling is.",
+   "source": "briefs/soak-index.md:13 (Round 1's 53,000 is a read ceiling against a sink that always accepts) and briefs/soak-1.md:209 (\"This document states no collector ceiling number ... nothing ran above 50,000\")",
+   "fix": "In the table: \"Collector alone against a sink that always accepts: about 53,000 a second, two cores.\" In Section 6.1 say that figure is superseded because nothing has run above 50,000 with a real store.",
+   "severity": "should",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/07-limits-close.tex",
+   "line": 29,
+   "quote": "The live lane matches InfoLogger and the central family, so after the severity fix of Section~\\ref{sec:eval-sources} it will not see stdout info lines.",
+   "problem": "Section 3.9 says the live page keeps the severe lines, so this reads as the design working rather than as a limit.",
+   "source": "reports/inputs/dataflow-atlas.md:30 (an info line is never posted to the live lane, by design) with sections/05-eval-a.tex:58 (before the fix, 41.8 % of the corpus reached the storage tier with no severity)",
+   "fix": "Say what changes: \"Before the severity fix those stdout lines carried no severity and went central, so the live page showed them. They are now info and stay on the worker, and the live page shows less than a person may remember.\"",
+   "severity": "should",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/07-limits-close.tex",
+   "line": 39,
+   "quote": "First, the live-lane bus, agreed and not built: one topic from every collector, the shifter view its one consumer, broker placement undecided.",
+   "problem": "No single place states what is built, so the reader assembled the list from nine sections and could not vouch for its completeness.",
+   "source": "briefs/target-architecture.md:215 (\"Nothing read says whether the stamper, the poller, the projector, the rollup, Alertmanager, the receiver or the shifter view ran on the farm. Say 'not stated' rather than 'deployed'.\")",
+   "fix": "Open Section 6.3 with one sentence listing the built set on staging (collector, stamper, local node, storage tier, Dashboards, poller, projector, receiver, Alertmanager, shifter view, trend rollup, the three detection lanes, the template chain) and say plainly which of them is not stated for the farm pilot.",
+   "severity": "should",
+   "lens": "reader"
+  }
+ ],
+ "references.tex": [
+  {
+   "file": "reports/loggy-report/report/references.tex",
+   "line": 4,
+   "quote": "\\bibitem{ref:o2tdr} ALICE Collaboration. \\emph{Technical Design Report for the Upgrade of the Online--Offline Computing System}. CERN-LHCC-2015-006, ALICE-TDR-019, 2015.",
+   "problem": "The reference is in the bibliography but nothing cites it.",
+   "source": "grep of \\cite over sections/*.tex and report/report.tex lists 11 keys; ref:o2tdr is absent",
+   "fix": "Cite it at the first mention of timeframe reconstruction in sections/01-intro-problem.tex:3, or delete the entry.",
+   "severity": "must",
+   "lens": "build"
+  },
+  {
+   "file": "reports/loggy-report/report/references.tex",
+   "line": 7,
+   "quote": "\\bibitem{ref:drain} P. He, J. Zhu, Z. Zheng, M. R. Lyu. Drain: an online log parsing approach with fixed depth tree.",
+   "problem": "The reference is in the bibliography but nothing cites it.",
+   "source": "grep of \\cite over sections/*.tex and report/report.tex; only ref:drain3 is cited",
+   "fix": "Cite it with drain3 at sections/06-eval-b.tex:5 as \\cite{ref:drain,ref:drain3}, or delete the entry.",
+   "severity": "must",
+   "lens": "build"
+  },
+  {
+   "file": "reports/loggy-report/report/references.tex",
+   "line": 15,
+   "quote": "\\bibitem{ref:aliceilad} A. Techaviseschai, S. Tarnpradab, V. Chibante Barroso, P. Phunchongharn. A real-time semi-supervised log anomaly detection framework for ALICE O$^2$ facilities.",
+   "problem": "The reference is in the bibliography but nothing cites it.",
+   "source": "grep of \\cite over sections/*.tex and report/report.tex; ref:aliceilad is absent",
+   "fix": "Cite it where section 6.3 names anomaly detection on the log text as open (sections/07-limits-close.tex:39, the \"Seventh\" item), or delete the entry.",
+   "severity": "must",
+   "lens": "build"
+  },
+  {
+   "file": "reports/loggy-report/report/references.tex",
+   "line": 10,
+   "quote": "\\bibitem{ref:alertmanager} Prometheus Alertmanager documentation. \\url{https://prometheus.io/docs/alerting/latest/alertmanager/}.",
+   "problem": "Entries [9] and [14] print with visible word gaps because the URL cannot break; on printed page 17 entry [9] reads \"Prometheus    Alertmanager    documentation.\"",
+   "source": "report/report.log:1178 \"Underfull \\hbox (badness 10000) in paragraph at lines 10--11\" and report/report.log:1185 \"badness 1348 ... lines 15--16\"",
+   "fix": "Add \\PassOptionsToPackage{hyphens}{url} before \\usepackage[hidelinks]{hyperref} in preamble.tex:15, or put \\raggedright after \\begin{thebibliography}{99}.",
+   "severity": "should",
+   "lens": "build"
+  }
+ ],
+ "02-design-a.tex": [
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 53,
+   "quote": "The collector reads each line, decides where it belongs and sends it on (Figure~\\ref{fig:collector}).",
+   "problem": "Figure 4 lands two printed pages after the sentence that cites it (cited on page 5, placed on page 7).",
+   "source": "pdftotext page map of report/report.pdf; float declared [t] at sections/02-design-a.tex:55",
+   "fix": "Change \\begin{figure}[t] to \\begin{figure}[htbp] at sections/02-design-a.tex:55, or move the environment above the citing paragraph.",
+   "severity": "should",
+   "lens": "build"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 67,
+   "quote": "The stamper sets it on the worker before indexing, so both tiers carry the field and no raw line leaves its machine (Figure~\\ref{fig:templates}).",
+   "problem": "Figure 5 lands two printed pages after the sentence that cites it (cited on page 6, placed on page 8).",
+   "source": "pdftotext page map of report/report.pdf; float declared [t] at sections/02-design-a.tex:69",
+   "fix": "Change \\begin{figure}[t] to \\begin{figure}[htbp] at sections/02-design-a.tex:69.",
+   "severity": "should",
+   "lens": "build"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 26,
+   "quote": "health samples from collectors and the poller",
+   "problem": "The narrow Table 3 cell sets one ragged line.",
+   "source": "report/report.log:1100 \"Underfull \\hbox (badness 5260) in paragraph at lines 28--28\"",
+   "fix": "Widen that column by 0.02\\textwidth or shorten the cell to \"health samples\".",
+   "severity": "nit",
+   "lens": "build"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 49,
+   "quote": "On staging the local tier held 96.94~\\% of all lines.",
+   "problem": "96.94 % is the share of the O2 process-tree family that stays local, measured on the archive fixture corpus, not the share of all lines and not a staging measurement.",
+   "source": "docs/SOAK_RESULTS.md:3115-3116 (\"96.94 % of the process tree stays on the node and 3.06 % crosses the network\"); reports/loggy-report/briefs/soak-index.md section 2k",
+   "fix": "Write: \"The process-tree family sends 96.94 % of its lines to the local index and 3.06 % across the wire.\" The same wrong denominator appears at sections/04-why.tex:41 (\"The local tier holds 96.94~\\% of lines.\") and sections/07-limits-close.tex:93 (\"96.94~\\% of lines stay local.\").",
+   "severity": "must",
+   "lens": "numbers"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 71,
+   "quote": "The stamper holds at most 20,000 clusters per worker and drops the least recently used.",
+   "problem": "Section 5.5 says the same 20,000 ceiling makes the tree stop learning and keep counting, with eviction deliberately refused, so the report states two incompatible behaviours for one number.",
+   "source": "reports/loggy-report/briefs/walkthroughs-6-9.md:67 and :83 (stamper LRU eviction, stamper.py:276-311) against docs/SOAK_RESULTS.md:5124-5136 (\"the tree stops learning at 20,000 templates and keeps counting; LRU eviction is not used\")",
+   "fix": "Say which path each ceiling governs, or state the shipped behaviour once: the stamper evicts least-recently-used clusters, while the catalog's own tree stops learning and keeps counting.",
+   "severity": "should",
+   "lens": "numbers"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 57,
+   "quote": "Moving the write to the local node from the shipped 5~seconds to 1~second cut processor cost by 24.5~\\% and peak memory by 28.0~\\%.",
+   "problem": "The sentence does not say whose processor cost fell: 24.5 % is the collector's own cost, while the whole four-core stack moved 3.4 %.",
+   "source": "docs/SOAK_RESULTS.md:19-27 (total 108.40 to 104.67, minus 3.4 %; collector's own cost 36.70 to 27.70, minus 24.5 %)",
+   "fix": "Write: \"cut the collector's own processor cost by 24.5 % and its peak memory by 28.0 %\".",
+   "severity": "should",
+   "lens": "numbers"
+  },
+  {
+   "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/02-design-a.tex",
+   "line": 49,
+   "quote": "On staging the local tier held 96.94~\\% of all lines.",
+   "problem": "96.94 % is the share of the O2 process-tree family that stays on its worker, not the share of all lines; InfoLogger alone is 58.1 % of the corpus and every InfoLogger record crosses the wire.",
+   "source": "docs/SOAK_RESULTS.md:3115 (\"96.94 % of the process tree stays on the node and 3.06 % crosses the network\"); briefs/soak-index.md:23; briefs/soak-4.md:23; corpus shares at briefs/constraints.md:126",
+   "fix": "Write \"On staging 96.94 % of the process-tree family stayed on its worker.\" The same error is at sections/04-why.tex:41 and in the appendix row at sections/07-limits-close.tex:93; sections/05-eval-a.tex:58 already says it correctly.",
+   "severity": "must",
+   "lens": "facts"
+  },
+  {
+   "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/02-design-a.tex",
+   "line": 59,
+   "quote": "The documented worst case is twice that with a 20~\\% margin, roughly 307~MB, so we cap the service at 384~MB.",
+   "problem": "384 MB is the soft limit where the service is throttled; the hard cap is 768 MB, and the distinction carries the measured 373 MB peak.",
+   "source": "briefs/target-architecture.md:154 (\"MemoryHigh 384 MB, MemoryMax 768 MB\"); deploy/roles/loggy_collector/defaults/main.yml:135-136",
+   "fix": "\"so the service is throttled at 384 MB and killed at 768.\" Also label the other 384 MB at sections/06-eval-b.tex:36 as the shifter host's semantic model ceiling, a different limit (briefs/target-architecture.md:177 warns against conflating them).",
+   "severity": "should",
+   "lens": "facts"
+  },
+  {
+   "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/02-design-a.tex",
+   "line": 11,
+   "quote": "The control host runs Dashboards, the poller, the roster, the catalog maintenance, Alertmanager and the receiver.",
+   "problem": "The other two storage machines carry named services and the report never places them, so a reader cannot tell that the projector and the trend rollup sit off the user-interface host, or where the live lane is served.",
+   "source": "briefs/target-architecture.md:27 and :65-66 (projector and trend rollup on the second storage node, deploy/inventory.yml:62-65, deploy/README.md:78-80); briefs/target-architecture.md:75 (shifter view on the third); briefs/walkthroughs-6-9.md:9",
+   "fix": "Add: \"The second storage node runs the projector and the trend rollup, away from the user-interface host; the third serves the shifter view.\"",
+   "severity": "should",
+   "lens": "facts"
+  },
+  {
+   "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/02-design-a.tex",
+   "line": 15,
+   "quote": "The farm value of three primaries is agreed and not applied.",
+   "problem": "The farm inventory already carries the setting, so \"not applied\" is wrong; what is missing is a run at farm volume.",
+   "source": "deploy/inventory.epn.yml:204 (log_primary_shards_storage: 3, live, comment at :193-194) against deploy/roles/loggy_opensearch/defaults/main.yml:247 (value 1); briefs/why.md entry 6 states the status from deploy/README.md:2289-2321 only",
+   "fix": "\"Three primaries are set for the farm and have never carried farm volume.\" Apply the same wording at sections/04-why.tex:41.",
+   "severity": "should",
+   "lens": "facts"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 13,
+   "quote": "The ghost in Figure~\\ref{fig:arch} is a Kafka bus, agreed for the live lane only.",
+   "problem": "Two words the reader cannot resolve: \"ghost\" is drawing shorthand for a dashed box, and \"live lane\" appears here for the first time with no definition.",
+   "source": "reports/loggy-report/briefs/target-architecture.md:11 (\"Severe lines also go to a live lane that a person watches in a browser without a cluster query\")",
+   "fix": "\"The dashed box in Figure~\\ref{fig:arch} is a Kafka bus, agreed for the live lane only.\" Add the definition earlier, in 3.1: \"The live lane is a copy of every severe line, pushed straight to a page a person watches, so no one queries the cluster to see what is arriving.\"",
+   "severity": "must",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 11,
+   "quote": "The control host runs Dashboards, the poller, the roster, the catalog maintenance, Alertmanager and the receiver.",
+   "problem": "Six components are named before any of them is defined; the poller, the roster and the receiver are only explained two subsections later.",
+   "source": ".claude/skills/simple-english/SKILL.md:40 (define a concept term at its first use); reports/loggy-report/briefs/target-architecture.md:51-52",
+   "fix": "Give each name its job in the same breath, or split into two sentences: \"The control host runs Dashboards and Alertmanager. Beside them sit the poller, which samples the cluster, the roster, which says which collectors must be running, the catalogue maintenance and the receiver, which stores what a person was told.\"",
+   "severity": "must",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 59,
+   "quote": "Measured, it ran between 133 and 228~MB under steady load and peaked at 373~MB in a sink outage with the shipped buffer.",
+   "problem": "The sentence opens on a dangling participle that hides the actor, and then carries two measurements; \"Fixed, severity comes out of 99.83~\\% ...\" in 5.4 repeats the pattern.",
+   "source": ".claude/skills/simple-english/SKILL.md:35 (simple tenses, active voice, name the actor); reports/loggy-report/sections/05-eval-a.tex:58",
+   "fix": "\"Under steady load the collector ran between 133 and 228~MB. In a sink outage with the shipped buffer it peaked at 373~MB.\" Repair the \"Fixed,\" opener in 5.4 the same way.",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 61,
+   "quote": "At 20,000 records a second it gave 61~seconds before the first drop, at a real worker's rate hours.",
+   "problem": "A comma splice joins two clauses and the second one has no verb, so the reader has to rebuild it.",
+   "source": "reports/loggy-report/briefs/target-architecture.md:152 (\"256 MB gave 61 s before the first drop at 20,000 records a second\")",
+   "fix": "\"At 20,000 records a second the buffer held 61~seconds before the first drop. At a real worker's rate it holds hours.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 73,
+   "quote": "Two hourly rules close the chain: one fires on a template first catalogued in the last hour, the other on any failed check in the last two hours.",
+   "problem": "28 words, over the 25-word ceiling, with the second clause elliptical.",
+   "source": "reports/loggy-report/briefs/style.md:11",
+   "fix": "\"Two hourly rules close the chain. One fires on a template catalogued in the last hour. The other fires on any failed check in the last two hours.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 73,
+   "quote": "one fires on a template first catalogued in the last hour",
+   "problem": "\"catalogued\" is British, but the report spells the same word's noun American (\"catalog\") eleven times, against the agreed British spelling.",
+   "source": "reports/loggy-report/outline.md:28 (British spelling); reports/loggy-report/briefs/style.md:74",
+   "fix": "Use \"catalogue\" and \"catalogued\" everywhere: \"the catalogue\", \"the catalogue maintenance\", \"the template catalogue\".",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 75,
+   "quote": "Version W covers version N when they share a family and a token count and W has, at every position, a wildcard or N's token.",
+   "problem": "Two bare symbols, W and N, stand in for template versions, and the style forbids symbols and shorthand in prose.",
+   "source": "reports/loggy-report/briefs/style.md:5 (rules illustrated by plain sentences from the deck); /Users/admin/.claude/CLAUDE.md rule 5 (no symbols, spell the thing out)",
+   "fix": "\"A wider version covers a narrower one when both belong to the same family, hold the same number of tokens, and the wider version has either a wildcard or the narrower version's own token at every position.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 7,
+   "quote": "A local OpenSearch data node holds one index per worker on four of the EPN's 128~cores, and little memory.",
+   "problem": "The clause attaches the whole platform's budget of four cores to the data node alone, and \"holds ... and little memory\" does not parse.",
+   "source": "reports/loggy-report/briefs/target-architecture.md:11; reports/loggy-report/sections/01-intro-problem.tex:50 (\"A worker gives the platform four of its 128 logical processors\")",
+   "fix": "\"A local OpenSearch data node holds one index per worker. The four parts together take four of the EPN's 128 logical processors and little memory.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 41,
+   "quote": "The local node's ingest pipeline, processors run before a document is stored, stamps the ingest time and normalises the severity.",
+   "problem": "The definition is wedged in as an appositive with no article, and the passive \"is stored\" hides who stores the document.",
+   "source": ".claude/skills/simple-english/SKILL.md:35; .claude/skills/simple-english/SKILL.md:40",
+   "fix": "\"The local node runs an ingest pipeline: a set of processors that touch every document before the node stores it. It stamps the ingest time and normalises the severity.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 55,
+   "quote": "\\caption{Five steps on the worker, and 64 chunks in memory bound the collector's memory.}",
+   "problem": "The caption is a fragment joined to a clause and repeats \"memory\" twice, so it states no point.",
+   "source": "reports/loggy-report/briefs/style.md:82 (captions are full sentences that state the point of the figure)",
+   "fix": "\\caption{A line takes five steps inside the collector, and the 64 chunks it may hold in memory bound what it can cost the worker.}",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 13,
+   "quote": "A moved viewer then moves one consumer, not 200 collector configurations.",
+   "problem": "The subject \"a moved viewer\" cannot move a consumer, and \"viewer\" is a third name for the shifter view.",
+   "source": "reports/loggy-report/briefs/target-architecture.md:130 (\"Today moving the live lane means editing 200+ workers\")",
+   "fix": "\"Move the shifter view to another machine and one consumer moves with it. Today the same move edits more than 200 collector configurations.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 7,
+   "quote": "The worker tier runs on every EPN and has four parts.",
+   "problem": "The reader counts three parts in the three sentences that follow, because the stamper hides in a subordinate clause.",
+   "source": "reports/loggy-report/briefs/target-architecture.md:11 (collector, stamper, health sample, local node)",
+   "fix": "\"The worker tier runs on every EPN: a collector, a stamper beside it, a health sample and a local search node.\" Then take each in turn.",
+   "severity": "nit",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 13,
+   "quote": "The ghost in Figure~\\ref{fig:arch} is a Kafka bus, agreed for the live lane only.",
+   "problem": "\"The live lane\" carries a design decision, a cost result and a build item, and its first use is inside a sentence about something else, four pages before its definition.",
+   "source": "reports/loggy-report/sections/05-eval-a.tex:36 \u2014 \"The live lane, the second output that copies records to the shifter view\"",
+   "fix": "Move the definition to first use: \"a Kafka bus for the live lane, the second copy of every severe record that the collector posts straight to the shifter view so a person can watch lines arrive without asking the cluster.\"",
+   "severity": "must",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 43,
+   "quote": "\\item The collector also posts the record to the shifter view's live lane, which holds the last 500 records.",
+   "problem": "\"Shifter\" appears eleven times across four sections and is never explained; a reader outside ALICE never learns the page is for the person on shift.",
+   "source": "briefs/target-architecture.md:183 names \"the shifter host (shifter view)\"; outline.md:84 describes it as the surface the operator watches",
+   "fix": "At first use write \"the shifter view, the page the person on shift watches\".",
+   "severity": "must",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 11,
+   "quote": "The control host runs Dashboards, the poller, the roster, the catalog maintenance, Alertmanager and the receiver.",
+   "problem": "The prose never says the control host is one of the three storage nodes, and never names the background or shifter hosts at all, so the reader counts six or seven machines against the five the introduction promises.",
+   "source": "briefs/target-architecture.md:25 \u2014 \"The control host is the first storage node (deploy/README.md:75-76)\"; briefs/target-architecture.md:183 \u2014 \"the control host (Dashboards, nginx, Alertmanager, receiver, poller, ops page), the background host (rollup, projector), the shifter host (shifter view)\"",
+   "fix": "Add before the component list: \"The three storage nodes carry three further jobs. The first is the control host and holds every screen. The second is the background host and runs the projector and the trend rollup. The third is the shifter host and runs the shifter view. Staging is therefore five machines: two workers and three storage nodes.\"",
+   "severity": "must",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 73,
+   "quote": "The chain to the catalog has four stages: stamp, buckets, audits, rules.",
+   "problem": "\"The catalog\" is never defined; it first appears as \"the catalog maintenance\" in a bare component list, so the reader does not know what is being maintained.",
+   "source": "docs/TEMPLATES_FIX_PLAN.md:209 (the catalog holds one definition document per template version, with labels attached to a version); briefs/walkthroughs-6-9.md:73 \u2014 \"one check document per family into the catalog\"",
+   "fix": "Define it here: \"The catalog is one index holding one document per template the farm has ever seen, plus the results of the checks below.\"",
+   "severity": "must",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 40,
+   "quote": "\\item The stamper, over a local socket, sets a template version and status and hands the chunk back.",
+   "problem": "\"A template version\" is never defined; the reader is told what a template is but not that a template changes over time, so every per-version count and the cover relation are unreadable.",
+   "source": "docs/TEMPLATES_FIX_PLAN.md:205 \u2014 \"Drain only widens, so every observed transition is a cover relation... one version can be widened into different successors on different workers when different tokens vary first.\"",
+   "fix": "In 02-design-a.tex:67, after the template definition: \"A template widens as the miner sees more lines: a word that was fixed becomes a wildcard. Each state of a template is one version, and a version is what a record carries.\"",
+   "severity": "must",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 75,
+   "quote": "Version W covers version N when they share a family and a token count and W has, at every position, a wildcard or N's token.",
+   "problem": "A bare formal definition with no goal before it, so the reader cannot tell whether the cover relation is a search feature, a storage rule or a maintenance check.",
+   "source": "docs/TEMPLATES_FIX_PLAN.md:54 \u2014 \"Search expansion by the cover relation, computed in the Shifter. Drain only widens, so the structural relation contains every observed transition.\"; :209 \u2014 \"The cover relation contains that grouping as a special case, so the identifier was removed.\"",
+   "fix": "Goal first: \"One search for a template must find the records stamped with its older, narrower versions. A wider version covers a narrower one when they share a family and a token count and the wider has, at every position, a wildcard or the narrower's token. That relation groups a template's versions, so no separate identifier is stored.\"",
+   "severity": "must",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 49,
+   "quote": "On staging the local tier held 96.94~\\% of all lines.",
+   "problem": "96.94 % is a share of the O2 process tree only, but is given here and at 04-why.tex:41 as a share of all lines, which makes the other four families look like 3 % of a worker's output.",
+   "source": "briefs/soak-index.md:211 \u2014 \"96.94 % / 3.06 % | Process-tree share that stays on the worker / crosses the network\"; briefs/soak-4.md:23 gives the same scope",
+   "fix": "In all three places write \"of the O2 process tree\": \"On staging 96.94~\\% of the O2 process tree stayed on its worker.\"",
+   "severity": "must",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 43,
+   "quote": "\\item The collector also posts the record to the shifter view's live lane, which holds the last 500 records.",
+   "problem": "This walkthrough step names neither the machine it runs on nor what carries the bytes, while every other step does; the shifter view is never placed on any machine in the report body.",
+   "source": "reports/inputs/dataflow-atlas.md:22 (audited) \u2014 \"The same stamped record is also posted over HTTP to the live lane inside the Shifter on node-05. The Shifter keeps it in memory and streams it to every open browser over Server-Sent Events, with no cluster query at all.\"",
+   "fix": "\"The collector also posts the record over HTTP to the live lane on the shifter host, which keeps the last 500 records in memory and pushes each one to every open browser over a held-open HTTP connection.\"",
+   "severity": "must",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 49,
+   "quote": "A placement setting pins the index to its worker, so no byte crosses the network.",
+   "problem": "Walkthrough 2 is three sentences and never says who reads a local line, how one search reaches 200 workers, or what fanout costs; Section 4 then uses \"fanout\" as if it had been introduced.",
+   "source": "reports/inputs/dataflow-atlas.md:30-31 (audited walkthrough 2, steps 4 and 5); outline.md:72 \u2014 \"how one query from a storage machine still reaches it. Federated search: ask once, every node answers, the cost of fanout, and why the live lane exists so that the cluster is asked only when it must be.\"",
+   "fix": "Add: \"One search still finds it. The cluster asks every node that holds a shard of the pattern and merges the answers, so a search over all workers is as slow as the slowest worker. That is why the live lane exists: the everyday question, what is arriving now, never asks the cluster at all.\"",
+   "severity": "must",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 11,
+   "quote": "The control host runs Dashboards, the poller, the roster, the catalog maintenance, Alertmanager and the receiver.",
+   "problem": "Five of six components are introduced as bare names with no job, against the report's own rule; each job arrives one to three pages later.",
+   "source": "outline.md:68 \u2014 \"The control host, the background host and the shifter host, each with its services named by job\"; outline.md decision 13 \u2014 \"Components are named by their job.\"",
+   "fix": "Give each three words: \"the poller, which samples the cluster; the roster, the list of collectors that should be alive; the catalog maintenance, which audits the template counts; Alertmanager, which decides when a person is told; and the receiver, which stores what was sent.\"",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 7,
+   "quote": "The collector reads the five log sources, with the stamper beside it.",
+   "problem": "One of the four parts of the worker tier is introduced as a bare name in a subordinate clause; its job first appears a page later.",
+   "source": "briefs/walkthroughs-6-9.md:66 \u2014 \"Every record gets template_version and template_status before indexing\"",
+   "fix": "\"with the stamper beside it, a small service that names every line's template before it is indexed.\"",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 7,
+   "quote": "The worker tier runs on every EPN and has four parts.",
+   "problem": "Present tense with no status mark, three pages after the introduction said the platform reached three farm workers; a reader who trusts this sentence believes the farm is deployed.",
+   "source": "reports/loggy-report/sections/01-intro-problem.tex:9 \u2014 \"one deployment went green on three farm workers and one infra machine\"; outline.md:3 \u2014 \"Status marks say what is built and what is agreed and not built.\"",
+   "fix": "\"In the target design the worker tier runs on every EPN; today it runs on three. It has four parts.\"",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/02-design-a.tex",
+   "line": 7,
+   "quote": "A local OpenSearch data node holds one index per worker on four of the EPN's 128~cores, and little memory.",
+   "problem": "Section 2.3 calls the same budget \"four of its 128 logical processors\"; a reader who knows Linux knows cores and logical processors are not the same thing.",
+   "source": "reports/loggy-report/sections/01-intro-problem.tex:50 \u2014 \"A worker gives the platform four of its 128 logical processors and little memory.\"",
+   "fix": "Use \"logical processors\" in both places, and give \"little memory\" a number once.",
+   "severity": "nit",
+   "lens": "simplicity"
+  },
+  {
+   "file": "sections/02-design-a.tex",
+   "line": 33,
+   "quote": "An error line crosses the wire once and is copied three times before a person reads it",
+   "problem": "Step 6 of the same list and Figure 3 add an HTTP post of the same record to the shifter view, so the line crosses the wire twice and exists in four copies.",
+   "source": "reports/inputs/dataflow-atlas.md:19 (audited walkthrough 1: \"The second copy goes to the live lane ... posted over HTTP to the live lane inside the Shifter on node-05\")",
+   "fix": "Write: \"An error line crosses the wire twice: once to the storage tier, where it is copied three times, and once to the live view a person watches.\"",
+   "severity": "must",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/02-design-a.tex",
+   "line": 49,
+   "quote": "An info line takes the same road as far as the routing rule, then stays on its worker.",
+   "problem": "Section 3.3 never says who reads the local index or what survives the worker's death, so the reader answered question 1 with \"If the EPN dies, nobody can read it\".",
+   "source": "reports/inputs/dataflow-atlas.md:29 (audited): the trend rollup reads it every 10 minutes, six local detectors every minute, the shifter view samples lines from it, and \"What survives is everything derived from them, the rollup rows, the template counts and the detector results\"",
+   "fix": "Add two sentences: who reads the local index, and that the rollup rows, template counts and detector results survive the machine while the raw lines do not. The outline also asks for the fanout sentence here (outline.md:72).",
+   "severity": "must",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/02-design-a.tex",
+   "line": 7,
+   "quote": "A local OpenSearch data node holds one index per worker on four of the EPN's 128~cores, and little memory.",
+   "problem": "The report gives no memory figure for the platform on a worker, so question 5 was answered only for the processor.",
+   "source": "briefs/constraints.md:182 (collector envelope and the hard memory caps), briefs/target-architecture.md:154 (384 MB service ceiling), briefs/target-architecture.md:157 (1 GB heap on the worker's store node, a measured choice)",
+   "fix": "Add: \"The platform is given four of the 128 logical processors, a 384 MB cap on the collector and a 1 GB heap on the local store node. The stamper's memory is not measured.\"",
+   "severity": "must",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/02-design-a.tex",
+   "line": 40,
+   "quote": "The stamper, over a local socket, sets a template version and status and hands the chunk back.",
+   "problem": "\"Chunk\" is never defined, and the collector's whole memory envelope is then stated in chunks.",
+   "source": "briefs/style.md:31; briefs/target-architecture.md:153 (chunks in memory, 64, about 128 MB)",
+   "fix": "At first use: \"a chunk, the block of records the collector moves and buffers as one unit\".",
+   "severity": "should",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/02-design-a.tex",
+   "line": 43,
+   "quote": "The collector also posts the record to the shifter view's live lane, which holds the last 500 records.",
+   "problem": "\"Shifter\" is never defined, although the shifter view, the shifter host and the shifter's two pages run through the report.",
+   "source": "reports/inputs/dataflow-atlas.md:477 (\"The console a person on shift watches\"); briefs/style.md:31",
+   "fix": "Write \"the shifter view, the page a person on shift watches\" at this first use.",
+   "severity": "should",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/02-design-a.tex",
+   "line": 11,
+   "quote": "The control host runs Dashboards, the poller, the roster, the catalog maintenance, Alertmanager and the receiver.",
+   "problem": "The background host and the shifter host appear only inside figures, so the projector, the trend rollup and the shifter view are never placed in the text.",
+   "source": "briefs/target-architecture.md:63-75 (background host: trend rollup and projector; shifter host: shifter view)",
+   "fix": "Add one sentence naming the second storage node as the background host, with the projector and the trend rollup, and the third as the shifter host, with the shifter view.",
+   "severity": "should",
+   "lens": "reader"
+  }
+ ],
+ "03-design-b.tex": [
+  {
+   "file": "reports/loggy-report/sections/03-design-b.tex",
+   "line": 7,
+   "quote": "A detector that stops reporting leaves its episode stale and firing (Figure~\\ref{fig:alerts}).",
+   "problem": "Figure 6 lands two printed pages after the sentence that cites it (cited on page 7, placed on page 9).",
+   "source": "pdftotext page map of report/report.pdf; float declared [t] at sections/03-design-b.tex:9",
+   "fix": "Change \\begin{figure}[t] to \\begin{figure}[htbp] at sections/03-design-b.tex:9.",
+   "severity": "should",
+   "lens": "build"
+  },
+  {
+   "file": "reports/loggy-report/sections/03-design-b.tex",
+   "line": 19,
+   "quote": "The last sample lands up to 30~seconds before death. The 90-second grace and 30-second poll add 60 to 150~seconds, the monitor up to 60, the projector up to 30, the page wait 30.",
+   "problem": "The listed terms sum to 300 seconds at worst, not the 270 stated in the previous sentence, because the last heartbeat is not a term in the bound.",
+   "source": "reports/loggy-report/briefs/walkthroughs-3-5.md:59-68 (\"The bound is 90 to 270 seconds from the last heartbeat to the stored notification\"; 60-150 + 0-60 + 0-30 + 30)",
+   "fix": "Drop the last-sample clause from the sum or mark it outside the bound: \"The bound runs from the death itself; the last sample lands up to 30 seconds earlier. The 90-second grace and 30-second poll give 60 to 150 seconds, the monitor up to 60, the projector up to 30, the page wait 30.\"",
+   "severity": "should",
+   "lens": "numbers"
+  },
+  {
+   "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/03-design-b.tex",
+   "line": 25,
+   "quote": "Each compares the entity's share of the fleet in three slices, ending 40, 30 and 20~minutes before the run, against the previous seven days.",
+   "problem": "The three ten-minute slices span 40 to 30, 30 to 20 and 20 to 10 minutes before the run, so they end 30, 20 and 10 minutes before it; the freshest slice ends ten minutes back, which is the fact that matters.",
+   "source": "deploy/roles/loggy_anomaly_detection/files/monitors/trend-il-volume.json:61-112 (slice0 -20m to -10m, slice1 -30m to -20m, slice2 -40m to -30m); briefs/walkthroughs-3-5.md:150 (\"The freshest slice ends 10 minutes before the run, not at it\")",
+   "fix": "\"Each compares three ten-minute slices, the freshest ending ten minutes before the run, against the previous seven days.\"",
+   "severity": "must",
+   "lens": "facts"
+  },
+  {
+   "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/03-design-b.tex",
+   "line": 5,
+   "quote": "17 detectors run, one per entity, and a silent host scores zero.",
+   "problem": "\"One per entity\" says there are seventeen entities; a detector is one definition with a category field and the plugin builds one model per entity inside it.",
+   "source": "briefs/walkthroughs-6-9.md walkthrough 6 step 1 (il-per-epn.json:48-50, category_field origin_host, one result row per host per window); briefs/target-architecture.md:162; briefs/why.md entry 16",
+   "fix": "\"17 detectors run, each holding one model per entity, and a silent host scores zero.\"",
+   "severity": "must",
+   "lens": "facts"
+  },
+  {
+   "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/03-design-b.tex",
+   "line": 25,
+   "quote": "The nine trend monitors read those rows only.",
+   "problem": "The sentence after it applies the fleet-share comparison to all nine rules, but two of the nine are collector-scoped shipping-lag rules that compare the entity's own lag against twice its seven-day baseline above a 250 ms floor.",
+   "source": "briefs/walkthroughs-3-5.md:165 (\"The volume rules compare the entity's share of the fleet\") and :166 (\"The shipping-lag rules are collector-scoped\"); briefs/target-architecture.md:165 (trend_lag_floor_ms 250)",
+   "fix": "Say \"The volume rules compare the entity's share of the fleet\", then add \"Two shipping-lag rules instead compare the entity's own lag against twice its seven-day baseline, above a 250 ms floor.\"",
+   "severity": "should",
+   "lens": "facts"
+  },
+  {
+   "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/03-design-b.tex",
+   "line": 5,
+   "quote": "Threshold monitors catch cliffs: a storage disk above 92~\\% pages, above 85~\\% warns.",
+   "problem": "As written a disk at 95 % both pages and warns; the warn rule fires above 85 and at most 92, so the two rules do not overlap.",
+   "source": "briefs/walkthroughs-3-5.md:12 and :121 (disk-cliff-warn.json:79, params.max_disk > 85 && params.max_disk <= 92; disk-cliff-page.json:79, > 92)",
+   "fix": "\"a storage disk above 92 % pages, and between 85 and 92 % warns.\"",
+   "severity": "should",
+   "lens": "facts"
+  },
+  {
+   "file": "reports/loggy-report/sections/03-design-b.tex",
+   "line": 3,
+   "quote": "The poller samples the cluster at the same cadence and reads the roster: one document listing which collectors should be alive.",
+   "problem": "\"should be alive\" uses a modal the style forbids, and the meaning is \"must be running\", not an expectation.",
+   "source": ".claude/skills/simple-english/SKILL.md:36 (\"Modals: can, will, must. Never should, would, may, might, could.\")",
+   "fix": "\"... and reads the roster: one document naming every collector that must be running.\"",
+   "severity": "must",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/03-design-b.tex",
+   "line": 23,
+   "quote": "Every ten minutes the rollup re-rolls the last three closed buckets after a 120-second settle for late records.",
+   "problem": "The rollup, \"re-rolls\", \"closed buckets\" and \"settle\" all arrive undefined, and the sentence carries three ideas.",
+   "source": "reports/loggy-report/briefs/target-architecture.md:65 (\"Turns raw logs into one small row per host per 10 minutes, so the trend rules stay cheap\")",
+   "fix": "\"A rollup service turns the raw logs into one small row per family and host per ten minutes. It runs every ten minutes and recomputes the last three ten-minute windows, because a record can land 120 seconds late.\"",
+   "severity": "must",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/03-design-b.tex",
+   "line": 5,
+   "quote": "17 detectors run, one per entity, and a silent host scores zero.",
+   "problem": "\"entity\" is never defined, and the sentence starts with a numeral.",
+   "source": "reports/loggy-report/briefs/target-architecture.md:101 (\"one row per family and entity per 10-minute bucket\"); reports/loggy-report/briefs/why.md:178",
+   "fix": "\"Seventeen detectors run, one for each watched thing: a host, a log family or an index. A silent host scores zero.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/03-design-b.tex",
+   "line": 7,
+   "quote": "A detector grade above 0.5 opens an episode, the paging monitor on grades needs 0.7.",
+   "problem": "A comma splices two clauses, and the grade has no scale, so 0.5 and 0.7 carry no meaning.",
+   "source": "reports/loggy-report/briefs/style.md:28 (every number carries its meaning and its reference)",
+   "fix": "\"A detector grades every window from 0 to 1. A grade above 0.5 opens an episode. The monitor that pages on grades needs 0.7.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/03-design-b.tex",
+   "line": 5,
+   "quote": "17 detectors run, one per entity, and a silent host scores zero.",
+   "problem": "\"Entity\" is never defined, yet it shapes the whole alerting chain \u2014 one detector per entity, one episode per entity, a trend rule on an entity's share of the fleet.",
+   "source": "briefs/walkthroughs-6-9.md:31 \u2014 \"entity_id is the origin_host value... il-per-epn: entity_kind epn, category_field origin_host\"; :45 \u2014 \"an episode is one detector on one host\"",
+   "fix": "\"17 detectors run, one per entity: one machine, or one log family on one machine \u2014 the thing a rule is about.\"",
+   "severity": "must",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/03-design-b.tex",
+   "line": 30,
+   "quote": "Dashboards holds the maintainer cockpit and Discover, which searches the archive \\cite{ref:opensearch}.",
+   "problem": "Dashboards and Discover are product screen names used as plain nouns; neither is ever said to be the store's web interface and its search screen, and Dashboards first appears two sections earlier with no gloss.",
+   "source": "reports/inputs/dataflow-atlas.md:24 \u2014 \"The Discover view inside OpenSearch Dashboards, behind the nginx door on port 5601\"",
+   "fix": "At first use: \"Dashboards, the store's own web interface, and inside it Discover, its search screen.\"",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/03-design-b.tex",
+   "line": 5,
+   "quote": "A detector is a Random Cut Forest model the cluster runs on a schedule, grading every window with no threshold \\cite{ref:rcf}.",
+   "problem": "The reader is given the model's proper name and its schedule but not what it does or what a grade measures.",
+   "source": "reports/loggy-report/report/references.tex, ref:rcf \u2014 \"Robust random cut forest based anomaly detection on streams\"",
+   "fix": "\"A detector is a model that learns a number's usual shape from the number itself and grades how unusual each new window is, from 0 to 1, with no threshold a person had to choose. Ours is a Random Cut Forest~\\cite{ref:rcf}.\"",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/03-design-b.tex",
+   "line": 7,
+   "quote": "A detector grade above 0.5 opens an episode, the paging monitor on grades needs 0.7.",
+   "problem": "Two thresholds with no scale stated, so the reader cannot tell whether 0.7 is nearly certain or barely anything.",
+   "source": "briefs/walkthroughs-6-9.md:43 \u2014 \"A row with grade above 0.5 is a firing signal. A row at or below 0.5 is evidence of recovery\"; :32 \u2014 \"3 healthy windows at grade at or below 0.0\"",
+   "fix": "State the 0-to-1 scale where the detector is defined (see the Random Cut Forest fix), and this sentence then reads without help.",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/03-design-b.tex",
+   "line": 23,
+   "quote": "Every ten minutes the rollup re-rolls the last three closed buckets after a 120-second settle for late records.",
+   "problem": "\"Bucket\" already means a five-minute template count document in Section 3.5; here it means a ten-minute slice of the trend rollup, and \"re-rolls\" and \"closed\" are new words used without definition.",
+   "source": "reports/loggy-report/sections/02-design-a.tex:73 \u2014 \"Every 300~seconds the stamper publishes one bucket document per family and window\"",
+   "fix": "Define the trend bucket at first use as \"one ten-minute slice of counts per family and host\", and say the rollup recomputes the last three slices once they can no longer receive late records.",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/03-design-b.tex",
+   "line": 23,
+   "quote": "Every ten minutes the rollup re-rolls the last three closed buckets after a 120-second settle for late records.",
+   "problem": "The rollup is introduced as the subject of a sentence about its schedule, with no plain goal and no machine; the reader never learns it exists so a trend rule never scans raw logs.",
+   "source": "briefs/target-architecture.md:183 \u2014 \"the background host (rollup, projector)\"; outline.md decision 2 \u2014 \"The projector and the trend rollup run on the second storage node, off the control host, as the sources say.\"",
+   "fix": "\"On the background host a rollup turns raw lines into small rows, so a trend rule never scans a log. Every ten minutes it re-counts the last three ten-minute slices...\"",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/03-design-b.tex",
+   "line": 7,
+   "quote": "The projector reads every alert and detector result every 30~seconds.",
+   "problem": "The busiest component of Section 3.6 and both alert walkthroughs is never placed on a machine in the prose; only Figure 2 says where it runs, yet Section 5.7 speaks of \"the projector's machine\".",
+   "source": "briefs/target-architecture.md:27 \u2014 \"The sources place it on node-04 with the trend rollup (atlas:455, deploy/README.md:78-80, rework-context.md:165)\"; :201 \u2014 \"away from the UI host on purpose\"",
+   "fix": "\"On the background host, away from the screens on purpose, the projector reads...\"",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/03-design-b.tex",
+   "line": 17,
+   "quote": "Within 30~seconds the poller counts each rostered collector's samples over 90~seconds and writes one fleet document each, with a missing flag.",
+   "problem": "\"Fleet\" and \"fleet document\" are undefined on first use, inside the walkthrough the supervisor asked to see, and \"fleet\" then shifts meaning twice more.",
+   "source": "briefs/walkthroughs-6-9.md:152 \u2014 the roster \"names every worker\"; reports/inputs/dataflow-atlas.md:26-31 uses the whole worker set as the comparison group",
+   "fix": "Define at first use \u2014 \"the fleet, every worker on the roster\" \u2014 and write \"one row per rostered collector\" instead of \"fleet document\".",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/03-design-b.tex",
+   "line": 30,
+   "quote": "The ops page is the operator's status line.",
+   "problem": "One of the four surfaces is introduced and abandoned in six words; \"status line\" is not a job, so the reader cannot tell what it shows or how it differs from the cockpit and the live page.",
+   "source": "briefs/target-architecture.md:50 \u2014 nginx is \"the single TLS door to it, the ops page, the live lane and Alertmanager\"; :123 lists the ops page buttons under tester tooling",
+   "fix": "Say in one clause what question it answers, or drop it and say \"three surfaces\".",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/03-design-b.tex",
+   "line": 25,
+   "quote": "Each compares the entity's share of the fleet in three slices, ending 40, 30 and 20~minutes before the run, against the previous seven days.",
+   "problem": "\"The run\" here means the monitor's own execution, while elsewhere it means a data-taking run; in an ALICE report the first reading wins.",
+   "source": "reports/loggy-report/sections/01-intro-problem.tex:36 \u2014 \"No run was active during either survey, so no live job log was seen.\"",
+   "fix": "\"ending 40, 30 and 20~minutes before the monitor fires.\"",
+   "severity": "nit",
+   "lens": "simplicity"
+  },
+  {
+   "file": "sections/03-design-b.tex",
+   "line": 19,
+   "quote": "The last sample lands up to 30~seconds before death.",
+   "problem": "The listed terms sum to 300 seconds against the stated 270, because the 60 to 150 seconds is already counted from the death and contains the pre-death gap.",
+   "source": "briefs/walkthroughs-3-5.md:63-68 (first fleet document with the missing flag: 60 to 150 seconds after death; sum 90 at best, 270 at worst)",
+   "fix": "Drop the sentence and write: \"Counted from the death: the grace and the poll give the first missing flag after 60 to 150 seconds, the monitor adds up to 60, the projector up to 30, and the page wait 30.\"",
+   "severity": "must",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/03-design-b.tex",
+   "line": 5,
+   "quote": "17 detectors run, one per entity, and a silent host scores zero.",
+   "problem": "It reads as seventeen entities, which the reader repeated; each detector fits one model per entity and the entities are hosts and collectors.",
+   "source": "reports/inputs/dataflow-atlas.md:193-194 (fourteen log detectors per origin host or collector, three over the health samples, one model per entity)",
+   "fix": "Write: \"17 detectors run, fourteen over the log families and three over the health samples. Each fits one model per machine, and a silent host scores zero.\"",
+   "severity": "should",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/03-design-b.tex",
+   "line": 7,
+   "quote": "A detector grade above 0.5 opens an episode, the paging monitor on grades needs 0.7.",
+   "problem": "No monitor on grades is described anywhere else, so the clause names a component the reader never meets.",
+   "source": "briefs/walkthroughs-6-9.md:43 (a monitor runs every minute over the last two minutes of results and opens one fleet-wide alert when the highest grade and its confidence are above 0.7)",
+   "fix": "Write: \"one monitor watches every grade and pages once for the whole fleet above 0.7\".",
+   "severity": "nit",
+   "lens": "reader"
+  }
+ ],
+ "01-intro-problem.tex": [
+  {
+   "file": "reports/loggy-report/sections/01-intro-problem.tex",
+   "line": 20,
+   "quote": "\\begin{tabularx}{\\textwidth}{L{0.2\\textwidth} L{0.26\\textwidth} L{0.24\\textwidth} L{0.18\\textwidth}}",
+   "problem": "Table 1 uses tabularx with no X column, so the alignment is underfull (badness 10000).",
+   "source": "report/report.log:1089 \"Underfull \\hbox (badness 10000) in alignment at lines 31--31\"",
+   "fix": "Make the last column X, or use tabular instead of tabularx.",
+   "severity": "nit",
+   "lens": "build"
+  },
+  {
+   "file": "reports/loggy-report/sections/01-intro-problem.tex",
+   "line": 9,
+   "quote": "The platform runs on five staging machines, and one deployment went green on three farm workers and one infra machine.",
+   "problem": "Printed page 2 opens with Figure 1 and then the four-word paragraph tail \"workers and one infra machine.\"",
+   "source": "pdftotext of report/report.pdf page 3, lines 44-49",
+   "fix": "No change if the figure reflow from the other findings moves it; otherwise place Figure 1 [htbp] at sections/01-intro-problem.tex:7.",
+   "severity": "nit",
+   "lens": "build"
+  },
+  {
+   "file": "reports/loggy-report/sections/01-intro-problem.tex",
+   "line": 50,
+   "quote": "A worker gives the platform four of its 128 logical processors and little memory.",
+   "problem": "The budget is four physical cores, which are eight of the 128 logical processors; the report halves it by mixing the two units, and the soak explicitly corrects this reading.",
+   "source": "docs/SOAK_RESULTS.md:275-281 (\"The worker's budget is 4 physical cores, so 8 logical processors ... This is the opposite of what an earlier draft of this document said\"); reports/loggy-report/briefs/constraints.md:181 and :24",
+   "fix": "Write: \"A worker gives the platform four of its 64 physical cores, eight of its 128 logical processors, and little memory.\" Fix the same conflation at sections/02-design-a.tex:7 (\"four of the EPN's 128~cores\") and in Table 2 at sections/01-intro-problem.tex:71 (\"Four logical processors of 128\").",
+   "severity": "must",
+   "lens": "numbers"
+  },
+  {
+   "file": "reports/loggy-report/sections/01-intro-problem.tex",
+   "line": 36,
+   "quote": "DDS is under-sampled at 0.1~\\% of its lines, and operations call it the largest family during data-taking.",
+   "problem": "0.1 % is DDS's share of the corpus weight, not the share of DDS's own lines that were sampled.",
+   "source": "docs/SOAK_RESULTS.md:2292 (\"Weights are this corpus: InfoLogger 58.1 %, stdout 41.8 %, dds 0.1 %\") and :2290-2296; reports/loggy-report/briefs/templating-embedding.md:208",
+   "fix": "Write: \"DDS is 43,972 lines, 0.1 % of the corpus, and operations call it the largest family during data-taking.\" The report already states it this way at sections/07-limits-close.tex:31.",
+   "severity": "must",
+   "lens": "numbers"
+  },
+  {
+   "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/01-intro-problem.tex",
+   "line": 36,
+   "quote": "DDS is under-sampled at 0.1~\\% of its lines, and operations call it the largest family during data-taking.",
+   "problem": "\"0.1 % of its lines\" reads as a share of DDS itself; the figure is DDS's share of the corpus.",
+   "source": "briefs/constraints.md:126 (\"infologger 58.1 percent, dpl 41.8 percent ... dds 0.1 percent\"); briefs/soak-3.md:47",
+   "fix": "\"DDS is 0.1 % of the corpus, and operations call it the largest family during data-taking.\"",
+   "severity": "nit",
+   "lens": "facts"
+  },
+  {
+   "file": "reports/loggy-report/sections/01-intro-problem.tex",
+   "line": 44,
+   "quote": "The soak tested one collector at 1,000, 20,000 and 50,000 records a second per worker.",
+   "problem": "\"The soak\" is internal shorthand for the measurement campaign and is never defined, yet it carries three later claims and the title of Appendix B.",
+   "source": "reports/loggy-report/briefs/soak-index.md:1-3 (rounds 1 to 21 of measurement, docs/SOAK.md and docs/SOAK_RESULTS.md)",
+   "fix": "Define it once here: \"We ran the platform under a synthetic load for twenty-one rounds, and we call that campaign the soak. It tested one collector at 1,000, 20,000 and 50,000 records a second per worker.\"",
+   "severity": "must",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/01-intro-problem.tex",
+   "line": 48,
+   "quote": "Eight constraints shape the design.",
+   "problem": "The opener counts instead of concluding, and 2.4 opens with the same formula (\"Six objectives shape the design\") one subsection later.",
+   "source": "reports/loggy-report/briefs/style.md:7; reports/loggy-report/sections/01-intro-problem.tex:60",
+   "fix": "\"A worker gives the platform four of its 128 logical processors, and every other constraint follows from that scarcity.\" Then change 2.4's opener so the two do not rhyme.",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/01-intro-problem.tex",
+   "line": 5,
+   "quote": "Most of what a machine writes never takes that road (Figure~\\ref{fig:today}): the process logs on disk and the journal, the log of every system service.",
+   "problem": "26 words, over the ceiling, and the colon list makes the reader hold two ideas at once.",
+   "source": "reports/loggy-report/briefs/style.md:11; reports/loggy-report/briefs/style.md:8 (\"That is one road. Most of what a node writes never takes it.\")",
+   "fix": "\"Most of what a machine writes never takes that road (Figure~\\ref{fig:today}). The process logs sit on disk. The journal holds the log of every system service.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/01-intro-problem.tex",
+   "line": 9,
+   "quote": "The platform runs on five staging machines, and one deployment went green on three farm workers and one infra machine.",
+   "problem": "\"went green\" is project shorthand for a deployment run that ended with every check passing, and the report never says so.",
+   "source": "reports/loggy-report/briefs/style.md:79 (name the component by its job, no internal names); reports/loggy-report/outline.md:144 (\"one green run on the farm\")",
+   "fix": "\"The platform runs on five staging machines. One deployment run finished with every check passing on three farm workers and one infra machine.\" Repair the same phrase in the conclusion.",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/01-intro-problem.tex",
+   "line": 26,
+   "quote": "O2 process tree & Every reconstruction process, one output and one error file each, in two line formats & Tail of the files & By severity \\\\",
+   "problem": "\"O2\" names a log family, the processes in two walkthroughs and an uncited reference, and is never expanded anywhere in the report.",
+   "source": "reports/loggy-report/report/references.tex, ref:o2tdr \u2014 \"Technical Design Report for the Upgrade of the Online--Offline Computing System\" (present in the bibliography, never cited)",
+   "fix": "In 01-intro-problem.tex:3 add: \"The reconstruction software is O2, the ALICE Online--Offline computing system~\\cite{ref:o2tdr}.\" That also makes the unused reference used.",
+   "severity": "must",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/01-intro-problem.tex",
+   "line": 17,
+   "quote": "DDS is the distributed deployment system that starts the processing tasks.",
+   "problem": "DDS is the Dynamic Deployment System; the expansion given is wrong, so a reader who looks it up finds a different product.",
+   "source": "ALICE O2 quickstart \"FairMQ and DPL\" (https://aliceo2group.github.io/quickstart/fair-dpl.html): topologies are described \"via the Dynamic Deployment System (DDS)\"; A. Manafov, DDS: The Dynamic Deployment System. The briefs never expand it \u2014 briefs/constraints.md:100 gives only the file path.",
+   "fix": "\"DDS, the Dynamic Deployment System, starts the reconstruction processes on the node and writes one file a day.\"",
+   "severity": "must",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/01-intro-problem.tex",
+   "line": 44,
+   "quote": "The soak tested one collector at 1,000, 20,000 and 50,000 records a second per worker.",
+   "problem": "\"The soak\" is used as a proper noun on first appearance, three pages before Section 5 and fourteen before Appendix B, and is never defined.",
+   "source": "briefs/soak-index.md:1-3 \u2014 \"Soak index: the five soak briefs reconciled. Sources: docs/SOAK.md (round 1) and docs/SOAK_RESULTS.md (rounds 2 to 21)\"",
+   "fix": "At first use: \"The soak is this project's measurement campaign: twenty-one rounds of load runs and code reviews, each round fixing what the round before it found (Appendix~\\ref{app:soak}).\"",
+   "severity": "must",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/01-intro-problem.tex",
+   "line": 81,
+   "quote": "We replaced Grafana with Dashboards, because detection and alerting come with the store.",
+   "problem": "First use of \"the store\" as a name; OpenSearch is not named until the next section and no sentence ever ties the two, while parts of it are also called the search node, the data node, the cluster and the worker's store node.",
+   "source": "briefs/soak-index.md:9 \u2014 \"The soak rejected a bus between the collector and OpenSearch\"; briefs/why.md:59 \u2014 \"The collector writes only to the OpenSearch node on its own machine.\"",
+   "fix": "At first use write \"the store, OpenSearch~\\cite{ref:opensearch}\", then keep one word for a machine's part of it.",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/01-intro-problem.tex",
+   "line": 9,
+   "quote": "The platform runs on five staging machines, and one deployment went green on three farm workers and one infra machine.",
+   "problem": "\"Went green\" is build-pipeline idiom, and it is the load-bearing word in the one sentence that tells the reader how far the project got; the conclusion repeats it.",
+   "source": "outline.md:144 uses it as internal shorthand, not report prose; the fact underneath is a deployment that completed with every check passing",
+   "fix": "\"one deployment ran to the end with every check passing on three farm workers and one infra machine.\"",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/01-intro-problem.tex",
+   "line": 9,
+   "quote": "We built \\loggy{}, a platform that keeps the bulk of the logs on the worker that wrote them and still searches them as one.",
+   "problem": "\"Worker\" and \"EPN\" are the report's two most frequent nouns for one machine, and the tie arrives only in the next section.",
+   "source": "reports/loggy-report/sections/01-intro-problem.tex:3 defines the EPN only; 02-design-a.tex:7 \u2014 \"The worker tier runs on every EPN\"",
+   "fix": "\"on the EPN, the worker, that wrote them\" at first use.",
+   "severity": "nit",
+   "lens": "simplicity"
+  },
+  {
+   "file": "sections/01-intro-problem.tex",
+   "line": 44,
+   "quote": "The soak tested one collector at 1,000, 20,000 and 50,000 records a second per worker.",
+   "problem": "\"Soak\" is never defined, yet it carries Section 5.3 and the Appendix B title.",
+   "source": "briefs/style.md:31 (define a term the moment it appears); briefs/soak-index.md:13 (the soak is the measurement campaign, in numbered rounds)",
+   "fix": "Write: \"The soak, the project's measurement campaign of numbered rounds, tested one collector at ...\"",
+   "severity": "should",
+   "lens": "reader"
+  }
+ ],
+ "04-why.tex": [
+  {
+   "file": "reports/loggy-report/sections/04-why.tex",
+   "line": 29,
+   "quote": "body, counts, detection, alerting",
+   "problem": "The narrow Table 5 cell sets one ragged line.",
+   "source": "report/report.log:1121 \"Underfull \\hbox (badness 10000) in paragraph at lines 34--34\"",
+   "fix": "Widen the column or write \"body, counts, detection and alerting\".",
+   "severity": "nit",
+   "lens": "build"
+  },
+  {
+   "file": "reports/loggy-report/sections/04-why.tex",
+   "line": 50,
+   "quote": "The pipeline fell from 19.91 to 11.18 core-seconds per million lines.",
+   "problem": "11.18 core-seconds per million is a retracted whole-corpus mining cost; the standing figure is 8.33, and the 1.8-times multiple was retired with it.",
+   "source": "docs/SOAK_RESULTS.md:2693-2704 (\"the whole-corpus cost of 11.18 cannot stand ... 8.33 core-seconds per million, not 11.18\") and :2708-2713; listed as retracted in reports/loggy-report/briefs/soak-index.md section 3",
+   "fix": "Replace with: \"The whole-corpus mining cost is 8.33 core-seconds per million lines with the rewritten masker; the shipped control of 19.91 was not re-measured, so no multiple is quoted.\" The source brief reports/loggy-report/briefs/why.md:166 carries the same retracted pair and needs the same correction.",
+   "severity": "must",
+   "lens": "numbers"
+  },
+  {
+   "file": "reports/loggy-report/sections/04-why.tex",
+   "line": 6,
+   "quote": "Under load ours peaked between 133 and 228~MB.",
+   "problem": "The report elsewhere uses 133 to 228 MB as the steady range and 373 MB as the measured peak, so calling the range a peak contradicts Sections 3.4 and 5.2.",
+   "source": "docs/SOAK.md:18 (working range on two cores against a fake sink) and docs/SOAK.md:87-90 (373 MB peak in the sink outage with the shipped 256 MB buffer); reports/loggy-report/briefs/soak-index.md section 2b",
+   "fix": "Write: \"Under steady load ours sat between 133 and 228 MB.\"",
+   "severity": "should",
+   "lens": "numbers"
+  },
+  {
+   "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/04-why.tex",
+   "line": 50,
+   "quote": "The pipeline fell from 19.91 to 11.18 core-seconds per million lines.",
+   "problem": "11.18 was withdrawn because it rested on one contaminated stdout reading, and the 19.91 control was never re-measured, so the source refuses to quote any before-and-after multiple.",
+   "source": "briefs/soak-3.md:108 (\"Withdrawn at lines 2693-2704; the figure of record is 8.33\"); briefs/soak-3.md:107; briefs/soak-index.md:299",
+   "fix": "Drop the pair. Use the masker figures instead (11.93 to 1.82 core-seconds per million on InfoLogger, 12.24 to 1.73 on the process tree, 40.22 to 5.09 on DDS, templates unchanged, briefs/why.md:166), and quote 8.33 core-seconds per million on 45,596,613 lines as the whole-corpus cost of record.",
+   "severity": "must",
+   "lens": "facts"
+  },
+  {
+   "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/04-why.tex",
+   "line": 71,
+   "quote": "Five modules, about 31,000 lines, are byte-identical copies across the services.",
+   "problem": "The 31,000 lines are all the Python across the fourteen deployment components; the byte-identical duplication is five named modules whose size no source gives.",
+   "source": "briefs/inputs/rework-context.md:61 (\"14 roles under deploy/roles; 31,000 lines of Python\") and :67-71 (the five byte-identical modules); briefs/why.md entry 31",
+   "fix": "\"About 31,000 lines of Python run the services, and five modules are byte-identical copies across them.\"",
+   "severity": "must",
+   "lens": "facts"
+  },
+  {
+   "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/04-why.tex",
+   "line": 65,
+   "quote": "Puppet wants an agent and a certificate on every machine, runs on a timer, and is right for the farm.",
+   "problem": "The source hedges and the report states it flat; nothing was measured or decided about Puppet on the farm.",
+   "source": "briefs/constraints.md:196 and briefs/why.md entry 9 (\"It is likely right for the farm and wrong for five machines one person deploys by hand\")",
+   "fix": "\"and is likely right for the farm.\"",
+   "severity": "nit",
+   "lens": "facts"
+  },
+  {
+   "file": "reports/loggy-report/sections/04-why.tex",
+   "line": 50,
+   "quote": "The pipeline fell from 19.91 to 11.18 core-seconds per million lines.",
+   "problem": "The unit core-second is used in section 4 but defined only in section 5.1, so the number means nothing at first reading.",
+   "source": "reports/loggy-report/sections/05-eval-a.tex:7 (\"core-seconds, one core busy for one second\")",
+   "fix": "Define the unit at this first use: \"The pipeline fell from 19.91 to 11.18 core-seconds per million lines, one core-second being one core busy for one second.\" Or move the number into section 5.",
+   "severity": "must",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/04-why.tex",
+   "line": 6,
+   "quote": "We chose Fluent Bit~\\cite{ref:fluentbit}, written in C and graduated by the CNCF~\\cite{ref:cncf}.",
+   "problem": "CNCF is never spelled out and \"graduated\" is never explained, so the deciding fact of the whole paragraph is unreadable outside the field.",
+   "source": "reports/loggy-report/briefs/why.md:19 (\"CNCF graduated, fifteen billion deployments on its own project page, a decade in production\")",
+   "fix": "\"We chose Fluent Bit~\\cite{ref:fluentbit}. It is written in C, and the Cloud Native Computing Foundation has graduated it, which is that foundation's top maturity mark~\\cite{ref:cncf}.\"",
+   "severity": "must",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/04-why.tex",
+   "line": 53,
+   "quote": "Deep sequence models reach an F1 of about 0.23 to 0.27 under drift, against about 0.71 for plain PCA.",
+   "problem": "Three terms arrive undefined in one sentence: F1, PCA and drift, and F1 has no scale attached.",
+   "source": "reports/loggy-report/briefs/why.md:177 (\"F1 about 0.23 to 0.27 under drift against about 0.71 for plain PCA\")",
+   "fix": "\"Deep sequence models score about 0.23 to 0.27 on F1, the balance of catching a fault and not crying wolf, where 1 is perfect. Principal component analysis, a far older method, scores about 0.71 on the same logs after the log text has changed.\"",
+   "severity": "must",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/04-why.tex",
+   "line": 38,
+   "quote": "Cross-cluster search does not scale to 100 machines.",
+   "problem": "Cross-cluster search is named as the losing alternative but never defined, and the paragraph then writes \"Three hundred data nodes\" in words after \"100 machines\" in digits.",
+   "source": "reports/loggy-report/briefs/why.md:48-49 (\"many clusters joined by cross-cluster search ... does not scale to 100 machines\")",
+   "fix": "\"The alternative is many clusters joined by cross-cluster search, where one cluster forwards a query to the others. It does not scale to 100 machines. 300 data nodes in one cluster is an untested risk for the cluster manager.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/04-why.tex",
+   "line": 47,
+   "quote": "No numbered comparison against Grafana exists in our sources.",
+   "problem": "\"our sources\" points at the project's own research notes, which the reader cannot see, instead of saying plainly what was not done.",
+   "source": "reports/loggy-report/briefs/style.md:81 (say \"not measured\" or \"not tested\"); reports/loggy-report/briefs/style.md:89",
+   "fix": "\"We did not compare Dashboards and Grafana on numbers.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/04-why.tex",
+   "line": 56,
+   "quote": "The projector turns thirty rows about one dead collector into one fault with a start and an end.",
+   "problem": "\"one fault\" names the thing the report has already named an episode, so the same idea carries two words.",
+   "source": "reports/loggy-report/sections/03-design-b.tex:7 (\"An episode is one trouble on one thing, with a start and an end.\"); .claude/skills/simple-english/SKILL.md:39",
+   "fix": "\"The projector turns thirty rows about one dead collector into one episode with a start and an end.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/04-why.tex",
+   "line": 68,
+   "quote": "This overlaps the Telegraf and Mimir estate CERN runs, so we concede that half.",
+   "problem": "\"that half\" has no antecedent and \"estate\" is unexplained, so the concession cannot be read.",
+   "source": "reports/loggy-report/briefs/why.md:19; reports/loggy-report/outline.md:104 (\"the overlap conceded, the roster and absence logic kept\")",
+   "fix": "\"CERN already runs Telegraf and Mimir for machine metrics. Our cluster and node samples repeat that work, and we concede it. The roster and the absence logic have no equivalent there, so they stay.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/04-why.tex",
+   "line": 41,
+   "quote": "We split by severity, not by source, because info is the bulk and the trash and stays local.",
+   "problem": "\"the trash\" is deck shorthand that carries a judgement the report never supports, and it sits in the same clause as a fact.",
+   "source": "reports/loggy-report/briefs/style.md:57 (\"That puts the volume on one side and the value on the other.\")",
+   "fix": "\"We split by severity, not by source, because the info lines are the bulk and the cheap half, so they stay local.\"",
+   "severity": "nit",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/04-why.tex",
+   "line": 6,
+   "quote": "We chose Fluent Bit~\\cite{ref:fluentbit}, written in C and graduated by the CNCF~\\cite{ref:cncf}.",
+   "problem": "The deciding fact for the collector choice is two pieces of unexplained vocabulary: CNCF is never expanded and \"graduated\" is never explained.",
+   "source": "reports/loggy-report/report/references.tex, ref:cncf \u2014 \"Cloud Native Computing Foundation, graduated projects and graduation criteria\"",
+   "fix": "\"written in C and a graduated project of the Cloud Native Computing Foundation, which means several independent companies maintain it and no single vendor can withdraw it~\\cite{ref:cncf}.\"",
+   "severity": "must",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/04-why.tex",
+   "line": 53,
+   "quote": "Threshold rules catch the cliffs we know.",
+   "problem": "Section 3.6 defines a monitor and names the lanes \"threshold monitors\" and \"trend monitors\"; Section 4 and Section 6 rename them \"rules\", so a careful reader looks for a fourth thing.",
+   "source": "reports/loggy-report/sections/03-design-b.tex:5 \u2014 \"A monitor is a saved rule the cluster runs on a schedule, writing an alert when its condition holds.\"",
+   "fix": "Pick \"monitor\" and use it everywhere after the definition.",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/04-why.tex",
+   "line": 65,
+   "quote": "Puppet wants an agent and a certificate on every machine, runs on a timer, and is right for the farm.",
+   "problem": "The paragraph's deciding fact is that CERN hosts take no agent, and it then concedes the losing candidate is right for the deployment target, leaving a choice that argues against itself.",
+   "source": "briefs/constraints.md section 7 and briefs/why.md on deployment: the no-agent rule binds the machines this project could use, not the farm's own estate",
+   "fix": "Finish the thought: \"Puppet is right for the farm's own estate, which already runs agents; it was not available to this project, whose machines take none.\"",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/04-why.tex",
+   "line": 53,
+   "quote": "Deep sequence models reach an F1 of about 0.23 to 0.27 under drift, against about 0.71 for plain PCA.",
+   "problem": "Two unexpanded terms, F1 and PCA, in the one sentence that justifies not doing anomaly detection on the log text; a reader outside machine learning learns nothing from it.",
+   "source": "briefs/why.md:177 \u2014 \"Deep sequence models: F1 about 0.23 to 0.27 under drift against about 0.71 for plain PCA... docs/explained/ANOMALY_DETECTION.md:356-361\"",
+   "fix": "\"Published deep sequence models score about 0.23 to 0.27 on the combined precision-and-recall measure F1 once the logs drift away from their training data, while plain principal component analysis scores about 0.71.\"",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "sections/04-why.tex",
+   "line": 50,
+   "quote": "The pipeline fell from 19.91 to 11.18 core-seconds per million lines.",
+   "problem": "11.18 was withdrawn by the soak and the 19.91 control was never re-measured, so neither the figure nor the pair may be quoted.",
+   "source": "briefs/soak-3.md:108 (\"Whole-corpus cost 11.18 core-s/M ... Withdrawn ... the figure of record is 8.33\") and briefs/soak-3.md:107",
+   "fix": "Write: \"Mining the whole corpus now costs 8.33 core-seconds per million lines, processor time with one core busy for one second.\" That also defines core-seconds at its first use.",
+   "severity": "must",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/04-why.tex",
+   "line": 65,
+   "quote": "Puppet wants an agent and a certificate on every machine, runs on a timer, and is right for the farm.",
+   "problem": "With the second half of the source sentence dropped, the paragraph reads as a recommendation of Puppet for the farm the report is building for.",
+   "source": "briefs/why.md:97 (\"Likely right for the farm, wrong for five machines one person deploys by hand\")",
+   "fix": "Keep both halves: \"likely right for the farm, and wrong for five machines one person deploys by hand\".",
+   "severity": "should",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/04-why.tex",
+   "line": 62,
+   "quote": "The rework agreed a bus for the live lane only, for decoupling and not durability, and it is not built.",
+   "problem": "\"The rework\" is never introduced anywhere in the report, so the agreement has no author and no date.",
+   "source": "briefs/target-architecture.md:144 (\"The September 2026 review separately agreed a bus for the live lane only\")",
+   "fix": "Write: \"A design review in September 2026 agreed a bus for the live lane only ...\".",
+   "severity": "should",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/04-why.tex",
+   "line": 38,
+   "quote": "Cross-cluster search does not scale to 100 machines.",
+   "problem": "The farm's size is never stated and the report reasons at 100, more than 200 and 300 machines in different places.",
+   "source": "briefs/constraints.md:307 (the archive shows 308 worker hosts, 297 active in the busiest hour; the deck reasons at 100 machines and 211 hostnames; no source gives a current head count)",
+   "fix": "State the size once in Section 2, about 300 worker machines with 297 active in the busiest hour and no current head count, then use one number everywhere.",
+   "severity": "should",
+   "lens": "reader"
+  }
+ ],
+ "fig06-alerts.svg": [
+  {
+   "file": "reports/loggy-report/figures/fig06-alerts.svg",
+   "line": 109,
+   "quote": "<text x=\"690\" y=\"348\" font-family=\"Menlo, monospace\" font-size=\"10\" fill=\"#6b6b66\" text-anchor=\"middle\">30 monitors, every minute or ten</text>",
+   "problem": "The threshold lane is labelled with the platform's total monitor count, so it double-counts the nine trend rules drawn in the box beside it and contradicts this figure's own inbound edge, \"14 monitors, every minute\".",
+   "source": "reports/loggy-report/sections/03-design-b.tex:5 (\"30 monitors run: 28 write to the alert index, 2 take the break-glass path below\"); reports/loggy-report/briefs/target-architecture.md:203; deploy/roles/loggy_anomaly_detection/files/monitors/ holds 30 definitions, 11 of them trend-* and 2 template-*",
+   "fix": "Change the card line to \"14 of the 30 monitors, every minute or ten\" and state the total once, outside the threshold box, so it covers all three lanes.",
+   "severity": "must",
+   "lens": "figures"
+  },
+  {
+   "file": "reports/loggy-report/figures/fig06-alerts.svg",
+   "line": 32,
+   "quote": "<text x=\"101\" y=\"214\" font-size=\"10\" fill=\"#6b6b66\" text-anchor=\"middle\">a week of history</text>",
+   "problem": "The sibling index card in the same figure uses that slot for retention (\"one row per sample, seven days kept\"), so a week reads as the rollup index's retention; the index keeps rows 30 days and the week is the baseline the rules read.",
+   "source": "reports/loggy-report/briefs/target-architecture.md:101 (trend-rollup, 30 d by document); sections/03-design-b.tex:25 (three slices against the previous seven days)",
+   "fix": "Write \"rows kept 30 days; the rules read the last seven\".",
+   "severity": "should",
+   "lens": "figures"
+  },
+  {
+   "file": "reports/loggy-report/figures/fig06-alerts.svg",
+   "line": 127,
+   "quote": "<text x=\"782\" y=\"472\" font-family=\"Menlo, monospace\" font-size=\"10\" fill=\"#6b6b66\" text-anchor=\"end\">break-glass:</text>",
+   "problem": "The break-glass path is drawn with the grey 4-4 dash that fig02 and fig07 use for \"agreed, not built\", although it is built and proven by injection.",
+   "source": "reports/loggy-report/figures/STYLE.md:26 (ghost = planned, not built); sections/06-eval-b.tex:52 (the stop-projector run proves the break-glass path); figures/fig07-layouts.svg:179-180 (the legend's dashed key = planned, not built)",
+   "fix": "Draw the path solid in ink-soft, or add a word to the label so the dash reads as a bypass rather than as a plan.",
+   "severity": "nit",
+   "lens": "figures"
+  },
+  {
+   "file": "figures/fig06-alerts.svg",
+   "line": 109,
+   "quote": "30 monitors, every minute or ten",
+   "problem": "The whole monitor total sits inside the threshold lane, while the lane labels add to 25, so the figure cannot be reconciled with Section 3.6's 30.",
+   "source": "reports/inputs/dataflow-atlas.md:211-216 (15 monitors every minute, two of them break-glass; 13 every ten minutes, nine of them the trend comparisons; two every hour)",
+   "fix": "Label the threshold box \"17 monitors, 13 every minute and 4 every ten\", the trend arrow \"9 comparisons, every 10 min\", and add the same split to Section 3.6 so 9 + 17 + 2 hourly + 2 break-glass = 30.",
+   "severity": "must",
+   "lens": "reader"
+  }
+ ],
+ "fig05-templates.svg": [
+  {
+   "file": "reports/loggy-report/figures/fig05-templates.svg",
+   "line": 130,
+   "quote": "<text x=\"728\" y=\"413\" font-size=\"12\" font-weight=\"600\" fill=\"#101010\" text-anchor=\"middle\">The Templates page</text>",
+   "problem": "The Templates page sits in the column headed CONTROL HOST, but it is a page of the shifter view, which runs on the shifter host.",
+   "source": "reports/loggy-report/briefs/walkthroughs-6-9.md:9 (node-05 runs the shifter view); reports/loggy-report/briefs/target-architecture.md:183 (the shifter host holds the shifter view); reports/loggy-report/figures/fig02-architecture.svg:96-98 places it on storage node 3",
+   "fix": "Give the Templates page its own band headed SHIFTER HOST, or retitle column 03 \"CONTROL AND SHIFTER HOSTS\" and mark which card sits on which.",
+   "severity": "must",
+   "lens": "figures"
+  },
+  {
+   "file": "reports/loggy-report/figures/fig05-templates.svg",
+   "line": 123,
+   "quote": "<text x=\"728\" y=\"317\" font-size=\"12\" font-weight=\"600\" fill=\"#101010\" text-anchor=\"middle\">Two monitors, hourly</text>",
+   "problem": "Monitors are saved rules the cluster runs, not a service on the control host, so this figure and fig06 disagree on where the rules live.",
+   "source": "reports/loggy-report/sections/03-design-b.tex:5 (\"A monitor is a saved rule the cluster runs on a schedule\"); reports/loggy-report/figures/fig06-alerts.svg:124 (\"the alerts and the grades, written by the plugins inside the cluster\")",
+   "fix": "Move the monitor card into the storage-tier column, or add \"run by the cluster\" under its title.",
+   "severity": "should",
+   "lens": "figures"
+  },
+  {
+   "file": "reports/loggy-report/figures/fig05-templates.svg",
+   "line": 41,
+   "quote": "<text x=\"143\" y=\"265\" font-family=\"Menlo, monospace\" font-size=\"10\" fill=\"#6b6b66\" text-anchor=\"middle\">at most 20000 clusters per worker</text>",
+   "problem": "The figure drops the thousands separator the report uses for the same number.",
+   "source": "reports/loggy-report/sections/02-design-a.tex:71 (\"The stamper holds at most 20,000 clusters per worker\")",
+   "fix": "Write \"at most 20,000 clusters per worker\".",
+   "severity": "nit",
+   "lens": "figures"
+  }
+ ],
+ "fig03-error-line.svg": [
+  {
+   "file": "reports/loggy-report/figures/fig03-error-line.svg",
+   "line": 24,
+   "quote": "<rect x=\"14\" y=\"106\" width=\"194\" height=\"238\" fill=\"#f1f1ec\" stroke=\"none\"/>",
+   "problem": "This panel is titled \"the collector\" and its lower edge at y=344 encloses the stamper card at y=276 to 336, so the stamper reads as a stage inside Fluent Bit rather than a separate process beside it.",
+   "source": "reports/loggy-report/briefs/target-architecture.md:11 (\"a stamper beside the collector gives it a template identity\"); reports/inputs/dataflow-atlas.md:15 (\"The stamper, a Python process running drain3, listens there\"); reports/loggy-report/figures/fig04-collector.svg:66-68 draws it outside the five collector steps",
+   "fix": "End the panel at y=250, above the stamper card, so it covers only the identity-and-clock and routing steps.",
+   "severity": "must",
+   "lens": "figures"
+  },
+  {
+   "file": "reports/loggy-report/figures/fig03-error-line.svg",
+   "line": 40,
+   "quote": "<text x=\"110\" y=\"305\" font-family=\"Menlo, monospace\" font-size=\"10\" fill=\"#6b6b66\">drain3, dpl family tree</text>",
+   "problem": "\"dpl\" is code vocabulary that the report never defines; the report calls this family the O2 process tree.",
+   "source": "reports/loggy-report/figures/STYLE.md:50 (\"Names follow the report, not the code\"); reports/loggy-report/sections/01-intro-problem.tex:36 and sections/05-eval-a.tex:58 use \"process tree\"; \"dpl\" appears in no section file",
+   "fix": "Change the label to \"drain3, the process-tree family tree\".",
+   "severity": "must",
+   "lens": "figures"
+  },
+  {
+   "file": "reports/loggy-report/figures/fig03-error-line.svg",
+   "line": 113,
+   "quote": "<text x=\"322\" y=\"320\" font-family=\"Menlo, monospace\" font-size=\"10\" fill=\"#e1251b\" text-anchor=\"middle\">the bus will replace this edge</text>",
+   "problem": "The accent is spent on the live-lane note, which the caption is not about; the hot primary-shard card already carries the caption's subject, so the bus looks like the point of the figure.",
+   "source": "reports/loggy-report/figures/STYLE.md:20 (\"Use the accent once or twice per figure, for the thing the caption is about. Never as decoration.\"); the caption at sections/02-design-a.tex:35 is about the one hop to the primary and its two replicas",
+   "fix": "Set the note in ink-soft #6b6b66 and keep the red for the primary shard only.",
+   "severity": "should",
+   "lens": "figures"
+  }
+ ],
+ "fig07-layouts.svg": [
+  {
+   "file": "reports/loggy-report/figures/fig07-layouts.svg",
+   "line": 96,
+   "quote": "<text x=\"646.0\" y=\"326\" font-family=\"Helvetica Neue, Helvetica, Arial, sans-serif\" font-size=\"11\" fill=\"#3a3a36\" text-anchor=\"middle\">the projector</text>",
+   "problem": "The farm-pilot containers are solid cards and the legend reads solid as \"built and running\", but no source says the projector or the shifter view (line 101) ran on the farm.",
+   "source": "reports/loggy-report/briefs/target-architecture.md:215 (\"Nothing read says whether the stamper, the poller, the projector, the rollup, Alertmanager, the receiver or the shifter view ran on the farm. Say 'not stated' rather than 'deployed'.\"); briefs/inputs/memory-extracts.md:85-87",
+   "fix": "Keep the container cards solid for the OpenSearch nodes, set the service lines in ink-soft, and add one note \"services on the farm: not stated\"; or drop the service lines from the farm row.",
+   "severity": "must",
+   "lens": "figures"
+  },
+  {
+   "file": "reports/loggy-report/figures/fig07-layouts.svg",
+   "line": 163,
+   "quote": "<text x=\"404\" y=\"634\" font-family=\"Helvetica Neue, Helvetica, Arial, sans-serif\" font-size=\"10\" fill=\"#6b6b66\" text-anchor=\"start\">two replicas, so a copy on every storage node; cluster manager quorum two</text>",
+   "problem": "The production panel is headed \"storage tier \u00b7 three or more machines\" and draws a storage N card, so two replicas are three copies, not one per node; the sentence holds only for the two rows above.",
+   "source": "reports/loggy-report/outline.md:16-17 (decision 3: on the farm three primaries, one per storage node, two replicas each); reports/loggy-report/briefs/target-architecture.md:90-93",
+   "fix": "In the production row only, write \"three primaries, two replicas each; cluster manager quorum two\".",
+   "severity": "must",
+   "lens": "figures"
+  },
+  {
+   "file": "reports/loggy-report/figures/fig07-layouts.svg",
+   "line": 99,
+   "quote": "<text x=\"64.0\" y=\"341\" font-family=\"Helvetica Neue, Helvetica, Arial, sans-serif\" font-size=\"11\" fill=\"#3a3a36\" text-anchor=\"middle\">local data node</text>",
+   "problem": "The farm-pilot worker cards list collector, local data node and real log sources and omit the stamper, which the staging (line 17) and production (line 122) cards both list, so the middle row reads as a design without templates rather than as a status statement.",
+   "source": "reports/loggy-report/briefs/target-architecture.md:215 (the stamper's farm status is not stated); sections/02-design-a.tex:7 (the stamper is part of every worker)",
+   "fix": "List the stamper on the farm worker cards too and mark that whole service list \"not stated\", in step with the farm-status fix.",
+   "severity": "should",
+   "lens": "figures"
+  }
+ ],
+ "fig02-architecture.svg": [
+  {
+   "file": "reports/loggy-report/figures/fig02-architecture.svg",
+   "line": 116,
+   "quote": "<path d=\"M806,268 H764\" fill=\"none\" stroke=\"#101010\" stroke-width=\"1.25\" stroke-opacity=\"0.32\" marker-end=\"url(#ghosthead)\"/>",
+   "problem": "Both arrows at the bus (lines 116 and 117) carry no label, so what the collectors publish and what the shifter view consumes is a guess, while every other edge in the figure names its cargo and protocol.",
+   "source": "reports/loggy-report/figures/STYLE.md:47 (\"Label every arrow with what flows and how (protocol, cadence), in monospace. An unlabelled arrow is a guess.\"); briefs/target-architecture.md:81 (the collector gets a Kafka output, the shifter view consumes the topic)",
+   "fix": "Label the inbound arrow \"severe lines \u00b7 kafka produce\" and the outbound arrow \"one consumer \u00b7 kafka fetch\".",
+   "severity": "should",
+   "lens": "figures"
+  },
+  {
+   "file": "reports/loggy-report/figures/fig02-architecture.svg",
+   "line": 90,
+   "quote": "<text x=\"400\" y=\"486.5\" font-family=\"Helvetica Neue, Helvetica, Arial, sans-serif\" font-size=\"10.5\" fill=\"#3a3a36\" text-anchor=\"start\">the trend rollup</text>",
+   "problem": "The rollup is the only service card without a cadence, while its neighbours read \"the poller, 30 s\" and \"the projector, 30 s\", so it reads as continuous; it runs every ten minutes.",
+   "source": "reports/loggy-report/briefs/walkthroughs-3-5.md:163 (the rollup service runs every 600 seconds); briefs/target-architecture.md:65",
+   "fix": "Write \"the trend rollup, 10 min\".",
+   "severity": "should",
+   "lens": "figures"
+  },
+  {
+   "file": "reports/loggy-report/figures/fig02-architecture.svg",
+   "line": 12,
+   "quote": "<text x=\"388\" y=\"58\" font-family=\"Menlo, monospace\" font-size=\"10\" fill=\"#6b6b66\" text-anchor=\"end\">role = worker</text>",
+   "problem": "This is a shard-allocation attribute written in configuration vocabulary (also on line 36), and in a report that bans role names it reads as one; the card already says what the node is in plain words.",
+   "source": "reports/loggy-report/figures/STYLE.md:51 (\"No Ansible role names, no file names, no version numbers in figures.\"); briefs/target-architecture.md:25 (the attribute exists, to pin the local index)",
+   "fix": "Replace both with \"the local index is pinned here\", or drop the tag.",
+   "severity": "should",
+   "lens": "figures"
+  }
+ ],
+ "fig01-logging-today.svg": [
+  {
+   "file": "reports/loggy-report/figures/fig01-logging-today.svg",
+   "line": 76,
+   "quote": "<text x=\"653\" y=\"296\" font-family=\"Menlo, monospace\" font-size=\"10\" fill=\"#6b6b66\" text-anchor=\"middle\">query, tcp 3306</text>",
+   "problem": "The arrowhead lands on the browser, so the arrow shows the answer travelling while the label names the request; the source slide labels this edge \"query\" with no port.",
+   "source": "reports/inputs/deck-text.md:61-63 (slide 3 edge list: tcp 3306, one table, query); reports/loggy-report/briefs/constraints.md:55",
+   "fix": "Write \"query results, tcp 3306\".",
+   "severity": "nit",
+   "lens": "figures"
+  }
+ ],
+ "fig04-collector.svg": [
+  {
+   "file": "reports/loggy-report/figures/fig04-collector.svg",
+   "line": 12,
+   "quote": "<text font-family=\"Menlo, monospace\" font-size=\"9.5\" letter-spacing=\"0.04em\" fill=\"#6b6b66\" x=\"108\" y=\"19\">the collector, one process on every worker</text>",
+   "problem": "This label and the memory-envelope row labels at line 104 are set at 9.5 px, under the size the style sets for the 820-wide box.",
+   "source": "reports/loggy-report/figures/STYLE.md:29 (\"Keep text at 10 to 14 px in that box; smaller than 9 px is unreadable in print.\")",
+   "fix": "Raise both to font-size 10.",
+   "severity": "nit",
+   "lens": "figures"
+  },
+  {
+   "file": "figures/fig04-collector.svg",
+   "line": 113,
+   "quote": "<text x=\"800\" y=\"466\">128 MB</text>",
+   "problem": "The figure gives 128 MB as the documented worst case, against Section 3.4's 307 MB; 128 MB is the 64-chunk bound on the line above.",
+   "source": "briefs/target-architecture.md:153-154 (64 chunks, about 128 MB; documented worst case 128 MB x 2 x 1.2, roughly 307 MB)",
+   "fix": "Read \"Chunks in memory 64, about 128 MB\" and \"Documented worst case 307 MB\".",
+   "severity": "must",
+   "lens": "reader"
+  }
+ ],
+ "fig08-flush.svg": [
+  {
+   "file": "reports/loggy-report/figures/fig08-flush.svg",
+   "line": 4,
+   "quote": "<text x=\"60\" y=\"22\">CORE-SECONDS, WHOLE RUN SET</text>",
+   "problem": "An eighth figure is finished and rendered to PDF, but no section includes it, so the folder carries an asset the report never cites.",
+   "source": "reports/loggy-report/outline.md:171 (\"Optional: the flush curve\"); no includegraphics{fig08 exists in reports/loggy-report/sections/",
+   "fix": "Either cite it beside Table 7 in Section 5.2, or delete fig08-flush.svg, .pdf and .png.",
+   "severity": "nit",
+   "lens": "figures"
+  }
+ ],
+ "06-eval-b.tex": [
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 3,
+   "quote": "Templating is built, at a third to a half of its former cost per line.",
+   "problem": "A cut of 31 to 57 % leaves 43 % to 69 % of the former cost, so \"a third to a half\" overstates the saving at both ends.",
+   "source": "docs/SOAK_RESULTS.md:5428-5429 (\"The whole pipeline is 31 to 57 % cheaper per family\"); reports/loggy-report/briefs/soak-index.md section 2l",
+   "fix": "Write \"at between two fifths and seven tenths of its former cost per line\", or drop the fraction and state the 31 to 57 % range that the subsection already gives.",
+   "severity": "must",
+   "lens": "numbers"
+  },
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 9,
+   "quote": "One per family costs the same as one global setting, 17.65 against 17.57~core-seconds per million weighted.",
+   "problem": "The numbers are the wrong way round: 17.65 is the shipped global setting and 17.57 the per-family recipe, so the sentence's subject carries the comparator's value.",
+   "source": "docs/SOAK_RESULTS.md:2275 (weighted whole corpus: 17.65 now, 17.57 recipe); reports/loggy-report/briefs/templating-embedding.md:179",
+   "fix": "Write: \"One per family costs the same as one global setting, 17.57 against 17.65 core-seconds per million weighted.\"",
+   "severity": "should",
+   "lens": "numbers"
+  },
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 36,
+   "quote": "The configured ceiling is 384~MB.",
+   "problem": "Two different 384 MB ceilings exist in the design and Section 5.2 has just used the other one, so the sentence does not say which service the ceiling governs.",
+   "source": "reports/loggy-report/briefs/target-architecture.md:174 and :177 (\"The 384 MB figure appears twice with two meanings: the collector's MemoryHigh and the shifter view's semantic model ceiling. The report must not conflate them.\")",
+   "fix": "Write: \"The semantic service is configured with a 384 MB ceiling on the shifter host.\"",
+   "severity": "should",
+   "lens": "numbers"
+  },
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 11,
+   "quote": "One run per family gave 3,011 templates. One tree per family across three corpora gave 4,221.",
+   "problem": "The template count is the figure of record as a three-point curve with its corpora, and giving two points without line counts hides that it is a curve.",
+   "source": "reports/loggy-report/briefs/soak-index.md section 2j (3,011 on 45,596,613 lines; 4,092; 4,221 on 55,963,050 lines), docs/SOAK_RESULTS.md:2468, 2523-2533, 2632-2652",
+   "fix": "Write: \"One run per family gave 3,011 templates on 45,596,613 lines, sixteen runs plus eighty InfoLogger partitions gave 4,092, and one tree per family across all three corpora gave 4,221 on 55,963,050 lines.\"",
+   "severity": "nit",
+   "lens": "numbers"
+  },
+  {
+   "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/06-eval-b.tex",
+   "line": 11,
+   "quote": "One run per family gave 3,011 templates. One tree per family across three corpora gave 4,221.",
+   "problem": "3,011 is the whole-corpus count with the recipe and the fast masker on 45,596,613 lines, not \"one run per family\", and the curve loses its middle reading of 4,092, which is what shows the count grows with the runs and partitions sampled.",
+   "source": "briefs/soak-3.md:59 (\"3,011 templates on 45,596,613 lines ... a floor, not a total\"); briefs/soak-3.md:73 (4,092 from 80 partitions and 16 runs); briefs/soak-3.md:81 (4,221 on 55,963,050 lines); briefs/soak-index.md:22",
+   "fix": "\"The whole corpus of 45,596,613 lines gave 3,011 templates, a floor. Sampling more runs and partitions gave 4,092, and one tree per family carried across all three corpora, 55,963,050 lines, gave 4,221. The count is a curve driven by the runs sampled, not by the lines.\"",
+   "severity": "should",
+   "lens": "facts"
+  },
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 52,
+   "quote": "A fault agent on each worker may kill its collector, and the agent on the projector's machine may stop only the projector.",
+   "problem": "Two forbidden modals, where the meaning is capability: the agent can kill the collector, and the other agent can stop only the projector.",
+   "source": ".claude/skills/simple-english/SKILL.md:36",
+   "fix": "\"A fault agent on each worker can kill its collector. The agent on the projector's machine can stop only the projector.\"",
+   "severity": "must",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 13,
+   "quote": "The whole-pipeline rewrite made seven families 31 to 57\\,\\% cheaper, and every line kept its cluster.",
+   "problem": "\"cluster\" means the group of lines under one template here, but everywhere else in the report it means the search cluster, so one word carries two meanings.",
+   "source": ".claude/skills/simple-english/SKILL.md:39 (one word, one meaning, for the whole document); reports/loggy-report/sections/02-design-a.tex:3 (\"\\loggy{} is one cluster\")",
+   "fix": "\"The whole-pipeline rewrite made seven families 31 to 57\\,\\% cheaper, and every line kept the same template.\"",
+   "severity": "must",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 52,
+   "quote": "Injection proves the chain from a fault to a stored notification.",
+   "problem": "The first sentence repeats the heading \"The detection chain, proven by injection\" before the section says anything.",
+   "source": ".claude/skills/humanizer/SKILL.md:338",
+   "fix": "Open on the result instead: \"Seven injected faults reached a stored notification, and one of them proved the break-glass path.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 32,
+   "quote": "It finds a template by meaning, closing a measured gap: 47.1\\,\\% of relevant question-and-template pairs share no analysed term.",
+   "problem": "An \"-ing\" phrase after a comma bolts the reason onto the fact, which the style forbids.",
+   "source": ".claude/skills/simple-english/SKILL.md:35; .claude/skills/humanizer/SKILL.md:233",
+   "fix": "\"It finds a template by meaning. The gap it closes is measured: 47.1\\,\\% of relevant question-and-template pairs share no analysed term.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 36,
+   "quote": "The standing recommendation is a dense scan by exact cosine over all templates, 30 candidates, then a late-interaction reranker.",
+   "problem": "Three terms arrive undefined in one sentence, and the \"interval\" two sentences later is never said to be a bootstrap interval.",
+   "source": "reports/loggy-report/briefs/semantic-2.md:13 (\"Dense model scans all templates by exact cosine, returns 30 candidates, late-interaction model reranks them by MaxSim\"); reports/loggy-report/briefs/semantic-2.md:47 (bootstrap intervals)",
+   "fix": "\"The standing recommendation has two steps. First a dense scan: the search compares the question's vector with every template's vector and keeps the 30 nearest. Then a reranker scores those 30 word by word and reorders them.\" Call the interval a bootstrap interval where it appears.",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 34,
+   "quote": "An embedding is paid once per template, not per line.",
+   "problem": "The passive hides who pays, and \"an embedding is paid\" is not what a reader can picture.",
+   "source": ".claude/skills/humanizer/SKILL.md:186 (passive voice and missing subjects); reports/loggy-report/briefs/style.md:47",
+   "fix": "\"The platform computes one embedding per template, not one per line. An embedding is a vector that stands for the template's meaning.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 11,
+   "quote": "The tree stops learning at 20,000 templates, inside the 512~MB unit.",
+   "problem": "\"unit\" is deployment shorthand for the service's memory limit, and the report never uses the word that way anywhere else.",
+   "source": "reports/loggy-report/briefs/soak-5.md:34 (\"20,000 clusters: 61.5 MB tree, 208.1 MB peak serialising ... unit limit 512 MB\")",
+   "fix": "\"The tree stops learning at 20,000 templates. At that ceiling it peaks at 208.1~MB, inside the stamper's 512~MB memory limit.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 5,
+   "quote": "Drain3, the parser we keep, mined the archive into 3,822 templates at 19.91~core-seconds per million",
+   "problem": "The tool is spelled \"Drain3\" here and \"drain3\" in 3.5 and 4, so one name has two forms.",
+   "source": "reports/loggy-report/sections/02-design-a.tex:71 (\"The stamper runs drain3, a template miner\"); .claude/skills/simple-english/SKILL.md:39",
+   "fix": "Use \"drain3\" everywhere, and open the sentence with the subject: \"The parser we keep, drain3, mined the archive into 3,822 templates ...\"",
+   "severity": "nit",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 15,
+   "quote": "Splicing the stamped fields into a record's own bytes made the collector-to-stamper hop 15\\,\\% cheaper per record. Transport is about a quarter, so the whole hop fell 6.5\\,\\% on \\code{infologger}.",
+   "problem": "The hop cannot fall 15 % and 6.5 % in consecutive sentences: the 15 % is the transport step alone, and as written a quarter of 15 % is under 4 %, so the arithmetic fails too.",
+   "source": "briefs/soak-5.md:72 \u2014 \"\u221215.1 / \u221215.4 %, \u22126.5 % | infologger transport alone and whole stamper hop, median of 15 pairs, two passes | shipped path | Transport is about a quarter of the hop.\"",
+   "fix": "\"Splicing the stamped fields into a record's own bytes made the transport step 15~\\% cheaper per record. Transport is about a quarter of the whole collector-to-stamper hop, so the hop fell 6.5~\\% on \\code{infologger}.\"",
+   "severity": "must",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 11,
+   "quote": "The tree stops learning at 20,000 templates, inside the 512~MB unit.",
+   "problem": "\"Unit\" is used in the systemd sense for the first and only time; the reader cannot tell whether 512 MB is a machine, a service, a file or a cap, so the claim is lost.",
+   "source": "briefs/soak-5.md:38 \u2014 \"20,000 templates; 4.7 times 4,221 | the growth ceiling across all families\"; the report's Table 8 row gives \"208.1~MB against 512~MB\"",
+   "fix": "\"The tree stops learning at 20,000 templates, and holds 208.1~MB there, inside the stamper's 512~MB memory limit.\"",
+   "severity": "must",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 11,
+   "quote": "One run per family gave 3,011 templates. One tree per family across three corpora gave 4,221.",
+   "problem": "Three template counts appear within six lines (3,822, 3,011, 4,221) and none carries the number of lines behind it, so the reader cannot tell a corpus effect from a method effect.",
+   "source": "briefs/soak-3.md:59 \u2014 \"3,011 templates on 45,596,613 lines... baseline H1b's 3,822\"; briefs/soak-5.md:38 \u2014 \"the template count of the 55,963,050-line archive pass\" for 4,221",
+   "fix": "\"One run per family gave 3,011 templates on 45,596,613 lines. One tree per family across three corpora, 55,963,050 lines, gave 4,221. The count is a curve driven by how many runs were sampled, not a total.\"",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 32,
+   "quote": "It searches 5,301 template groups.",
+   "problem": "5,301 is given with no reference beside it, while every other corpus in the report is quoted in lines, so the reader cannot judge the size of the search problem.",
+   "source": "briefs/semantic-1.md:21 \u2014 \"5,301 canonical template groups built from 18,011 source instances and 56,628,579 real log lines\"; outline.md:124 \u2014 \"Corpus 5,301 groups from 56,628,579 lines\"",
+   "fix": "\"It searches 5,301 template groups, the whole of 56,628,579 real log lines reduced to their skeletons.\"",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 34,
+   "quote": "A static model encodes 18,037 templates a core-second, 31 times the small transformer.",
+   "problem": "Two unnamed comparison systems, \"the small transformer\" and later \"the lexical engine\", carry four numbers including the headline held-out result, and the reader never learns the lexical engine is the store's ordinary word-matching search.",
+   "source": "briefs/semantic-1.md:74 \u2014 \"lexical index size for 5,301 groups | one primary shard\"; briefs/semantic-2.md:35-36 \u2014 the dense path scans \"a 5,301 by 768 matrix\" against the store's own text search",
+   "fix": "Name both at first use: \"31 times a small transformer model\", and \"0.371 for the store's ordinary word-matching search, the lexical engine\".",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 36,
+   "quote": "The standing recommendation is a dense scan by exact cosine over all templates, 30 candidates, then a late-interaction reranker.",
+   "problem": "The sentence stating what the project recommends contains unexplained vocabulary; a reader who knows search engines can decode \"exact cosine\" and \"30 candidates\" but not \"late-interaction\".",
+   "source": "briefs/semantic-1.md:85 \u2014 \"194 MB reranking token matrix for 5,301 templates... the one real deployment cost of the recommendation\"",
+   "fix": "\"then a reranker that scores the 30 candidates by matching the question's words against each template's words one by one, rather than by one vector each.\"",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/06-eval-b.tex",
+   "line": 36,
+   "quote": "An approximate vector index costs 0.020 and moves between builds, so we use none.",
+   "problem": "0.020 has no unit, and the next sentence repeats the fault with \"scores 0.048 worse\"; the unit is nDCG@10.",
+   "source": "briefs/semantic-1.md:88 \u2014 \"0.020 | nDCG@10 cost of the approximate vector index in the Morning report\"; briefs/semantic-2.md:99 \u2014 \"0.685 exact vs 0.665 approximate\"",
+   "fix": "\"An approximate vector index costs 0.020 nDCG@10, 0.685 falling to 0.665, and moves between builds, so we use none.\"",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "sections/06-eval-b.tex",
+   "line": 11,
+   "quote": "One run per family gave 3,011 templates. One tree per family across three corpora gave 4,221.",
+   "problem": "The reader met five template counts (3,822, 3,011, 4,092, 4,221, 5,301) with nothing connecting them.",
+   "source": "briefs/soak-3.md:157 and :205 (the count is a curve driven by the runs and partitions sampled, not by lines; 3,011 is a floor); briefs/semantic-2.md:35 (5,301 is the later semantic corpus)",
+   "fix": "Add \"The count is a curve, not a number: it grows with the runs and partitions sampled, not with lines\", and mark 5,301 in Section 5.6 as the larger corpus the search was built on.",
+   "severity": "should",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/06-eval-b.tex",
+   "line": 36,
+   "quote": "It scores 0.685 against 0.634 for the dense model alone, with an interval of +0.028 to +0.080.",
+   "problem": "0.685 is a development-set score on machine-made judgements and the report neither says so nor gives the number of questions, so it reads as the standing figure of record.",
+   "source": "briefs/semantic-1.md:83 (\"development, interval +0.028 to +0.080 ... reranking is real on development, untested on held-out\") and briefs/semantic-1.md:52 (97 intent groups, 130 queries)",
+   "fix": "Write: \"On the development set of 130 questions over 97 intent groups it scores 0.685 against 0.634 ... Reranking was never scored on the sealed held-out set.\"",
+   "severity": "should",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/06-eval-b.tex",
+   "line": 24,
+   "quote": "Masking step removed by the rewrite & 85 to 87\\,\\% & zero differences on 3,000,000 lines per family \\\\",
+   "problem": "The row can be read as the share of mining removed rather than the share of the masking step.",
+   "source": "briefs/soak-3.md:203 (the rewrite cut masking by 85 to 87 %, and masking was 74 to 87 % of mining)",
+   "fix": "Label the row \"Share of the masking step the rewrite removed\".",
+   "severity": "nit",
+   "lens": "reader"
+  }
+ ],
+ "05-eval-a.tex": [
+  {
+   "file": "reports/loggy-report/sections/05-eval-a.tex",
+   "line": 60,
+   "quote": "Four collector releases run there, none tested.",
+   "problem": "The census marks three of the four installations as tested and only the storage machine's untested, and the four installations carry three distinct releases.",
+   "source": "docs/SOAK_RESULTS.md:3517-3527 (epn146 4.0.1 yes, epn228 4.0.1 yes, epn323 4.0.14 yes, epn-infra13 3.2.8 no); reports/loggy-report/briefs/constraints.md:290",
+   "fix": "Write: \"Four installations run there, three distinct releases, and the storage machine's is two majors behind and had never been tested.\"",
+   "severity": "must",
+   "lens": "numbers"
+  },
+  {
+   "file": "reports/loggy-report/sections/05-eval-a.tex",
+   "line": 58,
+   "quote": "The collector had never read three of the six log sources.",
+   "problem": "The report counts the log families three different ways, five in Section 2.1, six here and seven in Section 5.5, and never reconciles them; the seventh priced family is the orchestrator log that Table 1 marks as not collected.",
+   "source": "docs/SOAK_RESULTS.md:3014-3021 (six parser sources: infologger, dds, dpl, datadist, ildaemon, journald) and :5442-5448 (seven families priced, odc included)",
+   "fix": "Reconcile once, in Section 2.1: five families on a worker, six parser sources because the process tree carries two line formats, plus the orchestrator log which is priced but not collected. Then keep those words in Sections 5.4 and 5.5.",
+   "severity": "should",
+   "lens": "numbers"
+  },
+  {
+   "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/05-eval-a.tex",
+   "line": 60,
+   "quote": "Four collector releases run there, none tested.",
+   "problem": "The census found four releases where two were assumed, and it was the storage machine's release, two majors behind, that nothing had tested; the same round then passed 29 of 29 fixture, journal and restart checks on all four.",
+   "source": "briefs/soak-4.md:41 (\"the storage machine runs a version two majors behind that nothing had tested\"); briefs/soak-4.md:42 (\"29 passed, 75,243 journal records, no duplicates ... on each of 3.2.8, 4.0.1, 4.0.14, 5.0.8\")",
+   "fix": "\"Four collector releases run there, two more than we assumed, and the oldest had never been tested against our configuration. It now is.\"",
+   "severity": "should",
+   "lens": "facts"
+  },
+  {
+   "file": "reports/loggy-report/sections/05-eval-a.tex",
+   "line": 36,
+   "quote": "The live lane, the second output that copies records to the shifter view, is the largest cost any setting adds: 41 to 68~\\% more collector processor time on the healthy rig.",
+   "problem": "The sentence runs to 31 words and carries three ideas, and it defines the live lane in section 5 although section 3 already used the term four times.",
+   "source": "reports/loggy-report/briefs/style.md:11 (25 words is the ceiling, most sentences under 15); reports/loggy-report/briefs/soak-1.md:136",
+   "fix": "Define the live lane at its first use in section 3.1, then write here: \"The live lane is the largest cost any setting adds. It costs 41 to 68~\\% more collector processor time on the healthy rig.\"",
+   "severity": "must",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/05-eval-a.tex",
+   "line": 13,
+   "quote": "Measurements after the collector screen came from a rig that had saturated unnoticed, so we retracted them.",
+   "problem": "\"screen\" is used as a noun here and as a verb four lines earlier, and neither use is defined.",
+   "source": ".claude/skills/simple-english/SKILL.md:39; reports/loggy-report/sections/05-eval-a.tex:9 (\"The healthy rig screened the collector at 20,000 records a second\")",
+   "fix": "Pick one word and define it: \"The first pass tested the collector's own settings at 20,000 records a second. Every measurement after that pass came from a rig that had saturated unnoticed, so we retracted them.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/05-eval-a.tex",
+   "line": 34,
+   "quote": "The collector is one single-threaded loop doing 89.3~\\% of its work.",
+   "problem": "The \"-ing\" rider makes the sentence ambiguous: the number is the share of work in that one loop, not a property of the loop.",
+   "source": ".claude/skills/simple-english/SKILL.md:35 (no \"-ing\" verb after a comma, name the actor); .claude/skills/humanizer/SKILL.md:233",
+   "fix": "\"The collector runs one single-threaded loop, and that loop does 89.3~\\% of its work. Threads elsewhere cannot help it.\"",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/05-eval-a.tex",
+   "line": 54,
+   "quote": "Or an outage longer than the buffer holds, or a measured worker rate within 50 times of 42,000.",
+   "problem": "A sentence begins with \"Or\" because a list of four conditions was split across two sentences.",
+   "source": ".claude/skills/simple-english/SKILL.md:42 (a vertical list is for three or more parallel items); reports/loggy-report/briefs/style.md:11",
+   "fix": "Make the four conditions one list: \"The question reopens on four conditions only: a sustained worker rate above about 1,000 records a second; a second consumer of the same records; an outage longer than the buffer holds; a measured worker rate within 50 times of 42,000.\" A vertical list also works.",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/05-eval-a.tex",
+   "line": 58,
+   "quote": "The collector had never read three of the six log sources.",
+   "problem": "The report counts five log families in 2.1 and 3.1 and six log sources here, so family and source are used as the same word with different counts.",
+   "source": "reports/loggy-report/sections/01-intro-problem.tex:17 (\"A worker holds five log families\"); reports/loggy-report/sections/02-design-a.tex:7 (\"The collector reads the five log sources\")",
+   "fix": "Fix the count and the word: \"The collector had never read three of the six sources in Table~\\ref{tab:sources}.\" Then say once, in 2.1, that the table holds six rows and that only five reach a collector.",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/05-eval-a.tex",
+   "line": 58,
+   "quote": "The collector had never read three of the six log sources. Later rounds added the data distribution log, the InfoLogger daemon log and the system journal.",
+   "problem": "\"Six log sources\" contradicts the \"five log families\" of Section 2.1, and \"the data distribution log\" is a name the reader has never met \u2014 it reads as DDS, which the report calls the deployment system.",
+   "source": "briefs/soak-4.md:149 \u2014 \"Six sources, each with a tier rule: infologger and ildaemon all durable, dds, dpl, datadist, journald informational local and warning-or-worse durable\"; briefs/constraints.md:85 \u2014 \"A worker holds five log families. The O2 process tree uses two line formats.\"",
+   "fix": "Name the split once in Section 2.1 \u2014 \"The O2 process tree splits into two formats: the reconstruction processes, and the data-distribution process that has its own line shape\" \u2014 then write \"the data-distribution format\" here and keep one count of sources throughout.",
+   "severity": "must",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/05-eval-a.tex",
+   "line": 44,
+   "quote": "A 2~GB heap for the worker's store node moves cost 2.1~\\% against a 6.7~\\% floor, so 1~GB ships.",
+   "problem": "Section 5.1 gave the noise floors as 1.61 % and 9.48 % tied to rates; 6.7 % and 5.5 % now appear tied to nothing, and the \"no measurable difference\" argument rests on them.",
+   "source": "briefs/soak-index.md:94 \u2014 \"2.1 % and 0.4 % against a 6.7 % floor | Re-measured effect of heap 2g; no effect | docs/SOAK_RESULTS.md:102\"; briefs/soak-index.md:282 \u2014 \"2.7 % against a 5.5 % floor, no effect\"",
+   "fix": "\"On the re-run rig, whose own floor for this comparison is 6.7~\\%, a 2~GB heap moved cost 2.1~\\%, so 1~GB ships.\"",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/05-eval-a.tex",
+   "line": 34,
+   "quote": "The collector is one single-threaded loop doing 89.3~\\% of its work.",
+   "problem": "89.3 % has no stated denominator \u2014 time, records or outputs \u2014 and the sentence exists to explain why every threading arm lost.",
+   "source": "briefs/soak-index.md:16 \u2014 \"Round 2 Stage B screened the collector's own settings at 20,000 a second. Every threading arm cost more than the shipped one.\"",
+   "fix": "\"One single-threaded loop does 89.3~\\% of the collector's processor work, so adding threads adds coordination and no throughput.\"",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/05-eval-a.tex",
+   "line": 13,
+   "quote": "A 47-cell re-run left one product change, the flush interval of Section~\\ref{sec:eval-collector}.",
+   "problem": "\"Cell\", \"arm\" and \"round\" are the report's private words for the shape of a measurement campaign, and none of the three is defined.",
+   "source": "briefs/soak-index.md:17 \u2014 \"A 47-cell re-run on 27 August at 5,000 a second replaced them and left one product change\"; :15 \u2014 \"The instrument failed four times before any arm ran.\"",
+   "fix": "Define both in \u00a75.1: \"An arm is one setting under test. A cell is one arm at one rate, run three times.\"",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "reports/loggy-report/sections/05-eval-a.tex",
+   "line": 13,
+   "quote": "We fixed 32 defects in the instrument.",
+   "problem": "Section 5.4 then says 99 defects were fixed \"in the collector, the stamper, the catalog and the instrument\", and the reader cannot tell whether 99 includes the 32, so neither number means anything.",
+   "source": "briefs/soak-index.md:15 (instrument failures counted separately); briefs/soak-5.md:9 (Rounds 10 to 21 are product reviews)",
+   "fix": "Say it once: \"99 defects in total, 32 of them in the instrument itself.\"",
+   "severity": "should",
+   "lens": "simplicity"
+  },
+  {
+   "file": "sections/05-eval-a.tex",
+   "line": 11,
+   "quote": "Cost per record falls as rate rises: 75.32 core-seconds per million at 1,000 a second and 11.19 at 20,000.",
+   "problem": "The sentence does not say whether these are the collector or the whole stack, so the reader could not place them against Table 6.",
+   "source": "briefs/soak-1.md:84-85 (both are the collector alone, three control runs at each rate)",
+   "fix": "Write: \"the collector alone costs 75.32 core-seconds per million at 1,000 a second and 11.19 at 20,000\".",
+   "severity": "should",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/05-eval-a.tex",
+   "line": 17,
+   "quote": "The collector's memory sits between 133 and 228~MB on two cores against an accepting sink.",
+   "problem": "Table 6 gives the same collector a peak of 87.1 and 62.7 MB and the report never says why the ranges differ.",
+   "source": "briefs/soak-index.md:59 (133 to 228 MB is Round 1's working range against a fake sink) and briefs/soak-1.md:21-22 (87.1 and 62.7 MB are the flush arms at 5,000 records a second on the re-run rig)",
+   "fix": "Name Round 1 and its rate in the sentence, so Table 6 reads as a different rig and rate.",
+   "severity": "should",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/05-eval-a.tex",
+   "line": 58,
+   "quote": "The collector had never read three of the six log sources.",
+   "problem": "The report elsewhere says five log families and \"reads the five log sources\", Table 1 has six rows, and \"the data distribution log\" named next appears nowhere in Table 1.",
+   "source": "briefs/constraints.md:85-96 (five families; the routing records list seven sources because the process tree splits into DPL and data distribution and the orchestrator is added) and briefs/soak-4.md:216 (Round 7 added datadist, ildaemon and journald)",
+   "fix": "Add one sentence in Section 2.1 bridging families to sources, and mark in Table 1 that the process tree is two sources in two line formats.",
+   "severity": "should",
+   "lens": "reader"
+  }
+ ],
+ "00-abstract.tex": [
+  {
+   "file": "reports/loggy-report/sections/00-abstract.tex",
+   "line": 1,
+   "quote": "The collector costs about a quarter of one core at 20,000 records a second.",
+   "problem": "This headline figure appears nowhere in the body, which gives only core-seconds per million, so the reader cannot check it.",
+   "source": "docs/SOAK_RESULTS.md:559-563 (\"The collector uses 0.25 of one core at 20,000 records a second, and 0.223 of that is one thread\"); reports/loggy-report/briefs/soak-index.md section 2a",
+   "fix": "Add to Section 5.2, beside the 11.19 core-seconds per million: \"At 20,000 records a second that is 0.25 of one core, and one thread carries 0.223 of it.\"",
+   "severity": "should",
+   "lens": "numbers"
+  },
+  {
+   "file": "reports/loggy-report/sections/00-abstract.tex",
+   "line": 1,
+   "quote": "Info lines stay in one local copy, every other severity goes to three storage machines.",
+   "problem": "A comma splices two independent clauses, so one sentence carries two ideas; the abstract does it again in \"Every worker pushes its health up, nothing polls it.\"",
+   "source": ".claude/skills/simple-english/SKILL.md:32 (one topic per sentence, 25 words); reports/loggy-report/briefs/style.md:11",
+   "fix": "\"Info lines stay in one local copy. Every other severity goes to three storage machines.\" Split the health sentence the same way.",
+   "severity": "should",
+   "lens": "voice"
+  },
+  {
+   "file": "reports/loggy-report/sections/00-abstract.tex",
+   "line": 1,
+   "quote": "Dense retrieval with reranking reaches 0.685 nDCG@10 against 0.634 for the dense model alone.",
+   "problem": "nDCG is used in the abstract, twice in Section 5.6, in a table and in the conclusion, and is glossed but never expanded, so the reader cannot look up the name.",
+   "source": "reports/loggy-report/report/references.tex, ref:ndcg \u2014 J\u00e4rvelin and Kek\u00e4l\u00e4inen, \"Cumulated gain-based evaluation of IR techniques\"",
+   "fix": "At 06-eval-b.tex:36 write \"normalised discounted cumulative gain over the top ten results, nDCG@10, a rank score that rewards relevant results near the top~\\cite{ref:ndcg}\".",
+   "severity": "must",
+   "lens": "simplicity"
+  },
+  {
+   "file": "sections/00-abstract.tex",
+   "line": 1,
+   "quote": "Info lines stay in one local copy, every other severity goes to three storage machines.",
+   "problem": "Three different sets are given for what stays local: info here, \"info and debug lines\" in Table 3, \"info, debug and trace\" in Section 3.2 step 2.",
+   "source": "reports/inputs/dataflow-atlas.md:16 (audited): \"Info, debug and trace would go to family.local.\"",
+   "fix": "Use \"info, debug and trace\" in Table 3 and the abstract, or define \"routine lines\" once and use that word everywhere.",
+   "severity": "should",
+   "lens": "reader"
+  },
+  {
+   "file": "sections/00-abstract.tex",
+   "line": 1,
+   "quote": "so only shapes, knees and rankings transfer to the farm",
+   "problem": "\"Knees\" is used in the abstract and Section 5 and never defined.",
+   "source": "briefs/style.md:31 (define a term the moment it appears)",
+   "fix": "At the first use in Section 5 add \"the knees, the rates where a cost curve bends\".",
+   "severity": "nit",
+   "lens": "reader"
+  }
+ ]
+}

@@ -1,0 +1,22 @@
+[
+ {
+  "file": "reports/loggy-report/report/preamble.tex",
+  "line": 1,
+  "quote": "\\documentclass[a4paper,11pt]{article}",
+  "problem": "The built PDF has 18 pages; the target is 16 including the title page.",
+  "source": "pdfinfo report/report.pdf: Pages: 18",
+  "fix": "Place Figures 4, 5 and 6 with [htbp] so they stop leaving part-empty pages, give Appendix B its table in place, then cut text in sections 3 and 5 if two pages are still over.",
+  "severity": "must",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/report/preamble.tex",
+  "line": 17,
+  "quote": "\\special{pdf:minorversion 7}",
+  "problem": "The PDF writer warns \"Object @page.1 already defined\" on every build; the reader sees nothing and the cause was not verified.",
+  "source": "tectonic standard output during the build: \"warning: Object @page.1 already defined.\"",
+  "fix": "No action unless a later build turns the warning into an error.",
+  "severity": "nit",
+  "lens": "build"
+ }
+]

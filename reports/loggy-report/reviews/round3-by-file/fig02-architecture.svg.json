@@ -1,0 +1,12 @@
+[
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/figures/fig02-architecture.svg",
+  "line": 109,
+  "quote": "live lane today \u00b7 http \u00b7 severe lines",
+  "problem": "The label calls the live lane \"severe lines\", but the lane carries every InfoLogger record at any severity and the daemon log as well as every line above info.",
+  "source": "reports/loggy-report/sections/02-design-a.tex:13; reports/inputs/dataflow-atlas.md:30",
+  "fix": "Line 109: \"live lane today \u00b7 http \u00b7 InfoLogger, daemon log, warn+\". The same wrong words at line 115: \"InfoLogger, daemon log, warn+ \u00b7 kafka produce\".",
+  "severity": "must",
+  "lens": "figures"
+ }
+]

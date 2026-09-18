@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" viewBox="0 0 820 522" role="img"
+             aria-label="Five unbuilt items, set as a table with uneven rows, in the order we would build them. Each row gives the item, short bullet points on what it would do, and short bullet points on why it waits and what it costs. Item one is the largest row, outlined in red and marked NEXT: Apache Kafka for durability, a durable queue between the collector and the store. Three brokers would run on the three storage machines. It would run in KRaft mode, which means Kafka keeps its own cluster state, with no separate coordination service beside it. It decouples a slow reader from a fast writer: Fluent Bit writes fast, and OpenSearch reads at its own pace, so a slow or dead store then stops costing records. It waits because nothing needs it yet: two readers today, served by two collector outputs, and a third reader is the trigger. It costs three brokers, a second system to run, and memory these five machines do not have. Item two, more log types: today we take DDS, stdout, InfoLogger and the collector's own health. Missing are the machine's system journal and the ten per-device process logs that slide three names. After that we would parse numbers out of the message body, such as timeframe processing time, compressed timeframe size, and tracks. It waits because the archive we replay holds neither source, so this one needs a real machine, and because the parsers need real message shapes to test against. It costs one input and one parser per machine. Item three, anomaly detection on the log text: today we watch numbers about the logs, not the text, and slide thirteen gives that gap a full page with the three routes we are choosing between. The choice between the routes is not made, and nothing here is built. Item four, the shifter's own view: the cockpit says whether the pipeline is healthy, a shifter asks what the experiment is saying now, and that is a second view, kept close to the InfoLogger one. It needs access to the EPN machines, because we must read the running interface first, and there is no data work, because the fields are already mapped. Item five, authentication inside the cluster: one password guards the web page, behind it no port asks who you are, and a firewall rule is the whole boundary. That is fine on five machines we own and not on the farm. It costs a certificate on every machine, an account for every job, and authentication on every call.">
+
+          <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="0" y="13">Not built yet</text>
+          <text class="d-fact is-end" style="font-size:10.5px;fill:#3a3a36;text-anchor:end" x="820" y="13">In the order we would build them. Each line names what holds it, and what it costs.</text>
+
+          <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="44" y="38">ITEM</text>
+          <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="212" y="38">WHAT IT WOULD DO</text>
+          <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="536" y="38">WHY IT WAITS, AND WHAT IT COSTS</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M0,46 H820"></path>
+
+          <rect class="d-card is-hot" style="fill:#fdf1f0;stroke:#e1251b;stroke-width:1.6" x="1" y="52" width="818" height="156"></rect>
+          <text class="d-num is-hot" style="font-family:Menlo, monospace;font-size:11px;fill:#e1251b" x="12" y="78">01</text>
+          <image href="logos/kafka-logo-official.svg" x="44" y="82" width="78" height="36.1"></image>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="44" y="146">for durability</text>
+          <text class="d-tag is-lg is-end" style="font-family:Menlo, monospace;font-size:12px;font-weight:700;letter-spacing:0.2em;fill:#e1251b;text-anchor:end" x="808" y="78">NEXT</text>
+
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="212" y="78">A durable queue between collector and store</text>
+
+          <path class="d-dot is-hot" style="fill:#e1251b" d="M212,96.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="222" y="102">Three brokers, on the three storage machines</text>
+          <path class="d-dot is-hot" style="fill:#e1251b" d="M212,114.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="222" y="120">KRaft: Kafka keeps its own cluster state, with no</text>
+          <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="222" y="138">separate coordination service beside it</text>
+          <path class="d-dot is-hot" style="fill:#e1251b" d="M212,150.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="222" y="156">It decouples a slow reader from a fast writer</text>
+          <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="222" y="174">Fluent Bit writes fast, OpenSearch reads at its own pace</text>
+          <path class="d-dot is-hot" style="fill:#e1251b" d="M212,186.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="222" y="192">A slow or dead store then stops costing records</text>
+
+          <path class="d-dot is-hot" style="fill:#e1251b" d="M536,96.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="546" y="102">Nothing needs it yet: two readers today, served</text>
+          <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="546" y="120">by two collector outputs</text>
+          <path class="d-dot is-hot" style="fill:#e1251b" d="M536,132.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="546" y="138">A third reader is the trigger</text>
+          <path class="d-dot is-hot" style="fill:#e1251b" d="M536,150.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="546" y="156">Costs three brokers and a second system to run</text>
+          <path class="d-dot is-hot" style="fill:#e1251b" d="M536,168.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="546" y="174">Memory these five machines do not have</text>
+
+          <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="12" y="232">02</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="44" y="232">More log</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="44" y="248">types</text>
+
+          <path class="d-dot" style="fill:#6b6b66" d="M212,226.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="222" y="232">Today: DDS, stdout, InfoLogger, collector health</text>
+          <path class="d-dot" style="fill:#6b6b66" d="M212,244.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="222" y="250">Missing: the machine’s system journal, and the ten</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="222" y="268">per-device process logs that slide 3 names</text>
+          <path class="d-dot" style="fill:#6b6b66" d="M212,280.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="222" y="286">Then parse numbers out of the message body:</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="222" y="304">timeframe processing time, frame size, tracks</text>
+
+          <path class="d-dot" style="fill:#6b6b66" d="M536,226.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="546" y="232">The archive we replay holds neither source,</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="546" y="250">so this one needs a real machine</text>
+          <path class="d-dot" style="fill:#6b6b66" d="M536,262.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="546" y="268">The parsers need real message shapes to test</text>
+          <path class="d-dot" style="fill:#6b6b66" d="M536,280.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="546" y="286">Costs one input and one parser per machine</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M0,314 H820"></path>
+
+          <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="12" y="336">03</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="44" y="336">Anomaly detection</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="44" y="352">on the log text</text>
+
+          <path class="d-dot" style="fill:#6b6b66" d="M212,330.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="222" y="336">Today we watch numbers about the logs, not the text</text>
+          <path class="d-dot" style="fill:#6b6b66" d="M212,348.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="222" y="354">Slide 13 gives that gap a full page, with the three</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="222" y="372">routes we are choosing between</text>
+
+          <path class="d-dot" style="fill:#6b6b66" d="M536,330.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="546" y="336">The choice between the routes is not made</text>
+          <path class="d-dot" style="fill:#6b6b66" d="M536,348.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="546" y="354">Nothing here is built</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M0,382 H820"></path>
+
+          <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="12" y="404">04</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="44" y="404">The shifter’s</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="44" y="420">own view</text>
+
+          <path class="d-dot" style="fill:#6b6b66" d="M212,398.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="222" y="404">The cockpit says whether the pipeline is healthy</text>
+          <path class="d-dot" style="fill:#6b6b66" d="M212,416.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="222" y="422">A shifter asks what the experiment is saying now</text>
+          <path class="d-dot" style="fill:#6b6b66" d="M212,434.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="222" y="440">A second view, close to the InfoLogger one</text>
+
+          <path class="d-dot" style="fill:#6b6b66" d="M536,398.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="546" y="404">It needs access to the EPN machines: we must</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="546" y="422">read the running interface first</text>
+          <path class="d-dot" style="fill:#6b6b66" d="M536,434.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="546" y="440">No data work; the fields are already mapped</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M0,450 H820"></path>
+
+          <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="12" y="472">05</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="44" y="472">Authentication</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="44" y="488">inside the cluster</text>
+
+          <path class="d-dot" style="fill:#6b6b66" d="M212,466.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="222" y="472">One password guards the web page</text>
+          <path class="d-dot" style="fill:#6b6b66" d="M212,484.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="222" y="490">Behind it, no port asks who you are</text>
+          <path class="d-dot" style="fill:#6b6b66" d="M212,502.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="222" y="508">A firewall rule is the whole boundary</text>
+
+          <path class="d-dot" style="fill:#6b6b66" d="M536,466.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="546" y="472">Fine on five machines we own, not on the farm</text>
+          <path class="d-dot" style="fill:#6b6b66" d="M536,484.6 h3.4 v3.4 h-3.4 z"></path>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="546" y="490">Costs a certificate on every machine, an account</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="546" y="508">for every job, and authentication on every call</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M0,518 H820"></path>
+        </svg>

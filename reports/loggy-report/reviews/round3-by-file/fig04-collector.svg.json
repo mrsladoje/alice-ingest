@@ -1,0 +1,12 @@
+[
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/figures/fig04-collector.svg",
+  "line": 13,
+  "quote": "writes only to the OpenSearch node on the same worker",
+  "problem": "The collector also posts every live-lane record over HTTP to the shifter host, which fig03 draws and labels \"outputs / http, twice\", so this header contradicts the report and the neighbouring figure.",
+  "source": "reports/loggy-report/sections/02-design-a.tex:43; reports/inputs/dataflow-atlas.md:19",
+  "fix": "every OpenSearch write goes to the node on the same worker",
+  "severity": "must",
+  "lens": "figures"
+ }
+]

@@ -1,0 +1,132 @@
+[
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 50,
+  "quote": "Seven scenarios each score whether a signal, an incident and a notification followed one thing broken on purpose.",
+  "problem": "The seventh scenario is observe-only, a control run that breaks nothing.",
+  "source": "deploy/roles/alice_ops/files/inject_run.py:61-69 (seven scenario names, one of them observe-only); reports/loggy-report/briefs/why.md:34 names six fault scenarios",
+  "fix": "Write: \"Six fault scenarios and one control run each score whether a signal, an incident and a notification followed.\"",
+  "severity": "nit",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 5,
+  "quote": "The parser we keep, drain3, mined the archive into 3,822 templates at 19.91~core-seconds per million \\cite{ref:drain,ref:drain3}.",
+  "problem": "\"The archive\" here is the 45,596,613-line parser corpus, in Section 2.2 it is 248,828,513 InfoLogger records and in Section 3.9 it is whatever Discover searches, so no two archive numbers reconcile.",
+  "source": "reports/loggy-report/briefs/constraints.md:124 (\"179 daily MySQL dumps ... 248,828,513 records, 312 hosts\") against briefs/constraints.md:125 (\"The archive corpus used for parsers: 45,596,613 lines, 186 programs\"); the report already says \"corpus\" at sections/01-intro-problem.tex:36.",
+  "fix": "Use \"the InfoLogger archive\" for the six-month dumps, \"the parser corpus\" for the 45,596,613 lines and \"the stored logs\" for what Discover searches; here write \"drain3 mined the parser corpus into 3,822 templates\".",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 11,
+  "quote": "One run of each family, 45,596,613 lines, gave 3,011 templates, a floor.",
+  "problem": "3,822 appears six lines earlier on the same lines with no note that it is the configuration before the recipe and the masker rewrite, so the fall reads as a corpus effect.",
+  "source": "reports/loggy-report/briefs/soak-3.md:59 \u2014 \"3,011 templates on 45,596,613 lines [A] | Whole-corpus template count with recipe and fast masker | H1b's 3,822 | Fewer and better templates\"; soak-3.md:187 warns against placing a round-3 absolute beside a stage-I number.",
+  "fix": "\"The shipped parser before the rewrite gave 3,822 templates on those lines. With the per-family recipe and the fast masker, one run of each family gave 3,011, a floor.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 32,
+  "quote": "We rejected neighbour agreement with a reference model: an int8 model agrees with its own fp32 on only 0.636 of neighbours.",
+  "problem": "int8, fp32, static model, small transformer and backend all arrive undefined, in the sentence that explains why a whole evaluation measure was discarded.",
+  "source": "reports/loggy-report/briefs/semantic-1.md and semantic-2.md describe the ladder; the report defines neither number format nor either model family anywhere.",
+  "fix": "\"An eight-bit compressed copy of a model disagrees with its own full-precision original on a third of its neighbours\", and earlier \"a static model, one fixed vector per word, against a small transformer, a model that reads the words in context\".",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 30,
+  "quote": "It searches 5,301 template groups from a later corpus of 56,628,579 lines.",
+  "problem": "A reader who met the cover relation in Section 3.5 assumes a template group is a template with its narrower versions, which is not what this number counts.",
+  "source": "reports/loggy-report/briefs/semantic-1.md:21 \u2014 \"5,301 canonical template groups built from 18,011 source instances ... Collapsing 5,571 templates gives 5,301 groups: 270 templates were absorbed, 627 groups have more than one source instance\".",
+  "fix": "\"It searches 5,301 template groups, one per distinct template after templates that differ only in which program wrote them are collapsed together.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 5,
+  "quote": "The parser we keep, drain3, mined the archive into 3,822 templates at 19.91~core-seconds per million \\cite{ref:drain,ref:drain3}.",
+  "problem": "Six lines later the same section gives 3,011 templates for the same 45,596,613 lines, and Section 4 gives 8.33 core-seconds per million and says 19.91 was never re-measured, but nothing tells the reader that 3,822 and 19.91 belong to drain3's own defaults and 3,011 and 8.33 to the per-family recipe with the fast masker.",
+  "source": "docs/SOAK_RESULTS.md:1996; docs/SOAK_RESULTS.md:2406-2407; docs/SOAK_RESULTS.md:2708-2713; briefs/soak-index.md:298",
+  "fix": "Write: \"With drain3's own defaults the archive mined into 3,822 templates, at an unverified 19.91 core-seconds per million, and PIPLUP cost 2.56 times that on the same run.\" Then open line 11 with \"Under the per-family recipe the same 45,596,613 lines give 3,011 templates.\"",
+  "severity": "must",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 34,
+  "quote": "Median laptop latency rises from 1~ms to 12~ms.",
+  "problem": "The pair is the lexical engine against the dense model alone on the live path, but it sits inside the paragraph describing the recommended dense-scan-plus-rerank search, so a reader reads 12 ms as that path's latency.",
+  "source": "docs/SEMANTIC_RESULTS.md:1530-1536; briefs/semantic-2.md:152",
+  "fix": "Write: \"Against the lexical engine the dense scan alone moves median laptop latency from 1 ms to 12 ms; the reranking step adds 0.6 ms and the combined path is not timed as one number.\"",
+  "severity": "should",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 34,
+  "quote": "An approximate vector index costs 0.020 nDCG@10, 0.685 to 0.665, and moves between builds, so we use none.",
+  "problem": "The paragraph reports only wins; the condensing cut the 377 relevant templates gained and 204 lost, so a reader concludes the new search is a strict improvement, which the source denies.",
+  "source": "docs/SEMANTIC_RESULTS.md:1524-1525, 1541-1543; outline.md section 5.6",
+  "fix": "Insert before the latency sentence: \"On the live path it finds 377 relevant templates the lexical engine misses and loses 204 that it finds, and 29 of 110 questions get a worse answer.\"",
+  "severity": "should",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 11,
+  "quote": "Sixteen more runs and eighty InfoLogger partitions gave 4,092.",
+  "problem": "It is sixteen runs in total, not sixteen further runs on top of the first one, so a reader computes seventeen.",
+  "source": "briefs/soak-index.md:198; docs/SOAK_RESULTS.md:2523-2528",
+  "fix": "Write: \"Sixteen runs and eighty InfoLogger partitions gave 4,092.\"",
+  "severity": "nit",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 34,
+  "quote": "The model's memory peak is not in the results file.",
+  "problem": "\"the results file\" points at a project artefact the reader has never met, which is the round-1 objection to \"our sources\" in a new place.",
+  "source": "reports/loggy-report/outline.md:19; reports/loggy-report/reviews/round1-by-file/04-why.tex.json",
+  "fix": "\"We saw the model's memory peak in one local run and never recorded it, so we do not quote it.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 32,
+  "quote": "A static model encodes 18,037 templates a core-second, 31 times a small transformer, and keeps 93\\,\\% of its quality.",
+  "problem": "\"31 times a small transformer\" drops the comparison word, so the reader supplies \"faster than\" unaided.",
+  "source": ".claude/skills/simple-english/SKILL.md:37",
+  "fix": "\"... 31 times faster than a small transformer, and keeps 93\\,\\% of its quality.\"",
+  "severity": "nit",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 11,
+  "quote": "One tree across all three corpora, 55,963,050 lines, gave 4,221.",
+  "problem": "\"All three corpora\" has no antecedent, and the report's three corpus sizes (45,596,613, 55,963,050, 56,628,579) are never related, so the reader could not tell which data set each number belongs to.",
+  "source": "briefs/soak-4.md:31 (the three corpora split as infologger 33,433,018, dpl 21,200,248, dds 1,236,971, datadist 92,813); briefs/semantic-1.md:21 (the retrieval corpus, 56,628,579 lines across all seven formats)",
+  "fix": "Write \"One tree across the three archive pulls the recipes were frozen on, 55,963,050 lines, gave 4,221.\" and in Section 5.6 call 56,628,579 a later pull of the same archive.",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 5,
+  "quote": "The parser we keep, drain3, mined the archive into 3,822 templates at 19.91~core-seconds per million",
+  "problem": "Six lines later the same 45,596,613-line archive gives 3,011 templates, and the report never says the two runs used different settings, so the counts read as a contradiction.",
+  "source": "briefs/soak-3.md:14 (3,822 is Drain3 as shipped, one global tree over the whole corpus); briefs/soak-3.md:59 (3,011 templates on 45,596,613 lines with the recipe and the fast masker)",
+  "fix": "Write \"mined the archive into 3,822 templates with one global tree\" and \"One run of each family with its own recipe, on the same 45,596,613 lines, gave 3,011\".",
+  "severity": "should",
+  "lens": "reader"
+ }
+]

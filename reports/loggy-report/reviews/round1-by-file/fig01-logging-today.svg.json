@@ -1,0 +1,12 @@
+[
+ {
+  "file": "reports/loggy-report/figures/fig01-logging-today.svg",
+  "line": 76,
+  "quote": "<text x=\"653\" y=\"296\" font-family=\"Menlo, monospace\" font-size=\"10\" fill=\"#6b6b66\" text-anchor=\"middle\">query, tcp 3306</text>",
+  "problem": "The arrowhead lands on the browser, so the arrow shows the answer travelling while the label names the request; the source slide labels this edge \"query\" with no port.",
+  "source": "reports/inputs/deck-text.md:61-63 (slide 3 edge list: tcp 3306, one table, query); reports/loggy-report/briefs/constraints.md:55",
+  "fix": "Write \"query results, tcp 3306\".",
+  "severity": "nit",
+  "lens": "figures"
+ }
+]

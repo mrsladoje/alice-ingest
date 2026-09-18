@@ -1,0 +1,232 @@
+[
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 7,
+  "quote": "A detector that stops reporting leaves its episode stale and firing (Figure~\\ref{fig:alerts}).",
+  "problem": "Figure 6 lands two printed pages after the sentence that cites it (cited on page 7, placed on page 9).",
+  "source": "pdftotext page map of report/report.pdf; float declared [t] at sections/03-design-b.tex:9",
+  "fix": "Change \\begin{figure}[t] to \\begin{figure}[htbp] at sections/03-design-b.tex:9.",
+  "severity": "should",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 19,
+  "quote": "The last sample lands up to 30~seconds before death. The 90-second grace and 30-second poll add 60 to 150~seconds, the monitor up to 60, the projector up to 30, the page wait 30.",
+  "problem": "The listed terms sum to 300 seconds at worst, not the 270 stated in the previous sentence, because the last heartbeat is not a term in the bound.",
+  "source": "reports/loggy-report/briefs/walkthroughs-3-5.md:59-68 (\"The bound is 90 to 270 seconds from the last heartbeat to the stored notification\"; 60-150 + 0-60 + 0-30 + 30)",
+  "fix": "Drop the last-sample clause from the sum or mark it outside the bound: \"The bound runs from the death itself; the last sample lands up to 30 seconds earlier. The 90-second grace and 30-second poll give 60 to 150 seconds, the monitor up to 60, the projector up to 30, the page wait 30.\"",
+  "severity": "should",
+  "lens": "numbers"
+ },
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/03-design-b.tex",
+  "line": 25,
+  "quote": "Each compares the entity's share of the fleet in three slices, ending 40, 30 and 20~minutes before the run, against the previous seven days.",
+  "problem": "The three ten-minute slices span 40 to 30, 30 to 20 and 20 to 10 minutes before the run, so they end 30, 20 and 10 minutes before it; the freshest slice ends ten minutes back, which is the fact that matters.",
+  "source": "deploy/roles/loggy_anomaly_detection/files/monitors/trend-il-volume.json:61-112 (slice0 -20m to -10m, slice1 -30m to -20m, slice2 -40m to -30m); briefs/walkthroughs-3-5.md:150 (\"The freshest slice ends 10 minutes before the run, not at it\")",
+  "fix": "\"Each compares three ten-minute slices, the freshest ending ten minutes before the run, against the previous seven days.\"",
+  "severity": "must",
+  "lens": "facts"
+ },
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/03-design-b.tex",
+  "line": 5,
+  "quote": "17 detectors run, one per entity, and a silent host scores zero.",
+  "problem": "\"One per entity\" says there are seventeen entities; a detector is one definition with a category field and the plugin builds one model per entity inside it.",
+  "source": "briefs/walkthroughs-6-9.md walkthrough 6 step 1 (il-per-epn.json:48-50, category_field origin_host, one result row per host per window); briefs/target-architecture.md:162; briefs/why.md entry 16",
+  "fix": "\"17 detectors run, each holding one model per entity, and a silent host scores zero.\"",
+  "severity": "must",
+  "lens": "facts"
+ },
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/03-design-b.tex",
+  "line": 25,
+  "quote": "The nine trend monitors read those rows only.",
+  "problem": "The sentence after it applies the fleet-share comparison to all nine rules, but two of the nine are collector-scoped shipping-lag rules that compare the entity's own lag against twice its seven-day baseline above a 250 ms floor.",
+  "source": "briefs/walkthroughs-3-5.md:165 (\"The volume rules compare the entity's share of the fleet\") and :166 (\"The shipping-lag rules are collector-scoped\"); briefs/target-architecture.md:165 (trend_lag_floor_ms 250)",
+  "fix": "Say \"The volume rules compare the entity's share of the fleet\", then add \"Two shipping-lag rules instead compare the entity's own lag against twice its seven-day baseline, above a 250 ms floor.\"",
+  "severity": "should",
+  "lens": "facts"
+ },
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/03-design-b.tex",
+  "line": 5,
+  "quote": "Threshold monitors catch cliffs: a storage disk above 92~\\% pages, above 85~\\% warns.",
+  "problem": "As written a disk at 95 % both pages and warns; the warn rule fires above 85 and at most 92, so the two rules do not overlap.",
+  "source": "briefs/walkthroughs-3-5.md:12 and :121 (disk-cliff-warn.json:79, params.max_disk > 85 && params.max_disk <= 92; disk-cliff-page.json:79, > 92)",
+  "fix": "\"a storage disk above 92 % pages, and between 85 and 92 % warns.\"",
+  "severity": "should",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 3,
+  "quote": "The poller samples the cluster at the same cadence and reads the roster: one document listing which collectors should be alive.",
+  "problem": "\"should be alive\" uses a modal the style forbids, and the meaning is \"must be running\", not an expectation.",
+  "source": ".claude/skills/simple-english/SKILL.md:36 (\"Modals: can, will, must. Never should, would, may, might, could.\")",
+  "fix": "\"... and reads the roster: one document naming every collector that must be running.\"",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 23,
+  "quote": "Every ten minutes the rollup re-rolls the last three closed buckets after a 120-second settle for late records.",
+  "problem": "The rollup, \"re-rolls\", \"closed buckets\" and \"settle\" all arrive undefined, and the sentence carries three ideas.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:65 (\"Turns raw logs into one small row per host per 10 minutes, so the trend rules stay cheap\")",
+  "fix": "\"A rollup service turns the raw logs into one small row per family and host per ten minutes. It runs every ten minutes and recomputes the last three ten-minute windows, because a record can land 120 seconds late.\"",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 5,
+  "quote": "17 detectors run, one per entity, and a silent host scores zero.",
+  "problem": "\"entity\" is never defined, and the sentence starts with a numeral.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:101 (\"one row per family and entity per 10-minute bucket\"); reports/loggy-report/briefs/why.md:178",
+  "fix": "\"Seventeen detectors run, one for each watched thing: a host, a log family or an index. A silent host scores zero.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 7,
+  "quote": "A detector grade above 0.5 opens an episode, the paging monitor on grades needs 0.7.",
+  "problem": "A comma splices two clauses, and the grade has no scale, so 0.5 and 0.7 carry no meaning.",
+  "source": "reports/loggy-report/briefs/style.md:28 (every number carries its meaning and its reference)",
+  "fix": "\"A detector grades every window from 0 to 1. A grade above 0.5 opens an episode. The monitor that pages on grades needs 0.7.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 5,
+  "quote": "17 detectors run, one per entity, and a silent host scores zero.",
+  "problem": "\"Entity\" is never defined, yet it shapes the whole alerting chain \u2014 one detector per entity, one episode per entity, a trend rule on an entity's share of the fleet.",
+  "source": "briefs/walkthroughs-6-9.md:31 \u2014 \"entity_id is the origin_host value... il-per-epn: entity_kind epn, category_field origin_host\"; :45 \u2014 \"an episode is one detector on one host\"",
+  "fix": "\"17 detectors run, one per entity: one machine, or one log family on one machine \u2014 the thing a rule is about.\"",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 30,
+  "quote": "Dashboards holds the maintainer cockpit and Discover, which searches the archive \\cite{ref:opensearch}.",
+  "problem": "Dashboards and Discover are product screen names used as plain nouns; neither is ever said to be the store's web interface and its search screen, and Dashboards first appears two sections earlier with no gloss.",
+  "source": "reports/inputs/dataflow-atlas.md:24 \u2014 \"The Discover view inside OpenSearch Dashboards, behind the nginx door on port 5601\"",
+  "fix": "At first use: \"Dashboards, the store's own web interface, and inside it Discover, its search screen.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 5,
+  "quote": "A detector is a Random Cut Forest model the cluster runs on a schedule, grading every window with no threshold \\cite{ref:rcf}.",
+  "problem": "The reader is given the model's proper name and its schedule but not what it does or what a grade measures.",
+  "source": "reports/loggy-report/report/references.tex, ref:rcf \u2014 \"Robust random cut forest based anomaly detection on streams\"",
+  "fix": "\"A detector is a model that learns a number's usual shape from the number itself and grades how unusual each new window is, from 0 to 1, with no threshold a person had to choose. Ours is a Random Cut Forest~\\cite{ref:rcf}.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 7,
+  "quote": "A detector grade above 0.5 opens an episode, the paging monitor on grades needs 0.7.",
+  "problem": "Two thresholds with no scale stated, so the reader cannot tell whether 0.7 is nearly certain or barely anything.",
+  "source": "briefs/walkthroughs-6-9.md:43 \u2014 \"A row with grade above 0.5 is a firing signal. A row at or below 0.5 is evidence of recovery\"; :32 \u2014 \"3 healthy windows at grade at or below 0.0\"",
+  "fix": "State the 0-to-1 scale where the detector is defined (see the Random Cut Forest fix), and this sentence then reads without help.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 23,
+  "quote": "Every ten minutes the rollup re-rolls the last three closed buckets after a 120-second settle for late records.",
+  "problem": "\"Bucket\" already means a five-minute template count document in Section 3.5; here it means a ten-minute slice of the trend rollup, and \"re-rolls\" and \"closed\" are new words used without definition.",
+  "source": "reports/loggy-report/sections/02-design-a.tex:73 \u2014 \"Every 300~seconds the stamper publishes one bucket document per family and window\"",
+  "fix": "Define the trend bucket at first use as \"one ten-minute slice of counts per family and host\", and say the rollup recomputes the last three slices once they can no longer receive late records.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 23,
+  "quote": "Every ten minutes the rollup re-rolls the last three closed buckets after a 120-second settle for late records.",
+  "problem": "The rollup is introduced as the subject of a sentence about its schedule, with no plain goal and no machine; the reader never learns it exists so a trend rule never scans raw logs.",
+  "source": "briefs/target-architecture.md:183 \u2014 \"the background host (rollup, projector)\"; outline.md decision 2 \u2014 \"The projector and the trend rollup run on the second storage node, off the control host, as the sources say.\"",
+  "fix": "\"On the background host a rollup turns raw lines into small rows, so a trend rule never scans a log. Every ten minutes it re-counts the last three ten-minute slices...\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 7,
+  "quote": "The projector reads every alert and detector result every 30~seconds.",
+  "problem": "The busiest component of Section 3.6 and both alert walkthroughs is never placed on a machine in the prose; only Figure 2 says where it runs, yet Section 5.7 speaks of \"the projector's machine\".",
+  "source": "briefs/target-architecture.md:27 \u2014 \"The sources place it on node-04 with the trend rollup (atlas:455, deploy/README.md:78-80, rework-context.md:165)\"; :201 \u2014 \"away from the UI host on purpose\"",
+  "fix": "\"On the background host, away from the screens on purpose, the projector reads...\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 17,
+  "quote": "Within 30~seconds the poller counts each rostered collector's samples over 90~seconds and writes one fleet document each, with a missing flag.",
+  "problem": "\"Fleet\" and \"fleet document\" are undefined on first use, inside the walkthrough the supervisor asked to see, and \"fleet\" then shifts meaning twice more.",
+  "source": "briefs/walkthroughs-6-9.md:152 \u2014 the roster \"names every worker\"; reports/inputs/dataflow-atlas.md:26-31 uses the whole worker set as the comparison group",
+  "fix": "Define at first use \u2014 \"the fleet, every worker on the roster\" \u2014 and write \"one row per rostered collector\" instead of \"fleet document\".",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 30,
+  "quote": "The ops page is the operator's status line.",
+  "problem": "One of the four surfaces is introduced and abandoned in six words; \"status line\" is not a job, so the reader cannot tell what it shows or how it differs from the cockpit and the live page.",
+  "source": "briefs/target-architecture.md:50 \u2014 nginx is \"the single TLS door to it, the ops page, the live lane and Alertmanager\"; :123 lists the ops page buttons under tester tooling",
+  "fix": "Say in one clause what question it answers, or drop it and say \"three surfaces\".",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 25,
+  "quote": "Each compares the entity's share of the fleet in three slices, ending 40, 30 and 20~minutes before the run, against the previous seven days.",
+  "problem": "\"The run\" here means the monitor's own execution, while elsewhere it means a data-taking run; in an ALICE report the first reading wins.",
+  "source": "reports/loggy-report/sections/01-intro-problem.tex:36 \u2014 \"No run was active during either survey, so no live job log was seen.\"",
+  "fix": "\"ending 40, 30 and 20~minutes before the monitor fires.\"",
+  "severity": "nit",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/03-design-b.tex",
+  "line": 19,
+  "quote": "The last sample lands up to 30~seconds before death.",
+  "problem": "The listed terms sum to 300 seconds against the stated 270, because the 60 to 150 seconds is already counted from the death and contains the pre-death gap.",
+  "source": "briefs/walkthroughs-3-5.md:63-68 (first fleet document with the missing flag: 60 to 150 seconds after death; sum 90 at best, 270 at worst)",
+  "fix": "Drop the sentence and write: \"Counted from the death: the grace and the poll give the first missing flag after 60 to 150 seconds, the monitor adds up to 60, the projector up to 30, and the page wait 30.\"",
+  "severity": "must",
+  "lens": "reader"
+ },
+ {
+  "file": "sections/03-design-b.tex",
+  "line": 5,
+  "quote": "17 detectors run, one per entity, and a silent host scores zero.",
+  "problem": "It reads as seventeen entities, which the reader repeated; each detector fits one model per entity and the entities are hosts and collectors.",
+  "source": "reports/inputs/dataflow-atlas.md:193-194 (fourteen log detectors per origin host or collector, three over the health samples, one model per entity)",
+  "fix": "Write: \"17 detectors run, fourteen over the log families and three over the health samples. Each fits one model per machine, and a silent host scores zero.\"",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "sections/03-design-b.tex",
+  "line": 7,
+  "quote": "A detector grade above 0.5 opens an episode, the paging monitor on grades needs 0.7.",
+  "problem": "No monitor on grades is described anywhere else, so the clause names a component the reader never meets.",
+  "source": "briefs/walkthroughs-6-9.md:43 (a monitor runs every minute over the last two minutes of results and opens one fleet-wide alert when the highest grade and its confidence are above 0.7)",
+  "fix": "Write: \"one monitor watches every grade and pages once for the whole fleet above 0.7\".",
+  "severity": "nit",
+  "lens": "reader"
+ }
+]

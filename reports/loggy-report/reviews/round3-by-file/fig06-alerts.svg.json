@@ -1,0 +1,22 @@
+[
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/figures/fig06-alerts.svg",
+  "line": 192,
+  "quote": "The ops page",
+  "problem": "The figure draws a fifth named surface beside the cockpit and the shifter view, but section 3.9 says one door holds four surfaces and never names an ops page (fig02-architecture.svg:79 carries the same undefined name).",
+  "source": "reports/loggy-report/sections/03-design-b.tex:31",
+  "fix": "Drop the card from fig06 and the control-host row from fig02, or define the ops page in section 3.9 as the fifth surface.",
+  "severity": "should",
+  "lens": "figures"
+ },
+ {
+  "file": "reports/loggy-report/figures/fig06-alerts.svg",
+  "line": 139,
+  "quote": "<path d=\"M140,514 V568\" fill=\"none\" stroke=\"#101010\" stroke-width=\"1.25\" marker-end=\"url(#head)\"/>",
+  "problem": "This arrow runs vertically through the baseline of the band label FROM HITS TO ONE ALERT at y=538, so on page 9 of the PDF the stroke cuts the word ONE in half.",
+  "source": "reports/loggy-report/figures/fig06-alerts.svg:137",
+  "fix": "Start the arrow below the label: <path d=\"M140,546 V568\" fill=\"none\" stroke=\"#101010\" stroke-width=\"1.25\" marker-end=\"url(#head)\"/>",
+  "severity": "should",
+  "lens": "build"
+ }
+]

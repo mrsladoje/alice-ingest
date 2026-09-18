@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" viewBox="0 0 820 511" role="img"
+             aria-label="Two-tier architecture. Worker tier, two VMs: an alice-replay producer feeds Fluent Bit, which writes to the OpenSearch node on the same machine. Application logs at info severity stay in a local index with one shard and no replicas. InfoLogger and the other application logs take one network hop to the storage tier. Storage tier, three VMs, each an OpenSearch cluster-manager and data node: node-03 also runs Dashboards, nginx and Alertmanager, node-04 runs the trend rollup and signal projector, node-05 runs the live lane. The infologger and application-logs-central indices are held there with one shard and two replicas, one copy on every storage node.">
+          <defs>
+            <marker id="mk04a" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,1 L10,5 L0,9 z" class="d-head" style="fill:#101010"></path>
+            </marker>
+          </defs>
+
+          <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="13">01</text>
+          <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="13">Worker tier</text>
+
+          <rect class="d-panel" style="fill:#f1f1ec" x="1" y="24" width="818" height="202"></rect>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="12" y="38" width="392" height="174"></rect>
+          <text class="d-vm is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:start" x="24" y="57">alice-ingest-1</text>
+          <text class="d-vm is-end" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:end" x="392" y="57">role = worker</text>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="24" y="75" width="92" height="46"></rect>
+          <text class="d-t is-sm" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="70" y="94">alice-replay</text>
+          <text class="d-s is-sm" style="font-size:10.5px;fill:#6b6b66;text-anchor:middle" x="70" y="107">real EPN logs</text>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="130" y="75" width="100" height="46"></rect>
+          <image href="logos/fluentbit-logo-official.svg" x="141" y="86.6" width="78" height="22.75"></image>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="246" y="75" width="146" height="46"></rect>
+          <image href="../../../../presentation/assets/opensearch-mark.webp" x="274" y="87" width="22" height="22"></image>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="304" y="94">node-01</text>
+          <text class="d-s is-sm is-start" style="font-size:10.5px;fill:#6b6b66;text-anchor:start" x="304" y="107">data, ingest</text>
+
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M116,98 H126" marker-end="url(#mk04a)"></path>
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M230,98 H242" marker-end="url(#mk04a)"></path>
+
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M280,121 V145 H131 V158" marker-end="url(#mk04a)"></path>
+          <rect class="d-elabel" style="fill:#ffffff;stroke:#6b6b66;stroke-width:1" x="146" y="136" width="118" height="18"></rect>
+          <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="205" y="148.5">application-local</text>
+
+          <rect class="d-card is-soft" style="fill:#f1f1ec;stroke:#6b6b66;stroke-width:1.1" x="24" y="161" width="214" height="36"></rect>
+          <text class="d-ix is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.02em;fill:#101010;text-anchor:start" x="36" y="177">application-logs-local-node-01</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="36" y="190">1 shard, 0 replicas, never leaves</text>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="416" y="38" width="392" height="174"></rect>
+          <text class="d-vm is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:start" x="428" y="57">alice-ingest-2</text>
+          <text class="d-vm is-end" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:end" x="796" y="57">role = worker</text>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="428" y="75" width="92" height="46"></rect>
+          <text class="d-t is-sm" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="474" y="94">alice-replay</text>
+          <text class="d-s is-sm" style="font-size:10.5px;fill:#6b6b66;text-anchor:middle" x="474" y="107">real EPN logs</text>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="534" y="75" width="100" height="46"></rect>
+          <image href="logos/fluentbit-logo-official.svg" x="545" y="86.6" width="78" height="22.75"></image>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="650" y="75" width="146" height="46"></rect>
+          <image href="../../../../presentation/assets/opensearch-mark.webp" x="678" y="87" width="22" height="22"></image>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="708" y="94">node-02</text>
+          <text class="d-s is-sm is-start" style="font-size:10.5px;fill:#6b6b66;text-anchor:start" x="708" y="107">data, ingest</text>
+
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M520,98 H530" marker-end="url(#mk04a)"></path>
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M634,98 H646" marker-end="url(#mk04a)"></path>
+
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M684,121 V145 H535 V158" marker-end="url(#mk04a)"></path>
+          <rect class="d-elabel" style="fill:#ffffff;stroke:#6b6b66;stroke-width:1" x="550" y="136" width="118" height="18"></rect>
+          <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="609" y="148.5">application-local</text>
+
+          <rect class="d-card is-soft" style="fill:#f1f1ec;stroke:#6b6b66;stroke-width:1.1" x="428" y="161" width="214" height="36"></rect>
+          <text class="d-ix is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.02em;fill:#101010;text-anchor:start" x="440" y="177">application-logs-local-node-02</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="440" y="190">1 shard, 0 replicas, never leaves</text>
+
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M376,121 V280 H544"></path>
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M780,121 V280 H544"></path>
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M544,280 V296" marker-end="url(#mk04a)"></path>
+          <rect class="d-elabel" style="fill:#ffffff;stroke:#6b6b66;stroke-width:1" x="557" y="271" width="206" height="18"></rect>
+          <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="660" y="283.5">infologger + application-central</text>
+
+          <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="292">02</text>
+          <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="292">Storage tier</text>
+
+          <rect class="d-panel" style="fill:#f1f1ec" x="1" y="300" width="818" height="210"></rect>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="12" y="315" width="257" height="124"></rect>
+          <text class="d-vm is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:start" x="24" y="333">alice-ingest-3</text>
+          <rect class="d-pill" style="fill:#ffffff;stroke:#e1251b;stroke-width:1" x="176" y="321" width="81" height="17" rx="8.5" ry="8.5"></rect>
+          <g class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" transform="translate(184 329.5)">
+            <path d="M0,-2.6 H10"></path>
+            <path d="M0,2.6 H10"></path>
+            <circle class="d-icon-knob" style="fill:#ffffff;stroke:#e1251b;stroke-width:1.1" cx="3.2" cy="-2.6" r="1.7"></circle>
+            <circle class="d-icon-knob" style="fill:#ffffff;stroke:#e1251b;stroke-width:1.1" cx="6.8" cy="2.6" r="1.7"></circle>
+          </g>
+          <text class="d-tag is-start" style="font-family:Menlo, monospace;font-size:9px;font-weight:700;letter-spacing:0.16em;fill:#e1251b;text-anchor:start" x="199" y="333">Control</text>
+          <image href="../../../../presentation/assets/opensearch-mark.webp" x="24" y="343" width="22" height="22"></image>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="54" y="351">node-03</text>
+          <text class="d-s is-sm is-start" style="font-size:10.5px;fill:#6b6b66;text-anchor:start" x="54" y="364">cluster_manager, data, ingest</text>
+          <text class="d-vm is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:start" x="54" y="377">role = storage</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M24,393 H257"></path>
+          <rect class="d-pill is-soft" style="fill:#f1f1ec;stroke:#d6d6cf;stroke-width:1" x="24" y="398" width="75" height="17" rx="8.5" ry="8.5"></rect>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="33" y="410">Dashboards</text>
+          <rect class="d-pill is-soft" style="fill:#f1f1ec;stroke:#d6d6cf;stroke-width:1" x="106" y="398" width="65" height="17" rx="8.5" ry="8.5"></rect>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="115" y="410">nginx TLS</text>
+          <rect class="d-pill is-soft" style="fill:#f1f1ec;stroke:#d6d6cf;stroke-width:1" x="24" y="419" width="81" height="17" rx="8.5" ry="8.5"></rect>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="33" y="431">Alertmanager</text>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="281" y="315" width="257" height="124"></rect>
+          <text class="d-vm is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:start" x="293" y="333">alice-ingest-4</text>
+          <image href="../../../../presentation/assets/opensearch-mark.webp" x="293" y="343" width="22" height="22"></image>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="323" y="351">node-04</text>
+          <text class="d-s is-sm is-start" style="font-size:10.5px;fill:#6b6b66;text-anchor:start" x="323" y="364">cluster_manager, data, ingest</text>
+          <text class="d-vm is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:start" x="323" y="377">role = storage</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M293,393 H526"></path>
+          <rect class="d-pill is-soft" style="fill:#f1f1ec;stroke:#d6d6cf;stroke-width:1" x="293" y="398" width="73" height="17" rx="8.5" ry="8.5"></rect>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="302" y="410">Trend rollup</text>
+          <rect class="d-pill is-soft" style="fill:#f1f1ec;stroke:#d6d6cf;stroke-width:1" x="293" y="419" width="92" height="17" rx="8.5" ry="8.5"></rect>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="302" y="431">Signal projector</text>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="550" y="315" width="258" height="124"></rect>
+          <text class="d-vm is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:start" x="562" y="333">alice-ingest-5</text>
+          <image href="../../../../presentation/assets/opensearch-mark.webp" x="562" y="343" width="22" height="22"></image>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="592" y="351">node-05</text>
+          <text class="d-s is-sm is-start" style="font-size:10.5px;fill:#6b6b66;text-anchor:start" x="592" y="364">cluster_manager, data, ingest</text>
+          <text class="d-vm is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:start" x="592" y="377">role = storage</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M562,393 H796"></path>
+          <rect class="d-pill is-soft" style="fill:#f1f1ec;stroke:#d6d6cf;stroke-width:1" x="562" y="398" width="59" height="17" rx="8.5" ry="8.5"></rect>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="571" y="410">Live lane</text>
+
+          <rect class="d-card is-hot" style="fill:#fdf1f0;stroke:#e1251b;stroke-width:1.6" x="12" y="461" width="796" height="30"></rect>
+          <text class="d-ix is-hot is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.02em;fill:#e1251b;text-anchor:start" x="168" y="480">infologger + application-logs-central</text>
+          <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="398" y="480">1 shard, 2 replicas, one copy on every storage node</text>
+        </svg>

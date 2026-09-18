@@ -1,0 +1,162 @@
+[
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 60,
+  "quote": "Four collector releases run there, none tested.",
+  "problem": "The census marks three of the four installations as tested and only the storage machine's untested, and the four installations carry three distinct releases.",
+  "source": "docs/SOAK_RESULTS.md:3517-3527 (epn146 4.0.1 yes, epn228 4.0.1 yes, epn323 4.0.14 yes, epn-infra13 3.2.8 no); reports/loggy-report/briefs/constraints.md:290",
+  "fix": "Write: \"Four installations run there, three distinct releases, and the storage machine's is two majors behind and had never been tested.\"",
+  "severity": "must",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 58,
+  "quote": "The collector had never read three of the six log sources.",
+  "problem": "The report counts the log families three different ways, five in Section 2.1, six here and seven in Section 5.5, and never reconciles them; the seventh priced family is the orchestrator log that Table 1 marks as not collected.",
+  "source": "docs/SOAK_RESULTS.md:3014-3021 (six parser sources: infologger, dds, dpl, datadist, ildaemon, journald) and :5442-5448 (seven families priced, odc included)",
+  "fix": "Reconcile once, in Section 2.1: five families on a worker, six parser sources because the process tree carries two line formats, plus the orchestrator log which is priced but not collected. Then keep those words in Sections 5.4 and 5.5.",
+  "severity": "should",
+  "lens": "numbers"
+ },
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/05-eval-a.tex",
+  "line": 60,
+  "quote": "Four collector releases run there, none tested.",
+  "problem": "The census found four releases where two were assumed, and it was the storage machine's release, two majors behind, that nothing had tested; the same round then passed 29 of 29 fixture, journal and restart checks on all four.",
+  "source": "briefs/soak-4.md:41 (\"the storage machine runs a version two majors behind that nothing had tested\"); briefs/soak-4.md:42 (\"29 passed, 75,243 journal records, no duplicates ... on each of 3.2.8, 4.0.1, 4.0.14, 5.0.8\")",
+  "fix": "\"Four collector releases run there, two more than we assumed, and the oldest had never been tested against our configuration. It now is.\"",
+  "severity": "should",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 36,
+  "quote": "The live lane, the second output that copies records to the shifter view, is the largest cost any setting adds: 41 to 68~\\% more collector processor time on the healthy rig.",
+  "problem": "The sentence runs to 31 words and carries three ideas, and it defines the live lane in section 5 although section 3 already used the term four times.",
+  "source": "reports/loggy-report/briefs/style.md:11 (25 words is the ceiling, most sentences under 15); reports/loggy-report/briefs/soak-1.md:136",
+  "fix": "Define the live lane at its first use in section 3.1, then write here: \"The live lane is the largest cost any setting adds. It costs 41 to 68~\\% more collector processor time on the healthy rig.\"",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 13,
+  "quote": "Measurements after the collector screen came from a rig that had saturated unnoticed, so we retracted them.",
+  "problem": "\"screen\" is used as a noun here and as a verb four lines earlier, and neither use is defined.",
+  "source": ".claude/skills/simple-english/SKILL.md:39; reports/loggy-report/sections/05-eval-a.tex:9 (\"The healthy rig screened the collector at 20,000 records a second\")",
+  "fix": "Pick one word and define it: \"The first pass tested the collector's own settings at 20,000 records a second. Every measurement after that pass came from a rig that had saturated unnoticed, so we retracted them.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 34,
+  "quote": "The collector is one single-threaded loop doing 89.3~\\% of its work.",
+  "problem": "The \"-ing\" rider makes the sentence ambiguous: the number is the share of work in that one loop, not a property of the loop.",
+  "source": ".claude/skills/simple-english/SKILL.md:35 (no \"-ing\" verb after a comma, name the actor); .claude/skills/humanizer/SKILL.md:233",
+  "fix": "\"The collector runs one single-threaded loop, and that loop does 89.3~\\% of its work. Threads elsewhere cannot help it.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 54,
+  "quote": "Or an outage longer than the buffer holds, or a measured worker rate within 50 times of 42,000.",
+  "problem": "A sentence begins with \"Or\" because a list of four conditions was split across two sentences.",
+  "source": ".claude/skills/simple-english/SKILL.md:42 (a vertical list is for three or more parallel items); reports/loggy-report/briefs/style.md:11",
+  "fix": "Make the four conditions one list: \"The question reopens on four conditions only: a sustained worker rate above about 1,000 records a second; a second consumer of the same records; an outage longer than the buffer holds; a measured worker rate within 50 times of 42,000.\" A vertical list also works.",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 58,
+  "quote": "The collector had never read three of the six log sources.",
+  "problem": "The report counts five log families in 2.1 and 3.1 and six log sources here, so family and source are used as the same word with different counts.",
+  "source": "reports/loggy-report/sections/01-intro-problem.tex:17 (\"A worker holds five log families\"); reports/loggy-report/sections/02-design-a.tex:7 (\"The collector reads the five log sources\")",
+  "fix": "Fix the count and the word: \"The collector had never read three of the six sources in Table~\\ref{tab:sources}.\" Then say once, in 2.1, that the table holds six rows and that only five reach a collector.",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 58,
+  "quote": "The collector had never read three of the six log sources. Later rounds added the data distribution log, the InfoLogger daemon log and the system journal.",
+  "problem": "\"Six log sources\" contradicts the \"five log families\" of Section 2.1, and \"the data distribution log\" is a name the reader has never met \u2014 it reads as DDS, which the report calls the deployment system.",
+  "source": "briefs/soak-4.md:149 \u2014 \"Six sources, each with a tier rule: infologger and ildaemon all durable, dds, dpl, datadist, journald informational local and warning-or-worse durable\"; briefs/constraints.md:85 \u2014 \"A worker holds five log families. The O2 process tree uses two line formats.\"",
+  "fix": "Name the split once in Section 2.1 \u2014 \"The O2 process tree splits into two formats: the reconstruction processes, and the data-distribution process that has its own line shape\" \u2014 then write \"the data-distribution format\" here and keep one count of sources throughout.",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 44,
+  "quote": "A 2~GB heap for the worker's store node moves cost 2.1~\\% against a 6.7~\\% floor, so 1~GB ships.",
+  "problem": "Section 5.1 gave the noise floors as 1.61 % and 9.48 % tied to rates; 6.7 % and 5.5 % now appear tied to nothing, and the \"no measurable difference\" argument rests on them.",
+  "source": "briefs/soak-index.md:94 \u2014 \"2.1 % and 0.4 % against a 6.7 % floor | Re-measured effect of heap 2g; no effect | docs/SOAK_RESULTS.md:102\"; briefs/soak-index.md:282 \u2014 \"2.7 % against a 5.5 % floor, no effect\"",
+  "fix": "\"On the re-run rig, whose own floor for this comparison is 6.7~\\%, a 2~GB heap moved cost 2.1~\\%, so 1~GB ships.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 34,
+  "quote": "The collector is one single-threaded loop doing 89.3~\\% of its work.",
+  "problem": "89.3 % has no stated denominator \u2014 time, records or outputs \u2014 and the sentence exists to explain why every threading arm lost.",
+  "source": "briefs/soak-index.md:16 \u2014 \"Round 2 Stage B screened the collector's own settings at 20,000 a second. Every threading arm cost more than the shipped one.\"",
+  "fix": "\"One single-threaded loop does 89.3~\\% of the collector's processor work, so adding threads adds coordination and no throughput.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 13,
+  "quote": "A 47-cell re-run left one product change, the flush interval of Section~\\ref{sec:eval-collector}.",
+  "problem": "\"Cell\", \"arm\" and \"round\" are the report's private words for the shape of a measurement campaign, and none of the three is defined.",
+  "source": "briefs/soak-index.md:17 \u2014 \"A 47-cell re-run on 27 August at 5,000 a second replaced them and left one product change\"; :15 \u2014 \"The instrument failed four times before any arm ran.\"",
+  "fix": "Define both in \u00a75.1: \"An arm is one setting under test. A cell is one arm at one rate, run three times.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 13,
+  "quote": "We fixed 32 defects in the instrument.",
+  "problem": "Section 5.4 then says 99 defects were fixed \"in the collector, the stamper, the catalog and the instrument\", and the reader cannot tell whether 99 includes the 32, so neither number means anything.",
+  "source": "briefs/soak-index.md:15 (instrument failures counted separately); briefs/soak-5.md:9 (Rounds 10 to 21 are product reviews)",
+  "fix": "Say it once: \"99 defects in total, 32 of them in the instrument itself.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/05-eval-a.tex",
+  "line": 11,
+  "quote": "Cost per record falls as rate rises: 75.32 core-seconds per million at 1,000 a second and 11.19 at 20,000.",
+  "problem": "The sentence does not say whether these are the collector or the whole stack, so the reader could not place them against Table 6.",
+  "source": "briefs/soak-1.md:84-85 (both are the collector alone, three control runs at each rate)",
+  "fix": "Write: \"the collector alone costs 75.32 core-seconds per million at 1,000 a second and 11.19 at 20,000\".",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "sections/05-eval-a.tex",
+  "line": 17,
+  "quote": "The collector's memory sits between 133 and 228~MB on two cores against an accepting sink.",
+  "problem": "Table 6 gives the same collector a peak of 87.1 and 62.7 MB and the report never says why the ranges differ.",
+  "source": "briefs/soak-index.md:59 (133 to 228 MB is Round 1's working range against a fake sink) and briefs/soak-1.md:21-22 (87.1 and 62.7 MB are the flush arms at 5,000 records a second on the re-run rig)",
+  "fix": "Name Round 1 and its rate in the sentence, so Table 6 reads as a different rig and rate.",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "sections/05-eval-a.tex",
+  "line": 58,
+  "quote": "The collector had never read three of the six log sources.",
+  "problem": "The report elsewhere says five log families and \"reads the five log sources\", Table 1 has six rows, and \"the data distribution log\" named next appears nowhere in Table 1.",
+  "source": "briefs/constraints.md:85-96 (five families; the routing records list seven sources because the process tree splits into DPL and data distribution and the orchestrator is added) and briefs/soak-4.md:216 (Round 7 added datadist, ildaemon and journald)",
+  "fix": "Add one sentence in Section 2.1 bridging families to sources, and mark in Table 1 that the process tree is two sources in two line formats.",
+  "severity": "should",
+  "lens": "reader"
+ }
+]

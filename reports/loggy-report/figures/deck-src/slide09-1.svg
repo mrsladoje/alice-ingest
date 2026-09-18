@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" viewBox="0 0 260 112" role="img"
+               aria-label="The collector’s memory envelope as a four-line form. The first two lines are what the design expects: sixty-four chunks may sit in memory at once, which is roughly 128 MB, and the documented worst case is 307 MB. The last two lines are measured, from twenty-three soak runs of the production collector configuration. Under steady load the peak sits between 133 and 228 MB. During a sink outage with the buffer raised to 2 gigabytes the peak reaches 404 MB, drawn in red, because a thousand queued chunks cost real memory in bookkeeping even though the records themselves stay on disk.">
+            <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="0" y="10">Memory envelope</text>
+            <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M0,16 H260"></path>
+
+            <text class="d-vm is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:start" x="0" y="32">64 chunks in memory</text>
+            <text class="d-t is-sm is-end" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:end" x="260" y="32">128 MB</text>
+            <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M0,40 H260"></path>
+
+            <text class="d-vm is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:start" x="0" y="56">Documented worst case</text>
+            <text class="d-t is-sm is-end" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:end" x="260" y="56">307 MB</text>
+            <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M0,64 H260"></path>
+
+            <text class="d-vm is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:start" x="0" y="80">Measured, steady load</text>
+            <text class="d-t is-sm is-end" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:end" x="260" y="80">133–228 MB</text>
+            <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M0,88 H260"></path>
+
+            <text class="d-vm is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:start" x="0" y="104">Measured, sink outage</text>
+            <text class="d-t is-sm is-end is-hot" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#e1251b;text-anchor:end" x="260" y="104">404 MB</text>
+          </svg>

@@ -1,0 +1,112 @@
+[
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 56,
+  "quote": "All four now pass our checks.",
+  "problem": "Round 10 withdrew round 9's \"all four versions pass\" because the rotation check failed one run in three, and the same paragraph then blocks release 5.0.8 on that very check.",
+  "source": "reports/loggy-report/briefs/soak-index.md:311 (retraction, docs/SOAK_RESULTS.md:4287-4288, 4304-4306); reports/loggy-report/briefs/soak-5.md:18 and :220",
+  "fix": "Write: \"All four passed the fixture and restart checks. A later review found the rotation check itself was flaky, and release 5.0.8 loses every byte appended after rotation, in five of five runs, so it is blocked.\"",
+  "severity": "must",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 58,
+  "quote": "Two external reviews retracted every collector regex cost figure.",
+  "problem": "One external review, round 9, retracted them as wall-clock measurements.",
+  "source": "reports/loggy-report/briefs/soak-index.md:306 (docs/SOAK_RESULTS.md:4192-4197, 4157-4188, both round 9); briefs/soak-4.md:8",
+  "fix": "Write: \"An external review retracted every collector regex cost figure.\"",
+  "severity": "nit",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 42,
+  "quote": "At 82~\\% of the cap the collector absorbs the shortfall and loses nothing.",
+  "problem": "The sentence follows a paragraph about the 42,000 a second ceiling, so \"the cap\" reads as a rate, while it is the 256 MB disk buffer from four paragraphs earlier.",
+  "source": "reports/loggy-report/briefs/soak-2.md:41 \u2014 \"backlog 210.7 MB (82 % of cap), 0 dropped ... the 256 MB storage.total_limit_size cap\"; soak-2.md:42 gives the 1.8 % and the 262.8 s drain at the same cap.",
+  "fix": "\"At 82~\\% of the 256~MB buffer cap the collector absorbs the shortfall and loses nothing.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 9,
+  "quote": "The re-run rig, the same laptop slowed, offered 5,000.",
+  "problem": "The rate carries no unit.",
+  "source": "reports/loggy-report/briefs/soak-index.md:17 \u2014 \"A 47-cell re-run on 27 August at 5,000 a second\".",
+  "fix": "\"offered 5,000 records a second\".",
+  "severity": "nit",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 17,
+  "quote": "In Round 1, at up to 53,000 records a second, the collector's memory sat between 133 and 228~MB.",
+  "problem": "The subsection that carries the collector's cost opens on internal round numbering instead of the result.",
+  "source": "reports/loggy-report/briefs/style.md:7",
+  "fix": "\"The collector's memory sat between 133 and 228~MB at every rate up to 53,000 records a second.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 54,
+  "quote": "The collector had never read three of the six sources. Six, because the process tree has two line formats.",
+  "problem": "The report counts five families in 2.1 and 3.1 and six sources here, and then names \"the data-distribution format\", which 2.1 never named as one of the two process-tree formats.",
+  "source": "reports/loggy-report/briefs/constraints.md:85, :91, :126; reports/loggy-report/reviews/round1-by-file/05-eval-a.tex.json",
+  "fix": "Name the two formats in Table 1 and 2.1, then write: \"The collector had never read three of the five families: the data-distribution format of the process tree, the InfoLogger daemon log and the system journal.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 54,
+  "quote": "Fixed, severity comes out of 99.83~\\% of process-tree lines against a 99~\\% gate.",
+  "problem": "The opening participle has no actor, and round 1 flagged this exact construction, which was removed from 3.4 and left here.",
+  "source": ".claude/skills/simple-english/SKILL.md:35; reports/loggy-report/reviews/round1-by-file/02-design-a.tex.json",
+  "fix": "\"We fixed the anchor. Severity now comes out of 99.83~\\% of process-tree lines, against a 99~\\% gate.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 38,
+  "quote": "At a median worker's 23 records a second, that share is 13.8, and the buffer covers 17.4~hours.",
+  "problem": "13.8 carries no unit, so the reader has to derive that it means InfoLogger records a second, and 46.8 repeats the pattern in the next sentence.",
+  "source": "reports/loggy-report/briefs/style.md:28; reports/loggy-report/outline.md:21",
+  "fix": "\"At a median worker's 23 records a second, InfoLogger is 13.8 records a second, and the buffer covers 17.4~hours. At the busiest worker-second, 78, InfoLogger is 46.8 a second and the buffer covers 5.1~hours.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 48,
+  "quote": "A produce and a consume step raise the live lane's 1-second latency floor.",
+  "problem": "The same argument counts against the Kafka bus Section 4 agrees for exactly that lane, and the report never says why the cost is acceptable there.",
+  "source": "briefs/soak-2.md:59 (the 1-second floor, \"a produce and a consume step would add to it\"); briefs/why.md:120-123 (the live-lane bus is agreed for decoupling, not durability)",
+  "fix": "Either drop the sentence from Section 5.3, whose other two cost points stand alone, or add one clause in Section 4: \"The bus adds a produce and a consume step to that 1-second floor, and the review accepted it for the decoupling.\"",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 54,
+  "quote": "Later rounds added the data-distribution format, the InfoLogger daemon log and the system journal.",
+  "problem": "The reader read the data-distribution format as DDS, which Section 2.1 already lists as a collected family; it is in fact the second line format of the O2 process tree.",
+  "source": "briefs/constraints.md:107-110 (the two O2 line formats are DPL/FairMQ and DataDistribution, TfBuilderTask); briefs/constraints.md:87-91 (DDS is a separate family)",
+  "fix": "Write \"Later rounds added the second process-tree format, written by the data-distribution processes, plus the InfoLogger daemon log and the system journal.\" and name both formats once in Section 2.1.",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/05-eval-a.tex",
+  "line": 50,
+  "quote": "The live-lane bus is separate.",
+  "problem": "The sentence has no object, and the reader took it to mean the bus is separate from the four reopen conditions rather than a separate decision.",
+  "source": "briefs/soak-index.md:9 (\"Two Kafka decisions exist and stay apart\")",
+  "fix": "Write \"The live-lane bus of Section 4 is a separate decision.\"",
+  "severity": "nit",
+  "lens": "reader"
+ }
+]

@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" viewBox="0 0 820 492" role="img"
+             aria-label="Two bands. Band one, the candidates, is a table of four rows compared on three questions: does the tool leave an agent on every machine, when does it run, and does it also create the machines. An agent is a program the tool installs and leaves running on every machine. The first row is outlined in red as the choice: Ansible leaves no agent and works over SSH, it runs only when we run it, and the same tool creates the machines. It was chosen because a push over SSH puts nothing new on a CERN host, and one tool both creates the five machines and configures them. Second row, Puppet with Foreman: an agent and a certificate on every machine, applied on a timer, and it creates machines through Foreman. It is the CERN standard and it repairs drift by itself, but it wants an agent and a signed certificate on five machines we deploy by hand. Third row, Salt and Chef: an agent and a server, running on demand or on a timer, and neither creates machines. Salt fans out fastest but only at farm scale, Chef needs a second programming language, and both put an agent on every node. Fourth row, Terraform: no agent, runs when we run it, and it creates machines and nothing else. Its vendor calls configuring them a separate job, so choosing it would mean two tools instead of one. Band two, our design decisions, is four one-line entries with small hairline drawings. Placement is data: one inventory file says where each service runs, and moving one service to another machine changed no code. Every step converges: a failed run is simply run again, because machines, monitors and detectors are created by name and never twice. Gates stop the run: twelve checks fail the deploy rather than report success, and the last one proves twenty-eight monitors and seventeen detectors exist. Secrets stay encrypted: every secret lives in one encrypted file in the repository, and the cloud credential never touches disk. The band header counts seventeen roles, seven inventory groups and five machines.">
+
+          <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="13">01</text>
+          <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="13">The candidates</text>
+          <text class="d-fact is-end" style="font-size:10.5px;fill:#3a3a36;text-anchor:end" x="820" y="13">An agent is a program the tool installs and leaves running on every machine.</text>
+
+          <rect class="d-panel" style="fill:#f1f1ec" x="1" y="28" width="818" height="308"></rect>
+
+          <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="190" y="49">AGENT ON EVERY MACHINE</text>
+          <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="390" y="49">WHEN IT RUNS</text>
+          <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="560" y="49">CREATES THE MACHINES</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M12,60 H808"></path>
+
+          <rect class="d-card is-hot" style="fill:#fdf1f0;stroke:#e1251b;stroke-width:1.6" x="1" y="60" width="818" height="82"></rect>
+          <image href="logos/ansible-logo-official.svg" x="12" y="78" width="162.9" height="19"></image>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="190" y="92">None, over SSH</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="390" y="92">When we run it</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="560" y="92">Yes, same tool</text>
+          <text class="d-tag is-lg is-end" style="font-family:Menlo, monospace;font-size:12px;font-weight:700;letter-spacing:0.2em;fill:#e1251b;text-anchor:end" x="808" y="92">CHOSEN</text>
+          <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="190" y="122">A push over SSH puts nothing new on a CERN host. One tool creates the five machines and configures them.</text>
+
+          <image href="logos/puppet-logo-official.svg" x="12" y="154" width="68.6" height="24"></image>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="90" y="170">with Foreman</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="190" y="170">Agent and certificate</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="390" y="170">On a timer</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="560" y="170">Yes, with Foreman</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="190" y="192">The CERN standard, and it repairs drift by itself. It wants an agent and a signed certificate on every node.</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M12,205 H808"></path>
+
+          <image href="../../../../presentation/assets/salt-project-logo.webp" x="12" y="215.5" width="61.7" height="22"></image>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="83" y="231">and Chef</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="190" y="231">Agent and a server</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="390" y="231">On demand or a timer</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="560" y="231">No</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="190" y="253">Salt fans out fastest, but only at farm scale. Chef needs a second language. Both put an agent on every node.</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M12,266 H808"></path>
+
+          <image href="logos/terraform-logo-official.svg" x="12" y="276.5" width="91.7" height="22"></image>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="190" y="292">None</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="390" y="292">When we run it</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="560" y="292">Yes, and nothing else</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="190" y="314">It builds machines well, and its vendor calls configuring them a separate job. That is two tools, not one.</text>
+
+          <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="369">02</text>
+          <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="369">Our design decisions</text>
+          <text class="d-fact is-end" style="font-size:10.5px;fill:#3a3a36;text-anchor:end" x="820" y="369">17 roles · 7 inventory groups · 5 machines</text>
+
+          <rect class="d-panel" style="fill:#f1f1ec" x="1" y="384" width="818" height="107"></rect>
+
+          <rect class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" x="15" y="397" width="16" height="16"></rect>
+          <path class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" d="M15,405 H31"></path>
+          <path class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" d="M23,397 V413"></path>
+          <rect class="d-icon is-fill" style="fill:#101010;stroke:none;stroke-width:1.1;stroke-linecap:square" x="24.6" y="398.6" width="4.8" height="4.8"></rect>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="46" y="409">Placement is data</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="250" y="409">One inventory file says where each service runs. Moving one service to another machine changed no code.</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M12,421.5 H808"></path>
+
+          <path class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" d="M15,425 H29 A5,5 0 0 1 29,435 H18"></path>
+          <path class="d-head" style="fill:#101010" d="M18.6,432.4 L14,435 L18.6,437.6 z"></path>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="46" y="434">Every step converges</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="250" y="434">A failed run is simply run again. Machines, monitors and detectors are created by name, never twice.</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M12,446.5 H808"></path>
+
+          <path class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" d="M14,455 H22"></path>
+          <path class="d-head" style="fill:#101010" d="M22,452.4 L26.6,455 L22,457.6 z"></path>
+          <path class="d-icon is-hot" style="fill:none;stroke:#e1251b;stroke-width:1.1;stroke-linecap:square" d="M30,447 V463"></path>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="46" y="459">Gates stop the run</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="250" y="459">12 checks fail the deploy rather than report success. The last proves 28 monitors and 17 detectors exist.</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M12,471.5 H808"></path>
+
+          <path class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" d="M19,478 V474.5 A4,4 0 0 1 27,474.5 V478"></path>
+          <rect class="d-icon" style="fill:none;stroke:#101010;stroke-width:1.1;stroke-linecap:square" x="15.5" y="478" width="15" height="10"></rect>
+          <circle class="d-icon is-fill" style="fill:#101010;stroke:none;stroke-width:1.1;stroke-linecap:square" cx="23" cy="483" r="1.5"></circle>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="46" y="484">Secrets stay encrypted</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="250" y="484">Every secret lives in one encrypted file in the repository. The cloud credential never touches disk.</text>
+        </svg>

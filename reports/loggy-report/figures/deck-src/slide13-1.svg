@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" viewBox="0 0 820 546" role="img"
+           aria-label="Log anomaly detection, in three bands, none of it built. Band one, what is watched today: a plain card says numbers about the logs, counts, error rates and lag, and that lane is built and running; a red card beside it says the log text itself, the words in the line, and nothing reads them. The band is marked as one of the project’s next focuses. Band two, three ways to read the text, drawn as three cards of equal size, with the note that none is chosen and all three are open. Card one, templating alone: collapse a line to its skeleton, so the line Processing timeslice colon forty-one becomes Processing timeslice colon angle-bracket N. Millions of lines become a few thousand templates, and a template never seen before is a free signal. Its trade-off, in red: the signal runs out, because software prints only the messages in its source, so once every template is seen it stops firing. Card two, k-NN alone, nearest-neighbour distance on lines: k-NN means k nearest neighbours, and the distance is the score. Turn each line into a vector, then score a new line by how far it is from the nearest line already seen. Its trade-off, in red: rejected on cost, because every line runs through a model at ingest and millions of vectors sit in memory on machines whose memory is already rationed. Card three, templates then k-NN, the two ideas fused: templates first and then distance, which is a few thousand vectors. Extract the skeletons first, then run the distance test on the templates and not on the lines. Its trade-off, in red: it fixes the cost but inherits some of the saturation, and our own document names this one as still open. Band three, the proposed pipeline, stamped COMING SOON in a solid red badge and drawn inside a red panel. The band is split into two named halves. On the worker, two small cards: extract the template, which is string work with no model, then count each template, one counter per template in one small table. A red arrow labelled push crosses into the second half. In the storage tier, two cards: the template vocabulary, every template seen so far, held once rather than on every worker, and then the scoring, which uses one of the three ways above and runs on the storage tier only. A red brace under the worker half reads: some work here, but not much. Beside it, three lines state that the worker pushes its template counts upward, and any template it has never seen before, and that nothing polls the worker and no model runs on it.">
+        <defs>
+          <marker id="mk13a" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0,1 L10,5 L0,9 z" class="d-head" style="fill:#101010"></path>
+          </marker>
+          <marker id="mk13r" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0,1 L10,5 L0,9 z" class="d-head is-hot" style="fill:#e1251b"></path>
+          </marker>
+        </defs>
+
+        <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="11">01</text>
+        <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="11">What is watched today</text>
+        <text class="d-fact is-end" style="font-size:10.5px;fill:#3a3a36;text-anchor:end" x="820" y="11">One of the project’s next focuses.</text>
+
+        <rect class="d-panel" style="fill:#f1f1ec" x="1" y="22" width="818" height="62"></rect>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="14" y="32" width="380" height="42"></rect>
+        <text class="d-t is-sm" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="204" y="51">Numbers about the logs</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="204" y="67">counts, error rates, lag — built and running</text>
+
+        <rect class="d-card is-hot" style="fill:#fdf1f0;stroke:#e1251b;stroke-width:1.6" x="426" y="32" width="380" height="42"></rect>
+        <text class="d-t is-sm is-hot" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#e1251b;text-anchor:middle" x="616" y="51">The log text itself</text>
+        <text class="d-l is-hot" style="font-family:Menlo, monospace;font-size:10px;fill:#e1251b;text-anchor:middle" x="616" y="67">the words in the line — nothing reads them</text>
+
+        <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="110">02</text>
+        <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="110">Three ways to read the text</text>
+        <text class="d-fact is-end" style="font-size:10.5px;fill:#3a3a36;text-anchor:end" x="820" y="110">None is chosen. All three are open.</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="1" y="122" width="259" height="222"></rect>
+        <text class="mk13-lane is-mid" style="text-anchor:middle" x="130" y="147">TEMPLATING ALONE</text>
+        <text class="d-s is-mid" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="130" y="167">Collapse a line to its skeleton</text>
+        <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M8,177 H252"></path>
+        <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="130" y="194">Processing timeslice:41</text>
+        <text class="d-l is-mid is-hot" style="font-family:Menlo, monospace;font-size:10px;fill:#e1251b;text-anchor:middle" x="130" y="208">Processing timeslice:&lt;N&gt;</text>
+        <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="130" y="228">Millions of lines become</text>
+        <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="130" y="242">a few thousand templates.</text>
+        <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="130" y="256">A template never seen</text>
+        <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="130" y="270">before is a free signal.</text>
+        <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M8,281 H252"></path>
+        <text class="d-tag" style="font-family:Menlo, monospace;font-size:9px;font-weight:700;letter-spacing:0.16em;fill:#e1251b" x="8" y="297">TRADE-OFF</text>
+        <text class="d-fact is-hot" style="font-size:10.5px;fill:#e1251b" x="8" y="311">The signal runs out. Software prints</text>
+        <text class="d-fact is-hot" style="font-size:10.5px;fill:#e1251b" x="8" y="324">only the messages in its source. Once</text>
+        <text class="d-fact is-hot" style="font-size:10.5px;fill:#e1251b" x="8" y="337">every template is seen, it stops firing.</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="280" y="122" width="260" height="222"></rect>
+        <text class="mk13-lane is-mid" style="text-anchor:middle" x="410" y="147">k-NN ALONE</text>
+        <text class="d-s is-mid" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="410" y="167">Nearest-neighbour distance on lines</text>
+        <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M288,177 H532"></path>
+        <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="410" y="194">k-NN: k nearest neighbours.</text>
+        <text class="d-l is-mid is-hot" style="font-family:Menlo, monospace;font-size:10px;fill:#e1251b;text-anchor:middle" x="410" y="208">Distance is the score.</text>
+        <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="410" y="228">Turn each line into a vector.</text>
+        <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="410" y="242">Score a new line by how far</text>
+        <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="410" y="256">it is from the nearest line</text>
+        <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="410" y="270">already seen.</text>
+        <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M288,281 H532"></path>
+        <text class="d-tag" style="font-family:Menlo, monospace;font-size:9px;font-weight:700;letter-spacing:0.16em;fill:#e1251b" x="288" y="297">TRADE-OFF</text>
+        <text class="d-fact is-hot" style="font-size:10.5px;fill:#e1251b" x="288" y="311">Rejected on cost. Every line runs</text>
+        <text class="d-fact is-hot" style="font-size:10.5px;fill:#e1251b" x="288" y="324">through a model at ingest. Millions of</text>
+        <text class="d-fact is-hot" style="font-size:10.5px;fill:#e1251b" x="288" y="337">vectors sit in memory already rationed.</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="560" y="122" width="259" height="222"></rect>
+        <text class="mk13-lane is-mid" style="text-anchor:middle" x="690" y="147">TEMPLATES, THEN k-NN</text>
+        <text class="d-s is-mid" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="690" y="167">The two ideas, fused</text>
+        <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M568,177 H812"></path>
+        <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="690" y="194">Templates, then distance.</text>
+        <text class="d-l is-mid is-hot" style="font-family:Menlo, monospace;font-size:10px;fill:#e1251b;text-anchor:middle" x="690" y="208">A few thousand vectors.</text>
+        <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="690" y="228">Extract the skeletons first.</text>
+        <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="690" y="242">Then run the distance test</text>
+        <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="690" y="256">on the templates, and</text>
+        <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="690" y="270">not on the lines.</text>
+        <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M568,281 H812"></path>
+        <text class="d-tag" style="font-family:Menlo, monospace;font-size:9px;font-weight:700;letter-spacing:0.16em;fill:#e1251b" x="568" y="297">TRADE-OFF</text>
+        <text class="d-fact is-hot" style="font-size:10.5px;fill:#e1251b" x="568" y="311">It fixes the cost. It inherits some of</text>
+        <text class="d-fact is-hot" style="font-size:10.5px;fill:#e1251b" x="568" y="324">the saturation. Our own document</text>
+        <text class="d-fact is-hot" style="font-size:10.5px;fill:#e1251b" x="568" y="337">names this one as still open.</text>
+
+        <text class="d-num is-hot" style="font-family:Menlo, monospace;font-size:11px;fill:#e1251b" x="0" y="382">03</text>
+        <text class="d-stage is-hot" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#e1251b" x="24" y="382">The proposed pipeline</text>
+        <rect class="mk13-soonbar" x="676" y="370" width="143" height="17"></rect>
+        <text class="mk13-soontext is-mid" style="text-anchor:middle" x="748" y="382.5">COMING SOON</text>
+
+        <rect class="d-panel is-soon" style="fill:#fdf1f0;stroke:#e1251b;stroke-width:1.6" x="1" y="394" width="818" height="148"></rect>
+
+        <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="14" y="414">On the worker</text>
+        <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="426" y="414">In the storage tier</text>
+        <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M14,420 H394"></path>
+        <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M426,420 H806"></path>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="14" y="432" width="172" height="60"></rect>
+        <text class="d-t is-sm" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="100" y="454">Extract the template</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="100" y="470">no model, string work</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="100" y="484">cheap on the worker</text>
+
+        <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M186,462 H216" marker-end="url(#mk13a)"></path>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="222" y="432" width="172" height="60"></rect>
+        <text class="d-t is-sm" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="308" y="454">Count each template</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="308" y="470">one counter per template</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="308" y="484">one small table</text>
+
+        <text class="d-l is-hot" style="font-family:Menlo, monospace;font-size:10px;fill:#e1251b;text-anchor:middle" x="410" y="450">push</text>
+        <path class="d-line is-hot" style="fill:none;stroke:#e1251b;stroke-width:1.25" d="M394,462 H420" marker-end="url(#mk13r)"></path>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="426" y="432" width="172" height="60"></rect>
+        <text class="d-t is-sm" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="512" y="454">The template vocabulary</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="512" y="470">every template seen so far</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="512" y="484">held once, not per worker</text>
+
+        <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M598,462 H628" marker-end="url(#mk13a)"></path>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="634" y="432" width="172" height="60"></rect>
+        <text class="d-t is-sm" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="720" y="454">The scoring</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="720" y="470">one of the three ways above</text>
+        <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="720" y="484">on the storage tier only</text>
+
+        <path class="d-brace" style="fill:none;stroke:#e1251b;stroke-width:1.1" d="M14,500 V506 H394 V500"></path>
+        <text class="d-bracelabel" style="font-size:12.5px;letter-spacing:-0.005em;fill:#e1251b;text-anchor:middle" x="204" y="520">Some work here, but not much</text>
+
+        <text class="d-fact is-hot" style="font-size:10.5px;fill:#e1251b" x="426" y="506">The worker pushes its template counts upward,</text>
+        <text class="d-fact is-hot" style="font-size:10.5px;fill:#e1251b" x="426" y="520">and any template it has never seen before.</text>
+        <text class="d-fact is-hot" style="font-size:10.5px;fill:#e1251b" x="426" y="534">Nothing polls the worker. No model runs on it.</text>
+      </svg>

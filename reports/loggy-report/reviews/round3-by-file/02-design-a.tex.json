@@ -1,0 +1,102 @@
+[
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/02-design-a.tex",
+  "line": 55,
+  "quote": "A line takes five steps inside the collector, and the 64 chunks it can hold in memory cap its cost to the worker at about 128~MB.",
+  "problem": "The caption states a 128 MB cap that the figure's own memory envelope disproves, since it shows 133 to 228 MB under steady load and 373 MB in a sink outage.",
+  "source": "reports/loggy-report/sections/02-design-a.tex:59; reports/loggy-report/figures/fig04-collector.svg:161",
+  "fix": "A line takes five steps inside the collector, and the 64 chunks it holds in memory are about 128~MB of the 133 to 228~MB it uses under load.",
+  "severity": "must",
+  "lens": "figures"
+ },
+ {
+  "file": "sections/02-design-a.tex",
+  "line": 11,
+  "quote": "The control host holds every screen: Dashboards, and Alertmanager, which decides when a person is told.",
+  "problem": "Four sentences later the shifter host serves the shifter view, which is a screen, so the reader cannot place the surfaces and never meets the one web door of Section 3.9.",
+  "source": "briefs/target-architecture.md:50",
+  "fix": "The control host holds the one web door every person opens. Behind it sit Dashboards and Alertmanager, which decides when a person is told.",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/02-design-a.tex",
+  "line": 61,
+  "quote": "The disk buffer is a hiccup layer of 256~MB per output: when the store does not answer, chunks spill to disk.",
+  "problem": "\"Output\" is never explained, yet it carries the create-action claim at 02:63, the Kafka decision at 04:60 and the retracted ceiling at 07:11.",
+  "source": "briefs/soak-2.md:22",
+  "fix": "An output is the collector's connection to one destination. Each output has a 256~MB disk buffer, a hiccup layer: when the store does not answer, chunks spill to disk.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/02-design-a.tex",
+  "line": 73,
+  "quote": "The catalogue maintenance proves that up to 5,000 hourly buckets sum to their totals. It also proves that neither shared index holds more records of a template version than the workers stamped.",
+  "problem": "The reader gets two procedures with no goal, and the two shared indices are never named, so the second check has no subject.",
+  "source": "sections/02-design-a.tex:23",
+  "fix": "The first check proves that no count is lost: up to 5,000 hourly buckets sum to their family totals. The second proves that no record is counted twice. Neither the central index nor the InfoLogger index holds more records of a template version than the workers stamped.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/02-design-a.tex",
+  "line": 71,
+  "quote": "The stamper holds at most 20,000 templates per worker, 4.7 times what the whole archive produced.",
+  "problem": "\"The whole archive\" is not one of the report's three named corpora, so the reader attaches 4.7 to the 248,828,513-record InfoLogger archive and cannot recover the real figure.",
+  "source": "briefs/soak-5.md:38",
+  "fix": "The stamper holds at most 20,000 templates per worker, 4.7 times the 4,221 templates mined from 55,963,050 archive lines (Section~\\ref{sec:eval-templating}).",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 71,
+  "quote": "The stamper holds at most 20,000 templates per worker, 4.7 times what the whole archive produced.",
+  "problem": "4.7 is 20,000 over the 4,221 templates one tree mined from the three recipe corpora of 55,963,050 lines, and the report's own later corpus of 56,628,579 lines mined 5,571 templates, which makes the margin 3.6 times, so \"the whole archive\" claims a scope the number does not have.",
+  "source": "docs/SOAK_RESULTS.md:5124-5136; docs/SOAK_RESULTS.md:2632-2652; docs/SEMANTIC_RESULTS.md:206; reports/loggy-report/briefs/soak-index.md:199-200",
+  "fix": "The stamper holds at most 20,000 templates per worker, 4.7 times the 4,221 that one tree mined from the three recipe corpora.",
+  "severity": "should",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 11,
+  "quote": "The control host holds every screen: Dashboards, and Alertmanager, which decides when a person is told.",
+  "problem": "The shifter view is a screen and runs on the shifter host, as the same paragraph says four sentences later, so the reader gets two placements for the surfaces.",
+  "source": "briefs/why.md:141 (\"It runs off the control host because its cost grows with readers\"); briefs/target-architecture.md:11 (shifter view on node-05)",
+  "fix": "The control host holds the one web door, Dashboards, and Alertmanager, which decides when a person is told.",
+  "severity": "should",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 11,
+  "quote": "The storage tier is three replicated nodes, each a cluster manager and a data node.",
+  "problem": "The paragraph this opens runs to fourteen sentences and four topics against a ceiling of six sentences and one topic, and four of its sentences repeat one opening shape.",
+  "source": ".claude/skills/simple-english/SKILL.md:32",
+  "fix": "Break it into three paragraphs: the tier and its quorum, the three hosts with the services each runs, and the two layouts. Merge the four repeated openings into \"The control host also runs the poller, the roster of collectors that must run, the catalogue maintenance and the receiver.\"",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 67,
+  "quote": "A template widens as the miner sees more lines, and each state is one version, the field a record carries (Figure~\\ref{fig:templates}).",
+  "problem": "The subsection opens on version bookkeeping instead of its point, names \"the miner\" a paragraph before drain3 is introduced, and ends on a verbless appositive.",
+  "source": "reports/loggy-report/briefs/style.md:7",
+  "fix": "The stamper names every line's template before the line is indexed. A template widens as the stamper sees more lines. Each state is one version, and every record carries that version as a field.",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 11,
+  "quote": "The control host holds every screen: Dashboards, and Alertmanager, which decides when a person is told.",
+  "problem": "Alertmanager has no screen a person opens, and Section 3.9 says every surface is Dashboards or the shifter view, so listing it after \"every screen\" contradicts the surfaces paragraph.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:54",
+  "fix": "The control host holds Dashboards, the only screen on it. It also runs Alertmanager, which decides when a person is told.",
+  "severity": "should",
+  "lens": "voice"
+ }
+]

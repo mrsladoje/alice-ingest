@@ -1,0 +1,52 @@
+[
+ {
+  "file": "reports/loggy-report/sections/00-abstract.tex",
+  "line": 1,
+  "quote": "The collector costs about a quarter of one core at 20,000 records a second.",
+  "problem": "This headline figure appears nowhere in the body, which gives only core-seconds per million, so the reader cannot check it.",
+  "source": "docs/SOAK_RESULTS.md:559-563 (\"The collector uses 0.25 of one core at 20,000 records a second, and 0.223 of that is one thread\"); reports/loggy-report/briefs/soak-index.md section 2a",
+  "fix": "Add to Section 5.2, beside the 11.19 core-seconds per million: \"At 20,000 records a second that is 0.25 of one core, and one thread carries 0.223 of it.\"",
+  "severity": "should",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/00-abstract.tex",
+  "line": 1,
+  "quote": "Info lines stay in one local copy, every other severity goes to three storage machines.",
+  "problem": "A comma splices two independent clauses, so one sentence carries two ideas; the abstract does it again in \"Every worker pushes its health up, nothing polls it.\"",
+  "source": ".claude/skills/simple-english/SKILL.md:32 (one topic per sentence, 25 words); reports/loggy-report/briefs/style.md:11",
+  "fix": "\"Info lines stay in one local copy. Every other severity goes to three storage machines.\" Split the health sentence the same way.",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/00-abstract.tex",
+  "line": 1,
+  "quote": "Dense retrieval with reranking reaches 0.685 nDCG@10 against 0.634 for the dense model alone.",
+  "problem": "nDCG is used in the abstract, twice in Section 5.6, in a table and in the conclusion, and is glossed but never expanded, so the reader cannot look up the name.",
+  "source": "reports/loggy-report/report/references.tex, ref:ndcg \u2014 J\u00e4rvelin and Kek\u00e4l\u00e4inen, \"Cumulated gain-based evaluation of IR techniques\"",
+  "fix": "At 06-eval-b.tex:36 write \"normalised discounted cumulative gain over the top ten results, nDCG@10, a rank score that rewards relevant results near the top~\\cite{ref:ndcg}\".",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/00-abstract.tex",
+  "line": 1,
+  "quote": "Info lines stay in one local copy, every other severity goes to three storage machines.",
+  "problem": "Three different sets are given for what stays local: info here, \"info and debug lines\" in Table 3, \"info, debug and trace\" in Section 3.2 step 2.",
+  "source": "reports/inputs/dataflow-atlas.md:16 (audited): \"Info, debug and trace would go to family.local.\"",
+  "fix": "Use \"info, debug and trace\" in Table 3 and the abstract, or define \"routine lines\" once and use that word everywhere.",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "sections/00-abstract.tex",
+  "line": 1,
+  "quote": "so only shapes, knees and rankings transfer to the farm",
+  "problem": "\"Knees\" is used in the abstract and Section 5 and never defined.",
+  "source": "briefs/style.md:31 (define a term the moment it appears)",
+  "fix": "At the first use in Section 5 add \"the knees, the rates where a cost curve bends\".",
+  "severity": "nit",
+  "lens": "reader"
+ }
+]

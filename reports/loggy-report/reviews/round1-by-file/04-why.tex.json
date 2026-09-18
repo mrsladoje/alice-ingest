@@ -1,0 +1,222 @@
+[
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 29,
+  "quote": "body, counts, detection, alerting",
+  "problem": "The narrow Table 5 cell sets one ragged line.",
+  "source": "report/report.log:1121 \"Underfull \\hbox (badness 10000) in paragraph at lines 34--34\"",
+  "fix": "Widen the column or write \"body, counts, detection and alerting\".",
+  "severity": "nit",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 50,
+  "quote": "The pipeline fell from 19.91 to 11.18 core-seconds per million lines.",
+  "problem": "11.18 core-seconds per million is a retracted whole-corpus mining cost; the standing figure is 8.33, and the 1.8-times multiple was retired with it.",
+  "source": "docs/SOAK_RESULTS.md:2693-2704 (\"the whole-corpus cost of 11.18 cannot stand ... 8.33 core-seconds per million, not 11.18\") and :2708-2713; listed as retracted in reports/loggy-report/briefs/soak-index.md section 3",
+  "fix": "Replace with: \"The whole-corpus mining cost is 8.33 core-seconds per million lines with the rewritten masker; the shipped control of 19.91 was not re-measured, so no multiple is quoted.\" The source brief reports/loggy-report/briefs/why.md:166 carries the same retracted pair and needs the same correction.",
+  "severity": "must",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 6,
+  "quote": "Under load ours peaked between 133 and 228~MB.",
+  "problem": "The report elsewhere uses 133 to 228 MB as the steady range and 373 MB as the measured peak, so calling the range a peak contradicts Sections 3.4 and 5.2.",
+  "source": "docs/SOAK.md:18 (working range on two cores against a fake sink) and docs/SOAK.md:87-90 (373 MB peak in the sink outage with the shipped 256 MB buffer); reports/loggy-report/briefs/soak-index.md section 2b",
+  "fix": "Write: \"Under steady load ours sat between 133 and 228 MB.\"",
+  "severity": "should",
+  "lens": "numbers"
+ },
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/04-why.tex",
+  "line": 50,
+  "quote": "The pipeline fell from 19.91 to 11.18 core-seconds per million lines.",
+  "problem": "11.18 was withdrawn because it rested on one contaminated stdout reading, and the 19.91 control was never re-measured, so the source refuses to quote any before-and-after multiple.",
+  "source": "briefs/soak-3.md:108 (\"Withdrawn at lines 2693-2704; the figure of record is 8.33\"); briefs/soak-3.md:107; briefs/soak-index.md:299",
+  "fix": "Drop the pair. Use the masker figures instead (11.93 to 1.82 core-seconds per million on InfoLogger, 12.24 to 1.73 on the process tree, 40.22 to 5.09 on DDS, templates unchanged, briefs/why.md:166), and quote 8.33 core-seconds per million on 45,596,613 lines as the whole-corpus cost of record.",
+  "severity": "must",
+  "lens": "facts"
+ },
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/04-why.tex",
+  "line": 71,
+  "quote": "Five modules, about 31,000 lines, are byte-identical copies across the services.",
+  "problem": "The 31,000 lines are all the Python across the fourteen deployment components; the byte-identical duplication is five named modules whose size no source gives.",
+  "source": "briefs/inputs/rework-context.md:61 (\"14 roles under deploy/roles; 31,000 lines of Python\") and :67-71 (the five byte-identical modules); briefs/why.md entry 31",
+  "fix": "\"About 31,000 lines of Python run the services, and five modules are byte-identical copies across them.\"",
+  "severity": "must",
+  "lens": "facts"
+ },
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/04-why.tex",
+  "line": 65,
+  "quote": "Puppet wants an agent and a certificate on every machine, runs on a timer, and is right for the farm.",
+  "problem": "The source hedges and the report states it flat; nothing was measured or decided about Puppet on the farm.",
+  "source": "briefs/constraints.md:196 and briefs/why.md entry 9 (\"It is likely right for the farm and wrong for five machines one person deploys by hand\")",
+  "fix": "\"and is likely right for the farm.\"",
+  "severity": "nit",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 50,
+  "quote": "The pipeline fell from 19.91 to 11.18 core-seconds per million lines.",
+  "problem": "The unit core-second is used in section 4 but defined only in section 5.1, so the number means nothing at first reading.",
+  "source": "reports/loggy-report/sections/05-eval-a.tex:7 (\"core-seconds, one core busy for one second\")",
+  "fix": "Define the unit at this first use: \"The pipeline fell from 19.91 to 11.18 core-seconds per million lines, one core-second being one core busy for one second.\" Or move the number into section 5.",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 6,
+  "quote": "We chose Fluent Bit~\\cite{ref:fluentbit}, written in C and graduated by the CNCF~\\cite{ref:cncf}.",
+  "problem": "CNCF is never spelled out and \"graduated\" is never explained, so the deciding fact of the whole paragraph is unreadable outside the field.",
+  "source": "reports/loggy-report/briefs/why.md:19 (\"CNCF graduated, fifteen billion deployments on its own project page, a decade in production\")",
+  "fix": "\"We chose Fluent Bit~\\cite{ref:fluentbit}. It is written in C, and the Cloud Native Computing Foundation has graduated it, which is that foundation's top maturity mark~\\cite{ref:cncf}.\"",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 53,
+  "quote": "Deep sequence models reach an F1 of about 0.23 to 0.27 under drift, against about 0.71 for plain PCA.",
+  "problem": "Three terms arrive undefined in one sentence: F1, PCA and drift, and F1 has no scale attached.",
+  "source": "reports/loggy-report/briefs/why.md:177 (\"F1 about 0.23 to 0.27 under drift against about 0.71 for plain PCA\")",
+  "fix": "\"Deep sequence models score about 0.23 to 0.27 on F1, the balance of catching a fault and not crying wolf, where 1 is perfect. Principal component analysis, a far older method, scores about 0.71 on the same logs after the log text has changed.\"",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 38,
+  "quote": "Cross-cluster search does not scale to 100 machines.",
+  "problem": "Cross-cluster search is named as the losing alternative but never defined, and the paragraph then writes \"Three hundred data nodes\" in words after \"100 machines\" in digits.",
+  "source": "reports/loggy-report/briefs/why.md:48-49 (\"many clusters joined by cross-cluster search ... does not scale to 100 machines\")",
+  "fix": "\"The alternative is many clusters joined by cross-cluster search, where one cluster forwards a query to the others. It does not scale to 100 machines. 300 data nodes in one cluster is an untested risk for the cluster manager.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 47,
+  "quote": "No numbered comparison against Grafana exists in our sources.",
+  "problem": "\"our sources\" points at the project's own research notes, which the reader cannot see, instead of saying plainly what was not done.",
+  "source": "reports/loggy-report/briefs/style.md:81 (say \"not measured\" or \"not tested\"); reports/loggy-report/briefs/style.md:89",
+  "fix": "\"We did not compare Dashboards and Grafana on numbers.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 56,
+  "quote": "The projector turns thirty rows about one dead collector into one fault with a start and an end.",
+  "problem": "\"one fault\" names the thing the report has already named an episode, so the same idea carries two words.",
+  "source": "reports/loggy-report/sections/03-design-b.tex:7 (\"An episode is one trouble on one thing, with a start and an end.\"); .claude/skills/simple-english/SKILL.md:39",
+  "fix": "\"The projector turns thirty rows about one dead collector into one episode with a start and an end.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 68,
+  "quote": "This overlaps the Telegraf and Mimir estate CERN runs, so we concede that half.",
+  "problem": "\"that half\" has no antecedent and \"estate\" is unexplained, so the concession cannot be read.",
+  "source": "reports/loggy-report/briefs/why.md:19; reports/loggy-report/outline.md:104 (\"the overlap conceded, the roster and absence logic kept\")",
+  "fix": "\"CERN already runs Telegraf and Mimir for machine metrics. Our cluster and node samples repeat that work, and we concede it. The roster and the absence logic have no equivalent there, so they stay.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 41,
+  "quote": "We split by severity, not by source, because info is the bulk and the trash and stays local.",
+  "problem": "\"the trash\" is deck shorthand that carries a judgement the report never supports, and it sits in the same clause as a fact.",
+  "source": "reports/loggy-report/briefs/style.md:57 (\"That puts the volume on one side and the value on the other.\")",
+  "fix": "\"We split by severity, not by source, because the info lines are the bulk and the cheap half, so they stay local.\"",
+  "severity": "nit",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 6,
+  "quote": "We chose Fluent Bit~\\cite{ref:fluentbit}, written in C and graduated by the CNCF~\\cite{ref:cncf}.",
+  "problem": "The deciding fact for the collector choice is two pieces of unexplained vocabulary: CNCF is never expanded and \"graduated\" is never explained.",
+  "source": "reports/loggy-report/report/references.tex, ref:cncf \u2014 \"Cloud Native Computing Foundation, graduated projects and graduation criteria\"",
+  "fix": "\"written in C and a graduated project of the Cloud Native Computing Foundation, which means several independent companies maintain it and no single vendor can withdraw it~\\cite{ref:cncf}.\"",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 53,
+  "quote": "Threshold rules catch the cliffs we know.",
+  "problem": "Section 3.6 defines a monitor and names the lanes \"threshold monitors\" and \"trend monitors\"; Section 4 and Section 6 rename them \"rules\", so a careful reader looks for a fourth thing.",
+  "source": "reports/loggy-report/sections/03-design-b.tex:5 \u2014 \"A monitor is a saved rule the cluster runs on a schedule, writing an alert when its condition holds.\"",
+  "fix": "Pick \"monitor\" and use it everywhere after the definition.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 65,
+  "quote": "Puppet wants an agent and a certificate on every machine, runs on a timer, and is right for the farm.",
+  "problem": "The paragraph's deciding fact is that CERN hosts take no agent, and it then concedes the losing candidate is right for the deployment target, leaving a choice that argues against itself.",
+  "source": "briefs/constraints.md section 7 and briefs/why.md on deployment: the no-agent rule binds the machines this project could use, not the farm's own estate",
+  "fix": "Finish the thought: \"Puppet is right for the farm's own estate, which already runs agents; it was not available to this project, whose machines take none.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 53,
+  "quote": "Deep sequence models reach an F1 of about 0.23 to 0.27 under drift, against about 0.71 for plain PCA.",
+  "problem": "Two unexpanded terms, F1 and PCA, in the one sentence that justifies not doing anomaly detection on the log text; a reader outside machine learning learns nothing from it.",
+  "source": "briefs/why.md:177 \u2014 \"Deep sequence models: F1 about 0.23 to 0.27 under drift against about 0.71 for plain PCA... docs/explained/ANOMALY_DETECTION.md:356-361\"",
+  "fix": "\"Published deep sequence models score about 0.23 to 0.27 on the combined precision-and-recall measure F1 once the logs drift away from their training data, while plain principal component analysis scores about 0.71.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/04-why.tex",
+  "line": 50,
+  "quote": "The pipeline fell from 19.91 to 11.18 core-seconds per million lines.",
+  "problem": "11.18 was withdrawn by the soak and the 19.91 control was never re-measured, so neither the figure nor the pair may be quoted.",
+  "source": "briefs/soak-3.md:108 (\"Whole-corpus cost 11.18 core-s/M ... Withdrawn ... the figure of record is 8.33\") and briefs/soak-3.md:107",
+  "fix": "Write: \"Mining the whole corpus now costs 8.33 core-seconds per million lines, processor time with one core busy for one second.\" That also defines core-seconds at its first use.",
+  "severity": "must",
+  "lens": "reader"
+ },
+ {
+  "file": "sections/04-why.tex",
+  "line": 65,
+  "quote": "Puppet wants an agent and a certificate on every machine, runs on a timer, and is right for the farm.",
+  "problem": "With the second half of the source sentence dropped, the paragraph reads as a recommendation of Puppet for the farm the report is building for.",
+  "source": "briefs/why.md:97 (\"Likely right for the farm, wrong for five machines one person deploys by hand\")",
+  "fix": "Keep both halves: \"likely right for the farm, and wrong for five machines one person deploys by hand\".",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "sections/04-why.tex",
+  "line": 62,
+  "quote": "The rework agreed a bus for the live lane only, for decoupling and not durability, and it is not built.",
+  "problem": "\"The rework\" is never introduced anywhere in the report, so the agreement has no author and no date.",
+  "source": "briefs/target-architecture.md:144 (\"The September 2026 review separately agreed a bus for the live lane only\")",
+  "fix": "Write: \"A design review in September 2026 agreed a bus for the live lane only ...\".",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "sections/04-why.tex",
+  "line": 38,
+  "quote": "Cross-cluster search does not scale to 100 machines.",
+  "problem": "The farm's size is never stated and the report reasons at 100, more than 200 and 300 machines in different places.",
+  "source": "briefs/constraints.md:307 (the archive shows 308 worker hosts, 297 active in the busiest hour; the deck reasons at 100 machines and 211 hostnames; no source gives a current head count)",
+  "fix": "State the size once in Section 2, about 300 worker machines with 297 active in the busiest hour and no current head count, then use one number everywhere.",
+  "severity": "should",
+  "lens": "reader"
+ }
+]

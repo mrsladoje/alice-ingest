@@ -1,0 +1,85 @@
+\section{The design}\label{sec:design}
+
+\loggy{} is one cluster, split in two by severity.
+
+\subsection{One cluster, two tiers}\label{sec:design-tiers}
+
+The worker tier runs on every EPN in the target design. The collector reads the six log sources. The stamper beside it names every line's template, the skeleton of the line with every variable token a wildcard, before indexing. The health sample pushes the collector's heartbeat up. The local OpenSearch data node holds one index per worker. The four share the worker's four-core budget of Section~\ref{sec:problem-constraints}. Memory is a 384~MB cap on the collector and a 1~GB heap on the local node.
+
+\begin{figure}[htbp]\centering\includegraphics[width=0.92\textwidth]{fig02-architecture.pdf}\caption{The bulk stays on the worker tier, InfoLogger and every line above info cross once to the storage tier, and every watcher pushes its numbers up.}\label{fig:arch}\end{figure}
+
+The storage tier is three replicated nodes, each a cluster manager and a data node. An index is split into shards, and a replica is a copy of a shard on another node. Two of the three nodes must agree, so the tier survives the loss of one.
+
+The three storage nodes are also the control host, the background host and the shifter host. The control host holds the one web door every person opens. Behind it sit Dashboards, the maintainer's screen, and Alertmanager, which decides when a person is told. The control host also runs the poller, the roster of collectors that must run, the catalogue maintenance and the receiver. The background host runs the projector, which turns alerts into episodes, and the trend rollup. The shifter host serves the shifter view, the page the person on shift watches.
+
+Staging is five machines: two workers and three storage nodes. The farm pilot is three workers and three containers on one infra machine.
+
+The dashed box in Figure~\ref{fig:arch} is a Kafka bus, agreed for the live lane only. The live lane is the second copy of every record that leaves the worker. That is every InfoLogger record at any severity, the daemon log and every line above info severity. With a bus, moving the shifter view moves one consumer, not more than 200 collector configurations. The bus is not built, and its brokers are not placed.
+
+Table~\ref{tab:indices} lists the index families. The farm sets three primaries, one per storage node, because one primary funnels all InfoLogger through one machine. No farm run has carried real volume.
+
+\begin{table}[htbp]\caption{The bulk sits in one unreplicated index per worker, and every other family sits replicated on the storage tier.}\label{tab:indices}\centering\footnotesize
+\begin{tabularx}{\textwidth}{L{3.1cm} X l L{2.6cm} r}
+\toprule
+Index & What lands there & Tier & Shards and replicas & Retention \\
+\midrule
+\code{application-logs-local-<node>} & info, debug and trace lines, one index per worker & worker & 1 shard, 0 replicas & 8 days \\
+\code{application-logs-central} & warnings, errors, fatals, the daemon log, unparsed lines & storage & staging 1 primary, farm 3, 2 replicas & 35 days \\
+\code{infologger} & every InfoLogger record & storage & staging 1 primary, farm 3, 2 replicas & 56 days \\
+\code{template-buckets-5m}, \code{-1h} & counts per template version per worker and window & storage & 1 shard, 1 replica & 4 and 66 days \\
+\code{cockpit-metrics} & health samples from collectors and the poller & storage & 1 shard, 2 replicas & 7 days by document \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Walkthrough: one error line, from an EPN to a screen}\label{sec:design-walk-error}
+
+An error line crosses the wire twice (Figure~\ref{fig:errorline}).
+
+\begin{figure}[htbp]\centering\includegraphics[width=0.9\textwidth]{fig03-error-line.pdf}\caption{An error line is stamped on the worker, crosses the wire to the storage primary and two replicas, and again to the live lane.}\label{fig:errorline}\end{figure}
+
+\begin{enumerate}[nosep]
+\item The collector tails the file an O2 process writes and reads machine, program and event time. It adds a document identifier and its own accept time.
+\item A routing rule reads the raw severity: info, debug and trace go local, an error goes central.
+\item Each chunk, the block of records moved as one unit, crosses a local socket to the stamper and returns with template version and status.
+\item The local node's ingest pipeline, a set of processors that touch every document before storage, stamps the ingest time and normalises the severity.
+\item The document hops once to the storage node holding the primary shard of \code{application-logs-central}, which copies it to two replicas.
+\item The collector also posts it over HTTP to the live lane on the shifter host. That lane keeps the last 500 records in memory and streams them to every open browser.
+\item Dashboards and the shifter view's query lane, capped at 20,000 rows, read the line from the central index.
+\end{enumerate}
+
+\subsection{Walkthrough: an info line stays on its worker}\label{sec:design-walk-info}
+
+An info line takes the same road as far as the routing rule, then stays on its worker. A placement setting pins the index there. Under severity routing 96.94~\% of the O2 process-tree family stays local and 3.06~\% crosses the wire. The trend rollup, six of the seventeen detectors of Section~\ref{sec:design-watch}, and the shifter view's line sampler read the local index. If the worker dies, its raw lines die with it, but the rollup rows, template counts and detector results survive. One search still finds the line. That search is as slow as the slowest worker, which is why the live lane exists.
+
+\subsection{Inside the collector}\label{sec:design-collector}
+
+The collector stores nothing (Figure~\ref{fig:collector}).
+
+\begin{figure}[htbp]\centering\includegraphics[width=0.9\textwidth]{fig04-collector.pdf}\caption{A line takes five steps inside the collector. The 64 chunks it holds in memory are about 128~MB of the 133 to 228~MB it uses under load.}\label{fig:collector}\end{figure}
+
+Flushing every second instead of every 5~seconds cut the collector's processor cost by 24.5~\% and its peak memory by 28.0~\% (Section~\ref{sec:eval-collector}).
+
+At most 64 chunks sit in memory, about 128~MB. The documented worst case is twice that with a 20~\% margin, roughly 307~MB.
+
+An output is the collector's connection to one destination. Each output has a 256~MB disk buffer, a hiccup layer: when the store does not answer, chunks spill to disk. At a real worker's rate it holds hours, but it is not durability: a lost machine loses its records.
+
+A resend cannot duplicate. The document identifier, node id plus boot id plus a counter, is the record's id in the store. The output writes with create, which the store refuses when that id already exists.
+
+\subsection{Templates in band}\label{sec:design-templates}
+
+Every record carries its template version before it is indexed (Figure~\ref{fig:templates}). A template widens as the stamper sees more lines, and each state is one version.
+
+\begin{figure}[htbp]\centering\includegraphics[width=0.86\textwidth]{fig05-templates.pdf}\caption{The stamper names each line on the worker, publishes counts every five minutes, and two hourly audits prove the counts add up.}\label{fig:templates}\end{figure}
+
+The stamper runs drain3, a template miner \cite{ref:drain3}. A masker replaces varying tokens with placeholders, then one tree per family turns a literal that varies between lines into a wildcard. Every record leaves with a status: matched, new or no template. An empty message, or one over 4,096 characters, is indexed in full with no template.
+
+The stamper holds at most 20,000 templates per worker, 4.7 times the 4,221 templates one tree mined from 55,963,050 archive lines (Section~\ref{sec:eval-templating}). The shipped service evicts the least recently used template at that ceiling. The soak showed that an evicted template rebuilt later resets its published count to one. The recommended change, to stop learning and keep counting, is open.
+
+The catalogue is one index with one document per template version the farm has seen, plus the results of the checks below. Every 300~seconds the stamper publishes one bucket document per family and window: a total and a count per version.
+
+Two audits run hourly. The stamper recounts the previous hour locally. The first check proves that no count is lost: up to 5,000 hourly buckets sum to their family totals. The second proves that no record is counted twice. Neither the central nor the InfoLogger index holds more records of a template version than the workers stamped.
+
+Two hourly rules read the catalogue. One fires on a template catalogued in the last hour. The other fires on any failed check in the last two hours.
+
+A search for a template must also find its older, narrower versions. Within one family and token count, a wider version covers a narrower one when, at every position, it holds a wildcard or the narrower's token. That relation groups the versions, so no separate identifier is stored. Templating is built for search and the catalogue. Two choices are open: catalogue maintenance as store policies plus monitors, and the bucket indices as a rollover alias.

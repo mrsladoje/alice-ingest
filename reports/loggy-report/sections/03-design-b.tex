@@ -1,0 +1,39 @@
+\subsection{Watching the platform}\label{sec:design-watch}
+
+Everything that watches the platform is pushed up, never polled down. Every collector ships a health sample every 30~seconds. The poller samples the cluster at the same cadence and reads the roster of collectors that must run: the fleet.
+
+Three lanes read the numbers: threshold monitors catch the cliffs we know, detectors catch unfamiliar shapes, and trend monitors catch slow drift. The numbers are health samples, and counts, error rates and lags from the log records.
+
+A monitor is a saved rule the cluster runs on a schedule, writing an alert when its condition holds. An alert carries one of two tiers. A page wakes a person. A warn waits for one. A storage disk above 92~\% raises a page, and above 85 up to 92~\% raises a warn. An entity is one machine, or one log family on one machine: the thing a rule is about.
+
+A detector is a scheduled Random Cut Forest model \cite{ref:rcf}. It learns a number's usual shape and grades each window from 0 to 1 by how unusual it is. Seventeen run, one model per entity. A volume detector reads a silent host as zero records, so it can grade silence. One monitor reads the grades and raises one page for the fleet when any passes 0.7. One forecaster, on disk fill only, trains on a week of hourly points and predicts a day ahead.
+
+Thirty monitors run: 13 every minute and four every ten minutes on thresholds and detector results. Nine are trend comparisons, two run hourly on templates, two watch the projector and Alertmanager themselves. No lane reads the log text (Section~\ref{sec:limits-remains}).
+
+The projector reads every alert and detector result every 30~seconds (Figure~\ref{fig:alerts}). A signal is one stored row: which rule or detector fired, on which entity, when. An episode is one trouble on one thing, with a start and an end. The projector stores each episode as one incident document, which groups the signals of one alert name on one entity. An episode closes after consecutive healthy windows: one for a threshold monitor, three for a trend monitor or detector. A grade above 0.5 opens an episode.
+
+\begin{figure}[tbp]\centering\includegraphics[width=0.8\textwidth]{fig06-alerts.pdf}\caption{Pushed samples feed three lanes, the projector makes episodes, Alertmanager decides when a person is told, and the receiver stores what was sent.}\label{fig:alerts}\end{figure}
+
+Alertmanager owns notification semantics only: grouping timers, silences and routing \cite{ref:alertmanager}. It forgets an alert five minutes after the last post, so the projector re-posts every open episode every 30~seconds. It holds a page 30~seconds and a warn five minutes, then sends one batch to the receiver. Nothing pages a human today.
+
+The two monitors that watch the projector and Alertmanager post straight to the receiver, because that part can be dead. That is the break-glass path. The stale-projector monitor fires after ten minutes without a projector heartbeat. The other fires after the projector reports Alertmanager down for five minutes.
+
+\subsection{Walkthrough: a dead collector becomes a notification}\label{sec:design-walk-dead}
+
+A dead collector is silent, so the platform reasons from absence. Every 30~seconds the poller writes one row per rostered collector, and flags the collector silent for 90~seconds. The collector-down monitor reads those rows every minute and fires at the page tier. The projector opens an episode and posts it to Alertmanager. Alertmanager groups on alert name and collector and posts one batch after 30~seconds.
+
+The cadences bound death-to-document at 90 to 270~seconds. The first missing flag arrives 60 to 150~seconds after the death. No run has timed it (Section~\ref{sec:limits-unmeasured}).
+
+\subsection{Walkthrough: an EPN goes quiet, or loud}\label{sec:design-walk-trend}
+
+A rollup turns raw lines into small rows: one per family and host per ten-minute slice. It runs every ten minutes, waits 120~seconds for late records, then recomputes the last three finished slices. Each row holds record, error and fatal counts and the 95th percentile of two lags. The lags are the line's age when the collector read it, and its trip from there into the store. A host that logged in the last 24~hours but not this slice gets a zero-count row. A host silent for longer gets none.
+
+The nine trend monitors read those rows only. Each compares three ten-minute slices, ending ten minutes before the check, against the previous seven days. A volume rule compares the entity's share of the fleet, so a fleet-wide ramp cancels. It fires on twice the baseline share or half of it, in all three slices. It needs 50~records per slice and six baseline slices.
+
+The two shipping-lag rules compare the entity's own lag against twice its seven-day baseline, floored at 250~ms. A separate monitor raises a page when a family averaging at least 50~records a slice over 24~hours writes nothing for 40~minutes. Trend alerts are the warn tier, so Alertmanager batches per rule name. Which messages changed is the template lane's question (Section~\ref{sec:design-templates}).
+
+\subsection{The surfaces}\label{sec:design-surfaces}
+
+Everything a person opens sits behind one door: one address, one account, four surfaces. Dashboards, the store's own web interface, holds the maintainer cockpit and Discover, its search screen for the archive \cite{ref:opensearch}. The shifter view is separate. Its live page keeps what collectors post: every InfoLogger record, the daemon log and every line above info severity. It never queries the cluster, so it holds when the cluster is down. Its Templates page shows the catalogue, counts and open episodes.
+
+Two clocks run. Health samples and the log-counting detectors use the collector's accept time. Discover uses the time the line was written. The operator view close to InfoLogger is not built.

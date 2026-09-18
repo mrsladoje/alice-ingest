@@ -1,0 +1,22 @@
+[
+ {
+  "file": "reports/loggy-report/figures/fig04-collector.svg",
+  "line": 13,
+  "quote": "writes only to the OpenSearch node on the same worker",
+  "problem": "The note is anchored at x 820, the viewBox edge, so its last glyph sits on the frame while every other right-aligned item in the file stops at x 800.",
+  "source": "reports/loggy-report/figures/fig04-collector.svg:112-116 (the memory-envelope values, all at x 800); figures/STYLE.md (\"Fix overlaps, clipped text, missing logos, and text that runs outside its card\")",
+  "fix": "Anchor it at x 808, matching the other right-aligned items.",
+  "severity": "nit",
+  "lens": "figures"
+ },
+ {
+  "file": "reports/loggy-report/figures/fig04-collector.svg",
+  "line": 84,
+  "quote": "256 MB on disk",
+  "problem": "The accent is spent three times, on the stamper card, the buffer card and the crossed-out link, none of which is what the caption is about.",
+  "source": "reports/loggy-report/figures/STYLE.md (\"Use the accent once or twice per figure, for the thing the caption is about. Never as decoration.\"); the caption at reports/loggy-report/sections/02-design-a.tex:55 is about the five steps and the 64-chunk bound",
+  "fix": "Keep the red on the disk buffer, which band 02 is about, and set the stamper card at line 66 in plain card fill and ink stroke.",
+  "severity": "nit",
+  "lens": "figures"
+ }
+]

@@ -1,0 +1,32 @@
+[
+ {
+  "file": "sections/00-abstract.tex",
+  "line": 1,
+  "quote": "Dense retrieval with reranking reaches 0.685 nDCG@10 against 0.634.",
+  "problem": "The abstract never says what the measure rewards or what 0.634 belongs to, so the one retrieval number a reader takes away cannot be read.",
+  "source": "sections/06-eval-b.tex:32",
+  "fix": "Reranking the 30 nearest templates scores 0.685 against 0.634 without it, on a search-quality measure where 1 is perfect.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/00-abstract.tex",
+  "line": 1,
+  "quote": "The templating pipeline is 31 to 57~\\% cheaper per family and byte-identical on 8,961,245 lines.",
+  "problem": "8,961,245 never appears again, and the only byte-identical evidence in Section 5.5 and Table 7 is the masker's \"zero differences on 3,000,000 lines per family\", which prices a different change.",
+  "source": "reports/loggy-report/briefs/soak-5.md:55",
+  "fix": "In 06-eval-b.tex line 3 write \"Templating is built, 31 to 57\\,\\% cheaper per family than its first version, and every one of 8,961,245 lines kept its template (Table~\\ref{tab:templating}).\"",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/00-abstract.tex",
+  "line": 1,
+  "quote": "Dense retrieval with reranking reaches 0.685 nDCG@10 against 0.634. The main limit: every cost figure comes from a laptop, so only shapes, knees and rankings transfer to the farm.",
+  "problem": "0.634 has no referent, so the reader cannot tell what the gain is measured against, and \"knees\" is never defined here or at 05-eval-a.tex:3, where the same three words carry the main caveat.",
+  "source": "reports/loggy-report/outline.md:34",
+  "fix": "Dense retrieval with reranking reaches 0.685 nDCG@10 against 0.634 for the dense scan alone. The main limit: every cost figure comes from a laptop, so only the shape of a curve, the rate at which it bends and the ranking of the settings transfer to the farm.",
+  "severity": "should",
+  "lens": "voice"
+ }
+]

@@ -1,0 +1,412 @@
+[
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 53,
+  "quote": "The collector reads each line, decides where it belongs and sends it on (Figure~\\ref{fig:collector}).",
+  "problem": "Figure 4 lands two printed pages after the sentence that cites it (cited on page 5, placed on page 7).",
+  "source": "pdftotext page map of report/report.pdf; float declared [t] at sections/02-design-a.tex:55",
+  "fix": "Change \\begin{figure}[t] to \\begin{figure}[htbp] at sections/02-design-a.tex:55, or move the environment above the citing paragraph.",
+  "severity": "should",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 67,
+  "quote": "The stamper sets it on the worker before indexing, so both tiers carry the field and no raw line leaves its machine (Figure~\\ref{fig:templates}).",
+  "problem": "Figure 5 lands two printed pages after the sentence that cites it (cited on page 6, placed on page 8).",
+  "source": "pdftotext page map of report/report.pdf; float declared [t] at sections/02-design-a.tex:69",
+  "fix": "Change \\begin{figure}[t] to \\begin{figure}[htbp] at sections/02-design-a.tex:69.",
+  "severity": "should",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 26,
+  "quote": "health samples from collectors and the poller",
+  "problem": "The narrow Table 3 cell sets one ragged line.",
+  "source": "report/report.log:1100 \"Underfull \\hbox (badness 5260) in paragraph at lines 28--28\"",
+  "fix": "Widen that column by 0.02\\textwidth or shorten the cell to \"health samples\".",
+  "severity": "nit",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 49,
+  "quote": "On staging the local tier held 96.94~\\% of all lines.",
+  "problem": "96.94 % is the share of the O2 process-tree family that stays local, measured on the archive fixture corpus, not the share of all lines and not a staging measurement.",
+  "source": "docs/SOAK_RESULTS.md:3115-3116 (\"96.94 % of the process tree stays on the node and 3.06 % crosses the network\"); reports/loggy-report/briefs/soak-index.md section 2k",
+  "fix": "Write: \"The process-tree family sends 96.94 % of its lines to the local index and 3.06 % across the wire.\" The same wrong denominator appears at sections/04-why.tex:41 (\"The local tier holds 96.94~\\% of lines.\") and sections/07-limits-close.tex:93 (\"96.94~\\% of lines stay local.\").",
+  "severity": "must",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 71,
+  "quote": "The stamper holds at most 20,000 clusters per worker and drops the least recently used.",
+  "problem": "Section 5.5 says the same 20,000 ceiling makes the tree stop learning and keep counting, with eviction deliberately refused, so the report states two incompatible behaviours for one number.",
+  "source": "reports/loggy-report/briefs/walkthroughs-6-9.md:67 and :83 (stamper LRU eviction, stamper.py:276-311) against docs/SOAK_RESULTS.md:5124-5136 (\"the tree stops learning at 20,000 templates and keeps counting; LRU eviction is not used\")",
+  "fix": "Say which path each ceiling governs, or state the shipped behaviour once: the stamper evicts least-recently-used clusters, while the catalog's own tree stops learning and keeps counting.",
+  "severity": "should",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 57,
+  "quote": "Moving the write to the local node from the shipped 5~seconds to 1~second cut processor cost by 24.5~\\% and peak memory by 28.0~\\%.",
+  "problem": "The sentence does not say whose processor cost fell: 24.5 % is the collector's own cost, while the whole four-core stack moved 3.4 %.",
+  "source": "docs/SOAK_RESULTS.md:19-27 (total 108.40 to 104.67, minus 3.4 %; collector's own cost 36.70 to 27.70, minus 24.5 %)",
+  "fix": "Write: \"cut the collector's own processor cost by 24.5 % and its peak memory by 28.0 %\".",
+  "severity": "should",
+  "lens": "numbers"
+ },
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/02-design-a.tex",
+  "line": 49,
+  "quote": "On staging the local tier held 96.94~\\% of all lines.",
+  "problem": "96.94 % is the share of the O2 process-tree family that stays on its worker, not the share of all lines; InfoLogger alone is 58.1 % of the corpus and every InfoLogger record crosses the wire.",
+  "source": "docs/SOAK_RESULTS.md:3115 (\"96.94 % of the process tree stays on the node and 3.06 % crosses the network\"); briefs/soak-index.md:23; briefs/soak-4.md:23; corpus shares at briefs/constraints.md:126",
+  "fix": "Write \"On staging 96.94 % of the process-tree family stayed on its worker.\" The same error is at sections/04-why.tex:41 and in the appendix row at sections/07-limits-close.tex:93; sections/05-eval-a.tex:58 already says it correctly.",
+  "severity": "must",
+  "lens": "facts"
+ },
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/02-design-a.tex",
+  "line": 59,
+  "quote": "The documented worst case is twice that with a 20~\\% margin, roughly 307~MB, so we cap the service at 384~MB.",
+  "problem": "384 MB is the soft limit where the service is throttled; the hard cap is 768 MB, and the distinction carries the measured 373 MB peak.",
+  "source": "briefs/target-architecture.md:154 (\"MemoryHigh 384 MB, MemoryMax 768 MB\"); deploy/roles/loggy_collector/defaults/main.yml:135-136",
+  "fix": "\"so the service is throttled at 384 MB and killed at 768.\" Also label the other 384 MB at sections/06-eval-b.tex:36 as the shifter host's semantic model ceiling, a different limit (briefs/target-architecture.md:177 warns against conflating them).",
+  "severity": "should",
+  "lens": "facts"
+ },
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/02-design-a.tex",
+  "line": 11,
+  "quote": "The control host runs Dashboards, the poller, the roster, the catalog maintenance, Alertmanager and the receiver.",
+  "problem": "The other two storage machines carry named services and the report never places them, so a reader cannot tell that the projector and the trend rollup sit off the user-interface host, or where the live lane is served.",
+  "source": "briefs/target-architecture.md:27 and :65-66 (projector and trend rollup on the second storage node, deploy/inventory.yml:62-65, deploy/README.md:78-80); briefs/target-architecture.md:75 (shifter view on the third); briefs/walkthroughs-6-9.md:9",
+  "fix": "Add: \"The second storage node runs the projector and the trend rollup, away from the user-interface host; the third serves the shifter view.\"",
+  "severity": "should",
+  "lens": "facts"
+ },
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/02-design-a.tex",
+  "line": 15,
+  "quote": "The farm value of three primaries is agreed and not applied.",
+  "problem": "The farm inventory already carries the setting, so \"not applied\" is wrong; what is missing is a run at farm volume.",
+  "source": "deploy/inventory.epn.yml:204 (log_primary_shards_storage: 3, live, comment at :193-194) against deploy/roles/loggy_opensearch/defaults/main.yml:247 (value 1); briefs/why.md entry 6 states the status from deploy/README.md:2289-2321 only",
+  "fix": "\"Three primaries are set for the farm and have never carried farm volume.\" Apply the same wording at sections/04-why.tex:41.",
+  "severity": "should",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 13,
+  "quote": "The ghost in Figure~\\ref{fig:arch} is a Kafka bus, agreed for the live lane only.",
+  "problem": "Two words the reader cannot resolve: \"ghost\" is drawing shorthand for a dashed box, and \"live lane\" appears here for the first time with no definition.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:11 (\"Severe lines also go to a live lane that a person watches in a browser without a cluster query\")",
+  "fix": "\"The dashed box in Figure~\\ref{fig:arch} is a Kafka bus, agreed for the live lane only.\" Add the definition earlier, in 3.1: \"The live lane is a copy of every severe line, pushed straight to a page a person watches, so no one queries the cluster to see what is arriving.\"",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 11,
+  "quote": "The control host runs Dashboards, the poller, the roster, the catalog maintenance, Alertmanager and the receiver.",
+  "problem": "Six components are named before any of them is defined; the poller, the roster and the receiver are only explained two subsections later.",
+  "source": ".claude/skills/simple-english/SKILL.md:40 (define a concept term at its first use); reports/loggy-report/briefs/target-architecture.md:51-52",
+  "fix": "Give each name its job in the same breath, or split into two sentences: \"The control host runs Dashboards and Alertmanager. Beside them sit the poller, which samples the cluster, the roster, which says which collectors must be running, the catalogue maintenance and the receiver, which stores what a person was told.\"",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 59,
+  "quote": "Measured, it ran between 133 and 228~MB under steady load and peaked at 373~MB in a sink outage with the shipped buffer.",
+  "problem": "The sentence opens on a dangling participle that hides the actor, and then carries two measurements; \"Fixed, severity comes out of 99.83~\\% ...\" in 5.4 repeats the pattern.",
+  "source": ".claude/skills/simple-english/SKILL.md:35 (simple tenses, active voice, name the actor); reports/loggy-report/sections/05-eval-a.tex:58",
+  "fix": "\"Under steady load the collector ran between 133 and 228~MB. In a sink outage with the shipped buffer it peaked at 373~MB.\" Repair the \"Fixed,\" opener in 5.4 the same way.",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 61,
+  "quote": "At 20,000 records a second it gave 61~seconds before the first drop, at a real worker's rate hours.",
+  "problem": "A comma splice joins two clauses and the second one has no verb, so the reader has to rebuild it.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:152 (\"256 MB gave 61 s before the first drop at 20,000 records a second\")",
+  "fix": "\"At 20,000 records a second the buffer held 61~seconds before the first drop. At a real worker's rate it holds hours.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 73,
+  "quote": "Two hourly rules close the chain: one fires on a template first catalogued in the last hour, the other on any failed check in the last two hours.",
+  "problem": "28 words, over the 25-word ceiling, with the second clause elliptical.",
+  "source": "reports/loggy-report/briefs/style.md:11",
+  "fix": "\"Two hourly rules close the chain. One fires on a template catalogued in the last hour. The other fires on any failed check in the last two hours.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 73,
+  "quote": "one fires on a template first catalogued in the last hour",
+  "problem": "\"catalogued\" is British, but the report spells the same word's noun American (\"catalog\") eleven times, against the agreed British spelling.",
+  "source": "reports/loggy-report/outline.md:28 (British spelling); reports/loggy-report/briefs/style.md:74",
+  "fix": "Use \"catalogue\" and \"catalogued\" everywhere: \"the catalogue\", \"the catalogue maintenance\", \"the template catalogue\".",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 75,
+  "quote": "Version W covers version N when they share a family and a token count and W has, at every position, a wildcard or N's token.",
+  "problem": "Two bare symbols, W and N, stand in for template versions, and the style forbids symbols and shorthand in prose.",
+  "source": "reports/loggy-report/briefs/style.md:5 (rules illustrated by plain sentences from the deck); /Users/admin/.claude/CLAUDE.md rule 5 (no symbols, spell the thing out)",
+  "fix": "\"A wider version covers a narrower one when both belong to the same family, hold the same number of tokens, and the wider version has either a wildcard or the narrower version's own token at every position.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 7,
+  "quote": "A local OpenSearch data node holds one index per worker on four of the EPN's 128~cores, and little memory.",
+  "problem": "The clause attaches the whole platform's budget of four cores to the data node alone, and \"holds ... and little memory\" does not parse.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:11; reports/loggy-report/sections/01-intro-problem.tex:50 (\"A worker gives the platform four of its 128 logical processors\")",
+  "fix": "\"A local OpenSearch data node holds one index per worker. The four parts together take four of the EPN's 128 logical processors and little memory.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 41,
+  "quote": "The local node's ingest pipeline, processors run before a document is stored, stamps the ingest time and normalises the severity.",
+  "problem": "The definition is wedged in as an appositive with no article, and the passive \"is stored\" hides who stores the document.",
+  "source": ".claude/skills/simple-english/SKILL.md:35; .claude/skills/simple-english/SKILL.md:40",
+  "fix": "\"The local node runs an ingest pipeline: a set of processors that touch every document before the node stores it. It stamps the ingest time and normalises the severity.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 55,
+  "quote": "\\caption{Five steps on the worker, and 64 chunks in memory bound the collector's memory.}",
+  "problem": "The caption is a fragment joined to a clause and repeats \"memory\" twice, so it states no point.",
+  "source": "reports/loggy-report/briefs/style.md:82 (captions are full sentences that state the point of the figure)",
+  "fix": "\\caption{A line takes five steps inside the collector, and the 64 chunks it may hold in memory bound what it can cost the worker.}",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 13,
+  "quote": "A moved viewer then moves one consumer, not 200 collector configurations.",
+  "problem": "The subject \"a moved viewer\" cannot move a consumer, and \"viewer\" is a third name for the shifter view.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:130 (\"Today moving the live lane means editing 200+ workers\")",
+  "fix": "\"Move the shifter view to another machine and one consumer moves with it. Today the same move edits more than 200 collector configurations.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 7,
+  "quote": "The worker tier runs on every EPN and has four parts.",
+  "problem": "The reader counts three parts in the three sentences that follow, because the stamper hides in a subordinate clause.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:11 (collector, stamper, health sample, local node)",
+  "fix": "\"The worker tier runs on every EPN: a collector, a stamper beside it, a health sample and a local search node.\" Then take each in turn.",
+  "severity": "nit",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 13,
+  "quote": "The ghost in Figure~\\ref{fig:arch} is a Kafka bus, agreed for the live lane only.",
+  "problem": "\"The live lane\" carries a design decision, a cost result and a build item, and its first use is inside a sentence about something else, four pages before its definition.",
+  "source": "reports/loggy-report/sections/05-eval-a.tex:36 \u2014 \"The live lane, the second output that copies records to the shifter view\"",
+  "fix": "Move the definition to first use: \"a Kafka bus for the live lane, the second copy of every severe record that the collector posts straight to the shifter view so a person can watch lines arrive without asking the cluster.\"",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 43,
+  "quote": "\\item The collector also posts the record to the shifter view's live lane, which holds the last 500 records.",
+  "problem": "\"Shifter\" appears eleven times across four sections and is never explained; a reader outside ALICE never learns the page is for the person on shift.",
+  "source": "briefs/target-architecture.md:183 names \"the shifter host (shifter view)\"; outline.md:84 describes it as the surface the operator watches",
+  "fix": "At first use write \"the shifter view, the page the person on shift watches\".",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 11,
+  "quote": "The control host runs Dashboards, the poller, the roster, the catalog maintenance, Alertmanager and the receiver.",
+  "problem": "The prose never says the control host is one of the three storage nodes, and never names the background or shifter hosts at all, so the reader counts six or seven machines against the five the introduction promises.",
+  "source": "briefs/target-architecture.md:25 \u2014 \"The control host is the first storage node (deploy/README.md:75-76)\"; briefs/target-architecture.md:183 \u2014 \"the control host (Dashboards, nginx, Alertmanager, receiver, poller, ops page), the background host (rollup, projector), the shifter host (shifter view)\"",
+  "fix": "Add before the component list: \"The three storage nodes carry three further jobs. The first is the control host and holds every screen. The second is the background host and runs the projector and the trend rollup. The third is the shifter host and runs the shifter view. Staging is therefore five machines: two workers and three storage nodes.\"",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 73,
+  "quote": "The chain to the catalog has four stages: stamp, buckets, audits, rules.",
+  "problem": "\"The catalog\" is never defined; it first appears as \"the catalog maintenance\" in a bare component list, so the reader does not know what is being maintained.",
+  "source": "docs/TEMPLATES_FIX_PLAN.md:209 (the catalog holds one definition document per template version, with labels attached to a version); briefs/walkthroughs-6-9.md:73 \u2014 \"one check document per family into the catalog\"",
+  "fix": "Define it here: \"The catalog is one index holding one document per template the farm has ever seen, plus the results of the checks below.\"",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 40,
+  "quote": "\\item The stamper, over a local socket, sets a template version and status and hands the chunk back.",
+  "problem": "\"A template version\" is never defined; the reader is told what a template is but not that a template changes over time, so every per-version count and the cover relation are unreadable.",
+  "source": "docs/TEMPLATES_FIX_PLAN.md:205 \u2014 \"Drain only widens, so every observed transition is a cover relation... one version can be widened into different successors on different workers when different tokens vary first.\"",
+  "fix": "In 02-design-a.tex:67, after the template definition: \"A template widens as the miner sees more lines: a word that was fixed becomes a wildcard. Each state of a template is one version, and a version is what a record carries.\"",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 75,
+  "quote": "Version W covers version N when they share a family and a token count and W has, at every position, a wildcard or N's token.",
+  "problem": "A bare formal definition with no goal before it, so the reader cannot tell whether the cover relation is a search feature, a storage rule or a maintenance check.",
+  "source": "docs/TEMPLATES_FIX_PLAN.md:54 \u2014 \"Search expansion by the cover relation, computed in the Shifter. Drain only widens, so the structural relation contains every observed transition.\"; :209 \u2014 \"The cover relation contains that grouping as a special case, so the identifier was removed.\"",
+  "fix": "Goal first: \"One search for a template must find the records stamped with its older, narrower versions. A wider version covers a narrower one when they share a family and a token count and the wider has, at every position, a wildcard or the narrower's token. That relation groups a template's versions, so no separate identifier is stored.\"",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 49,
+  "quote": "On staging the local tier held 96.94~\\% of all lines.",
+  "problem": "96.94 % is a share of the O2 process tree only, but is given here and at 04-why.tex:41 as a share of all lines, which makes the other four families look like 3 % of a worker's output.",
+  "source": "briefs/soak-index.md:211 \u2014 \"96.94 % / 3.06 % | Process-tree share that stays on the worker / crosses the network\"; briefs/soak-4.md:23 gives the same scope",
+  "fix": "In all three places write \"of the O2 process tree\": \"On staging 96.94~\\% of the O2 process tree stayed on its worker.\"",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 43,
+  "quote": "\\item The collector also posts the record to the shifter view's live lane, which holds the last 500 records.",
+  "problem": "This walkthrough step names neither the machine it runs on nor what carries the bytes, while every other step does; the shifter view is never placed on any machine in the report body.",
+  "source": "reports/inputs/dataflow-atlas.md:22 (audited) \u2014 \"The same stamped record is also posted over HTTP to the live lane inside the Shifter on node-05. The Shifter keeps it in memory and streams it to every open browser over Server-Sent Events, with no cluster query at all.\"",
+  "fix": "\"The collector also posts the record over HTTP to the live lane on the shifter host, which keeps the last 500 records in memory and pushes each one to every open browser over a held-open HTTP connection.\"",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 49,
+  "quote": "A placement setting pins the index to its worker, so no byte crosses the network.",
+  "problem": "Walkthrough 2 is three sentences and never says who reads a local line, how one search reaches 200 workers, or what fanout costs; Section 4 then uses \"fanout\" as if it had been introduced.",
+  "source": "reports/inputs/dataflow-atlas.md:30-31 (audited walkthrough 2, steps 4 and 5); outline.md:72 \u2014 \"how one query from a storage machine still reaches it. Federated search: ask once, every node answers, the cost of fanout, and why the live lane exists so that the cluster is asked only when it must be.\"",
+  "fix": "Add: \"One search still finds it. The cluster asks every node that holds a shard of the pattern and merges the answers, so a search over all workers is as slow as the slowest worker. That is why the live lane exists: the everyday question, what is arriving now, never asks the cluster at all.\"",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 11,
+  "quote": "The control host runs Dashboards, the poller, the roster, the catalog maintenance, Alertmanager and the receiver.",
+  "problem": "Five of six components are introduced as bare names with no job, against the report's own rule; each job arrives one to three pages later.",
+  "source": "outline.md:68 \u2014 \"The control host, the background host and the shifter host, each with its services named by job\"; outline.md decision 13 \u2014 \"Components are named by their job.\"",
+  "fix": "Give each three words: \"the poller, which samples the cluster; the roster, the list of collectors that should be alive; the catalog maintenance, which audits the template counts; Alertmanager, which decides when a person is told; and the receiver, which stores what was sent.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 7,
+  "quote": "The collector reads the five log sources, with the stamper beside it.",
+  "problem": "One of the four parts of the worker tier is introduced as a bare name in a subordinate clause; its job first appears a page later.",
+  "source": "briefs/walkthroughs-6-9.md:66 \u2014 \"Every record gets template_version and template_status before indexing\"",
+  "fix": "\"with the stamper beside it, a small service that names every line's template before it is indexed.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 7,
+  "quote": "The worker tier runs on every EPN and has four parts.",
+  "problem": "Present tense with no status mark, three pages after the introduction said the platform reached three farm workers; a reader who trusts this sentence believes the farm is deployed.",
+  "source": "reports/loggy-report/sections/01-intro-problem.tex:9 \u2014 \"one deployment went green on three farm workers and one infra machine\"; outline.md:3 \u2014 \"Status marks say what is built and what is agreed and not built.\"",
+  "fix": "\"In the target design the worker tier runs on every EPN; today it runs on three. It has four parts.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/02-design-a.tex",
+  "line": 7,
+  "quote": "A local OpenSearch data node holds one index per worker on four of the EPN's 128~cores, and little memory.",
+  "problem": "Section 2.3 calls the same budget \"four of its 128 logical processors\"; a reader who knows Linux knows cores and logical processors are not the same thing.",
+  "source": "reports/loggy-report/sections/01-intro-problem.tex:50 \u2014 \"A worker gives the platform four of its 128 logical processors and little memory.\"",
+  "fix": "Use \"logical processors\" in both places, and give \"little memory\" a number once.",
+  "severity": "nit",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/02-design-a.tex",
+  "line": 33,
+  "quote": "An error line crosses the wire once and is copied three times before a person reads it",
+  "problem": "Step 6 of the same list and Figure 3 add an HTTP post of the same record to the shifter view, so the line crosses the wire twice and exists in four copies.",
+  "source": "reports/inputs/dataflow-atlas.md:19 (audited walkthrough 1: \"The second copy goes to the live lane ... posted over HTTP to the live lane inside the Shifter on node-05\")",
+  "fix": "Write: \"An error line crosses the wire twice: once to the storage tier, where it is copied three times, and once to the live view a person watches.\"",
+  "severity": "must",
+  "lens": "reader"
+ },
+ {
+  "file": "sections/02-design-a.tex",
+  "line": 49,
+  "quote": "An info line takes the same road as far as the routing rule, then stays on its worker.",
+  "problem": "Section 3.3 never says who reads the local index or what survives the worker's death, so the reader answered question 1 with \"If the EPN dies, nobody can read it\".",
+  "source": "reports/inputs/dataflow-atlas.md:29 (audited): the trend rollup reads it every 10 minutes, six local detectors every minute, the shifter view samples lines from it, and \"What survives is everything derived from them, the rollup rows, the template counts and the detector results\"",
+  "fix": "Add two sentences: who reads the local index, and that the rollup rows, template counts and detector results survive the machine while the raw lines do not. The outline also asks for the fanout sentence here (outline.md:72).",
+  "severity": "must",
+  "lens": "reader"
+ },
+ {
+  "file": "sections/02-design-a.tex",
+  "line": 7,
+  "quote": "A local OpenSearch data node holds one index per worker on four of the EPN's 128~cores, and little memory.",
+  "problem": "The report gives no memory figure for the platform on a worker, so question 5 was answered only for the processor.",
+  "source": "briefs/constraints.md:182 (collector envelope and the hard memory caps), briefs/target-architecture.md:154 (384 MB service ceiling), briefs/target-architecture.md:157 (1 GB heap on the worker's store node, a measured choice)",
+  "fix": "Add: \"The platform is given four of the 128 logical processors, a 384 MB cap on the collector and a 1 GB heap on the local store node. The stamper's memory is not measured.\"",
+  "severity": "must",
+  "lens": "reader"
+ },
+ {
+  "file": "sections/02-design-a.tex",
+  "line": 40,
+  "quote": "The stamper, over a local socket, sets a template version and status and hands the chunk back.",
+  "problem": "\"Chunk\" is never defined, and the collector's whole memory envelope is then stated in chunks.",
+  "source": "briefs/style.md:31; briefs/target-architecture.md:153 (chunks in memory, 64, about 128 MB)",
+  "fix": "At first use: \"a chunk, the block of records the collector moves and buffers as one unit\".",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "sections/02-design-a.tex",
+  "line": 43,
+  "quote": "The collector also posts the record to the shifter view's live lane, which holds the last 500 records.",
+  "problem": "\"Shifter\" is never defined, although the shifter view, the shifter host and the shifter's two pages run through the report.",
+  "source": "reports/inputs/dataflow-atlas.md:477 (\"The console a person on shift watches\"); briefs/style.md:31",
+  "fix": "Write \"the shifter view, the page a person on shift watches\" at this first use.",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "sections/02-design-a.tex",
+  "line": 11,
+  "quote": "The control host runs Dashboards, the poller, the roster, the catalog maintenance, Alertmanager and the receiver.",
+  "problem": "The background host and the shifter host appear only inside figures, so the projector, the trend rollup and the shifter view are never placed in the text.",
+  "source": "briefs/target-architecture.md:63-75 (background host: trend rollup and projector; shifter host: shifter view)",
+  "fix": "Add one sentence naming the second storage node as the background host, with the projector and the trend rollup, and the third as the shifter host, with the shifter view.",
+  "severity": "should",
+  "lens": "reader"
+ }
+]

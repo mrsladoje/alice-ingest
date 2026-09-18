@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 820 630" width="820" height="630">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M0,1 L10,5 L0,9 z" fill="#101010"/>
+    </marker>
+  </defs>
+
+  <g font-family="Menlo, monospace" font-size="11" letter-spacing="0.18em" fill="#101010" text-anchor="middle">
+    <text x="112" y="15">THE WORKER (EPN)</text>
+    <text x="322" y="15">STORAGE TIER</text>
+    <text x="487" y="15">SHIFTER HOST</text>
+    <text x="638" y="15">CONTROL HOST</text>
+    <text x="762" y="15">BROWSER</text>
+  </g>
+  <g font-family="Menlo, monospace" font-size="9" fill="#6b6b66" text-anchor="middle">
+    <text x="322" y="27">three machines</text>
+    <text x="487" y="27">one of the three</text>
+    <text x="638" y="27">one of the three</text>
+  </g>
+  <line x1="12" y1="33" x2="808" y2="33" stroke="#d6d6cf" stroke-width="1"/>
+
+  <g font-family="Helvetica Neue, Helvetica, Arial, sans-serif" text-anchor="middle">
+    <rect x="20" y="40" width="180" height="36" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+    <text x="110" y="56" font-size="14" font-weight="600" fill="#101010">an O2 log file</text>
+    <text x="110" y="70" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">[ERROR] in the stdout tree</text>
+  </g>
+
+  <rect x="14" y="106" width="194" height="144" fill="#f1f1ec" stroke="none"/>
+  <text x="24" y="123" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#101010" text-anchor="start">the collector</text>
+  <image xlink:href="logos/fluentbit-logo-official.svg" href="logos/fluentbit-logo-official.svg" x="140" y="110" width="60" height="17.5"/>
+
+  <g font-family="Helvetica Neue, Helvetica, Arial, sans-serif" text-anchor="middle">
+    <rect x="20" y="132" width="180" height="46" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+    <text x="110" y="148" font-size="14" font-weight="600" fill="#101010">identity and clock</text>
+    <text x="110" y="161" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">doc_id, collector_time</text>
+    <text x="110" y="172" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">@timestamp from the line</text>
+
+    <rect x="20" y="208" width="180" height="38" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+    <text x="110" y="224" font-size="14" font-weight="600" fill="#101010">route by raw severity</text>
+    <text x="110" y="239" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">error → family.central</text>
+
+    <rect x="20" y="276" width="180" height="72" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+    <text x="110" y="292" font-size="14" font-weight="600" fill="#101010">the stamper</text>
+    <text x="110" y="305" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">drain3, the process-tree</text>
+    <text x="110" y="316" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">family tree</text>
+    <text x="110" y="327" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">sets template_version,</text>
+    <text x="110" y="338" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">template_status</text>
+  </g>
+
+  <rect x="14" y="364" width="194" height="44" fill="#f1f1ec" stroke="none"/>
+  <text x="24" y="390" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#101010" text-anchor="start">the collector</text>
+  <g font-family="Helvetica Neue, Helvetica, Arial, sans-serif" text-anchor="middle">
+    <rect x="104" y="370" width="96" height="32" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+    <text x="152" y="390" font-size="14" font-weight="600" fill="#101010">outputs</text>
+
+    <rect x="20" y="432" width="180" height="76" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+    <text x="110" y="450" font-size="14" font-weight="600" fill="#101010">local OpenSearch node</text>
+    <text x="110" y="465" font-size="12" fill="#6b6b66">runs the ingest pipeline</text>
+    <text x="110" y="481" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">ingest_time, ingest_lag_ms</text>
+    <text x="110" y="495" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">severity_norm = error</text>
+  </g>
+
+  <g fill="none" stroke="#101010" stroke-width="1.25">
+    <path d="M110,76 V106" marker-end="url(#ah)"/>
+    <path d="M110,178 V208" marker-end="url(#ah)"/>
+    <path d="M110,246 V276" marker-end="url(#ah)"/>
+    <path d="M152,348 V370" marker-end="url(#ah)"/>
+    <path d="M152,402 V432" marker-end="url(#ah)"/>
+  </g>
+  <g font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="start">
+    <text x="124" y="95">tail</text>
+    <text x="124" y="197">in memory</text>
+    <text x="124" y="265">forward socket</text>
+  </g>
+  <g font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="end">
+    <text x="144" y="362">back, stamped</text>
+    <text x="138" y="418">http, create</text>
+    <text x="138" y="429">localhost:9200</text>
+  </g>
+
+  <rect x="244" y="397" width="156" height="206" fill="#f1f1ec" stroke="none"/>
+  <text x="322" y="435" font-family="Menlo, monospace" font-size="10" fill="#101010" text-anchor="middle">application-logs-central</text>
+  <text x="322" y="447" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">kept 35 days</text>
+  <image xlink:href="logos/opensearch-logo-official.svg" href="logos/opensearch-logo-official.svg" x="288" y="405" width="68" height="14"/>
+
+  <g font-family="Helvetica Neue, Helvetica, Arial, sans-serif" text-anchor="middle">
+    <rect x="258" y="459" width="134" height="36" fill="#fdf1f0" stroke="#e1251b" stroke-width="1.6"/>
+    <text x="325" y="474" font-size="14" font-weight="600" fill="#101010">storage node</text>
+    <text x="325" y="488" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">primary shard</text>
+
+    <rect x="258" y="509" width="134" height="36" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+    <text x="325" y="524" font-size="14" font-weight="600" fill="#101010">storage node</text>
+    <text x="325" y="538" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">replica shard</text>
+
+    <rect x="258" y="559" width="134" height="36" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+    <text x="325" y="574" font-size="14" font-weight="600" fill="#101010">storage node</text>
+    <text x="325" y="588" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">replica shard</text>
+  </g>
+
+  <g fill="none" stroke="#101010" stroke-width="1.25">
+    <path d="M200,477 H258" marker-end="url(#ah)"/>
+    <path d="M268,495 V501 H251 V577 H258" marker-end="url(#ah)"/>
+    <path d="M251,527 H258" marker-end="url(#ah)"/>
+  </g>
+  <g font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">
+    <text x="229" y="466">document</text>
+  </g>
+  <text x="274" y="504" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="start">copied to 2 replicas</text>
+
+  <rect x="418" y="262" width="138" height="140" fill="#f1f1ec" stroke="none"/>
+  <text x="428" y="279" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#101010" text-anchor="start">the shifter view</text>
+  <g font-family="Helvetica Neue, Helvetica, Arial, sans-serif" text-anchor="middle">
+    <rect x="426" y="286" width="122" height="40" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+    <text x="487" y="303" font-size="14" font-weight="600" fill="#101010">the live lane</text>
+    <text x="487" y="318" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">held in memory</text>
+
+    <rect x="426" y="342" width="122" height="48" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+    <text x="487" y="358" font-size="14" font-weight="600" fill="#101010">the query lane</text>
+    <text x="487" y="372" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">searches central</text>
+    <text x="487" y="383" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">cap 20,000 rows</text>
+  </g>
+
+  <path d="M200,386 H226 V306 H426" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#ah)"/>
+  <text x="322" y="298" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">http · second copy · per record</text>
+  <text x="326" y="320" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">the bus will replace this edge</text>
+
+  <g fill="none" stroke="#101010" stroke-width="1.25">
+    <path d="M400,433 H412"/>
+    <path d="M412,433 V366 H426" marker-end="url(#ah)"/>
+    <path d="M412,433 V609 H638 V583" marker-end="url(#ah)"/>
+  </g>
+  <text x="525" y="621" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">search results · http · on request</text>
+
+  <g font-family="Helvetica Neue, Helvetica, Arial, sans-serif" text-anchor="middle">
+    <rect x="578" y="523" width="120" height="60" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+    <text x="638" y="545" font-size="14" font-weight="600" fill="#101010">Dashboards</text>
+    <text x="638" y="562" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">the central index</text>
+    <text x="638" y="574" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">or every log index</text>
+
+    <rect x="722" y="286" width="80" height="134" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+    <text x="762" y="348" font-size="12" fill="#101010">shifter,</text>
+    <text x="762" y="363" font-size="12" fill="#101010">maintainer</text>
+  </g>
+
+  <g fill="none" stroke="#101010" stroke-width="1.25">
+    <path d="M556,306 H722" marker-end="url(#ah)"/>
+    <path d="M638,523 V400 H722" marker-end="url(#ah)"/>
+  </g>
+  <text x="639" y="298" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">SSE stream, query results</text>
+  <text x="630" y="432" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="end">https, on request</text>
+
+  <g font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" font-weight="600" fill="#101010" text-anchor="middle">
+    <circle cx="110" cy="91" r="7.5" fill="#ffffff" stroke="#101010" stroke-width="1"/>
+    <text x="110" y="94.5">1</text>
+    <circle cx="110" cy="193" r="7.5" fill="#ffffff" stroke="#101010" stroke-width="1"/>
+    <text x="110" y="196.5">2</text>
+    <circle cx="110" cy="261" r="7.5" fill="#ffffff" stroke="#101010" stroke-width="1"/>
+    <text x="110" y="264.5">3</text>
+    <circle cx="152" cy="417" r="7.5" fill="#ffffff" stroke="#101010" stroke-width="1"/>
+    <text x="152" y="420.5">4</text>
+    <circle cx="229" cy="477" r="7.5" fill="#ffffff" stroke="#101010" stroke-width="1"/>
+    <text x="229" y="480.5">5</text>
+    <circle cx="226" cy="346" r="7.5" fill="#ffffff" stroke="#101010" stroke-width="1"/>
+    <text x="226" y="349.5">6</text>
+    <circle cx="412" cy="433" r="7.5" fill="#ffffff" stroke="#101010" stroke-width="1"/>
+    <text x="412" y="436.5">7</text>
+  </g>
+</svg>

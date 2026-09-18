@@ -1,0 +1,162 @@
+[
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 88,
+  "quote": "\\begin{table}[H]\\footnotesize\\caption{Twenty-one rounds ran, and most of them changed the product rather than confirming it.}",
+  "problem": "Appendix B's heading and sentence end printed page 16 a quarter empty, and Table 10 starts printed page 17 alone above the references (round 1 finding 2 half fixed).",
+  "source": "report/report.pdf printed pages 16 and 17",
+  "fix": "Put \\clearpage before the Appendix B heading, or cut Table 10 and Appendix B and point Section 2.2 at Section 5 instead.",
+  "severity": "should",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 74,
+  "quote": "Store, dashboards, nginx & Vendor playbooks, two community roles, nginx role & Built around the security plugin we disable.",
+  "problem": "\"dashboards\" is lower case for the product the body calls \"Dashboards\".",
+  "source": "sections/03-design-b.tex:29 \"Dashboards, the store's own web interface\"",
+  "fix": "\"Store, Dashboards, nginx\".",
+  "severity": "nit",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 103,
+  "quote": "7 & Three sources added. 96.94~\\% of lines stay local. \\\\",
+  "problem": "96.94 % is the share of the O2 process-tree family, not of all lines; InfoLogger is 58.1 % of the corpus and crosses the wire in full, so the cell overstates what stays on a worker.",
+  "source": "docs/SOAK_RESULTS.md:3115-3116 via reports/loggy-report/briefs/soak-index.md:211 and soak-4.md:23",
+  "fix": "Write: \"7 & Three sources added. 96.94 % of process-tree lines stay local.\"",
+  "severity": "must",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 108,
+  "quote": "21 & Stamper hop 15~\\% cheaper. \\\\",
+  "problem": "15 % is the transport step alone; the hop fell 6.5 %, which is what Section 5.5 now states, so the appendix contradicts the body.",
+  "source": "docs/SOAK_RESULTS.md:5933-5935, 6005-6022 via reports/loggy-report/briefs/soak-index.md:27",
+  "fix": "Write: \"21 & Stamper transport 15 % cheaper, the hop 6.5 %.\"",
+  "severity": "should",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 33,
+  "quote": "Only the cluster, the collector and Dashboards are stated to run there.",
+  "problem": "The reader has carried \"one deployment passed every check on three farm workers\" since page one, and this passive sentence on the last page names no one who states it.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:34, :66 and :75 \u2014 the stamper, the projector and the shifter view are each \"built and running on staging\" with farm status \"not stated in the sources read\".",
+  "fix": "Move it to where the farm pilot is introduced and make it active: \"On the farm pilot only the cluster, the collectors and Dashboards have been confirmed running; the stamper, the projector and the shifter view have run on staging only.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 11,
+  "quote": "The cost curve was measured at 5,000~records a second only.",
+  "problem": "The collector's cost curve was measured at 1,000, 20,000 and 50,000 records a second, as Section 5.1 of this report says; it is the full stack that never ran above 5,000 a second in steady state.",
+  "source": "docs/SOAK_RESULTS.md:154-158; docs/SOAK_RESULTS.md:505-506, 148-149; sections/05-eval-a.tex:11",
+  "fix": "Replace with: \"The whole stack's cost was measured at 5,000 records a second only.\"",
+  "severity": "must",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 103,
+  "quote": "7 & Three sources added. 96.94~\\% of lines stay local. \\\\",
+  "problem": "96.94 % is the O2 process-tree family's local share, not the share of all lines; InfoLogger is 58.1 % of the corpus and every InfoLogger record goes to storage.",
+  "source": "docs/SOAK_RESULTS.md:3115; docs/SOAK_RESULTS.md:2291",
+  "fix": "Change the cell to: \"7 & Three sources added. 96.94~\\% of the process tree stays local.\"",
+  "severity": "must",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 108,
+  "quote": "21 & Stamper hop 15~\\% cheaper. \\\\",
+  "problem": "15 % is the transport half alone; the whole stamper hop fell 6.5 % on infologger and 4.0 % on dpl, which is what the body says at 06-eval-b.tex:13.",
+  "source": "docs/SOAK_RESULTS.md:5975-5982; briefs/soak-index.md:245",
+  "fix": "Change the cell to: \"21 & Stamper transport 15~\\% cheaper, the whole hop 4 to 6.5~\\%.\"",
+  "severity": "must",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 99,
+  "quote": "2 addendum & About 42,000 a second sustained, zero loss. \\\\",
+  "problem": "Zero loss belongs to the 50,000-a-second cell held for two minutes, not to the sustained rate.",
+  "source": "docs/SOAK_RESULTS.md:1824-1826; briefs/soak-index.md:103-104",
+  "fix": "Change the cell to: \"About 42,000 a second sustained; 50,000 for two minutes with zero loss.\"",
+  "severity": "nit",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 33,
+  "quote": "Figure~\\ref{fig:layouts} shows three layouts.",
+  "problem": "The subsection called \"What remains, in build order\" opens with a pointer to a figure about where the platform runs, so the build order arrives five sentences late.",
+  "source": "reports/loggy-report/briefs/style.md:7; reports/loggy-report/outline.md:138",
+  "fix": "Open with the claim and keep the layouts as support: \"Nine things remain, and the first two are already agreed. Three layouts exist today (Figure~\\ref{fig:layouts}).\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 57,
+  "quote": "What exists now is groundwork rather than a demonstration: five staging machines and one green run on the farm.",
+  "problem": "\"green run\" is internal shorthand for a deployment whose checks all passed, and the introduction was rewritten to say that in plain words while the conclusion kept the shorthand.",
+  "source": "reports/loggy-report/reviews/round1-by-file/01-intro-problem.tex.json; reports/loggy-report/sections/01-intro-problem.tex:9",
+  "fix": "\"... five staging machines, and one deployment on the farm that passed every check.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 11,
+  "quote": "Round 1's 53,000 was read against a sink that always accepts, so the collector's ceiling with a real store is unknown above 50,000.",
+  "problem": "The report calls the same thing an output in 3.4 and a sink in 3.4, 5.2 and here, and never defines the second name.",
+  "source": ".claude/skills/simple-english/SKILL.md:39; reports/loggy-report/sections/02-design-a.tex:61",
+  "fix": "Use one word: \"Round 1's 53,000 was read against a test output that always accepts, so the collector's ceiling with a real store is unknown above 50,000.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 5,
+  "quote": "One micro-benchmark on one farm machine would give the conversion factor.",
+  "problem": "\"would\" is a banned modal, and it recurs at 01-intro-problem.tex:34, 04-why.tex:39 and the Appendix A caption at 07-limits-close.tex:69.",
+  "source": ".claude/skills/simple-english/SKILL.md:36",
+  "fix": "\"One micro-benchmark on one farm machine gives the conversion factor. None has run.\" Then \"or each file lands once per machine\", \"Three primaries reach about 135 at full retention\", and \"Each upstream role replaces a few stable tasks and hides something the deployment needs.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 11,
+  "quote": "The cost curve was measured at 5,000~records a second only.",
+  "problem": "The claim is true of the whole stack only, and the report's own Section 5.1 gives collector costs at 1,000 and 20,000 records a second.",
+  "source": "briefs/soak-index.md:503 (\"the cost curve (core-seconds) was measured at 5,000 only, and the ceiling cells measured rate, not cost\"); briefs/soak-1.md:220 (\"The full stack ... has never been run above 5,000 a second in steady state\"); in-report sections/05-eval-a.tex:11",
+  "fix": "Write \"The whole stack's cost was measured at 5,000 records a second only. The collector alone was also costed at 1,000 and 20,000.\"",
+  "severity": "must",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 7,
+  "quote": "The rig pinned four exclusive cores to the collector and the store.",
+  "problem": "Section 5.2 also says the storage tier runs at 86 % of its four cores, so the reader could not tell whether four cores are shared by everything or whether each tier had four.",
+  "source": "briefs/soak-1.md:104 (the rig's allocation: cores 0 to 3 worker services, 4 to 7 storage tier, 8 to 9 generator, 10 to 11 sink and live lane); briefs/soak-index.md:106 (\"storage tier 3.44 of 4 cores (86 %)\")",
+  "fix": "Write \"The rig gave the worker's collector and store four exclusive cores, and the storage tier four more.\"",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 29,
+  "quote": "DDS is the densest family during data-taking and the dearest per line, and every corpus under-samples it: 43,972~\\% lines, 0.1~\\% of the weight.",
+  "problem": "The 43,972-line figure belongs to the round 6 recipe runs, not to every corpus; the later rounds ran 1,236,971 DDS lines.",
+  "source": "briefs/templating-embedding.md:208 (43,972 lines, 0.1 % of the weight, in the recipe runs); briefs/soak-4.md:205 (round 7 re-ran the DDS recipe on 1,236,971 lines)",
+  "fix": "Write \"the recipe runs under-sample it at 43,972 lines, 0.1 % of the weight, and the later runs used 1,236,971\".",
+  "severity": "should",
+  "lens": "reader"
+ }
+]

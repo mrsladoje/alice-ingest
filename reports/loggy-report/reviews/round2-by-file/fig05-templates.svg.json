@@ -1,0 +1,22 @@
+[
+ {
+  "file": "reports/loggy-report/figures/fig05-templates.svg",
+  "line": 81,
+  "quote": "The catalog",
+  "problem": "Figure 5 spells \"catalog\" in three labels (lines 81, 112 and 136) while the prose spells \"catalogue\", breaking the British-spelling decision.",
+  "source": "reports/loggy-report/outline.md decision 16; sections/02-design-a.tex:73 \"The catalogue maintenance\"",
+  "fix": "Change the labels to \"The catalogue\", \"The catalogue maintenance\" and \"reads catalogue, buckets,\" (keep the identifier template-catalog at line 82), then re-export fig05-templates.pdf.",
+  "severity": "should",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/figures/fig05-templates.svg",
+  "line": 81,
+  "quote": "The catalog",
+  "problem": "Three prose labels in fig05 use American spelling, against the report's British-spelling rule and the body's own \"catalogue\".",
+  "source": "reports/loggy-report/outline.md:28 (\"British spelling\"); reports/loggy-report/sections/02-design-a.tex:73 (\"The catalogue is one index with one document per template version the farm has seen\")",
+  "fix": "Change lines 81, 112 and 136 to \"The catalogue\", \"The catalogue maintenance\" and \"reads catalogue, buckets,\", and fix \"the catalog maintenance\" in the aria-label on line 1. Leave the index name template-catalog on line 82 unchanged.",
+  "severity": "must",
+  "lens": "figures"
+ }
+]

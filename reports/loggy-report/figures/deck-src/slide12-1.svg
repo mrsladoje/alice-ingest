@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" viewBox="0 0 820 503" role="img"
+             aria-label="The four viewing surfaces, listed as a table behind one door. Band zero, one door: a single web address on the control host, encrypted, with one account, and it leads to all four surfaces. Band one, four surfaces, in four rows with three columns each: the surface, what it answers, and who opens it. Row one, the maintainer cockpit, marked in use and carrying the OpenSearch mark: it answers whether the pipeline is healthy, and the people who maintain the platform open it. Charts and counters over the whole cluster; a shifter never asks this question. Row two, the live lane, carrying the React mark and marked in use: it answers what is arriving right now, and anyone opens it, including while the cluster is down. It is a small React page, fed by the collectors, so it asks the cluster nothing and survives an outage. Row three, Discover, marked in use and carrying a magnifying glass: it answers anything in the archive, with filters, and a physicist with a real question opens it. It is the free-form search page of the dashboards, and one box searches every source at once. Row four, last, the shifter view, drawn as a faded box with a dashed window icon and marked coming soon: it answers what the experiment is saying, and shifters, who already know InfoLogger, open it. It should feel close to the InfoLogger view, because familiarity is the point and there is nothing new to learn.">
+          <defs>
+            <marker id="a12" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,1 L10,5 L0,9 z" class="d-head" style="fill:#101010"></path>
+            </marker>
+          </defs>
+
+          <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="13">00</text>
+          <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="13">One door</text>
+          <text class="d-fact is-end" style="font-size:10.5px;fill:#3a3a36;text-anchor:end" x="820" y="13">Nobody signs in twice.</text>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="1" y="32" width="818" height="44"></rect>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="16" y="59">One address, on the control host</text>
+          <text class="d-s is-sm is-end" style="font-size:10.5px;fill:#6b6b66;text-anchor:end" x="804" y="59">Encrypted, one account, and it leads to all four surfaces</text>
+
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M410,76 V118" marker-end="url(#a12)"></path>
+
+          <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="107">01</text>
+          <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="107">Four surfaces</text>
+
+          <rect class="d-panel" style="fill:#f1f1ec" x="1" y="118" width="818" height="377"></rect>
+
+          <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="12" y="138">SURFACE</text>
+          <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="200" y="138">WHAT IT ANSWERS</text>
+          <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="470" y="138">WHO OPENS IT</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M12,146 H808"></path>
+
+          <image href="../../../../presentation/assets/opensearch-mark.webp" x="12" y="169" width="22" height="22"></image>
+          <text class="d-t is-start" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="46" y="185">Maintainer cockpit</text>
+          <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="46" y="213">IN USE</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="200" y="185">Is the pipeline healthy?</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="470" y="185">The people who maintain the platform</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="200" y="213">Charts and counters over the whole cluster.</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="200" y="227">A shifter never asks this question.</text>
+
+          <image href="logos/react-mark-official.svg" x="12" y="254" width="22" height="22"></image>
+          <text class="d-t is-start" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="46" y="270">The live lane</text>
+          <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="46" y="298">IN USE</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="200" y="270">What is arriving right now?</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="470" y="270">Anyone, and it holds when the cluster is down</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="200" y="298">A small React page, fed by the collectors.</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="200" y="312">It asks the cluster nothing and survives an outage.</text>
+
+          <circle class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" cx="21" cy="347" r="7.5"></circle>
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M26.5,352.5 L33,359"></path>
+          <text class="d-t is-start" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="46" y="355">Discover</text>
+          <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="46" y="383">IN USE</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="200" y="355">Anything in the archive, with filters</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="470" y="355">A physicist with a real question</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="200" y="383">The free-form search page of the dashboards.</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="200" y="397">One box searches every source at once.</text>
+
+          <rect class="d-ghost" style="fill:#ffffff;stroke:#101010;stroke-width:1.1;opacity:0.32" x="1" y="410" width="818" height="85"></rect>
+          <rect class="d-line is-dash" style="fill:none;stroke:#6b6b66;stroke-width:1.25;stroke-dasharray:4 4" x="12" y="426" width="22" height="18"></rect>
+          <path class="d-line is-dash" style="fill:none;stroke:#6b6b66;stroke-width:1.25;stroke-dasharray:4 4" d="M12,431 H34"></path>
+          <text class="d-t is-start is-soft" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#6b6b66;text-anchor:start" x="46" y="440">The shifter view</text>
+          <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="46" y="468">COMING SOON</text>
+          <text class="d-t is-sm is-start is-soft" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#6b6b66;text-anchor:start" x="200" y="440">What is the experiment saying?</text>
+          <text class="d-t is-sm is-start is-soft" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#6b6b66;text-anchor:start" x="470" y="440">Shifters, who already know InfoLogger</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="200" y="468">It should feel close to the InfoLogger view.</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="200" y="482">Familiarity is the point: nothing new to learn.</text>
+        </svg>

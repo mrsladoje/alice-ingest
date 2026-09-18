@@ -1,0 +1,12 @@
+[
+ {
+  "file": "reports/loggy-report/report/references.tex",
+  "line": 10,
+  "quote": "\\bibitem{ref:alertmanager} Prometheus Alertmanager documentation. \\url{https://prometheus.io/docs/alerting/latest/alertmanager/}.",
+  "problem": "Entries [9] and [14] still print with visible word gaps because the URL cannot break (round 1 should finding 9, still present).",
+  "source": "report/report.log:1159 \"Underfull \\hbox (badness 10000) in paragraph at lines 10--11\" and report/report.log:1166 (lines 15--16); printed page 17 shows \"Prometheus    Alertmanager    documentation.\"",
+  "fix": "Add \\PassOptionsToPackage{hyphens}{url} before \\usepackage[hidelinks]{hyperref} in preamble.tex:15, or \\raggedright after \\begin{thebibliography}{99}.",
+  "severity": "should",
+  "lens": "build"
+ }
+]

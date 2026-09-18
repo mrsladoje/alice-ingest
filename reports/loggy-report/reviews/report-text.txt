@@ -1,0 +1,1167 @@
+CERN Summer Student Programme 2026                                                 ALICE, Event Processing Nodes
+
+
+
+
+loggy: a logging platform for the ALICE
+Event Processing Nodes
+Keep the volume where it is made, and the value where it is safe.
+
+
+
+Marko Sladojevic
+CERN, ALICE Event Processing Nodes
+
+
+Supervisors: Lubos Krcal, Federico Ronchetti
+September 2026
+
+
+
+
+                                                    Abstract
+         The ALICE Event Processing Nodes write logs that mostly never reach the tool people read with.
+     loggy keeps most logs on the worker that wrote them and still searches every worker as one. One
+     collector per worker reads five log families, stamps each line with a template and routes it by severity.
+     Info, debug and trace lines stay in one local copy. Every other severity goes to three storage machines.
+     Every worker pushes its health up. Nothing polls it. Threshold rules, Random Cut Forest detectors and
+     trend rules turn numbers into episodes. It runs on five staging machines, and one farm deployment
+     passed every check. In the busiest hour of six months of archive the median worker carried 23 records a
+     second, and the busiest worker-second was 78. The collector costs about a quarter of one core at 20,000
+     records a second. The whole stack on one worker sustains about 42,000 a second. A flush interval of
+     1 second instead of 5 cut the collector’s cost by 24.5 % and its peak memory by 28 %. The templating
+     pipeline is 31 to 57 % cheaper per family and byte-identical on 8,961,245 lines. Dense retrieval with
+     reranking reaches 0.685 nDCG@10 against 0.634. The main limit: every cost figure comes from a laptop,
+     so only shapes, knees and rankings transfer to the farm.
+CERN Summer Student Programme 2026                                                                                                    1    Introduction
+
+
+
+Contents
+
+1 Introduction                                                                                                                                            1
+
+2 The problem and the constraints                                                                                                                         2
+
+3 The design                                                                                                                                              3
+
+4 Why these choices                                                                                                                                       9
+
+5 What the measurements say                                                                                                                              11
+
+6 Limits and what remains                                                                                                                                13
+
+7 Conclusion                                                                                                                                             14
+
+A Upstream roles weighed and not used                                                                                                                    15
+
+
+
+1 Introduction
+Most logs an Event Processing Node writes never reach the one tool people use to read them. An Event
+Processing Node, an EPN, is one machine of the ALICE online farm. Its job is timeframe reconstruction:
+it assembles the detector data of one time slice into events. The reconstruction software is O2, the ALICE
+Online-Offline computing system [3]. Log search must not compete with that job.
+Logging today is InfoLogger [2]. A client library sends each process’s messages to a local daemon, then to
+one central server. That road has three limits: one table for every message, no counts over time, and one
+unreplicated retention rule. The process logs on disk and the journal, the log of every system service, never
+take it (Figure 1).
+01 ONE EPN WORKER                                      02 CENTRAL, ONE FOR THE FARM                                    03 A DESKTOP
+
+
+
+             Application messages
+    a process sends them through libInfoLogger,
+               or pipes its stdout in
+
+                                                                                                     live push, tcp 6102
+                            local socket
+
+
+
+                  Local daemon                    tcp 6006                     Central server                                  Desktop browser
+             infoLoggerD, one per node                             infoLoggerServer, one for the farm                        infoBrowser, read by hand
+
+
+                                                                                        tcp 3306
+
+  ALSO WRITTEN HERE
+  None of it takes that road.
+                                                                                                                    query, tcp 3306
+
+                Log files on disk                                         one table: messages
+                 process stdout and
+                the O2 process logs
+                                                             One process and one table for the whole farm
+
+             The machine’s journal
+                                                       04 THE LIMITS TODAY
+               systemd, every service
+                    on the node
+                                                             ONE SQL TABLE
+                                                             Every message in the farm lands in one messages table.
+                   Host metrics                              NO AGGREGATION
+             processor, memory, disk                         infoBrowser lists single lines. It draws no counts over time.
+          monitoring already collects these                  ONE POLICY, ONE COPY
+                                                             One retention rule covers every message. Nothing is replicated.
+
+Figure 1: InfoLogger carries only what a process sends it, and the process logs on disk and the journal never take that road.
+
+
+
+
+                                                                           1
+CERN Summer Student Programme 2026                                                       2   The problem and the constraints
+
+
+We built loggy, a platform that keeps the bulk of the logs on the worker that wrote them and still searches
+them as one. It runs on five staging machines, and one farm deployment passed every check.
+Section 2 gives the constraints. Section 3 walks an error line, an info line, a dead collector and a quiet
+worker through it. Section 4 names the fact behind each choice, Section 5 what the measurements settle,
+and Section 6 the limits and what remains.
+
+
+2 The problem and the constraints
+The constraints made the design, so they come first.
+
+2.1 What a node writes
+A worker holds five log families, and InfoLogger is one of them (Table 1). DDS, the Dynamic Deployment
+System, starts the reconstruction processes. The journal holds 2,500 to 10,500 entries a day on a worker.
+Table 1: Only one of the five families takes the InfoLogger road.
+
+ Family                       What writes it                        How it reaches the collector    Tier it lands on
+ InfoLogger                   Any process, through the client       A TCP socket                    Storage, every record
+                              library and local daemon
+ DDS                          The deployment system, one file       Tail of the file                By severity
+                              a day in the run directory
+ O2 process tree              Every reconstruction process,         Tail of the files               By severity
+                              one output and one error file
+                              each, in two line formats
+ InfoLogger daemon log        The local daemon, one file that       Tail of the file                Storage, every line
+                              never rotates
+ Journal                      systemd, every service and the        The journal reader              By severity
+                              kernel ring
+ Run orchestrator log         The orchestrator, on the shared       Not collected                   None
+                              infra machine only
+
+The survey of the real machines set two rules. First, the run directory sits on one 14 TB scratch disk, 93 %
+full, that every machine mounts over the network. Each collector tails only its own machine’s directory,
+or each file lands once per machine. The mount raises no change events, so the tail polls. Second, one O2
+process prints raw terminal colour codes into its log, so every anchored pattern fails without a word.
+The archive we replay is recorded farm logs, fed back through the collector at a chosen rate. It holds
+InfoLogger, DDS and the process tree, and no journal. The parser corpus is 45,596,613 of its lines from 186
+programs. DDS is 0.1 % of that corpus, and operations call it the largest family during data-taking. No run
+was active during either survey, so no live job log was seen.
+
+2.2 What a worker carries
+A real worker carries tens of InfoLogger records a second, not thousands. The InfoLogger archive, six
+months of dumps, holds 248,828,513 records from 312 hosts. In the busiest hour the median worker carried
+23 records a second, the busiest worker-second 78, and the farm peaked at 9,781. These figures are floors:
+the client library cuts off a process at 1,000 messages a minute, so the loudest processes are hidden.
+The soak, the project’s measurement campaign of twenty-one rounds, tested one collector at 1,000, 20,000
+and 50,000 records a second per worker. Those rates are a safety margin, not an archive figure.
+
+2.3 The constraints
+A worker gives the platform four physical cores, eight logical processors, and little memory. A 2019 EPN
+has 64 physical cores and 128 logical processors. No bulk crosses the wire: each worker indexes its info-
+severity lines on its own disk. Physicists’ staging runs occupy two of the three farm workers and a build
+pipeline wipes the third, so hard memory and processor caps apply.
+
+
+                                                                2
+CERN Summer Student Programme 2026                                                                              3   The design
+
+
+The infra machine’s default ports belong to a second search cluster, so the storage nodes and Alertmanager
+take other ports. CERN hosts take no long-running agent, so we push over SSH. Two of the three workers
+cannot install a collector newer than release 4.0.1, because newer releases need OpenSSL 3.4.0 and their
+system ships OpenSSL 3.2.2. The third worker runs a newer release, so every deployed release must accept
+every configuration.
+
+2.4 What the platform must do
+The six objectives keep the volume where it is made and the value where it is safe (Table 2).
+Table 2: One named element of the design meets each of the six objectives.
+
+ Objective                      Design element that meets it
+ No bulk over the wire          A local index on every worker, written by a collector that talks only to the search node on its
+                                own machine
+ Split by severity              The collector routes each line by severity to the local index or the storage tier
+ Distributed                    One cluster of two tiers, and every worker answers a search over its own index
+ Durable                        A storage tier of three machines, with three copies of every record above info and of every
+                                InfoLogger record, one on each storage machine
+ Workers stay cheap             Four physical cores, no cluster management on a worker, and health numbers pushed up rather
+                                than polled down
+ Fault tolerant                 The cluster runs while two of the three storage machines agree, and a lost worker loses only
+                                its own local index
+
+
+
+2.5 The 2025 reference design
+The 2025 reference design [1] set the frame, and loggy kept its shape and changed its rules. We kept
+its collector on every node and widened it from two sources to five. Its one cluster of two tiers, three
+index families, lifecycle policies and Alertmanager stayed. We changed its tier rule from source to severity,
+because a source rule ships one program’s bulk and drops another’s errors. We replaced Grafana with
+OpenSearch Dashboards, the store’s own web interface, because detection and alerting come with the
+store [5]. We dropped its queue on the numbers in Section 5.3, and the aggregator the queue fed, because
+the collectors feed the live lane directly. We dropped Kubernetes for native system services pushed over
+SSH.
+
+
+3 The design
+loggy is one cluster, split in two by severity.
+
+3.1 One cluster, two tiers
+The worker tier runs on every EPN in the target design. The collector reads the five log sources. The
+stamper beside it names every line’s template, the skeleton of the line with every variable token a wildcard,
+before indexing. The health sample pushes the collector’s heartbeat up. The local OpenSearch data node
+holds one index per worker. The four share the worker’s four-core budget of Section 2.3. Memory is a
+384 MB cap on the collector and a 1 GB heap on the local node.
+The storage tier is three replicated nodes, each a cluster manager and a data node. An index is split into
+shards, and a replica is a copy of a shard on another node. Two of the three nodes must agree, so the tier
+survives the loss of one. The three storage nodes are also the control host, the background host and the
+shifter host. The control host holds every screen: Dashboards, and Alertmanager, which decides when a
+person is told. The poller samples the cluster. The roster lists the collectors that must run. The catalogue
+maintenance audits the template counts. The receiver stores every notification Alertmanager sends. Noth-
+ing pages a human today. The background host runs the projector, which turns alerts into episodes, and
+the trend rollup. The shifter host serves the shifter view, the page the person on shift watches. Staging is
+
+
+                                                               3
+CERN Summer Student Programme 2026                                                                                                                                            3      The design
+
+
+     01 W O R K E R T I E R
+
+                                                                                      live lane today · http · severe lines
+
+         worker 1                                                                                    worker 2
+                 bulk http · localhost · 1 s                                                                 bulk http · localhost · 1 s
+                  health sample · every 30 s                                                                  health sample · every 30 s
+
+                                                                        the stamper                                                                                  the stamper
+                local node                                                   template ids                   local node                                                template ids
+                data, ingest                 the collector                                                  data, ingest                   the collector
+
+                  info                                       unix socket                                       info                                        unix socket
+
+                  application-logs-local-*                                                                    application-logs-local-*
+                  1 shard, 0 replicas, never leaves                                                           1 shard, 0 replicas, never leaves
+
+
+                                                                                                                                                     … N workers, the same on every EPN
+
+
+                          warn+, InfoLogger, health · one hop, transport                                                                              severe lines · kafka produce
+                                                                                                                   the bus · Kafka
+                                                                                                         live lane only · one topic, one consumer
+                                                                                                                  agreed, not built
+                                                                                                                                                           one consumer · kafka fetch
+
+     02 S T O R A G E T I E R
+
+
+         infologger · application-logs-central                                                                                                      cockpit-metrics
+         2 replicas, one copy on every storage node · 1 primary on staging, 3 on the farm                                                           1 shard, 2 replicas
+
+
+         storage node 1 · control host                            storage node 2 · background host                            storage node 3 · shifter host
+
+
+
+         cluster manager, data, ingest                            cluster manager, data, ingest                               cluster manager, data, ingest
+
+           Dashboards, nginx        the poller, 30 s                the projector, 30 s                                         the shifter view
+                                                                                                                                live page · templates page
+           Alertmanager             the receiver                    the trend rollup, 10 min
+
+           the ops page
+
+                                                                                                                                          on the farm: three containers on one infra machine
+
+            built and running on staging                 agreed, not built                     the live lane as built today, replaced by the bus
+
+
+Figure 2: The bulk stays on the worker tier, InfoLogger and every line above info cross once to the storage tier, and every watcher
+pushes its numbers up.
+
+five machines: two workers and three storage nodes. The farm pilot is three workers and three containers
+on one infra machine.
+The dashed box in Figure 2 is a Kafka bus, agreed for the live lane only. The live lane is the second copy of
+every record that leaves the worker. That is every InfoLogger record at any severity, the daemon log and
+every line above info severity. With a bus, moving the shifter view moves one consumer, not more than
+200 collector configurations. The bus is not built, and its brokers are not placed.
+Table 3 lists the index families. The farm inventory sets three primaries, one per storage node, because one
+primary funnels all InfoLogger through one machine. No farm run has carried real volume.
+Table 3: The bulk sits in one unreplicated index per worker, and every other family sits replicated on the storage tier.
+
+ Index                                     What lands there                                                    Tier              Shards and replicas                                 Retention
+ application-logs-local-                 info, debug and trace lines, one index per                            worker            1 shard, 0 replicas                                      8 days
+ <node>                                  worker
+ application-logs-                       warnings, errors, fatals, the daemon log,                             storage           staging 1 primary,                                     35 days
+ central                                 unparsed lines                                                                          farm 3, 2 replicas
+ infologger                              every InfoLogger record                                               storage           staging 1 primary,                                     56 days
+                                                                                                                                 farm 3, 2 replicas
+  template-buckets-5m,                     counts per template version per worker                              storage           1 shard, 1 replica                            4 and 66 days
+ -1h                                       and window
+  cockpit-metrics                          health samples from collectors and the                              storage           1 shard, 2 replicas                 7 days by document
+                                           poller
+
+
+
+3.2 Walkthrough: one error line, from an EPN to a screen
+An error line crosses the wire twice (Figure 3).
+1. The collector tails the file an O2 process writes and reads machine, program and event time. It adds a
+   document identifier and its own accept time.
+
+
+                                                                                                4
+CERN Summer Student Programme 2026                                                                                                         3    The design
+
+
+
+            THE WORKER (EPN)                           STORAGE TIER                  SHIFTER HOST               CONTROL HOST            BROWSER
+
+
+                 an O2 log file
+          [ERROR] in the stdout tree
+
+                         1   tail
+
+         the collector
+
+              identity and clock
+            doc_id, collector_time
+           @timestamp from the line
+
+                         2   in memory
+
+            route by raw severity
+            error → family.central
+                             forward socket
+                         3
+                             out and back
+                                                                                   the shifter view
+                 the stamper                  http · second copy · per record                               SSE stream, query results
+           drain3, the process-tree                                                    the live lane
+                  family tree                     the bus will replace this edge      held in memory
+             sets template_version
+              and template_status
+                                              6                                                                                         browser
+                back, stamped                                                         the query lane                                     shifter,
+                                                                                     searches central
+                                                                                                                                        maintainer
+         the collector        outputs                                                 cap 20,000 rows
+                             http, twice
+
+                http, create        4
+              localhost:9200                                                                           https, on request
+                                                    application-logs-central   7
+           local OpenSearch node                          kept 35 days
+             runs the ingest pipeline      document
+          ingest_time, ingest_lag_ms           5
+                                                         storage node
+              enter_system_lag_ms                         primary shard
+                  origin_host               one hop
+             severity_norm = error                      copied to 2 replicas
+                                                         storage node
+                                                          replica shard                                           Dashboards
+                                                                                                                     Discover
+                                                                                                                the central index
+                                                         storage node                                           or alice-unified
+                                                          replica shard
+
+
+                                                                                   search results · http · on request
+
+
+Figure 3: An error line is stamped on the worker, crosses the wire to the storage primary and two replicas, and again to the live
+lane.
+
+2. A routing rule reads the raw severity: info, debug and trace go local, an error goes central.
+3. Each chunk, the block of records moved as one unit, crosses a local socket to the stamper and returns
+   with template version and status.
+4. The local node’s ingest pipeline, a set of processors that touch every document before storage, stamps
+   the ingest time and normalises the severity.
+5. The document hops once to the storage node holding the primary shard of application-logs-central,
+   which copies it to two replicas.
+6. The collector also posts it over HTTP to the live lane on the shifter host. That lane keeps the last 500
+   records in memory and streams them to every open browser.
+7. Dashboards and the shifter view’s query lane, capped at 20,000 rows, read the line from the central
+   index.
+
+3.3 Walkthrough: an info line stays on its worker
+An info line takes the same road as far as the routing rule, then stays on its worker. A placement setting
+pins the index there. Under severity routing 96.94 % of the O2 process-tree family stays local and 3.06 %
+crosses the wire. The trend rollup, six of the seventeen detectors of Section 3.6, and the shifter view’s line
+sampler read the local index. If the worker dies, its raw lines die with it, but the rollup rows, template
+counts and detector results survive. One search still finds the line. That search is as slow as the slowest
+worker, which is why the live lane exists.
+
+3.4 Inside the collector
+The collector stores nothing (Figure 4).
+Flushing every second instead of every 5 seconds cut the collector’s processor cost by 24.5 % and its peak
+memory by 28.0 % (Section 5.2). The live lane’s latency floor fell from 5 seconds to 1.
+
+
+                                                                               5
+CERN Summer Student Programme 2026                                                                                                                                   3    The design
+
+
+                              the collector, one process on every worker                                                     writes only to the OpenSearch node on the same worker
+
+
+
+      01 W H A T I T D O E S T O A L I N E
+
+
+
+                 INPUT                                  TAG                               FILTER                         RETAG                          OUTPUT
+
+            Read each line                        Give it a name                        Parse the line               Sort by severity                   Send it on
+            from a file,                          dds, stdout,                        fields, the clock,            info to local,                stamped chunks only
+         a socket, a script                    infologger, health                        document id              the rest to central              bulk create · http
+                                                                                                                                                    flush every 1 s
+
+
+                                                                                                                         log chunk               stamped chunk
+                                                                                                                         forward output          forward input
+                                                                                                                         unix socket               unix socket
+
+
+      After the retag step every log chunk leaves for the stamper
+      and comes back stamped. Only stamped chunks reach the                                                                      The stamper
+      OpenSearch outputs. The health sample skips the loop.                                                    gives every record a template id before it is indexed
+
+
+
+      02 T H E D I S K B U F F E R A N D T H E M E M O R Y E N V E L O P E
+
+
+                                                                                                                                 MEMORY ENVELOPE
+               The collector                          256 MB on disk                                     OpenSearch
+                                                                                                                                 Chunks in memory        64, about 128 MB
+              still reading lines                     one buffer per lane                                not answering
+                                                                                                                                 Documented worst case               307 MB
+                                                                                       bulk · http
+                                                                                                                                 Measured, steady load         133–228 MB
+          Every output writes to this buffer first. A hiccup layer, not durability.
+                                                                                                                                 Measured, sink outage               373 MB
+          It survives a restart of the collector and a short outage of the store.
+          It does not survive losing the node. Those records are gone.                                                           Flush interval                           1s
+
+
+
+Figure 4: A line takes five steps inside the collector, and the 64 chunks it can hold in memory cap its cost to the worker at about
+128 MB.
+
+At most 64 chunks sit in memory, about 128 MB. The documented worst case is twice that with a 20 %
+margin, roughly 307 MB. The service is throttled at 384 MB and killed at 768 MB.
+The disk buffer is a hiccup layer of 256 MB per output: when the store does not answer, chunks spill to disk.
+At 20,000 records a second it held 61 seconds before the first drop. At a real worker’s rate it holds hours,
+but it is not durability: a lost machine loses its records.
+A resend cannot duplicate. The document identifier, node id plus boot id plus a counter, is the record’s id
+in the store. The output writes with create, which the store refuses when that id already exists.
+
+3.5 Templates in band
+A template widens as the miner sees more lines, and each state is one version, the field a record carries
+(Figure 5).
+The stamper runs drain3, a template miner [7]. A masker replaces varying tokens with placeholders, then
+one tree per family turns a literal that varies between lines into a wildcard. Every record leaves with
+a status: matched, new or no template. An empty message, or one over 4,096 characters, is indexed in
+full with no template. The stamper holds at most 20,000 templates per worker, 4.7 times what the whole
+archive produced. The shipped service evicts the least recently used template at that ceiling. The soak
+showed that an evicted template rebuilt later resets its published count to one. The recommended change,
+to stop learning and keep counting, is open.
+The catalogue is one index with one document per template version the farm has seen, plus the results of
+the checks below. Every 300 seconds the stamper publishes one bucket document per family and window:
+a total and a count per version. Two audits run hourly. The stamper recounts the previous hour locally.
+The catalogue maintenance proves that up to 5,000 hourly buckets sum to their totals. It also proves that
+neither shared index holds more records of a template version than the workers stamped. Two hourly rules
+read the catalogue. One fires on a template catalogued in the last hour. The other fires on any failed check
+in the last two hours.
+A search for a template must also find its older, narrower versions. Within one family and token count, a
+
+
+                                                                                                 6
+CERN Summer Student Programme 2026                                                                                                                  3   The design
+
+
+         01 O N T H E W O R K E R                                           02 S T O R A G E T I E R                     03 C O N T R O L H O S T
+
+
+                 One line, as the collector reads it
+                      Processing timeslice:41
+
+                   every record
+                   forward socket from the collector
+
+                           The stamper
+                 one per worker, beside the collector
+                                                           every 300 s                                  reads 1-hour
+           1                The masker                  a bucket document        The bucket indices        buckets                The catalogue
+                      variable tokens masked                                   template-buckets-5m-*                               maintenance
+                     Processing timeslice:<N>              per family          template-buckets-1h-*                        hourly, one hour behind
+                                                           and window            kept 4 d and 66 d                           1 expire definitions
+                                                           every 300 s                                                         and checks first
+           2         The drain tree of its family          definitions                                 expiry, reports       2 sum each bucket
+                     one tree per log family            merged, watermark                               failed checks        3 shared indices
+               at most 20,000 templates per worker                                 The catalogue                               against buckets
+                                                                                  template-catalog                           4 write checks last
+                                                                                     definitions
+                                                        hourly self-check
+           3       Two fields set before indexing        of local index          watermarks, checks     hourly query
+                 template_version · template_status                                    reports                                Two monitors, hourly
+                status: matched, new or no_template     a check document                                                        run by the cluster
+               empty or over 4096 chars: no version                                                    on view
+                                                                                                                            template-new
+                                                                                                       definitions
+                                                                                                                              first seen this hour
+                                                                                                                            template-count-check
+                   stamped record                                                                                             a check failed
+                   second socket, back to collector
+                                                                                                                         04 S H I F T E R H O S T
+               The record, indexed with both fields
+                                                                                A person’s decisions
+               local or central index, by severity
+                                                                                   template-triage
+                                                                                                                              The Templates page
+                                                                                    labels, notes       labels, notes          in the shifter view
+                                                                                                           on save         reads catalogue, buckets,
+                                                                                                                             sample lines, episodes
+                                                                                                                            stores labels and notes
+
+
+
+Figure 5: The stamper names each line on the worker, publishes counts every five minutes, and two hourly audits prove the
+counts add up.
+
+wider version covers a narrower one when, at every position, it holds a wildcard or the narrower’s token.
+That relation groups the versions, so no separate identifier is stored. Templating is built for search and the
+catalogue. Two choices are open: catalogue maintenance as store policies plus monitors, and the bucket
+indices as a rollover alias.
+
+3.6 Watching the platform
+Everything that watches the platform is pushed up, never polled down. Every collector ships a health
+sample every 30 seconds. The poller samples the cluster at the same cadence and reads the roster, one
+document naming every collector that must run: the fleet. A rostered collector silent for 90 seconds is
+absent.
+Three lanes read numbers: health samples, and counts, error rates and lags from the log records. A monitor
+is a saved rule the cluster runs on a schedule, writing an alert when its condition holds. Threshold monitors
+catch cliffs in two tiers: a storage disk above 92 % pages, and above 85 up to 92 % warns. A detector is a
+scheduled Random Cut Forest model [8]. It learns a number’s usual shape and grades each window from 0
+to 1 by how unusual it is, with no threshold. An entity is one machine, or one log family on one machine:
+the thing a rule is about.
+Seventeen detectors run, one model per entity. A volume detector reads a silent host as zero records, so
+silence is a value it can grade. One forecaster, on disk fill only, trains on a week of hourly points and
+predicts a day ahead. Thirty monitors run: 13 every minute and four every ten minutes on thresholds and
+detector results. Nine are trend comparisons every ten minutes, two run hourly on templates, two watch
+the projector and Alertmanager themselves. No lane reads the log text (Section 6.3).
+On the background host the projector reads every alert and detector result every 30 seconds (Figure 6). A
+signal is one stored row: which rule or detector fired, on which entity, when. An episode is one trouble on
+one thing, with a start and an end. It stores each episode as one incident document, grouping the signals
+of one alert name on one entity. An episode closes after consecutive healthy windows: one for a threshold
+monitor, three for a trend monitor or detector. A grade above 0.5 opens an episode. One monitor watches
+every grade and pages once for the fleet above 0.7.
+Alertmanager owns notification semantics only: grouping timers, silences and routing [9]. It forgets an
+alert five minutes after the last post, so the projector re-posts every open episode every 30 seconds. It holds
+
+
+                                                                               7
+CERN Summer Student Programme 2026                                                                                                                                                        3        The design
+
+
+            01 W H E R E T H E N U M B E R S C O M E F R O M                                                                       Health is pushed. Nothing reaches into a worker to scrape it.
+
+
+
+                   infologger · central · local                                                Every collector                                                The poller
+                   the log families, written by the collectors                                                                                    samples the cluster every 30 s
+                                                                                         pushes its own health sample
+                                   reads, every 10 min                                                                                        absent from the roster after 90 s
+
+                         The trend rollup                           health sample, HTTP, every 30 s                                                                  cluster and
+                                                                                                                                                                     fleet samples
+                         one row per entity
+                  per closed 10-minute bucket                                                                               cockpit-metrics
+                                   writes                                                                           one row per sample, seven days kept
+
+                           trend-rollup                            log records, 14 detectors
+                 rows kept 30 days, the rules read seven                                                                                              13 threshold and 2 break-glass
+                                                                                  3 detectors, the forecaster
+                                                                                                                                                      monitors, every minute
+            02 T H R E E L A N E S                                               4 checks on the rollup and
+             9 comparisons, every 10 min                                         the forecast, every 10 min
+
+
+                             TREND RULES                                                  RANDOM CUT FOREST                                           THRESHOLD RULES
+                           Slow drift, over days                                         How surprising is this minute?                             The cliffs we already know
+
+                      three fresh slices against                                                                                         17 monitors: 13 every minute, 4 every ten
+                     a frozen seven-day baseline                                                                       one cut                  a disk over 92 percent full,
+                                                                                                                                            a collector missing from the roster
+                       silent by design when the
+                                                                                   17 detectors and one forecaster                        plus two break-glass monitors that watch
+                        whole family is at zero
+                                                                                 one model per entity, no threshold                      the projector and Alertmanager heartbeats
+
+                                          alerts, every 10 min                                             a grade per window                               alerts, every minute
+
+
+                                             .opendistro-alerting-alerts · .opendistro-anomaly-results
+                                                                                                                                                                       break-glass:
+                                                        the alerts and the grades, written by the plugins inside the cluster                                       webhook straight
+                                                  28 of the 30 monitors land here: 9 trend, 17 threshold, 2 hourly on templates                                     to the receiver
+
+
+            03 F R O M H I T S T O O N E A L E R T
+                                            reads the new rows past its bookmark, every 30 s
+
+                                                                    all active
+                             The projector                            episodes                  Alertmanager                  one batch per                   The receiver
+                  one episode per entity, per trouble                HTTP POST               groups per alert name              alert name                 stores one notification
+                      hits → signals → episodes                     every 30 s           wait: page 30 s, warn 5 min              webhook                 what a person was told
+
+                                         writes, every 30 s                                                                              one document per POST
+
+
+                alice-signals · alice-incidents                                                                                                           alice-notifications
+                  every hit, and one document per episode                                                                                                   by which door it came
+
+
+                                                                                                                    open episodes, HTTP query
+
+                       The cockpit                                The ops page                         The shifter view
+                      the incident board                         counts open incidents                episodes list, every 30 s
+
+
+
+
+                                                   One broken machine is one episode and one alert, however many times the rule fires
+
+
+Figure 6: Pushed samples feed three lanes, the projector makes episodes, Alertmanager decides when a person is told, and the
+receiver stores what was sent.
+
+a page 30 seconds and a warn five minutes, then sends the batch to the receiver, which stores one document
+per notification. Nothing pages a human today.
+The two watching the projector and Alertmanager take the break-glass path and post straight to the receiver,
+because that part can be dead. The stale monitor fires after ten minutes without a projector heartbeat. The
+other fires after the projector reports Alertmanager down for five minutes.
+
+3.7 Walkthrough: a dead collector becomes a notification
+A dead collector is silent, so the platform reasons from absence. Within 30 seconds the poller writes the
+collector’s row with a missing flag. The collector-down monitor reads those rows every minute and fires at
+page severity. The projector opens an episode and posts it to Alertmanager. Alertmanager groups on alert
+name and collector, waits 30 seconds and posts the batch to the receiver.
+The cadences bound death-to-document at 90 to 270 seconds. The first missing flag arrives 60 to 150 seconds
+after the death, because the last sample can already be 30 seconds old. The monitor adds up to 60 seconds,
+the projector up to 30 and the page wait another 30. No run has timed it (Section 6.1).
+
+3.8 Walkthrough: an EPN goes quiet, or loud
+On the background host a rollup turns raw lines into small rows: one per family and host per ten-minute
+slice. It runs every ten minutes, waits 120 seconds for late records, then recomputes the last three finished
+
+
+
+                                                                                                       8
+CERN Summer Student Programme 2026                                                                       4   Why these choices
+
+
+slices. Each row holds record, error and fatal counts and the 95th percentile of two lags. A host that logged
+in the last 24 hours but not this slice gets a zero-count row. A host silent for longer gets none.
+The nine trend monitors read those rows only. Each compares three ten-minute slices, ending ten minutes
+before the check, against the previous seven days. A volume rule compares the entity’s share of the fleet,
+so a fleet-wide ramp cancels. It fires on twice the baseline share or half of it, in all three slices. It needs
+50 records per slice and six baseline slices. The two shipping-lag rules compare the entity’s own lag against
+twice its seven-day baseline, floored at 250 ms. A separate monitor pages when a family averaging at
+least 50 records a slice over 24 hours writes nothing for 40 minutes. Trend alerts are the warn tier, so
+Alertmanager batches per rule name. Which messages changed is the template lane’s question (Section 3.5).
+
+3.9 The surfaces
+Everything a person opens sits behind one door on the control host: one address, one account, four surfaces.
+Dashboards, the store’s own web interface, holds the maintainer cockpit and Discover, its search screen for
+the archive [5]. The shifter view is separate. Its live page keeps what collectors post: every InfoLogger
+record, the daemon log and every line above info severity. That page never queries the cluster, so it holds
+when the cluster is down. Its Templates page shows the catalogue, counts and open episodes. Two clocks
+run. Health samples and the log-counting detectors use the collector’s accept time. Discover uses the time
+the line was written. The operator view close to InfoLogger is not built.
+
+
+4 Why these choices
+The collector. Maturity and size decided it. Fluent Bit [4] is graduated at the Cloud Native Computing
+Foundation, its top maturity level [13]. Table 4 lists the four.
+Table 4: Fluent Bit won on maturity and size.
+
+ Candidate       Language       Vendor figure                            Governed by         Verdict
+ Fluent Bit      C              about 450 KB idle                        CNCF, graduated     chosen
+ Fluentd         C and Ruby     over 60 MB                               same project        Ruby tree on every worker
+ Vector          Rust           none published                           Datadog             one company decides it
+ Telegraf        Go             metrics, line protocol                   InfluxData          a metric, not a log line
+
+
+The store. An open licence was the floor, and detection decided it. Only OpenSearch [5] indexes the
+message body, counts over time and ships detection under an open licence. Table 5 lists the four.
+Table 5: OpenSearch is the only open store that ships detection.
+
+ Candidate         Licence          What it answers                       Governed by          Verdict
+ OpenSearch        Apache 2.0       body, counts, detection and alert-    Linux Foundation     chosen
+                                    ing
+ Elasticsearch     three licences   body and counts, detection paid       one company          detection is a purchase
+ ClickHouse        Apache 2.0       counts on disk, no detection          one company          17 detectors run by us
+ Loki              AGPLv3           labels, not the text                  one company          a count is a scan
+
+
+One cluster. We run one cluster, and Dashboards asks it once. Many clusters joined by cross-cluster
+search, one query forwarded to all, do not scale to 100 machines. The cost is fanout: a search is as slow as
+the slowest machine. Three hundred data nodes in one cluster, one per worker in the archive, is an untested
+risk for the cluster manager.
+
+The split by severity. We split by severity, not by source, because info is the bulk and the trash and
+stays local. The O2 process-tree family stays on its worker at 96.94 %. A heap holds roughly 20 shards per
+gigabyte, so three 1 GB heaps hold about 60. Staging runs one primary, because three reach about 135 at
+full retention. The farm inventory sets three primaries, one per storage node, because one primary funnels
+all InfoLogger through one machine. No farm run has carried real volume.
+
+
+                                                                9
+CERN Summer Student Programme 2026                                                      4   Why these choices
+
+
+Native services, and containers on one machine. Staging runs vendor packages as system services,
+because a container runtime on OpenStack is a second runtime. The farm gives the storage tier one shared
+machine, so its three nodes run there as containers. Three replicas on one disk rehearse no fault tolerance.
+
+The surfaces. Dashboards holds the maintainer cockpit and Discover because it ships the detection and
+alerting screens. We did not compare Dashboards and Grafana on numbers. The shifter view is a standalone
+page, because a plugin must match the store’s exact version.
+
+The stamper in band. The stamper runs beside the collector, so no raw line leaves its machine. It runs
+drain3 [7], because no collector filter language can host it. Without ground truth, cost chose the parser:
+PIPLUP, another log-template parser, costs 2.56 times drain3 against a gate of plus or minus 25 %. The
+masker, which replaces variable parts of a line with placeholders, was 74 to 87 % of the mining cost, so we
+rewrote it. Masking fell from 11.93 to 1.82 core-seconds per million lines on InfoLogger, one core-second
+being one core busy for one second. On the process tree it fell from 12.24 to 1.73, on DDS from 40.22 to 5.09,
+and no template changed. Mining the parser corpus of 45,596,613 lines now costs 8.33 core-seconds per
+million. The first version’s 19.91 was measured once and not re-measured, so we quote no ratio between
+the two. The stamper’s cost is not measured.
+
+Detection on numbers, not on text. Three lanes read numbers about the logs inside the cluster, and
+Random Cut Forest detectors [8] read a silent host as zero records. Deep sequence models score about 0.23
+to 0.27 on F1 once the logs drift from the data they learnt on. F1 weighs faults caught against false alarms,
+and 1 is perfect. Plain principal component analysis scores about 0.71 on the same logs. Three routes for
+text stay open, and none is chosen.
+
+Episodes, and Alertmanager as messenger. The projector turns thirty rows about one dead collector
+into one episode. Alerting alone repeats the alert every minute. Alertmanager [9] stores nothing durable,
+so the projector re-posts every open episode. Inhibition, where one alert silences another it causes, is built
+and ships off. All 22 cause-and-effect links between alerts are unproven.
+
+Kafka between the collector and the store. The soak rejected a queue between the collector and the
+store. Decoupling: a worker’s busiest second in six months is 78 records, the farm’s 9,781. One worker’s
+stack sustains about 42,000 a second, a margin of 538 times, or 54 times if the archive under-counts ten
+times. Durability: only InfoLogger is lost in an outage, and its 256 MB disk buffer covers 17.4 hours of it at
+a median worker’s rate. Cost: three brokers on memory the staging machines lack, and the tier rule splits
+into two places. Section 5.3 gives the four conditions that reopen it.
+
+Kafka for the live lane. The September 2026 rework agreed a Kafka [11] bus for the live lane only, for
+decoupling and not durability, and it is not built. Today a moved shifter view means editing more than 200
+collectors, with a bus one consumer. It must be Apache Kafka, because CERN requires fully open source
+software. It must be the primary path, because the collector held at release 4.0.1 has no route for a failed
+output. Where the brokers run is not decided.
+
+Deployment. The agent decided it. An agent is a program the tool installs and leaves running on every
+machine. Ansible [10] has none: it pushes over SSH when a person starts a run, and creates the machines
+too. Puppet wants an agent and a certificate on every machine, likely right for the farm and wrong for five
+machines one person deploys by hand. Salt and Chef also want an agent, and Terraform builds machines
+but does not configure them.
+
+Cockpit metrics beside Telegraf and Mimir. The poller marks absence against a roster. CERN already
+runs Telegraf and Mimir for machine metrics, so we concede our cluster and node samples. The roster and
+absence logic have no equivalent there, so they stay.
+
+Shared code as one package. Shared Python becomes one versioned package, agreed and not built.
+About 31,000 lines of Python run the services, and five modules are byte-identical copies across them.
+Appendix A lists the upstream roles that lost.
+
+
+                                                     10
+CERN Summer Student Programme 2026                                                           5   What the measurements say
+
+
+
+5 What the measurements say
+The numbers settle what the stack costs a worker, its ceiling, and what templating costs. Every figure comes
+from a laptop rig. Shapes, knees and rankings transfer to the farm. Absolute rates and core-seconds do not.
+
+5.1 The instrument and its limits
+The instrument sums every container’s processor time into core-seconds, one core busy for one second.
+Cost is core-seconds per million records.
+Two rigs exist, never averaged. The healthy rig tested the collector’s settings at 20,000 records a second.
+The re-run rig, the same laptop slowed, offered 5,000. An arm is one setting under test, and a cell is one
+arm at one rate.
+The noise floor is the spread of three control runs: 1.61 % at 20,000 records a second and 9.48 % at 1,000.
+Cost per record falls as rate rises: the collector alone costs 75.32 core-seconds per million at 1,000 a second
+and 11.19 at 20,000.
+The rig saturated unnoticed after that first pass, so we retracted every later measurement. A 47-cell re-run
+left one product change: the flush interval.
+
+5.2 The collector under load
+The collector’s memory sat between 133 and 228 MB at every rate up to 53,000 records a second. In a sink
+outage with the shipped 256 MB buffer it peaked at 373 MB, under its 384 MB memory line.
+The flush interval is how often the collector pushes buffered records out. Table 6, from three alternating
+runs, is why 1 second ships. Across eight flush values from 0.125 to 10 seconds, whole-stack cost is a U
+with its floor at 1 second, best to worst 17.9 % apart.
+Table 6: Flush 1 second beats the shipped 5 seconds on every measure, at 5,000 records a second on the re-run rig.
+
+            Measure                                              Flush 5 s (shipped)   Flush 1 s (chosen)   Change
+            Whole stack, core-seconds per million records                    108.40               104.67     −3.4 %
+            Collector alone, core-seconds per million records                 36.70                27.70    −24.5 %
+            Collector peak memory, MB                                          87.1                 62.7    −28.0 %
+            Live-lane latency floor, s                                            5                    1
+
+
+Every threading arm cost more against the 1.61 % floor: two collector processes 7.4 %, threaded inputs
+11.5 %, filters in input processors 26.5 %. One single-threaded loop does 89.3 % of the collector’s processor
+work, so threads elsewhere cannot help it.
+The live lane of Section 3.1 is the largest cost any setting adds: 41 to 68 % more collector processor time on
+the healthy rig.
+A fifteen-minute sink outage at 20,000 records a second loses 66.7 % of InfoLogger at the 256 MB buffer cap.
+That buffer holds 865,674 InfoLogger records of 310 bytes, and InfoLogger is 60 % of a worker’s mix. At a
+median worker’s 23 records a second, InfoLogger is 13.8 records a second, and the buffer covers 17.4 hours.
+At the busiest worker-second, 78, InfoLogger is 46.8 a second and the buffer covers 5.1 hours.
+The stack sustains about 42,000 records a second. It holds 50,000 for two minutes with zero loss, then decays.
+The storage tier runs at 86 % of its four cores. The decline starts near six million documents, where index
+merging cuts throughput, so the ceiling is the storage tier’s.
+Overload is safe. At 82 % of the 256 MB buffer cap the collector absorbs the shortfall and loses nothing. At
+the cap it discards oldest-first, 1.8 % of records, without error, then drains in 263 seconds.
+Two settings make no difference. On the re-run rig a 2 GB heap moved cost 2.1 % against a 6.7 % floor, so
+1 GB ships. Core placement between collector and store moved it 2.7 % against a 5.5 % floor. The stack
+needs four exclusive cores away from reconstruction. The rig always pinned them, so sharing them is not
+measured.
+
+
+
+                                                                11
+CERN Summer Student Programme 2026                                               5   What the measurements say
+
+
+5.3 Kafka between the collector and the store, decided on numbers
+The soak rejected a queue between the collector and the store on three counts. Decoupling: the stack
+sustains 538 times the busiest worker-second and 4.3 times the farm’s peak second of 9,781. If the archive
+under-counts by ten times, the margin is 54 times. Durability: the collector’s buffer holds hours at a real
+worker’s rate. Cost: three brokers and a second system to run, on memory the machines do not have.
+Two rates reopen the question: a sustained worker rate above about 1,000 records a second, or one within
+50 times of 42,000. Two needs do too: a second consumer, or an outage longer than the buffer holds. The
+live-lane bus is separate.
+
+5.4 The other sources and the real node
+The collector had never read three of the five families. Those are the second process-tree format, written
+by the data-distribution processes, the InfoLogger daemon log and the system journal. The first fixture
+run sent 41.8 % of the corpus to the storage tier with no severity: a parser anchor missed a date the replay
+prepends. We fixed the anchor. Severity now comes out of 99.83 % of process-tree lines, against a 99 % gate.
+96.94 % of that family stays on the worker.
+A read-only census of four farm machines corrected four facts. Four installations run there, on three re-
+leases where we assumed two. The storage machine’s release is two majors behind and untested. All four
+passed the fixture and restart checks. A later review found the rotation check itself was flaky. Release 5.0.8
+loses every byte appended after rotation, in five of five runs, so it is blocked. A worker’s journal is 2,500 to
+10,500 entries a day, nothing beside millions of process-tree lines, so the collector reads all of it.
+An external review retracted every collector regex cost figure. Two identical configurations differ by up
+to 19.3 % in wall clock, so the rig cannot resolve a change below about a fifth. No regex change is worth
+making on cost.
+We fixed 99 defects, 32 in the instrument, the rest in the collector, the stamper and the catalogue. A retried
+bulk write duplicated every record, so the product now writes with create under a stamped document
+identifier.
+
+5.5 Templating
+Templating is built, 31 to 57 % cheaper per family than its first version, with identical output (Table 7). Costs
+are core-seconds per million lines on the rig of Section 5.1.
+With its own defaults and one global tree, drain3 mined the parser corpus into 3,822 templates at the
+unverified 19.91 core-seconds per million [6, 7].
+A recipe is one family’s depth, similarity and separator setting. One per family costs the same as one global
+setting, 17.57 against 17.65 weighted core-seconds per million. Contentless infologger templates fell from
+44.9 to 10.4 %.
+With the recipes and the rewritten masker, one run of each family on the same 45,596,613 lines gave 3,011
+templates, a floor. Sixteen runs and eighty InfoLogger partitions gave 4,092. One tree across the three
+corpora behind the recipes, 55,963,050 lines, gave 4,221. The count grows with runs sampled, not lines.
+New templates arrive at 48.9 per million, about one a second at 20,000 records a second. The tree is capped
+at 20,000 templates, 208.1 MB inside the stamper’s 512 MB limit.
+Splicing the stamped fields into the record’s own bytes cut the transport step 15 %. The whole collector-
+to-stamper hop, of which transport is roughly a quarter, fell 6.5 % on infologger and 4.0 % on the process
+tree. Repeated key names are 32 % of that wire, free on a Unix socket, so we rejected protobuf and gzip
+unmeasured.
+
+5.6 Embeddings and semantic retrieval
+Semantic retrieval is built, evaluated, and shipped disabled by configuration (Table 8). 47.1 % of relevant
+question-and-template pairs share no analysed term. It searches 5,301 template groups, one per template
+
+
+                                                       12
+CERN Summer Student Programme 2026                                                               6   Limits and what remains
+
+
+Table 7: Every templating gain is a ratio measured on one host, with byte-identical output.
+
+ Figure                                                        Value    Reference
+ PIPLUP cost over drain3, whole corpus                    2.56 times    gate of 25 %
+ PIPLUP memory over drain3                                 7.8 times    206.5 against 26.3 MB
+ Masking removed by seven rewritten regular               85 to 87 %    zero differences on 3,000,000 lines per family
+ expressions
+ Growth ceiling                                               20,000    4.7 times the 4,221 mined, 208.1 MB against 512 MB
+
+
+after copies written by different programs are merged, from a later corpus of 56,628,579 lines.
+An embedding is a vector for a template’s meaning, computed once per template, not per line. A static
+model, one fixed vector per word, encodes 18,037 templates a core-second and keeps 93 % of its quality.
+That is 31 times faster than a small transformer, which reads words in context. Quality is macro source
+purity: the share of a template’s ten nearest neighbours from the same program, averaged over programs.
+We rejected neighbour agreement as the measure: an eight-bit copy agrees with its full-precision original
+on only 0.636 of neighbours. The eight-bit transformer ran 5.4 times slower on one laptop backend.
+The search box score is normalised discounted cumulative gain at rank ten, nDCG@10, which rewards
+relevant results near the top [12]. A dense scan keeps the 30 templates nearest the question’s vector. A
+reranker rescores those 30 word by word. They score 0.685 against 0.634 for the dense scan alone on the
+development set of 130 questions, bootstrap interval +0.028 to +0.080. On the held-out set the dense scan
+alone scores 0.689 against 0.371 for the store’s word-matching search, the lexical engine. Reranking was
+never scored there. On the live path against the lexical engine it gains 377 relevant templates, loses 204,
+and worsens 29 of 110 questions. An approximate vector index costs 0.020 nDCG@10 and moves between
+builds, so we use none. Fusing with the lexical engine scores 0.048 worse. The dense scan alone moves
+median laptop latency from the lexical engine’s 1 ms to 12 ms. Reranking adds 0.6 ms and the whole path
+is not timed. We cap the service at 384 MB on the shifter host and never recorded the model’s peak, seen
+in one local run.
+Table 8: Semantic retrieval beats the lexical engine on questions in a person’s own words and nowhere else, on machine-made
+judgements.
+
+ Figure                                                        Value    Reference
+ Static model purity                                            0.387   0.414 transformer, 0.035 random
+ Search box, nDCG@10                                            0.685   0.634 dense model alone
+ Held-out, nDCG@10                                              0.689   0.371 lexical engine
+
+
+
+5.7 The detection chain, proven by injection
+Seven scenarios each score whether a signal, an incident and a notification followed one thing broken on
+purpose. A fault agent on each worker can kill its collector, and the one beside the projector can stop only
+the projector. A poison replay floods the indices with marked fake errors. The stopped-projector run passes
+only if exactly one stale-projector notification takes the break-glass path of Section 3.6. The scorer checks
+presence and order, not time, so the bound in Section 3.7 follows from cadences and is not measured.
+
+
+6 Limits and what remains
+6.1 Not measured
+Every cost figure in Section 5 comes from a laptop. One micro-benchmark on one farm machine gives the
+conversion factor. None has run.
+The rig gave the worker’s collector and store four exclusive cores, and the storage tier four more. Sharing
+them with reconstruction is not measured.
+The archive’s busiest worker-second is 78 records against the soak plan’s per-worker burst of 10,000 to
+
+
+                                                              13
+CERN Summer Student Programme 2026                                                             7   Conclusion
+
+
+20,000. That band matches the farm-wide peak of 9,781, so the plan probably read a farm rate as a worker
+rate. No run measured a burst.
+The whole stack’s cost was measured at 5,000 records a second only. The collector alone was also costed
+at 1,000 and 20,000. Round 1’s 53,000 was read against a test output that always accepts, so the collector’s
+ceiling with a real store is unknown above 50,000.
+The dead-collector chain of Section 3.7 is bounded at 90 to 270 seconds by cadence, and no run timed it.
+A detector needs a few hundred one-minute windows, three to five hours, before its grades mean anything.
+The injection harness waits 32. Neither was measured.
+The semantic path was timed on a laptop with a warm index. The collector’s 64-chunk burst ceiling is not
+measured on a worker.
+
+6.2 Limits found in the design
+The stale-projector monitor fires only while one projector heartbeat exists in the last 24 hours, so a day
+of silence mutes it. The Alertmanager-down monitor reads the projector’s own report, so a dead projector
+silences it too.
+No inhibition rule is active, because all 22 causal edges between alerts ship unproven.
+Nothing authenticates inside the cluster, so one password and a firewall rule are the whole boundary, on
+five machines we own.
+The live lane carries InfoLogger, the daemon log and the central family only. Process output lines with no
+severity went central before the fix of Section 5.4, so the live page now shows fewer.
+DDS is the densest family during data-taking and the dearest per line. The recipe runs under-sample it at
+43,972 lines, 0.1 % of the weight, and the later runs used 1,236,971 lines.
+At its 20,000-template ceiling the stamper evicts a template, a rebuilt one restarts its count at one, and the
+change to keep counting is open.
+
+6.3 What remains, in build order
+Nine things remain, and the first two are agreed. Figure 7 shows the three layouts. Staging is two workers
+and three storage machines. The farm pilot is three workers and three storage containers on one infra
+machine. The farm pilot ran the cluster, the collectors and Dashboards. The stamper, the projector and the
+shifter view have run on staging only. Production, the whole farm with at least three storage machines,
+two replicas and the bus, is not real.
+1. The live-lane bus is agreed and not built: one topic from every collector, the shifter view its one con-
+   sumer, brokers not placed.
+2. The shared Python becomes one versioned package, agreed.
+3. The Telegraf decision is open: whether CERN’s metrics estate takes over the samples.
+4. Catalogue maintenance as ISM policies plus monitors is open. ISM, Index State Management, deletes
+   whole indices by age, so the two counting checks need a home.
+5. The operator view beside InfoLogger waits for farm access and a live run.
+6. The system journal and per-device process logs are absent from the archive.
+7. Anomaly detection on the log text stays open [14]: templates, then nearest-neighbour search. Raw-
+   message search and templating as the detector lost.
+8. Authentication inside the cluster is required before the farm.
+9. Source-owner approval for reading the node logs is open.
+
+
+7 Conclusion
+The logs an EPN writes can stay where they are made and still be searched as one, on four cores. The
+watching costs a worker nothing it did not push itself.
+
+
+                                                     14
+CERN Summer Student Programme 2026                                                                                              A        Upstream roles weighed and not used
+
+
+          STAGING · FIVE VIRTUAL MACHINES                                                                                                 built and running · load not measured
+
+           worker tier                                                                         storage tier · three virtual machines
+
+                    worker 1                          worker 2                 warnings                 storage 1                     storage 2                         storage 3
+                                                                              and above,
+                 virtual machine                   virtual machine            InfoLogger                control host               background host                      shifter host
+                     collector                       collector                                          Dashboards                    the projector                    the shifter view
+                      stamper                         stamper                  http bulk
+                                                                                                        Alertmanager                 the trend rollup                    the live lane
+               replayed archive logs           replayed archive logs            one hop                   the poller
+                  local data node                 local data node
+
+            application-logs-local-<node>                                                        application-logs-central · infologger
+            one per worker, one shard, no replica, pinned to it                                  two replicas, so a copy on every storage node · cluster manager quorum two
+
+
+
+          FARM PILOT · THREE EPN WORKERS AND ONE INFRA MACHINE                                                                               one green deploy · load not measured
+
+           worker tier                                                                         one infra machine, shared · three loggy containers
+
+               epn146                 epn228                  epn323           warnings              another             container 1              container 2            container 3
+                                                                              and above,
+             EPN worker             EPN worker               EPN worker       InfoLogger              cluster             control host        background host              shifter host
+                collector              collector              collector                              not loggy            Dashboards               the projector         the shifter view
+                stamper                stamper                stamper          http bulk           http 9200              Alertmanager            the trend rollup         the live lane
+            local data node        local data node        local data node       one hop         transport 9300              the poller              http 9202              http 9203
+            real log sources       real log sources       real log sources                                                 http 9201
+
+            application-logs-local-<node>                                                        application-logs-central · infologger
+            one per worker, one shard, no replica, pinned to it                                  two replicas, so a copy on every storage node · cluster manager quorum two
+
+
+
+          PRODUCTION · THE WHOLE FARM                                                                                                                                planned · not built
+
+           worker tier                                                                         storage tier · three or more machines
+
+             worker 1             worker 2                   worker N          warnings              storage 1              storage 2                 storage 3             storage N
+                                                                              and above,
+             EPN worker           EPN worker                 EPN worker       InfoLogger             control host        background host              shifter host              more
+               collector            collector               collector                                Dashboards            the projector            the shifter view        three or more,
+                                                    …
+                stamper              stamper                 stamper           http bulk
+                                                                                                     Alertmanager         the trend rollup            the live lane          more can die
+            local data node      local data node         local data node        one hop                the poller
+
+
+
+            application-logs-local-<node>                                                        application-logs-central · infologger
+            one per worker, one shard, no replica, pinned to it                                  three primaries, two replicas each · cluster manager quorum two
+
+
+                                         live lane · kafka topic                                            the shifter view consumes · kafka
+
+
+            the bus       Kafka brokers carry the live lane only · broker placement not decided
+
+
+             built and running          planned, not built           the bus, agreed and not built         grey italic   not stated on the farm
+
+
+Figure 7: Staging and the farm pilot exist, and production is the same design with a bus and a bigger storage tier.
+
+A median worker carries 23 records a second in the busiest hour of six months of archive. The whole stack
+on one worker sustains about 42,000 records a second on the laptop rig. The templating pipeline is 31 to
+57 % cheaper per family and byte-identical. Dense retrieval with reranking reaches 0.685 nDCG@10 against
+0.634 without it.
+One limit binds every figure: all come from a laptop, so shapes and rankings transfer to the farm and
+absolute rates do not.
+What exists now is groundwork rather than a demonstration: five staging machines, and one deployment
+on the farm that passed every check.
+
+
+Acknowledgements
+I thank my supervisors, Lubos Krcal and Federico Ronchetti, for their direction and reviews. The 2025
+reference design by Athanasios Papadopoulos [1] gave the project its starting point.
+
+
+A Upstream roles weighed and not used
+Every deployment role is our own, and Table 9 records why each candidate lost.
+
+
+
+
+                                                                                                15
+CERN Summer Student Programme 2026                                                                                References
+
+
+Table 9: Each upstream role replaces a few stable tasks and hides something the deployment needs.
+
+ Component                What it offered                             Why it was not used
+ Store, Dashboards,       Vendor playbooks, two community roles,      Built around the security plugin we disable. Commu-
+ nginx                    nginx role                                  nity roles stale, single-tier. The nginx role owns the
+                                                                      site.
+ Collector                Six community roles                         One Debian-only, one without multiline parsers, four
+                                                                      only install. The pipeline is the role.
+ Alertmanager,            Prometheus collection role, vendor          The closest moves the route tree into Jinja. None talks
+ detection                playbook, Terraform provider                to the detection API. Terraform keeps its own state.
+ Cockpit metrics,         Exporter, Metricbeat, performance           Each writes to a store the monitors do not read. A na-
+ trend rollup             analyzer, systemd role, native rollup       tive rollup writes nothing for silence.
+ Host preparation,        Swap, timesync, firewall, kernel roles,     ISM deletes whole indices by age. Rollover duplicates
+ template catalogue       ISM, rollover                               a catalogue upserted by version.
+ Replay, faults, ops      None                                        The software exists only here.
+ page, projector,
+ shifter view
+
+
+References
+ [1] A. Papadopoulos. Scalable Logging Architecture: expanding InfoLogger into a unified, scalable logging
+     platform. ALICE Summer Student presentation, CERN, 15 September 2025.
+
+ [2] ALICE O2 InfoLogger. https://github.com/AliceO2Group/InfoLogger.
+
+ [3] ALICE Collaboration. Technical Design Report for the Upgrade of the Online–Offline Computing System.
+     CERN-LHCC-2015-006, ALICE-TDR-019, 2015.
+
+ [4] Fluent Bit documentation. https://docs.fluentbit.io/.
+
+ [5] OpenSearch documentation: anomaly detection, alerting, index state management. https://docs.
+     opensearch.org/.
+
+ [6] P. He, J. Zhu, Z. Zheng, M. R. Lyu. Drain: an online log parsing approach with fixed depth tree. IEEE
+     International Conference on Web Services (ICWS), 2017.
+
+ [7] Drain3: a streaming implementation of Drain. https://github.com/logpai/Drain3.
+
+ [8] S. Guha, N. Mishra, G. Roy, O. Schrijvers. Robust random cut forest based anomaly detection on
+     streams. International Conference on Machine Learning (ICML), 2016.
+
+ [9] Prometheus     Alertmanager                documentation.       https://prometheus.io/docs/alerting/latest/
+     alertmanager/.
+
+[10] Ansible documentation. https://docs.ansible.com/.
+
+[11] Apache Kafka documentation, KRaft mode. https://kafka.apache.org/documentation/.
+
+[12] K. Järvelin, J. Kekäläinen. Cumulated gain-based evaluation of IR techniques. ACM Transactions on
+     Information Systems, 20(4):422–446, 2002.
+
+[13] Cloud Native Computing Foundation, graduated projects and graduation criteria. https://www.cncf.
+     io/projects/.
+
+[14] A. Techaviseschai, S. Tarnpradab, V. Chibante Barroso, P. Phunchongharn. A real-time semi-
+     supervised log anomaly detection framework for ALICE O2 facilities. Applied Sciences, 15(11):5901,
+     2025. doi:10.3390/app15115901.
+
+
+
+
+                                                               16
+

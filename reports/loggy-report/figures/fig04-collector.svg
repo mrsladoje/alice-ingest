@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" viewBox="0 0 820 572" role="img" aria-label="Inside the collector. Band one: five steps a line takes, input, tag, filter, retag by severity, output, with the stamper loop between retag and output. Band two: the disk buffer chain and the memory envelope table.">
+  <defs>
+    <marker id="head-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,1 L10,5 L0,9 z" fill="#101010"/>
+    </marker>
+    <marker id="head-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,1 L10,5 L0,9 z" fill="#6b6b66"/>
+    </marker>
+  </defs>
+
+  <image xlink:href="logos/fluentbit-logo-official.svg" href="logos/fluentbit-logo-official.svg" x="0" y="0" width="96" height="28"/>
+  <text font-family="Menlo, monospace" font-size="10" letter-spacing="0.04em" fill="#6b6b66" x="108" y="19">the collector, one process on every worker</text>
+  <text font-size="10.5" fill="#3a3a36" text-anchor="end" x="820" y="19">every OpenSearch write goes to the node on the same worker</text>
+  <path stroke="#d6d6cf" stroke-width="1" d="M0,34 H820"/>
+
+  <text font-family="Menlo, monospace" font-size="11" fill="#6b6b66" x="0" y="66">01</text>
+  <text font-family="Menlo, monospace" font-size="11" letter-spacing="0.18em" fill="#101010" x="24" y="66">WHAT IT DOES TO A LINE</text>
+
+  <g font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">
+    <rect fill="#ffffff" stroke="#101010" stroke-width="1.1" x="1" y="82" width="140" height="130"/>
+    <text font-size="11" letter-spacing="0.18em" fill="#101010" x="71" y="118">INPUT</text>
+    <text font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" x="71" y="148">Read each line</text>
+    <text x="71" y="172">from a file,</text>
+    <text x="71" y="186">a socket, a script</text>
+    <path fill="none" stroke="#101010" stroke-width="1.25" d="M141,147 H157" marker-end="url(#head-ink)"/>
+
+    <rect fill="#ffffff" stroke="#101010" stroke-width="1.1" x="163" y="82" width="140" height="130"/>
+    <text font-size="11" letter-spacing="0.18em" fill="#101010" x="233" y="118">TAG</text>
+    <text font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" x="233" y="148">Give it a name</text>
+    <text x="233" y="172">dds, stdout,</text>
+    <text x="233" y="186">infologger, health</text>
+    <path fill="none" stroke="#101010" stroke-width="1.25" d="M303,147 H319" marker-end="url(#head-ink)"/>
+
+    <rect fill="#ffffff" stroke="#101010" stroke-width="1.1" x="325" y="82" width="140" height="130"/>
+    <text font-size="11" letter-spacing="0.18em" fill="#101010" x="395" y="118">FILTER</text>
+    <text font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" x="395" y="148">Parse the line</text>
+    <text x="395" y="172">fields, the clock,</text>
+    <text x="395" y="186">document id</text>
+    <path fill="none" stroke="#101010" stroke-width="1.25" d="M465,147 H481" marker-end="url(#head-ink)"/>
+
+    <rect fill="#ffffff" stroke="#101010" stroke-width="1.1" x="487" y="82" width="140" height="130"/>
+    <text font-size="11" letter-spacing="0.18em" fill="#101010" x="557" y="118">RETAG</text>
+    <text font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" x="557" y="148">Sort by severity</text>
+    <text x="557" y="172">info to local,</text>
+    <text x="557" y="186">the rest to central</text>
+
+    <rect fill="#ffffff" stroke="#101010" stroke-width="1.1" x="649" y="82" width="140" height="130"/>
+    <text font-size="11" letter-spacing="0.18em" fill="#101010" x="719" y="118">OUTPUT</text>
+    <text font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" x="719" y="148">Send it on</text>
+    <text x="719" y="172">bulk create · http</text>
+    <text x="719" y="186">flush every 1 s</text>
+  </g>
+
+  <path fill="none" stroke="#101010" stroke-width="1.25" d="M530,212 V270" marker-end="url(#head-ink)"/>
+  <path fill="none" stroke="#101010" stroke-width="1.25" d="M746,276 V218" marker-end="url(#head-ink)"/>
+  <g font-family="Menlo, monospace" font-size="10" fill="#6b6b66">
+    <text x="538" y="232">log chunk</text>
+    <text x="538" y="246">forward output</text>
+    <text x="538" y="260">unix socket</text>
+    <text text-anchor="end" x="738" y="232">stamped chunk</text>
+    <text text-anchor="end" x="738" y="246">forward input</text>
+    <text text-anchor="end" x="738" y="260">unix socket</text>
+  </g>
+
+  <rect fill="#fdf1f0" stroke="#e1251b" stroke-width="1.6" x="470" y="276" width="300" height="60"/>
+  <text font-size="14" font-weight="600" letter-spacing="-0.01em" fill="#e1251b" text-anchor="middle" x="620" y="301">The stamper</text>
+  <text font-size="12" fill="#6b6b66" text-anchor="middle" x="620" y="322">gives every record a template id before it is indexed</text>
+
+  <text font-size="10.5" fill="#3a3a36" x="1" y="290">After the retag step every log chunk leaves for the stamper</text>
+  <text font-size="10.5" fill="#3a3a36" x="1" y="306">and comes back stamped. Only stamped chunks reach the</text>
+  <text font-size="10.5" fill="#3a3a36" x="1" y="322">OpenSearch outputs. The health sample skips the loop.</text>
+
+  <text font-family="Menlo, monospace" font-size="11" fill="#6b6b66" x="0" y="372">02</text>
+  <text font-family="Menlo, monospace" font-size="11" letter-spacing="0.18em" fill="#101010" x="24" y="372">THE DISK BUFFER AND THE MEMORY ENVELOPE</text>
+
+  <rect fill="#f1f1ec" x="1" y="386" width="818" height="186"/>
+
+  <rect fill="#ffffff" stroke="#101010" stroke-width="1.1" x="20" y="406" width="130" height="60"/>
+  <text font-size="14" font-weight="600" letter-spacing="-0.01em" fill="#101010" text-anchor="middle" x="85" y="431">The collector</text>
+  <text font-size="12" fill="#6b6b66" text-anchor="middle" x="85" y="452">still reading lines</text>
+  <path fill="none" stroke="#101010" stroke-width="1.25" d="M150,436 H166" marker-end="url(#head-ink)"/>
+
+  <rect fill="#fdf1f0" stroke="#e1251b" stroke-width="1.6" x="172" y="406" width="176" height="60"/>
+  <text font-size="14" font-weight="600" letter-spacing="-0.01em" fill="#e1251b" text-anchor="middle" x="260" y="431">256 MB on disk</text>
+  <text font-size="12" fill="#6b6b66" text-anchor="middle" x="260" y="452">one buffer per lane</text>
+
+  <path fill="none" stroke="#6b6b66" stroke-width="1.25" stroke-dasharray="4 4" d="M348,436 H370"/>
+  <path fill="none" stroke="#e1251b" stroke-width="1.8" d="M376,430 L388,442"/>
+  <path fill="none" stroke="#e1251b" stroke-width="1.8" d="M388,430 L376,442"/>
+  <path fill="none" stroke="#6b6b66" stroke-width="1.25" stroke-dasharray="4 4" d="M394,436 H414" marker-end="url(#head-soft)"/>
+  <text font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle" x="382" y="484">bulk · http</text>
+
+  <rect fill="#f1f1ec" stroke="#6b6b66" stroke-width="1.1" x="420" y="406" width="120" height="60"/>
+  <text font-size="14" font-weight="600" letter-spacing="-0.01em" fill="#101010" text-anchor="middle" x="480" y="431">OpenSearch</text>
+  <text font-size="12" fill="#6b6b66" text-anchor="middle" x="480" y="452">not answering</text>
+
+  <text font-size="10.5" fill="#3a3a36" x="20" y="512">Every output writes to this buffer first. A hiccup layer, not durability.</text>
+  <text font-size="10.5" fill="#3a3a36" x="20" y="528">It survives a restart of the collector and a short outage of the store.</text>
+  <text font-size="10.5" fill="#3a3a36" x="20" y="544">It does not survive losing the node. Those records are gone.</text>
+
+  <text font-family="Menlo, monospace" font-size="11" letter-spacing="0.18em" fill="#101010" x="580" y="414">MEMORY ENVELOPE</text>
+  <path stroke="#d6d6cf" stroke-width="1" d="M580,422 H800"/>
+  <g font-family="Menlo, monospace" font-size="10" letter-spacing="0.04em" fill="#6b6b66">
+    <text x="580" y="440">Chunks in memory</text>
+    <text x="580" y="466">Documented worst case</text>
+    <text x="580" y="492">Measured, steady load</text>
+    <text x="580" y="518">Measured, sink outage</text>
+    <text x="580" y="544">Flush interval</text>
+  </g>
+  <g font-size="12.5" font-weight="600" letter-spacing="-0.01em" fill="#101010" text-anchor="end">
+    <text x="800" y="440">64, about 128 MB</text>
+    <text x="800" y="466">307 MB</text>
+    <text x="800" y="492">133–228 MB</text>
+    <text x="800" y="518">373 MB</text>
+    <text x="800" y="544">1 s</text>
+  </g>
+  <path stroke="#d6d6cf" stroke-width="1" d="M580,448 H800"/>
+  <path stroke="#d6d6cf" stroke-width="1" d="M580,474 H800"/>
+  <path stroke="#d6d6cf" stroke-width="1" d="M580,500 H800"/>
+  <path stroke="#d6d6cf" stroke-width="1" d="M580,526 H800"/>
+</svg>

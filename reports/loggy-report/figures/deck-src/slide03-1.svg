@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" viewBox="-1 -1 822 482" role="img"
+             aria-label="One page in three bands. Band one, what a node writes, drawn as four cards. In red: application messages, sent through libInfoLogger or piped in from stdout. In black: log files on disk, which are process stdout and ten named O2 process logs; and the machine’s journal from systemd, holding every service on the node. A red brace under those two says neither of them reaches InfoLogger. A fourth, grey card holds host metrics — processor, memory and disk — and a note that monitoring already collects these. Band two follows only the red card. Collect: one infoLoggerD daemon per node forwards over TCP port 6006 to a single central infoLoggerServer. Store: that server writes to one MySQL messages table. Display: infoBrowser clients take a live push from the server on port 6102 and query the table. A red brace reads: one process and one table for the whole farm. Band three states three limits of today, side by side. One SQL table: every message in the farm lands in one messages table. No aggregation: infoBrowser lists single lines and draws no counts over time. One policy, one copy: one retention rule covers every message, and nothing is replicated.">
+          <defs>
+            <marker id="mk03a" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,1 L10,5 L0,9 z" class="d-head" style="fill:#101010"></path>
+            </marker>
+            <marker id="mk03s" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,1 L10,5 L0,9 z" class="d-head is-soft" style="fill:#6b6b66"></path>
+            </marker>
+          </defs>
+
+          <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="10">01</text>
+          <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="10">What a node writes</text>
+          <text class="d-fact is-end" style="font-size:10.5px;fill:#3a3a36;text-anchor:end" x="820" y="10">InfoLogger carries what a process sends it, and nothing else.</text>
+
+          <rect class="d-card is-hot" style="fill:#fdf1f0;stroke:#e1251b;stroke-width:1.6" x="0" y="22" width="176" height="76"></rect>
+          <text class="d-t is-hot" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#e1251b;text-anchor:middle" x="88" y="48">Application messages</text>
+          <text class="d-s" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="88" y="68">through libInfoLogger</text>
+          <text class="d-s" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="88" y="86">or stdout piped in</text>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="200" y="22" width="196" height="76"></rect>
+          <text class="d-t" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="298" y="48">Log files on disk</text>
+          <text class="d-s" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="298" y="68">process stdout, and ten</text>
+          <text class="d-s" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="298" y="86">named O2 process logs</text>
+
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="412" y="22" width="196" height="76"></rect>
+          <text class="d-t" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="510" y="48">The machine’s journal</text>
+          <text class="d-s" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="510" y="68">systemd, every service</text>
+          <text class="d-s" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="510" y="86">on the node</text>
+
+          <rect class="d-card is-soft" style="fill:#f1f1ec;stroke:#6b6b66;stroke-width:1.1" x="624" y="22" width="196" height="76"></rect>
+          <text class="d-t is-soft" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#6b6b66;text-anchor:middle" x="722" y="48">Host metrics</text>
+          <text class="d-s" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="722" y="68">processor, memory, disk</text>
+          <text class="d-s" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="722" y="86">from the machine itself</text>
+
+          <path class="d-brace" style="fill:none;stroke:#e1251b;stroke-width:1.1" d="M200,108 V116 H608 V108"></path>
+          <text class="d-bracelabel" style="font-size:12.5px;letter-spacing:-0.005em;fill:#e1251b;text-anchor:middle" x="404" y="134">Neither of these reaches InfoLogger</text>
+          <text class="d-fact is-mid" style="font-size:10.5px;fill:#3a3a36;text-anchor:middle" x="722" y="116">monitoring already collects these</text>
+
+          <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="158">02</text>
+          <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="158">Collect</text>
+          <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="450" y="158">03</text>
+          <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="474" y="158">Store</text>
+          <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="650" y="158">04</text>
+          <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="674" y="158">Display</text>
+
+          <rect class="d-panel" style="fill:#f1f1ec" x="0" y="166" width="430" height="122"></rect>
+          <rect class="d-panel" style="fill:#f1f1ec" x="450" y="166" width="180" height="122"></rect>
+          <rect class="d-panel" style="fill:#f1f1ec" x="650" y="166" width="170" height="122"></rect>
+
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M88,98 V194" marker-end="url(#mk03a)"></path>
+          <text class="d-l is-start" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:start" x="96" y="146">local socket</text>
+
+          <rect class="d-ghost" style="fill:#ffffff;stroke:#101010;stroke-width:1.1;opacity:0.32" x="40" y="212" width="110" height="62"></rect>
+          <rect class="d-ghost" style="fill:#ffffff;stroke:#101010;stroke-width:1.1;opacity:0.32" x="40" y="206" width="110" height="62"></rect>
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="40" y="200" width="110" height="62"></rect>
+          <text class="d-t" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="95" y="229">infoLoggerD</text>
+          <text class="d-s" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="95" y="249">one per node</text>
+
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M150,231 H226" marker-end="url(#mk03a)"></path>
+          <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="188" y="223">tcp 6006</text>
+
+          <rect class="d-card is-hot" style="fill:#fdf1f0;stroke:#e1251b;stroke-width:1.6" x="230" y="200" width="160" height="62"></rect>
+          <text class="d-t is-hot" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#e1251b;text-anchor:middle" x="310" y="229">infoLoggerServer</text>
+          <text class="d-s is-hot" style="font-size:12px;fill:#e1251b;text-anchor:middle" x="310" y="249">one, central</text>
+
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M390,231 H476" marker-end="url(#mk03a)"></path>
+          <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="433" y="223">tcp 3306</text>
+
+          <rect class="d-card is-hot is-logo" style="fill:#ffffff;stroke:#e1251b;stroke-width:1.6" x="480" y="200" width="120" height="62"></rect>
+          <image href="logos/mysql-logo-official.svg" x="502" y="211" width="76" height="23"></image>
+          <text class="d-s is-hot" style="font-size:12px;fill:#e1251b;text-anchor:middle" x="540" y="253">one table</text>
+
+          <path class="d-line is-dash" style="fill:none;stroke:#6b6b66;stroke-width:1.25;stroke-dasharray:4 4" d="M600,231 H676" marker-end="url(#mk03s)"></path>
+          <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="638" y="223">query</text>
+
+          <rect class="d-ghost" style="fill:#ffffff;stroke:#101010;stroke-width:1.1;opacity:0.32" x="680" y="212" width="110" height="62"></rect>
+          <rect class="d-ghost" style="fill:#ffffff;stroke:#101010;stroke-width:1.1;opacity:0.32" x="680" y="206" width="110" height="62"></rect>
+          <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="680" y="200" width="110" height="62"></rect>
+          <text class="d-t" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="735" y="229">infoBrowser</text>
+          <text class="d-s" style="font-size:12px;fill:#6b6b66;text-anchor:middle" x="735" y="249">desktop GUI</text>
+
+          <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M310,200 V183 Q310,177 316,177 H729 Q735,177 735,183 V194"
+                marker-end="url(#mk03a)"></path>
+          <text class="d-l" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="520" y="172">live push, tcp 6102</text>
+
+          <path class="d-brace" style="fill:none;stroke:#e1251b;stroke-width:1.1" d="M230,294 V300 H600 V294"></path>
+          <text class="d-bracelabel" style="font-size:12.5px;letter-spacing:-0.005em;fill:#e1251b;text-anchor:middle" x="415" y="316">One process and one table for the whole farm</text>
+
+          <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="360">05</text>
+          <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="360">The limits today</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M0,368 H820"></path>
+
+          <circle class="d-bullet" style="fill:#101010" cx="3" cy="386" r="3"></circle>
+          <text class="d-stage is-strong" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010;font-weight:600" x="14" y="390">One SQL table</text>
+          <text class="d-fact is-lg" style="font-size:11.5px;fill:#101010" x="14" y="410">Every message in the farm lands</text>
+          <text class="d-fact is-lg" style="font-size:11.5px;fill:#101010" x="14" y="425">in one messages table.</text>
+
+          <circle class="d-bullet" style="fill:#101010" cx="283" cy="386" r="3"></circle>
+          <text class="d-stage is-strong" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010;font-weight:600" x="294" y="390">No aggregation</text>
+          <text class="d-fact is-lg" style="font-size:11.5px;fill:#101010" x="294" y="410">infoBrowser lists single lines.</text>
+          <text class="d-fact is-lg" style="font-size:11.5px;fill:#101010" x="294" y="425">It draws no counts over time.</text>
+
+          <circle class="d-bullet" style="fill:#101010" cx="563" cy="386" r="3"></circle>
+          <text class="d-stage is-strong" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010;font-weight:600" x="574" y="390">One policy, one copy</text>
+          <text class="d-fact is-lg" style="font-size:11.5px;fill:#101010" x="574" y="410">One retention rule covers every</text>
+          <text class="d-fact is-lg" style="font-size:11.5px;fill:#101010" x="574" y="425">message. Nothing is replicated.</text>
+        </svg>

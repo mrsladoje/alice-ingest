@@ -1,0 +1,196 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 820 852" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" role="img" aria-label="From numbers to one alert: collectors push health samples, the poller samples the cluster, the trend rollup writes ten-minute rows. Three lanes write alerts and grades. The projector turns them into one episode per entity and re-posts to Alertmanager every thirty seconds. Alertmanager groups per alert name and posts to the receiver. Two break-glass monitors post straight to the receiver.">
+  <defs>
+    <marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,1 L10,5 L0,9 z" fill="#101010"/>
+    </marker>
+    <marker id="head-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,1 L10,5 L0,9 z" fill="#6b6b66"/>
+    </marker>
+  </defs>
+
+  <text x="0" y="13" font-family="Menlo, monospace" font-size="11" fill="#6b6b66">01</text>
+  <text x="24" y="13" font-family="Menlo, monospace" font-size="11" letter-spacing="0.18em" fill="#101010">WHERE THE NUMBERS COME FROM</text>
+  <text x="820" y="13" font-size="10.5" fill="#3a3a36" text-anchor="end">Health is pushed. Nothing reaches into a worker to scrape it.</text>
+
+  <rect x="16" y="36" width="228" height="48" fill="#f1f1ec" stroke="#d6d6cf" stroke-width="1"/>
+  <text x="130" y="57" font-family="Menlo, monospace" font-size="11" fill="#101010" text-anchor="middle">infologger · central · local</text>
+  <text x="130" y="74" font-size="10" fill="#6b6b66" text-anchor="middle">the log families, written by the collectors</text>
+
+  <path d="M100,84 V100" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <text x="108" y="96" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">reads, every 10 min</text>
+
+  <rect x="16" y="100" width="200" height="60" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+  <text x="116" y="122" font-size="14" font-weight="600" fill="#101010" text-anchor="middle">The trend rollup</text>
+  <text x="116" y="140" font-size="12" fill="#6b6b66" text-anchor="middle">one row per entity</text>
+  <text x="116" y="155" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">per closed 10-minute bucket</text>
+
+  <path d="M100,160 V176" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <text x="108" y="172" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">writes</text>
+
+  <rect x="16" y="176" width="200" height="48" fill="#f1f1ec" stroke="#d6d6cf" stroke-width="1"/>
+  <text x="116" y="197" font-family="Menlo, monospace" font-size="11" fill="#101010" text-anchor="middle">trend-rollup</text>
+  <text x="116" y="214" font-size="10" fill="#6b6b66" text-anchor="middle">rows kept 30 days, the rules read seven</text>
+
+  <path d="M230,84 V232 H300 V270" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <text x="238" y="200" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">log records, 14 detectors</text>
+
+  <rect x="296" y="36" width="228" height="62" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+  <text x="410" y="62" font-size="14" font-weight="600" fill="#101010" text-anchor="middle">Every collector</text>
+  <text x="410" y="82" font-size="12" fill="#6b6b66" text-anchor="middle">pushes its own health sample</text>
+
+  <rect x="576" y="36" width="228" height="62" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+  <text x="690" y="58" font-size="14" font-weight="600" fill="#101010" text-anchor="middle">The poller</text>
+  <text x="690" y="76" font-size="12" fill="#6b6b66" text-anchor="middle">samples the cluster every 30 s</text>
+  <text x="690" y="92" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">absent from the roster after 90 s</text>
+
+  <path d="M410,98 V114 H500 V130" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <text x="240" y="124" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">health sample, HTTP, every 30 s</text>
+  <path d="M690,98 V114 H600 V130" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <text x="696" y="120" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">cluster and</text>
+  <text x="696" y="132" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">fleet samples</text>
+
+  <rect x="436" y="130" width="228" height="48" fill="#f1f1ec" stroke="#d6d6cf" stroke-width="1"/>
+  <text x="550" y="151" font-family="Menlo, monospace" font-size="11" fill="#101010" text-anchor="middle">cockpit-metrics</text>
+  <text x="550" y="168" font-size="10" fill="#6b6b66" text-anchor="middle">one row per sample, seven days kept</text>
+
+  <path d="M480,178 V270" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <text x="472" y="222" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="end">3 detectors, the forecaster</text>
+  <path d="M620,178 V270" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <text x="628" y="216" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">13 threshold and 2 break-glass</text>
+  <text x="628" y="228" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">monitors, every minute</text>
+
+  <path d="M180,224 V270" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <text x="172" y="264" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="end">9 comparisons, every 10 min</text>
+  <rect x="297" y="247" width="6" height="6" fill="#ffffff"/>
+  <rect x="477" y="247" width="6" height="6" fill="#ffffff"/>
+  <path d="M208,224 V250 H580 V270" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <text x="308" y="246" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">4 checks on the rollup and</text>
+  <text x="308" y="261" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">the forecast, every 10 min</text>
+
+  <text x="0" y="246" font-family="Menlo, monospace" font-size="11" fill="#6b6b66">02</text>
+  <text x="24" y="246" font-family="Menlo, monospace" font-size="11" letter-spacing="0.18em" fill="#101010">THREE LANES</text>
+
+  <rect x="1" y="270" width="259" height="148" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+  <text x="130" y="298" font-family="Menlo, monospace" font-size="11" letter-spacing="0.18em" fill="#101010" text-anchor="middle">TREND RULES</text>
+  <text x="130" y="320" font-size="12" fill="#6b6b66" text-anchor="middle">Slow drift, over days</text>
+  <text x="130" y="352" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">three fresh slices against</text>
+  <text x="130" y="366" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">a frozen seven-day baseline</text>
+  <text x="130" y="388" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">silent by design when the</text>
+  <text x="130" y="402" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">whole family is at zero</text>
+
+  <rect x="280" y="270" width="260" height="148" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+  <text x="410" y="298" font-family="Menlo, monospace" font-size="11" letter-spacing="0.18em" fill="#101010" text-anchor="middle">RANDOM CUT FOREST</text>
+  <text x="410" y="320" font-size="12" fill="#6b6b66" text-anchor="middle">How surprising is this minute?</text>
+  <circle cx="306" cy="366" r="2.6" fill="#6b6b66"/>
+  <circle cx="318" cy="348" r="2.6" fill="#6b6b66"/>
+  <circle cx="322" cy="376" r="2.6" fill="#6b6b66"/>
+  <circle cx="332" cy="360" r="2.6" fill="#6b6b66"/>
+  <circle cx="340" cy="342" r="2.6" fill="#6b6b66"/>
+  <circle cx="344" cy="370" r="2.6" fill="#6b6b66"/>
+  <circle cx="352" cy="354" r="2.6" fill="#6b6b66"/>
+  <circle cx="360" cy="380" r="2.6" fill="#6b6b66"/>
+  <circle cx="366" cy="364" r="2.6" fill="#6b6b66"/>
+  <circle cx="374" cy="346" r="2.6" fill="#6b6b66"/>
+  <circle cx="382" cy="372" r="2.6" fill="#6b6b66"/>
+  <circle cx="390" cy="356" r="2.6" fill="#6b6b66"/>
+  <circle cx="398" cy="340" r="2.6" fill="#6b6b66"/>
+  <circle cx="404" cy="368" r="2.6" fill="#6b6b66"/>
+  <circle cx="412" cy="352" r="2.6" fill="#6b6b66"/>
+  <circle cx="500" cy="344" r="3.4" fill="#101010"/>
+  <path d="M455,332 V386" fill="none" stroke="#101010" stroke-width="1.5"/>
+  <path d="M292,362 H455" fill="none" stroke="#d6d6cf" stroke-width="1"/>
+  <path d="M358,332 V362" fill="none" stroke="#d6d6cf" stroke-width="1"/>
+  <path d="M328,362 V386" fill="none" stroke="#d6d6cf" stroke-width="1"/>
+  <path d="M292,350 H358" fill="none" stroke="#d6d6cf" stroke-width="1"/>
+  <path d="M396,362 V386" fill="none" stroke="#d6d6cf" stroke-width="1"/>
+  <text x="500" y="366" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">one cut</text>
+  <text x="410" y="396" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">17 detectors and one forecaster</text>
+  <text x="410" y="410" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">one model per entity, no threshold</text>
+
+  <rect x="560" y="270" width="259" height="148" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+  <text x="690" y="298" font-family="Menlo, monospace" font-size="11" letter-spacing="0.18em" fill="#101010" text-anchor="middle">THRESHOLD RULES</text>
+  <text x="690" y="320" font-size="12" fill="#6b6b66" text-anchor="middle">The cliffs we already know</text>
+  <text x="690" y="348" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">17 monitors: 13 every minute, 4 every ten</text>
+  <text x="690" y="362" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">a disk over 92 percent full,</text>
+  <text x="690" y="376" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">a collector missing from the roster</text>
+  <text x="690" y="396" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">plus two break-glass monitors that watch</text>
+  <text x="690" y="410" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">the projector and Alertmanager heartbeats</text>
+
+  <path d="M130,418 V454" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <text x="138" y="440" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">alerts, every 10 min</text>
+  <path d="M410,418 V454" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <text x="418" y="440" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">a grade per window</text>
+  <path d="M640,418 V454" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <text x="648" y="440" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">alerts, every minute</text>
+
+  <rect x="1" y="454" width="680" height="60" fill="#f1f1ec" stroke="#d6d6cf" stroke-width="1"/>
+  <text x="341" y="473" font-family="Menlo, monospace" font-size="11" fill="#101010" text-anchor="middle">.opendistro-alerting-alerts · .opendistro-anomaly-results</text>
+  <text x="341" y="489" font-size="10" fill="#6b6b66" text-anchor="middle">the alerts and the grades, written by the plugins inside the cluster</text>
+  <text x="341" y="504" font-size="10" fill="#6b6b66" text-anchor="middle">28 of the 30 monitors land here: 9 trend, 17 threshold, 2 hourly on templates</text>
+
+  <path d="M790,418 V568" fill="none" stroke="#6b6b66" stroke-width="1.25" marker-end="url(#head-soft)"/>
+  <text x="782" y="479" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="end">break-glass:</text>
+  <text x="782" y="493" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="end">webhook straight</text>
+  <text x="782" y="507" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="end">to the receiver</text>
+
+  <text x="0" y="538" font-family="Menlo, monospace" font-size="11" fill="#6b6b66">03</text>
+  <text x="24" y="538" font-family="Menlo, monospace" font-size="11" letter-spacing="0.18em" fill="#101010">FROM HITS TO ONE ALERT</text>
+
+  <path d="M140,546 V568" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <text x="148" y="558" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">reads the new rows past its bookmark, every 30 s</text>
+
+  <rect x="16" y="568" width="220" height="64" fill="#fdf1f0" stroke="#e1251b" stroke-width="1.6"/>
+  <text x="126" y="592" font-size="14" font-weight="600" fill="#e1251b" text-anchor="middle">The projector</text>
+  <text x="126" y="610" font-size="12" fill="#e1251b" text-anchor="middle">one episode per entity, per trouble</text>
+  <text x="126" y="625" font-family="Menlo, monospace" font-size="10" fill="#e1251b" text-anchor="middle">hits → signals → episodes</text>
+
+  <path d="M236,612 H306" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <text x="271" y="582" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">all active</text>
+  <text x="271" y="594" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">episodes</text>
+  <text x="271" y="606" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">HTTP POST</text>
+  <text x="271" y="626" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">every 30 s</text>
+
+  <rect x="306" y="568" width="190" height="64" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+  <image xlink:href="logos/prometheus-mark-official.svg" x="314" y="589" width="22" height="22"/>
+  <text x="411" y="592" font-size="14" font-weight="600" fill="#101010" text-anchor="middle">Alertmanager</text>
+  <text x="411" y="610" font-size="12" fill="#6b6b66" text-anchor="middle">groups per alert name</text>
+  <text x="411" y="625" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">wait: page 30 s, warn 5 min</text>
+
+  <path d="M496,612 H596" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <text x="546" y="594" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">one batch per</text>
+  <text x="546" y="606" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">alert name</text>
+  <text x="546" y="626" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">webhook</text>
+
+  <rect x="596" y="568" width="208" height="64" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+  <text x="700" y="592" font-size="14" font-weight="600" fill="#101010" text-anchor="middle">The receiver</text>
+  <text x="700" y="610" font-size="12" fill="#6b6b66" text-anchor="middle">stores one notification</text>
+  <text x="700" y="625" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">what a person was told</text>
+
+  <path d="M126,632 V662" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <text x="134" y="652" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">writes, every 30 s</text>
+  <rect x="16" y="662" width="220" height="48" fill="#f1f1ec" stroke="#d6d6cf" stroke-width="1"/>
+  <text x="126" y="683" font-family="Menlo, monospace" font-size="11" fill="#101010" text-anchor="middle">alice-signals · alice-incidents</text>
+  <text x="126" y="700" font-size="10" fill="#6b6b66" text-anchor="middle">every hit, and one document per episode</text>
+
+  <path d="M700,632 V662" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <text x="692" y="652" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="end">one document per POST</text>
+  <rect x="596" y="662" width="208" height="48" fill="#f1f1ec" stroke="#d6d6cf" stroke-width="1"/>
+  <text x="700" y="683" font-family="Menlo, monospace" font-size="11" fill="#101010" text-anchor="middle">alice-notifications</text>
+  <text x="700" y="700" font-size="10" fill="#6b6b66" text-anchor="middle">by which door it came</text>
+
+  <path d="M126,710 V716 H276" fill="none" stroke="#101010" stroke-width="1.25"/>
+  <path d="M96,716 V742" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <path d="M276,716 V742" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+  <text x="286" y="734" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">open episodes, HTTP query</text>
+
+  <rect x="16" y="742" width="160" height="52" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+  <text x="96" y="764" font-size="14" font-weight="600" fill="#101010" text-anchor="middle">The cockpit</text>
+  <text x="96" y="782" font-size="10.5" fill="#6b6b66" text-anchor="middle">the incident board</text>
+
+  <rect x="196" y="742" width="160" height="52" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+  <text x="276" y="764" font-size="14" font-weight="600" fill="#101010" text-anchor="middle">The shifter view</text>
+  <text x="276" y="782" font-size="10.5" fill="#6b6b66" text-anchor="middle">episodes list, every 30 s</text>
+
+  <path d="M16,812 V820 H804 V812" fill="none" stroke="#e1251b" stroke-width="1.1"/>
+  <text x="410" y="838" font-size="12.5" fill="#e1251b" text-anchor="middle">One broken machine is one episode and one alert, however many times the rule fires</text>
+</svg>

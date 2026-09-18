@@ -1,0 +1,32 @@
+[
+ {
+  "file": "reports/loggy-report/figures/fig03-error-line.svg",
+  "line": 24,
+  "quote": "<rect x=\"14\" y=\"106\" width=\"194\" height=\"238\" fill=\"#f1f1ec\" stroke=\"none\"/>",
+  "problem": "This panel is titled \"the collector\" and its lower edge at y=344 encloses the stamper card at y=276 to 336, so the stamper reads as a stage inside Fluent Bit rather than a separate process beside it.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:11 (\"a stamper beside the collector gives it a template identity\"); reports/inputs/dataflow-atlas.md:15 (\"The stamper, a Python process running drain3, listens there\"); reports/loggy-report/figures/fig04-collector.svg:66-68 draws it outside the five collector steps",
+  "fix": "End the panel at y=250, above the stamper card, so it covers only the identity-and-clock and routing steps.",
+  "severity": "must",
+  "lens": "figures"
+ },
+ {
+  "file": "reports/loggy-report/figures/fig03-error-line.svg",
+  "line": 40,
+  "quote": "<text x=\"110\" y=\"305\" font-family=\"Menlo, monospace\" font-size=\"10\" fill=\"#6b6b66\">drain3, dpl family tree</text>",
+  "problem": "\"dpl\" is code vocabulary that the report never defines; the report calls this family the O2 process tree.",
+  "source": "reports/loggy-report/figures/STYLE.md:50 (\"Names follow the report, not the code\"); reports/loggy-report/sections/01-intro-problem.tex:36 and sections/05-eval-a.tex:58 use \"process tree\"; \"dpl\" appears in no section file",
+  "fix": "Change the label to \"drain3, the process-tree family tree\".",
+  "severity": "must",
+  "lens": "figures"
+ },
+ {
+  "file": "reports/loggy-report/figures/fig03-error-line.svg",
+  "line": 113,
+  "quote": "<text x=\"322\" y=\"320\" font-family=\"Menlo, monospace\" font-size=\"10\" fill=\"#e1251b\" text-anchor=\"middle\">the bus will replace this edge</text>",
+  "problem": "The accent is spent on the live-lane note, which the caption is not about; the hot primary-shard card already carries the caption's subject, so the bus looks like the point of the figure.",
+  "source": "reports/loggy-report/figures/STYLE.md:20 (\"Use the accent once or twice per figure, for the thing the caption is about. Never as decoration.\"); the caption at sections/02-design-a.tex:35 is about the one hop to the primary and its two replicas",
+  "fix": "Set the note in ink-soft #6b6b66 and keep the red for the primary shard only.",
+  "severity": "should",
+  "lens": "figures"
+ }
+]

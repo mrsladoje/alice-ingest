@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 820 540" width="820" height="540">
+  <g font-family="Menlo, monospace" font-size="11" letter-spacing="0.18em" fill="#101010">
+    <text x="60" y="22">CORE-SECONDS, WHOLE RUN SET</text>
+    <text x="60" y="352">PEAK COLLECTOR MEMORY</text>
+  </g>
+  <g font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11" fill="#3a3a36">
+    <text x="60" y="36">Laptop rig, 5,000 records a second; every cell offered at +0.00 %. One panel per unit.</text>
+  </g>
+
+  <g stroke="#d6d6cf" stroke-width="1">
+    <line x1="60" y1="44" x2="760" y2="44"/>
+    <line x1="60" y1="108" x2="760" y2="108"/>
+    <line x1="60" y1="172" x2="760" y2="172"/>
+    <line x1="60" y1="236" x2="760" y2="236"/>
+    <line x1="60" y1="370" x2="760" y2="370"/>
+    <line x1="60" y1="430" x2="760" y2="430"/>
+  </g>
+  <g stroke="#101010" stroke-width="1">
+    <line x1="60" y1="300" x2="760" y2="300"/>
+    <line x1="60" y1="490" x2="760" y2="490"/>
+  </g>
+  <g stroke="#6b6b66" stroke-width="1">
+    <line x1="60" y1="300" x2="60" y2="304"/><line x1="169.4" y1="300" x2="169.4" y2="304"/><line x1="278.8" y1="300" x2="278.8" y2="304"/><line x1="342.6" y1="300" x2="342.6" y2="304"/><line x1="388.1" y1="300" x2="388.1" y2="304"/><line x1="497.5" y1="300" x2="497.5" y2="304"/><line x1="644.2" y1="300" x2="644.2" y2="304"/><line x1="753.8" y1="300" x2="753.8" y2="304"/>
+    <line x1="60" y1="490" x2="60" y2="494"/><line x1="169.4" y1="490" x2="169.4" y2="494"/><line x1="278.8" y1="490" x2="278.8" y2="494"/><line x1="342.6" y1="490" x2="342.6" y2="494"/><line x1="388.1" y1="490" x2="388.1" y2="494"/><line x1="497.5" y1="490" x2="497.5" y2="494"/><line x1="644.2" y1="490" x2="644.2" y2="494"/><line x1="753.8" y1="490" x2="753.8" y2="494"/>
+  </g>
+
+  <g font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="end">
+    <text x="52" y="48">120</text>
+    <text x="52" y="112">90</text>
+    <text x="52" y="176">60</text>
+    <text x="52" y="240">30</text>
+    <text x="52" y="304">0</text>
+    <text x="52" y="374">120</text>
+    <text x="52" y="434">60</text>
+    <text x="52" y="494">0</text>
+  </g>
+  <g font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">
+    <text x="60" y="317">0.125</text><text x="169.4" y="317">0.25</text><text x="278.8" y="317">0.5</text><text x="342.6" y="317">0.75</text><text x="388.1" y="317">1</text><text x="497.5" y="317">2</text><text x="644.2" y="317">5</text><text x="753.8" y="317">10</text>
+    <text x="60" y="507">0.125</text><text x="169.4" y="507">0.25</text><text x="278.8" y="507">0.5</text><text x="342.6" y="507">0.75</text><text x="388.1" y="507">1</text><text x="497.5" y="507">2</text><text x="644.2" y="507">5</text><text x="753.8" y="507">10</text>
+  </g>
+  <g font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11" fill="#3a3a36" text-anchor="middle">
+    <text x="410" y="332">flush interval, seconds, log scale</text>
+    <text x="410" y="524">flush interval, seconds, log scale</text>
+    <text transform="translate(20 172) rotate(-90)" x="0" y="0">core-seconds, laptop rig</text>
+    <text transform="translate(20 430) rotate(-90)" x="0" y="0">MB, laptop rig</text>
+  </g>
+
+  <line x1="388.1" y1="44" x2="388.1" y2="490" stroke="#e1251b" stroke-width="1"/>
+  <text x="394" y="56" font-family="Menlo, monospace" font-size="10" fill="#e1251b">chosen: 1 s</text>
+
+  <polyline fill="none" stroke="#101010" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="60,71.0 169.4,79.2 278.8,91.6 342.6,101.9 388.1,109.3 497.5,107.2 644.2,94.2 753.8,75.3"/>
+  <polyline fill="none" stroke="#6b6b66" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="60,256.5 169.4,254.1 278.8,251.8 342.6,249.4 388.1,248.5 497.5,244.9 644.2,241.8 753.8,241.4"/>
+  <polyline fill="none" stroke="#6b6b66" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="60,428.9 169.4,429.2 278.8,428.7 342.6,425.5 388.1,424.0 497.5,415.5 644.2,406.4 753.8,384.3"/>
+
+  <g fill="#101010" stroke="#ffffff" stroke-width="2">
+    <circle cx="60" cy="71.0" r="4"/><circle cx="169.4" cy="79.2" r="4"/><circle cx="278.8" cy="91.6" r="4"/><circle cx="342.6" cy="101.9" r="4"/><circle cx="497.5" cy="107.2" r="4"/><circle cx="644.2" cy="94.2" r="4"/><circle cx="753.8" cy="75.3" r="4"/>
+  </g>
+  <g fill="#ffffff" stroke="#6b6b66" stroke-width="2">
+    <circle cx="60" cy="428.9" r="4"/><circle cx="169.4" cy="429.2" r="4"/><circle cx="278.8" cy="428.7" r="4"/><circle cx="342.6" cy="425.5" r="4"/><circle cx="497.5" cy="415.5" r="4"/><circle cx="644.2" cy="406.4" r="4"/><circle cx="753.8" cy="384.3" r="4"/>
+    <circle cx="60" cy="256.5" r="4"/><circle cx="169.4" cy="254.1" r="4"/><circle cx="278.8" cy="251.8" r="4"/><circle cx="342.6" cy="249.4" r="4"/><circle cx="497.5" cy="244.9" r="4"/><circle cx="644.2" cy="241.8" r="4"/><circle cx="753.8" cy="241.4" r="4"/>
+  </g>
+  <g fill="#e1251b" stroke="#ffffff" stroke-width="2">
+    <circle cx="388.1" cy="109.3" r="5"/>
+    <circle cx="388.1" cy="248.5" r="5"/>
+    <circle cx="388.1" cy="424.0" r="5"/>
+  </g>
+
+  <g font-family="Menlo, monospace" font-size="10" fill="#3a3a36" text-anchor="middle">
+    <text x="60" y="62" text-anchor="start">107.34</text>
+    <text x="169.4" y="70">103.50</text>
+    <text x="278.8" y="82">97.69</text>
+    <text x="342.6" y="92" text-anchor="end">92.84</text>
+    <text x="392" y="124" text-anchor="start">89.37</text>
+    <text x="497.5" y="122">90.39</text>
+    <text x="644.2" y="85">96.45</text>
+    <text x="753.8" y="66" text-anchor="end">105.33</text>
+
+    <text x="60" y="272" text-anchor="start">20.40</text>
+    <text x="169.4" y="270">21.50</text>
+    <text x="278.8" y="268">22.60</text>
+    <text x="342.6" y="266" text-anchor="end">23.74</text>
+    <text x="392" y="266" text-anchor="start">24.13</text>
+    <text x="497.5" y="261">25.81</text>
+    <text x="644.2" y="258">27.29</text>
+    <text x="753.8" y="258" text-anchor="end">27.45</text>
+
+    <text x="60" y="446" text-anchor="start">61.1</text>
+    <text x="169.4" y="446">60.8</text>
+    <text x="278.8" y="446">61.3</text>
+    <text x="342.6" y="417" text-anchor="end">64.5</text>
+    <text x="392" y="440" text-anchor="start">66.0</text>
+    <text x="497.5" y="408">74.5</text>
+    <text x="644.2" y="399">83.6</text>
+    <text x="753.8" y="377" text-anchor="end">105.7</text>
+  </g>
+
+  <g font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11" fill="#101010">
+    <line x1="560" y1="52" x2="584" y2="52" stroke="#101010" stroke-width="2"/>
+    <circle cx="572" cy="52" r="3.5" fill="#101010"/>
+    <text x="590" y="56">whole stack, four cores</text>
+    <line x1="560" y1="68" x2="584" y2="68" stroke="#6b6b66" stroke-width="2"/>
+    <circle cx="572" cy="68" r="3.5" fill="#ffffff" stroke="#6b6b66" stroke-width="2"/>
+    <text x="590" y="72">the collector alone</text>
+  </g>
+</svg>

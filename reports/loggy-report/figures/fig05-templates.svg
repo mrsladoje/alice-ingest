@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 820 510" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" role="img" aria-label="On the worker the stamper masks a line, matches it in its family's drain tree and sets two fields before indexing. Every 300 seconds it publishes bucket documents and merged definitions into the storage tier. The control host runs the catalogue maintenance and two cluster-run monitors, the shifter host the Templates page.">
+  <defs>
+    <marker id="mk5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,1 L10,5 L0,9 z" fill="#101010"/>
+    </marker>
+  </defs>
+
+  <text x="6" y="12" font-family="Menlo, monospace" font-size="11" fill="#6b6b66">01</text>
+  <text x="28" y="12" font-family="Menlo, monospace" font-size="11" letter-spacing="0.18em" fill="#101010">ON THE WORKER</text>
+  <text x="386" y="12" font-family="Menlo, monospace" font-size="11" fill="#6b6b66">02</text>
+  <text x="408" y="12" font-family="Menlo, monospace" font-size="11" letter-spacing="0.18em" fill="#101010">STORAGE TIER</text>
+  <text x="642" y="12" font-family="Menlo, monospace" font-size="11" fill="#6b6b66">03</text>
+  <text x="664" y="12" font-family="Menlo, monospace" font-size="11" letter-spacing="0.18em" fill="#101010">CONTROL HOST</text>
+
+  <rect x="6" y="20" width="274" height="484" fill="none" stroke="#d6d6cf" stroke-width="1"/>
+  <rect x="386" y="20" width="160" height="484" fill="none" stroke="#d6d6cf" stroke-width="1"/>
+  <rect x="642" y="20" width="172" height="374" fill="none" stroke="#d6d6cf" stroke-width="1"/>
+
+  <rect x="18" y="34" width="250" height="46" fill="#fdf1f0" stroke="#e1251b" stroke-width="1.6"/>
+  <text x="143" y="52" font-size="12.5" font-weight="600" fill="#e1251b" text-anchor="middle">One line, as the collector reads it</text>
+  <text x="143" y="70" font-family="Menlo, monospace" font-size="10" fill="#3a3a36" text-anchor="middle">Processing timeslice:41</text>
+
+  <line x1="48" y1="80" x2="48" y2="110" stroke="#101010" stroke-width="1.25" marker-end="url(#mk5)"/>
+  <text x="58" y="92" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">every record</text>
+  <text x="58" y="104" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">forward socket from the collector</text>
+
+  <rect x="18" y="112" width="250" height="258" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+  <text x="143" y="130" font-size="12.5" font-weight="600" fill="#101010" text-anchor="middle">The stamper</text>
+  <text x="143" y="144" font-size="12" fill="#6b6b66" text-anchor="middle">one per worker, beside the collector</text>
+
+  <text x="21" y="171" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">1</text>
+  <rect x="30" y="154" width="226" height="58" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+  <text x="143" y="171" font-size="12" font-weight="600" fill="#101010" text-anchor="middle">The masker</text>
+  <text x="143" y="185" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">variable tokens masked</text>
+  <text x="143" y="199" font-family="Menlo, monospace" font-size="10" fill="#e1251b" text-anchor="middle">Processing timeslice:&lt;N&gt;</text>
+
+  <text x="21" y="237" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">2</text>
+  <rect x="30" y="220" width="226" height="58" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+  <text x="143" y="237" font-size="12" font-weight="600" fill="#101010" text-anchor="middle">The drain tree of its family</text>
+  <text x="143" y="251" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">one tree per log family</text>
+  <text x="143" y="265" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">at most 20,000 templates per worker</text>
+
+  <text x="21" y="303" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">3</text>
+  <rect x="30" y="286" width="226" height="72" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+  <text x="143" y="303" font-size="12" font-weight="600" fill="#101010" text-anchor="middle">Two fields set before indexing</text>
+  <text x="143" y="317" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">template_version · template_status</text>
+  <text x="143" y="331" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">status: matched, new or no_template</text>
+  <text x="143" y="345" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">empty or over 4096 chars: no version</text>
+
+  <line x1="48" y1="370" x2="48" y2="398" stroke="#101010" stroke-width="1.25" marker-end="url(#mk5)"/>
+  <text x="58" y="382" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">stamped record</text>
+  <text x="58" y="394" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">second socket, back to collector</text>
+
+  <rect x="18" y="400" width="250" height="46" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+  <text x="143" y="418" font-size="12.5" font-weight="600" fill="#101010" text-anchor="middle">The record, indexed with both fields</text>
+  <text x="143" y="436" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">local or central index, by severity</text>
+
+  <line x1="268" y1="182" x2="392" y2="182" stroke="#101010" stroke-width="1.25" marker-end="url(#mk5)"/>
+  <text x="333" y="160" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">every 300 s</text>
+  <text x="333" y="172" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">a bucket document</text>
+  <text x="333" y="196" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">per family</text>
+  <text x="333" y="208" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">and window</text>
+
+  <line x1="268" y1="262" x2="392" y2="262" stroke="#101010" stroke-width="1.25" marker-end="url(#mk5)"/>
+  <text x="333" y="228" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">every 300 s</text>
+  <text x="333" y="240" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">definitions</text>
+  <text x="333" y="252" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">merged, watermark</text>
+
+  <line x1="268" y1="318" x2="392" y2="318" stroke="#101010" stroke-width="1.25" marker-end="url(#mk5)"/>
+  <text x="333" y="296" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">hourly self-check</text>
+  <text x="333" y="308" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">of local index</text>
+  <text x="333" y="332" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">a check document</text>
+
+  <rect x="394" y="150" width="144" height="70" fill="#f1f1ec" stroke="#101010" stroke-width="1.1"/>
+  <text x="466" y="167" font-size="12" font-weight="600" fill="#101010" text-anchor="middle">The bucket indices</text>
+  <text x="466" y="181" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">template-buckets-5m-*</text>
+  <text x="466" y="195" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">template-buckets-1h-*</text>
+  <text x="466" y="209" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">kept 4 d and 66 d</text>
+
+  <rect x="394" y="246" width="144" height="88" fill="#f1f1ec" stroke="#101010" stroke-width="1.1"/>
+  <text x="466" y="263" font-size="12" font-weight="600" fill="#101010" text-anchor="middle">The catalogue</text>
+  <text x="466" y="277" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">template-catalog</text>
+  <text x="466" y="291" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">definitions</text>
+  <text x="466" y="305" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">watermarks, checks</text>
+  <text x="466" y="319" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">reports</text>
+
+  <rect x="394" y="410" width="144" height="54" fill="#f1f1ec" stroke="#101010" stroke-width="1.1"/>
+  <text x="466" y="427" font-size="12" font-weight="600" fill="#101010" text-anchor="middle">A person’s decisions</text>
+  <text x="466" y="441" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">template-triage</text>
+  <text x="466" y="455" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">labels, notes</text>
+
+  <line x1="538" y1="182" x2="648" y2="182" stroke="#101010" stroke-width="1.25" marker-end="url(#mk5)"/>
+  <text x="594" y="160" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">reads 1-hour</text>
+  <text x="594" y="172" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">buckets</text>
+
+  <line x1="650" y1="262" x2="540" y2="262" stroke="#101010" stroke-width="1.25" marker-end="url(#mk5)"/>
+  <text x="594" y="240" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">expiry, reports</text>
+  <text x="594" y="252" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">failed checks</text>
+
+  <line x1="538" y1="314" x2="648" y2="314" stroke="#101010" stroke-width="1.25" marker-end="url(#mk5)"/>
+  <text x="594" y="304" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">hourly query</text>
+
+  <line x1="430" y1="334" x2="658" y2="418" stroke="#101010" stroke-width="1.25" marker-end="url(#mk5)"/>
+  <text x="548" y="340" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">on view</text>
+  <text x="548" y="352" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">definitions</text>
+
+  <line x1="650" y1="440" x2="540" y2="440" stroke="#101010" stroke-width="1.25" marker-end="url(#mk5)"/>
+  <text x="594" y="454" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">labels, notes</text>
+  <text x="594" y="466" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">on save</text>
+
+  <rect x="650" y="150" width="156" height="134" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+  <text x="728" y="167" font-size="12" font-weight="600" fill="#101010" text-anchor="middle">The catalogue</text>
+  <text x="728" y="181" font-size="12" font-weight="600" fill="#101010" text-anchor="middle">maintenance</text>
+  <text x="728" y="197" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">hourly, one hour behind</text>
+  <text x="662" y="211" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">1 expire definitions</text>
+  <text x="674" y="224" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">and checks first</text>
+  <text x="662" y="237" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">2 sum each bucket</text>
+  <text x="662" y="250" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">3 shared indices</text>
+  <text x="674" y="263" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">against buckets</text>
+  <text x="662" y="276" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">4 write checks last</text>
+
+  <rect x="650" y="300" width="156" height="90" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+  <text x="728" y="317" font-size="12" font-weight="600" fill="#101010" text-anchor="middle">Two monitors, hourly</text>
+  <text x="728" y="331" font-size="12" fill="#6b6b66" text-anchor="middle">run by the cluster</text>
+  <text x="662" y="346" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">template-new</text>
+  <text x="674" y="358" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">first seen this hour</text>
+  <text x="662" y="371" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">template-count-check</text>
+  <text x="674" y="383" font-family="Menlo, monospace" font-size="10" fill="#6b6b66">a check failed</text>
+
+  <text x="642" y="406" font-family="Menlo, monospace" font-size="11" fill="#6b6b66">04</text>
+  <text x="664" y="406" font-family="Menlo, monospace" font-size="11" letter-spacing="0.18em" fill="#101010">SHIFTER HOST</text>
+  <rect x="642" y="412" width="172" height="92" fill="none" stroke="#d6d6cf" stroke-width="1"/>
+  <rect x="650" y="418" width="156" height="80" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+  <text x="728" y="435" font-size="12" font-weight="600" fill="#101010" text-anchor="middle">The Templates page</text>
+  <text x="728" y="449" font-size="12" fill="#6b6b66" text-anchor="middle">in the shifter view</text>
+  <text x="728" y="465" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">reads catalogue, buckets,</text>
+  <text x="728" y="478" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">sample lines, episodes</text>
+  <text x="728" y="491" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">stores labels and notes</text>
+</svg>

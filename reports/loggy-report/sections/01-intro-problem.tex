@@ -1,0 +1,71 @@
+\section{Introduction}\label{sec:intro}
+
+Most logs an Event Processing Node writes never reach the one tool people use to read them. An Event Processing Node, an EPN, is one machine of the ALICE online farm. Its job is timeframe reconstruction: it assembles the data of one time slice from the experiment into events. The reconstruction software is O2, the ALICE Online-Offline computing system~\cite{ref:o2tdr}. Log search must not compete with that job.
+
+Logging today is InfoLogger \cite{ref:infologger}. A client library sends each process's messages to a local daemon, then to one central server. That road has three limits: one table for every message, no counts over time, and one unreplicated retention rule. The process logs on disk and the journal, the log of every system service, never take it (Figure~\ref{fig:today}).
+
+\begin{figure}[htbp]\centering\includegraphics[width=\textwidth]{fig01-logging-today.pdf}\caption{InfoLogger carries only what a process sends it, and the process logs on disk and the journal never take that road.}\label{fig:today}\end{figure}
+
+We built \loggy{}. It keeps the bulk of the logs on the worker, the EPN that wrote them, and still searches them as one. It runs on five staging machines, and one farm deployment of the cluster, the collectors and Dashboards passed every check.
+
+Section~\ref{sec:problem} gives the constraints. Section~\ref{sec:design} walks an error line, an info line, a dead collector and a quiet worker through it. Section~\ref{sec:why} names the fact behind each choice, Section~\ref{sec:eval} what the measurements settle, and Section~\ref{sec:limits} the limits and what remains.
+
+\section{The problem and the constraints}\label{sec:problem}
+
+\subsection{What a node writes}\label{sec:problem-sources}
+
+A worker holds five log families, and the InfoLogger records are a sixth source (Table~\ref{tab:sources}). DDS, the Dynamic Deployment System, starts the reconstruction processes. The journal holds 2,500 to 10,500 entries a day.
+
+\begin{table}[htbp]\caption{Only the InfoLogger records take the InfoLogger road, and the run orchestrator log reaches no collector.}\label{tab:sources}\centering\footnotesize
+\begin{tabularx}{\textwidth}{L{0.2\textwidth} L{0.26\textwidth} L{0.24\textwidth} X}
+\toprule
+Family & What writes it & How it reaches the collector & Tier it lands on \\
+\midrule
+InfoLogger & Any process, through the client library and local daemon & A TCP socket & Storage, every record \\
+DDS & The deployment system, one file a day in the run directory & Tail of the file & By severity \\
+O2 process tree & Every reconstruction process, one output and one error file each, in two line formats & Tail of the files & By severity \\
+InfoLogger daemon log & The local daemon, one file that never rotates & Tail of the file & Storage, every line \\
+Journal & systemd, every service and the kernel ring & The journal reader & By severity \\
+Run orchestrator log & The orchestrator, on the shared infra machine only & Not collected & None \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The survey of the real machines set two rules. First, the run directory sits on one 14~TB scratch disk, 93~\% full, that every machine mounts over the network. Each collector tails only its own machine's directory. A tail over the whole disk lands every file on every machine. The mount raises no change events, so the tail polls. Second, one O2 process prints raw terminal colour codes into its log, so every anchored pattern fails without a word.
+
+The stored logs we replay are recorded farm logs, fed back through the collector at a chosen rate. They hold InfoLogger, DDS and the process tree, and no journal. The parser corpus is 45,596,613 of those lines from 186 programs. DDS is 0.1~\% of that corpus, and operations call it the largest family during data-taking. No run was active during either survey, so no live job log was seen.
+
+\subsection{What a worker carries}\label{sec:problem-volumes}
+
+A real worker carries tens of InfoLogger records a second, not thousands. The InfoLogger archive, six months of dumps, holds 248,828,513 records from 312 hosts. In the busiest hour the median worker carried 23~records a second, the busiest worker-second 78, and the farm 9,781. These figures are floors: the client library cuts off a process at 1,000 messages a minute, so the loudest processes are hidden.
+
+The soak, the project's measurement campaign of twenty-one rounds, tested one collector at 1,000, 20,000 and 50,000 records a second per worker. Those rates are a safety margin, not an archive figure.
+
+\subsection{The constraints}\label{sec:problem-constraints}
+
+A worker gives the platform four of its 64 physical cores, eight of its 128 logical processors, and little memory. No bulk crosses the wire: each worker indexes its info-severity lines on its own disk. Physicists' staging runs occupy two of the three farm workers and a build pipeline wipes the third, so hard memory and processor caps apply.
+
+The infra machine's default ports belong to a second search cluster, so the storage nodes and Alertmanager take other ports. CERN hosts take no long-running agent, so we push over SSH. Two of the three workers cannot install a collector newer than release 4.0.1, because newer releases need OpenSSL 3.4.0 and their system ships OpenSSL 3.2.2. The third worker runs a newer release, so every deployed release must accept every configuration.
+
+\subsection{What the platform must do}\label{sec:problem-objectives}
+
+Six objectives keep the volume where it is made and the value where it is safe (Table~\ref{tab:objectives}).
+
+\begin{table}[htbp]\caption{One named element of the design meets each of the six objectives.}\label{tab:objectives}\centering\footnotesize
+\begin{tabularx}{\textwidth}{L{0.22\textwidth} X}
+\toprule
+Objective & Design element that meets it \\
+\midrule
+No bulk over the wire & A local index on every worker, written by a collector that talks only to the search node on its own machine \\
+Split by severity & The collector routes each line by severity to the local index or the storage tier \\
+Distributed & One cluster of two tiers, and every worker answers a search over its own index \\
+Durable & Three machines, each holding a copy of every record above info and of every InfoLogger record \\
+Workers stay cheap & Four physical cores, no cluster management on a worker, and health numbers pushed up rather than polled down \\
+Fault tolerant & The cluster runs while two of the three storage machines agree, and a lost worker loses only its own local index \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{The 2025 reference design}\label{sec:problem-reference}
+
+\loggy{} kept the shape of the 2025 reference design and changed its rules \cite{ref:papadopoulos2025}. We kept its collector on every node and widened it from two log families to five. Its one cluster of two tiers, three index families, lifecycle policies and Alertmanager stayed. We changed its tier rule from source to severity, because a source rule ships one program's bulk and drops another's errors. We replaced Grafana with OpenSearch Dashboards, the store's own web interface, because detection and alerting come with the store~\cite{ref:opensearch}. We dropped its queue on the numbers in Section~\ref{sec:eval-kafka}, and the aggregator it fed. The collectors feed the live lane, the second copy of every record that leaves a worker, directly. We dropped Kubernetes for native system services.

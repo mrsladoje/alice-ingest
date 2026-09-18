@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" viewBox="0 0 900 530" role="img"
+             aria-label="Two bands. Band one, the candidates, is a table of four rows read on three axes: language, the vendor's own memory figure, and who governs the project. Three of the four are Apache 2.0 licensed and Telegraf is MIT; the job each one is built for, and its governance, are what differ. The first row is outlined in red as the choice: Fluent Bit, written in C, the vendor quotes about 450 kilobytes, and it is a graduated project of the Cloud Native Computing Foundation. It was chosen because the community has converged on it: its project page counts fifteen billion deployments, it has been in production for a decade, and its roadmap sits in a foundation rather than in one company. Second row, Fluentd: written in C and Ruby, the vendor quotes over 60 megabytes, also a graduated foundation project; the same project one size up, but a Ruby package tree on every worker is what we did not want. Third row, Vector by Datadog: written in Rust, no vendor memory figure published, governed by Datadog alone; small and fast, but one company decides its future. Fourth row, Telegraf by InfluxData: written in Go, no vendor memory figure published, governed by InfluxData alone, and marked a different job rather than a rejected one. Telegraf is a metrics agent, and ALICE O2 already runs it to gather machine and service metrics. Everything it emits becomes a measurement in line protocol, which is a name, tags, numbers and a clock, written for a time-series database. A log line is not that shape. Band two, why not a message queue: Apache Kafka and RabbitMQ move records but do not make them, and neither can tail a file, parse a line or stamp a clock, so a forwarder still runs in front and the queue itself costs three more machines and a quorum.">
+
+          <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="13">01</text>
+          <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="13">The candidates</text>
+          <text class="d-fact is-end" style="font-size:10.5px;fill:#3a3a36;text-anchor:end" x="900" y="13">Three are Apache 2.0, Telegraf is MIT. Job and governance are what differ.</text>
+
+          <rect class="d-panel" style="fill:#f1f1ec" x="1" y="26" width="898" height="350"></rect>
+
+          <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="200" y="48">LANGUAGE</text>
+          <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="366" y="48">VENDOR’S MEMORY FIGURE</text>
+          <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="566" y="48">WHO GOVERNS IT</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M12,56 H888"></path>
+
+          <rect class="d-card is-hot" style="fill:#fdf1f0;stroke:#e1251b;stroke-width:1.6" x="1" y="56" width="898" height="100"></rect>
+          <image href="logos/fluentbit-logo-official.svg" x="12" y="76" width="96" height="28"></image>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="200" y="96">C</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="366" y="96">about 450 KB</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="566" y="96">CNCF*, graduated</text>
+          <text class="d-tag is-lg is-end" style="font-family:Menlo, monospace;font-size:12px;font-weight:700;letter-spacing:0.2em;fill:#e1251b;text-anchor:end" x="886" y="96">CHOSEN</text>
+          <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="200" y="122">Where the community has converged. Its own project page counts fifteen billion deployments, and it has</text>
+          <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="200" y="136">been in production for a decade. CNCF* graduated: the roadmap sits in a foundation, not in one company.</text>
+
+          <image href="logos/fluentd-logo-official.svg" x="12" y="166" width="92.3" height="32"></image>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="200" y="188">C and Ruby</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="366" y="188">over 60 MB</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="566" y="188">CNCF, graduated</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="200" y="212">The same project one size up, and the older of the two. A Ruby package tree on every worker is what we did not want.</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M12,230 H888"></path>
+
+          <image href="logos/vector-logo-official.svg" x="12" y="240" width="91.9" height="34"></image>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="200" y="262">Rust</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="366" y="262">no vendor figure</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="566" y="262">Datadog</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="200" y="286">Small and fast, and the benchmarks disagree on which of the two is smaller. One company decides its future.</text>
+          <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M12,304 H888"></path>
+
+          <text class="d-wordmark is-start" style="font-size:19px;font-weight:700;letter-spacing:-0.02em;fill:#101010;text-anchor:start" x="12" y="324">Telegraf</text>
+          <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="12" y="340">InfluxData</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="200" y="324">Go</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="366" y="324">no vendor figure</text>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="566" y="324">InfluxData</text>
+          <text class="d-vm is-end" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:end" x="886" y="324">A DIFFERENT JOB</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="200" y="350">A metrics agent, and a good one. ALICE O2 already runs Telegraf to gather machine and service metrics.</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="200" y="364">It emits measurements in line protocol: a name, tags, numbers, a clock. That shape is a metric, not a log line.</text>
+
+          <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="406">02</text>
+          <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="406">Why not a message queue</text>
+
+          <rect class="d-panel" style="fill:#f1f1ec" x="1" y="418" width="898" height="108"></rect>
+          <image href="logos/kafka-logo-official.svg" x="16" y="430" width="60.4" height="28"></image>
+          <image href="logos/rabbitmq-logo-official.svg" x="96" y="436" width="100" height="16"></image>
+          <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="16" y="490">A broker moves records. It does not make them.</text>
+
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="460" y="452">Neither can tail a file, parse a line or stamp a clock.</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="460" y="474">A forwarder still runs in front of the queue.</text>
+          <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="460" y="496">The queue itself costs three more machines and a quorum.</text>
+        </svg>

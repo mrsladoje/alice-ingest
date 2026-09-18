@@ -1,0 +1,84 @@
+\section{Limits and what remains}\label{sec:limits}
+
+\subsection{Not measured}\label{sec:limits-unmeasured}
+
+Every cost figure in Section~\ref{sec:eval} comes from a laptop. One micro-benchmark on one farm machine gives the conversion factor. None has run.
+
+The rig gave the worker's collector and store four exclusive cores, and the storage tier four more. Sharing them with reconstruction is not measured.
+
+No run measured a burst. The soak plan's per-worker burst of 10,000 to 20,000 records a second matches the farm-wide peak of 9,781, not a worker's busiest second of 78.
+
+The whole stack's cost was measured at 5,000~records a second only. The collector alone was also costed at 1,000 and 20,000. Round 1's 53,000 was read against a test output that always accepts, so the collector's ceiling with a real store is unknown above 50,000.
+
+The dead-collector chain of Section~\ref{sec:design-walk-dead} is bounded at 90 to 270~seconds by cadence, and no run timed it.
+
+A detector needs a few hundred one-minute windows, three to five hours, before its grades mean anything. The injection harness waits 32 one-minute windows. Neither the real warm-up nor that wait was measured on a live feed.
+
+The semantic path was timed on a laptop with a warm index. The collector's 64-chunk burst ceiling is not measured on a worker.
+
+\subsection{Limits found in the design}\label{sec:limits-design}
+
+The stale-projector monitor fires only while one projector heartbeat exists in the last 24~hours, so a day of silence mutes it. The Alertmanager-down monitor reads the projector's own report, so a dead projector silences it too.
+
+No inhibition rule is active, because all 22 causal edges between alerts ship unproven.
+
+Nothing authenticates inside the cluster, so one password and a firewall rule are the whole boundary, on five machines we own.
+
+The live lane carries InfoLogger, the daemon log and the central family only. Process output lines with no severity went central before the fix of Section~\ref{sec:eval-sources}, so the live page now shows fewer.
+
+DDS is the largest family during data-taking and the dearest per line. The recipe runs under-sample it at 43,972 lines, 0.1~\% of the weight, and the later runs used 1,236,971 lines.
+
+At its 20,000-template ceiling the stamper evicts a template, a rebuilt one restarts its count at one, and the change to keep counting is open.
+
+\subsection{What remains, in build order}\label{sec:limits-remains}
+
+Nine things remain. Figure~\ref{fig:layouts} shows the three layouts. Staging is two workers and three storage machines. The farm pilot is three workers and three storage containers on one infra machine, and it ran the cluster, the collectors and Dashboards. Whether the stamper, the projector and the shifter view ran on the farm is not recorded. Production, the whole farm with at least three storage machines, two replicas and the bus, is not real.
+
+\begin{figure}[htbp]\centering\includegraphics[width=0.86\textwidth]{fig07-layouts.pdf}\caption{Staging and the farm pilot exist, and production is the same design with a bus and a bigger storage tier.}\label{fig:layouts}\end{figure}
+
+\begin{enumerate}[nosep]
+\item The live-lane bus is agreed and not built: one topic from every collector, the shifter view its one consumer, brokers not placed.
+\item The shared Python becomes one versioned package, agreed.
+\item The Telegraf decision is open: whether CERN's metrics estate takes over the samples.
+\item Catalogue maintenance as ISM policies plus monitors is open. ISM, Index State Management, deletes whole indices by age, so the two counting checks need a home.
+\item The operator view beside InfoLogger waits for farm access and a live run.
+\item The system journal and per-device process logs are absent from the archive.
+\item Anomaly detection on the log text stays open~\cite{ref:aliceilad}: templates, then nearest-neighbour search. Raw-message search and templating as the detector lost.
+\item Authentication inside the cluster is required before the farm.
+\item Source-owner approval for reading the node logs is open.
+\end{enumerate}
+
+\section{Conclusion}\label{sec:conclusion}
+
+The logs an EPN writes can stay where they are made and still be searched as one, on four cores. The watching costs a worker nothing it did not push itself.
+
+A median worker carries 23~records a second in the busiest hour of six months of archive. The whole stack on one worker sustains about 42,000 records a second on the laptop rig. The templating pipeline is 31 to 57~\% cheaper per family and byte-identical. Dense retrieval with reranking reaches 0.685 nDCG@10 against 0.634 without it.
+
+One limit binds every figure: all come from a laptop, so shapes and rankings transfer to the farm and absolute rates do not.
+
+What exists now is groundwork rather than a demonstration: five staging machines, and one deployment on the farm that passed every check.
+
+\section*{Acknowledgements}
+
+I thank my supervisors, Lubos Krcal and Federico Ronchetti, for their direction and reviews. The 2025 reference design by Athanasios Papadopoulos \cite{ref:papadopoulos2025} gave the project its starting point.
+
+\appendix
+
+\section{Upstream roles weighed and not used}\label{app:upstream}
+
+Every deployment role is our own, and Table~\ref{tab:upstream} records why each candidate lost.
+
+\begin{table}[htbp]\caption{Each upstream role replaces a few stable tasks and hides something the deployment needs.}\label{tab:upstream}\centering\footnotesize
+\begin{tabularx}{\textwidth}{L{0.17\textwidth} L{0.33\textwidth} X}
+\toprule
+Component & What it offered & Why it was not used \\
+\midrule
+Store, Dashboards, nginx & Vendor playbooks, two community roles, nginx role & Built around the security plugin we disable. Community roles stale, single-tier. The nginx role owns the site. \\
+Collector & Six community roles & One Debian-only, one without multiline parsers, four only install. The pipeline is the role. \\
+Alertmanager, detection & Prometheus collection role, vendor playbook, Terraform provider & The closest moves the route tree into Jinja. None talks to the detection API. Terraform keeps its own state. \\
+Cockpit metrics, trend rollup & Exporter, Metricbeat, performance analyzer, systemd role, native rollup & Each writes to a store the monitors do not read. A native rollup writes nothing for silence. \\
+Host preparation, template catalogue & Swap, timesync, firewall, kernel roles, ISM, rollover & ISM deletes whole indices by age. Rollover duplicates a catalogue upserted by version. \\
+Replay, faults, ops page, projector, shifter view & None & The software exists only here. \\
+\bottomrule
+\end{tabularx}
+\end{table}

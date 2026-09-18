@@ -1,0 +1,162 @@
+[
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 20,
+  "quote": "\\begin{tabularx}{\\textwidth}{L{0.2\\textwidth} L{0.26\\textwidth} L{0.24\\textwidth} L{0.18\\textwidth}}",
+  "problem": "Table 1 uses tabularx with no X column, so the alignment is underfull (badness 10000).",
+  "source": "report/report.log:1089 \"Underfull \\hbox (badness 10000) in alignment at lines 31--31\"",
+  "fix": "Make the last column X, or use tabular instead of tabularx.",
+  "severity": "nit",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 9,
+  "quote": "The platform runs on five staging machines, and one deployment went green on three farm workers and one infra machine.",
+  "problem": "Printed page 2 opens with Figure 1 and then the four-word paragraph tail \"workers and one infra machine.\"",
+  "source": "pdftotext of report/report.pdf page 3, lines 44-49",
+  "fix": "No change if the figure reflow from the other findings moves it; otherwise place Figure 1 [htbp] at sections/01-intro-problem.tex:7.",
+  "severity": "nit",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 50,
+  "quote": "A worker gives the platform four of its 128 logical processors and little memory.",
+  "problem": "The budget is four physical cores, which are eight of the 128 logical processors; the report halves it by mixing the two units, and the soak explicitly corrects this reading.",
+  "source": "docs/SOAK_RESULTS.md:275-281 (\"The worker's budget is 4 physical cores, so 8 logical processors ... This is the opposite of what an earlier draft of this document said\"); reports/loggy-report/briefs/constraints.md:181 and :24",
+  "fix": "Write: \"A worker gives the platform four of its 64 physical cores, eight of its 128 logical processors, and little memory.\" Fix the same conflation at sections/02-design-a.tex:7 (\"four of the EPN's 128~cores\") and in Table 2 at sections/01-intro-problem.tex:71 (\"Four logical processors of 128\").",
+  "severity": "must",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 36,
+  "quote": "DDS is under-sampled at 0.1~\\% of its lines, and operations call it the largest family during data-taking.",
+  "problem": "0.1 % is DDS's share of the corpus weight, not the share of DDS's own lines that were sampled.",
+  "source": "docs/SOAK_RESULTS.md:2292 (\"Weights are this corpus: InfoLogger 58.1 %, stdout 41.8 %, dds 0.1 %\") and :2290-2296; reports/loggy-report/briefs/templating-embedding.md:208",
+  "fix": "Write: \"DDS is 43,972 lines, 0.1 % of the corpus, and operations call it the largest family during data-taking.\" The report already states it this way at sections/07-limits-close.tex:31.",
+  "severity": "must",
+  "lens": "numbers"
+ },
+ {
+  "file": "/Users/admin/Projects/alice-ingest/reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 36,
+  "quote": "DDS is under-sampled at 0.1~\\% of its lines, and operations call it the largest family during data-taking.",
+  "problem": "\"0.1 % of its lines\" reads as a share of DDS itself; the figure is DDS's share of the corpus.",
+  "source": "briefs/constraints.md:126 (\"infologger 58.1 percent, dpl 41.8 percent ... dds 0.1 percent\"); briefs/soak-3.md:47",
+  "fix": "\"DDS is 0.1 % of the corpus, and operations call it the largest family during data-taking.\"",
+  "severity": "nit",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 44,
+  "quote": "The soak tested one collector at 1,000, 20,000 and 50,000 records a second per worker.",
+  "problem": "\"The soak\" is internal shorthand for the measurement campaign and is never defined, yet it carries three later claims and the title of Appendix B.",
+  "source": "reports/loggy-report/briefs/soak-index.md:1-3 (rounds 1 to 21 of measurement, docs/SOAK.md and docs/SOAK_RESULTS.md)",
+  "fix": "Define it once here: \"We ran the platform under a synthetic load for twenty-one rounds, and we call that campaign the soak. It tested one collector at 1,000, 20,000 and 50,000 records a second per worker.\"",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 48,
+  "quote": "Eight constraints shape the design.",
+  "problem": "The opener counts instead of concluding, and 2.4 opens with the same formula (\"Six objectives shape the design\") one subsection later.",
+  "source": "reports/loggy-report/briefs/style.md:7; reports/loggy-report/sections/01-intro-problem.tex:60",
+  "fix": "\"A worker gives the platform four of its 128 logical processors, and every other constraint follows from that scarcity.\" Then change 2.4's opener so the two do not rhyme.",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 5,
+  "quote": "Most of what a machine writes never takes that road (Figure~\\ref{fig:today}): the process logs on disk and the journal, the log of every system service.",
+  "problem": "26 words, over the ceiling, and the colon list makes the reader hold two ideas at once.",
+  "source": "reports/loggy-report/briefs/style.md:11; reports/loggy-report/briefs/style.md:8 (\"That is one road. Most of what a node writes never takes it.\")",
+  "fix": "\"Most of what a machine writes never takes that road (Figure~\\ref{fig:today}). The process logs sit on disk. The journal holds the log of every system service.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 9,
+  "quote": "The platform runs on five staging machines, and one deployment went green on three farm workers and one infra machine.",
+  "problem": "\"went green\" is project shorthand for a deployment run that ended with every check passing, and the report never says so.",
+  "source": "reports/loggy-report/briefs/style.md:79 (name the component by its job, no internal names); reports/loggy-report/outline.md:144 (\"one green run on the farm\")",
+  "fix": "\"The platform runs on five staging machines. One deployment run finished with every check passing on three farm workers and one infra machine.\" Repair the same phrase in the conclusion.",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 26,
+  "quote": "O2 process tree & Every reconstruction process, one output and one error file each, in two line formats & Tail of the files & By severity \\\\",
+  "problem": "\"O2\" names a log family, the processes in two walkthroughs and an uncited reference, and is never expanded anywhere in the report.",
+  "source": "reports/loggy-report/report/references.tex, ref:o2tdr \u2014 \"Technical Design Report for the Upgrade of the Online--Offline Computing System\" (present in the bibliography, never cited)",
+  "fix": "In 01-intro-problem.tex:3 add: \"The reconstruction software is O2, the ALICE Online--Offline computing system~\\cite{ref:o2tdr}.\" That also makes the unused reference used.",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 17,
+  "quote": "DDS is the distributed deployment system that starts the processing tasks.",
+  "problem": "DDS is the Dynamic Deployment System; the expansion given is wrong, so a reader who looks it up finds a different product.",
+  "source": "ALICE O2 quickstart \"FairMQ and DPL\" (https://aliceo2group.github.io/quickstart/fair-dpl.html): topologies are described \"via the Dynamic Deployment System (DDS)\"; A. Manafov, DDS: The Dynamic Deployment System. The briefs never expand it \u2014 briefs/constraints.md:100 gives only the file path.",
+  "fix": "\"DDS, the Dynamic Deployment System, starts the reconstruction processes on the node and writes one file a day.\"",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 44,
+  "quote": "The soak tested one collector at 1,000, 20,000 and 50,000 records a second per worker.",
+  "problem": "\"The soak\" is used as a proper noun on first appearance, three pages before Section 5 and fourteen before Appendix B, and is never defined.",
+  "source": "briefs/soak-index.md:1-3 \u2014 \"Soak index: the five soak briefs reconciled. Sources: docs/SOAK.md (round 1) and docs/SOAK_RESULTS.md (rounds 2 to 21)\"",
+  "fix": "At first use: \"The soak is this project's measurement campaign: twenty-one rounds of load runs and code reviews, each round fixing what the round before it found (Appendix~\\ref{app:soak}).\"",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 81,
+  "quote": "We replaced Grafana with Dashboards, because detection and alerting come with the store.",
+  "problem": "First use of \"the store\" as a name; OpenSearch is not named until the next section and no sentence ever ties the two, while parts of it are also called the search node, the data node, the cluster and the worker's store node.",
+  "source": "briefs/soak-index.md:9 \u2014 \"The soak rejected a bus between the collector and OpenSearch\"; briefs/why.md:59 \u2014 \"The collector writes only to the OpenSearch node on its own machine.\"",
+  "fix": "At first use write \"the store, OpenSearch~\\cite{ref:opensearch}\", then keep one word for a machine's part of it.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 9,
+  "quote": "The platform runs on five staging machines, and one deployment went green on three farm workers and one infra machine.",
+  "problem": "\"Went green\" is build-pipeline idiom, and it is the load-bearing word in the one sentence that tells the reader how far the project got; the conclusion repeats it.",
+  "source": "outline.md:144 uses it as internal shorthand, not report prose; the fact underneath is a deployment that completed with every check passing",
+  "fix": "\"one deployment ran to the end with every check passing on three farm workers and one infra machine.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/01-intro-problem.tex",
+  "line": 9,
+  "quote": "We built \\loggy{}, a platform that keeps the bulk of the logs on the worker that wrote them and still searches them as one.",
+  "problem": "\"Worker\" and \"EPN\" are the report's two most frequent nouns for one machine, and the tie arrives only in the next section.",
+  "source": "reports/loggy-report/sections/01-intro-problem.tex:3 defines the EPN only; 02-design-a.tex:7 \u2014 \"The worker tier runs on every EPN\"",
+  "fix": "\"on the EPN, the worker, that wrote them\" at first use.",
+  "severity": "nit",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/01-intro-problem.tex",
+  "line": 44,
+  "quote": "The soak tested one collector at 1,000, 20,000 and 50,000 records a second per worker.",
+  "problem": "\"Soak\" is never defined, yet it carries Section 5.3 and the Appendix B title.",
+  "source": "briefs/style.md:31 (define a term the moment it appears); briefs/soak-index.md:13 (the soak is the measurement campaign, in numbered rounds)",
+  "fix": "Write: \"The soak, the project's measurement campaign of numbered rounds, tested one collector at ...\"",
+  "severity": "should",
+  "lens": "reader"
+ }
+]

@@ -1,0 +1,102 @@
+[
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 3,
+  "quote": "Templating is built, 31 to 57\\,\\% cheaper per family than its first version, with identical output (Table~\\ref{tab:templating}).",
+  "problem": "Table 7 holds the two PIPLUP ratios, the masking gain and the growth ceiling, so a reader who follows the reference finds neither the 31 to 57 % figure nor the identity check that the sentence and the caption assert.",
+  "source": "reports/loggy-report/briefs/soak-index.md:238",
+  "fix": "Add a first row to the table, \"Whole pipeline after the rewrite & 31 to 57\\,\\% cheaper & byte-identical on 8,961,245 lines \\\\\", and change the caption on line 13 to \"Every row is a ratio or a ceiling measured on one host, and the rewrite left the output byte-identical.\"",
+  "severity": "should",
+  "lens": "build"
+ },
+ {
+  "file": "sections/06-eval-b.tex",
+  "line": 7,
+  "quote": "Contentless \\code{infologger} templates fell from 44.9 to 10.4\\,\\%.",
+  "problem": "This is the only evidence that the per-family recipe is worth anything, and the reader cannot tell what a contentless template is.",
+  "source": "briefs/templating-embedding.md:179",
+  "fix": "Contentless templates, whose every word is a wildcard and which tell a reader nothing, fell from 44.9 to 10.4\\,\\% on \\code{infologger}.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/06-eval-b.tex",
+  "line": 9,
+  "quote": "One tree across the three corpora behind the recipes, 55,963,050 lines, gave 4,221.",
+  "problem": "The report names the parser corpus and the InfoLogger archive, never three corpora, so the biggest template count has no stated source.",
+  "source": "briefs/soak-3.md:81",
+  "fix": "One tree carried across the parser corpus and two further archive pulls, 55,963,050 lines together, gave 4,221.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/06-eval-b.tex",
+  "line": 40,
+  "quote": "Search box, nDCG@10 & 0.685 & 0.634 dense model alone \\\\",
+  "problem": "The abstract calls it dense retrieval, the prose the dense scan and the table the dense model, so a reader tracking the 0.634 baseline cannot be sure it is one thing.",
+  "source": "sections/06-eval-b.tex:32",
+  "fix": "Use \"dense scan\" in the abstract, the prose and the table.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/06-eval-b.tex",
+  "line": 28,
+  "quote": "Semantic retrieval is built, evaluated, and shipped disabled by configuration (Table~\\ref{tab:semantic}).",
+  "problem": "The subsection then shows it winning on every measure, so the reader finds a choice with no deciding fact behind it.",
+  "source": "briefs/semantic-1.md:121",
+  "fix": "...and shipped disabled by configuration, because the recommendation stands only until a person judges the retrieved templates on real questions.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 3,
+  "quote": "Templating is built, 31 to 57\\,\\% cheaper per family than its first version, with identical output (Table~\\ref{tab:templating}).",
+  "problem": "The round 18 baseline is the pipeline as shipped at that date, which already carried the per-family recipes and the rewritten masker, so naming it the first version double-counts the 85 to 87 % masker gain and collides with \"the first version's 19.91\" in 04-why.tex line 48.",
+  "source": "docs/SOAK_RESULTS.md:5419-5429 and 5440-5448 (the Shipped column of round 18); reports/loggy-report/briefs/soak-index.md:238",
+  "fix": "Templating is built, and the September rewrite of the steps around the miner made it 31 to 57\\,\\% cheaper per family, with identical output (Table~\\ref{tab:templating}).",
+  "severity": "must",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 7,
+  "quote": "A recipe is one family's depth, similarity and separator setting.",
+  "problem": "Tree depth is one module-wide value shared by all seven families, so depth is not part of a family's recipe.",
+  "source": "briefs/soak-index.md:179 (\"The recipe as committed: depth 8, max children 100, similarity 0.4 for InfoLogger and process logs and 0.5 for dds... Depth 8 is a module global, so all seven families share it\")",
+  "fix": "A recipe is one family's similarity and separator setting, on a tree depth every family shares.",
+  "severity": "should",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 20,
+  "quote": "Masking removed by seven rewritten regular expressions & 85 to 87\\,\\% & zero differences on 3,000,000 lines per family \\\\",
+  "problem": "The row reads as if masking itself went away, and its range overlaps the \"74 to 87~\\%\" of Section 4, which is masking's share of the mining cost, a different quantity.",
+  "source": "reports/loggy-report/briefs/soak-index.md:169",
+  "fix": "Masking cost cut by seven rewritten regular expressions & 85 to 87\\,\\% & zero differences on 3,000,000 lines per family",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 32,
+  "quote": "They score 0.685 against 0.634 for the dense scan alone on the development set of 130 questions, bootstrap interval +0.028 to +0.080.",
+  "problem": "The held-out set arrives in the next sentence with no statement of how it differs, so a reader cannot rank 0.685 against 0.689 as evidence.",
+  "source": "reports/loggy-report/briefs/semantic-2.md:55",
+  "fix": "Add before the scores: \"The development set of 130 questions chose the settings. The held-out set stayed sealed until the end.\"",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/06-eval-b.tex",
+  "line": 7,
+  "quote": "Contentless \\code{infologger} templates fell from 44.9 to 10.4\\,\\%.",
+  "problem": "\\code{infologger} is the storage index named in Table 3, and here it means the InfoLogger log family, so the reader concludes a family and an index are one thing; the same swap returns at line 11 beside plain \"the process tree\".",
+  "source": "reports/loggy-report/sections/02-design-a.tex:24",
+  "fix": "Contentless InfoLogger templates, those whose every token is a wildcard, fell from 44.9 to 10.4\\,\\% of that family's templates. Use plain \"InfoLogger\" at line 11 as well.",
+  "severity": "should",
+  "lens": "voice"
+ }
+]

@@ -1,0 +1,12 @@
+[
+ {
+  "file": "reports/loggy-report/figures/fig08-flush.svg",
+  "line": 1,
+  "quote": "\\begin{table}[htbp]\\caption{Flush 1 second beats the shipped 5 seconds on every measure, at 5,000 records a second on the re-run rig.}\\label{tab:flush}",
+  "problem": "An eighth figure is still rendered to SVG, PDF and PNG in figures/, and no \\includegraphics in any section cites it. Round-1 nit, still open.",
+  "source": "reports/loggy-report/sections/05-eval-a.tex:21 is the only flush artefact in Section 5.2; reports/loggy-report/outline.md:171 marks the flush curve optional; reports/loggy-report/reviews/round1-by-file/fig08-flush.svg.json",
+  "fix": "Cite it beside Table 7 in Section 5.2, or delete fig08-flush.svg, .pdf and .png.",
+  "severity": "nit",
+  "lens": "figures"
+ }
+]

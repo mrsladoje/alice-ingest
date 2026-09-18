@@ -1,0 +1,42 @@
+[
+ {
+  "file": "sections/07-limits-close.tex",
+  "line": 15,
+  "quote": "The injection harness waits 32.",
+  "problem": "32 carries no unit at all, and the following \"Neither was measured\" names no two things, so the warm-up limit cannot be read.",
+  "source": "briefs/why.md:178",
+  "fix": "The injection harness waits 32 one-minute windows. Neither the real warm-up nor that wait was measured on a live feed.",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 35,
+  "quote": "The stamper, the projector and the shifter view have run on staging only.",
+  "problem": "The sources record no farm run for these three services and also record no absence, so the report states a negative status it cannot support.",
+  "source": "briefs/target-architecture.md, doubt 9 (\"Nothing read says whether the stamper, the poller, the projector, the rollup, Alertmanager, the receiver or the shifter view ran on the farm. Say 'not stated' rather than 'deployed'\")",
+  "fix": "Whether the stamper, the projector and the shifter view ran on the farm is not recorded.",
+  "severity": "should",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 29,
+  "quote": "DDS is the densest family during data-taking and the dearest per line.",
+  "problem": "Section 2.1 says operations call DDS the largest family during data-taking, and the briefs keep volume and cost per line as two facts, so \"densest\" merges them into one claim.",
+  "source": "reports/loggy-report/briefs/constraints.md:131",
+  "fix": "DDS is the largest family during data-taking and the dearest per line.",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/07-limits-close.tex",
+  "line": 15,
+  "quote": "The injection harness waits 32. Neither was measured.",
+  "problem": "32 carries no unit, so the reader must carry \"one-minute windows\" across a sentence boundary, and \"Neither\" points at two things never set out as a pair.",
+  "source": "reports/loggy-report/briefs/style.md:28",
+  "fix": "The injection harness waits 32 windows. Neither the warm-up nor the wait was measured.",
+  "severity": "should",
+  "lens": "voice"
+ }
+]

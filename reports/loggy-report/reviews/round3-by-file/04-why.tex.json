@@ -1,0 +1,112 @@
+[
+ {
+  "file": "sections/04-why.tex",
+  "line": 51,
+  "quote": "Three routes for text stay open, and none is chosen.",
+  "problem": "Section 6.3 says one route stays open and two lost, so the reader cannot tell whether anything was decided about reading the log text.",
+  "source": "briefs/why.md:176",
+  "fix": "One route stays open: templates first, then nearest-neighbour search. Search on raw messages lost on cost, and the new-template alarm lost because the signal runs out.",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/04-why.tex",
+  "line": 36,
+  "quote": "Many clusters joined by cross-cluster search, one query forwarded to all, do not scale to 100 machines.",
+  "problem": "The next sentence makes fanout the cost of any fan-out search, so the reader sees the same objection against the design that was chosen.",
+  "source": "briefs/why.md:49",
+  "fix": "Add after the fanout sentence: \"One cluster places its shards itself, keeps one set of users and saved searches, and needs no joining layer of our own.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/04-why.tex",
+  "line": 9,
+  "quote": "Candidate & Language & Vendor figure & Governed by & Verdict \\\\",
+  "problem": "The column carries memory sizes for two rows, \"none published\" for a third and a data format for Telegraf, so the reader cannot read the table across.",
+  "source": "briefs/why.md:18",
+  "fix": "Head the column \"Memory at rest\", put \"not published\" in Telegraf's cell, and move \"metrics, not log lines\" into its verdict.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/04-why.tex",
+  "line": 29,
+  "quote": "ClickHouse & Apache 2.0 & counts on disk, no detection & one company & 17 detectors run by us \\\\",
+  "problem": "The verdict cell states a number of detectors, not a reason, so the reader cannot see that the cost is building and running them ourselves.",
+  "source": "briefs/why.md:38",
+  "fix": "we would build and run the detection ourselves",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/04-why.tex",
+  "line": 66,
+  "quote": "CERN already runs Telegraf and Mimir for machine metrics, so we concede our cluster and node samples.",
+  "problem": "Section 6.3 calls the same decision open, so the reader cannot tell whether the cluster and node samples stay in the platform.",
+  "source": "briefs/why.md:307",
+  "fix": "CERN already runs Telegraf and Mimir for machine metrics, and our cluster and node samples overlap them. Whether that estate takes the samples over is open.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/04-why.tex",
+  "line": 48,
+  "quote": "The stamper's cost is not measured.",
+  "problem": "Section 5.5 prices masking, mining and the transport hop in core-seconds, so the reader reads a flat contradiction instead of the split between a bench run and the running service.",
+  "source": "briefs/why.md:158",
+  "fix": "Every templating cost in Section~\\ref{sec:eval-templating} comes from mining runs over stored lines. The stamper running beside a live collector was never priced.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 51,
+  "quote": "Three routes for text stay open, and none is chosen.",
+  "problem": "Two of the three text routes were rejected and exactly one stays open, which is what 07-limits-close.tex:46 already says, so the two sections disagree.",
+  "source": "docs/explained/ANOMALY_DETECTION.md:330-334, 343-352, read through briefs/why.md:175-176 (\"k-NN on log messages. Rejected on cost... Templating as the detector. Rejected... Templates then k-NN stays open\")",
+  "fix": "One route stays open: mine the templates, then run nearest-neighbour search on those.",
+  "severity": "must",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 48,
+  "quote": "The stamper's cost is not measured.",
+  "problem": "The same paragraph gives 8.33 core-seconds per million for mining, so the reader cannot tell whether the mining figure is the stamper's cost or something else.",
+  "source": "reports/loggy-report/briefs/soak-index.md:161",
+  "fix": "Those figures price the miner on a stored corpus. What the stamper service costs beside a running collector is not measured.",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 39,
+  "quote": "The farm inventory sets three primaries, one per storage node, because one primary funnels all InfoLogger through one machine. No farm run has carried real volume.",
+  "problem": "Both sentences already stand word for word at 02-design-a.tex:15, and \"Nothing pages a human today.\" is likewise repeated word for word at 02-design-a.tex:11 and 03-design-b.tex:13.",
+  "source": ".claude/skills/humanizer/SKILL.md:75",
+  "fix": "Keep the pair in Section 3.1, where the layout is set, and cut it from Section 4.4, which already carries the shard arithmetic. Keep \"Nothing pages a human today.\" once, in Section 3.6.",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 63,
+  "quote": "Puppet wants an agent and a certificate on every machine, likely right for the farm and wrong for five machines one person deploys by hand.",
+  "problem": "\"likely right for the farm\" attaches to \"every machine\", the nearest noun, so a judgement about Puppet reads as a judgement about the machines.",
+  "source": "reports/loggy-report/briefs/style.md:18",
+  "fix": "Puppet wants an agent and a certificate on every machine. That is likely right for the farm. It is wrong for five machines that one person deploys by hand.",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/04-why.tex",
+  "line": 39,
+  "quote": "Staging runs one primary, because three reach about 135 at full retention.",
+  "problem": "\"three\" has no noun and 135 has no unit, so the reader must guess that three primaries produce about 135 shards against a capacity of about 60.",
+  "source": "reports/loggy-report/briefs/style.md:28",
+  "fix": "A heap holds roughly 20 shards per gigabyte, so three 1~GB heaps hold about 60 shards. Staging runs one primary, because three primaries reach about 135 shards at full retention.",
+  "severity": "should",
+  "lens": "voice"
+ }
+]

@@ -1,0 +1,12 @@
+[
+ {
+  "file": "reports/loggy-report/figures/fig08-flush.svg",
+  "line": 4,
+  "quote": "<text x=\"60\" y=\"22\">CORE-SECONDS, WHOLE RUN SET</text>",
+  "problem": "An eighth figure is finished and rendered to PDF, but no section includes it, so the folder carries an asset the report never cites.",
+  "source": "reports/loggy-report/outline.md:171 (\"Optional: the flush curve\"); no includegraphics{fig08 exists in reports/loggy-report/sections/",
+  "fix": "Either cite it beside Table 7 in Section 5.2, or delete fig08-flush.svg, .pdf and .png.",
+  "severity": "nit",
+  "lens": "figures"
+ }
+]

@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 820 592" width="820" height="592" role="img" aria-label="The target architecture of loggy: a worker tier and a storage tier.">
+<defs>
+<marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#101010"/></marker>
+<marker id="ghosthead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#101010" fill-opacity="0.32"/></marker>
+</defs>
+<text x="0" y="13" font-family="Menlo, monospace" font-size="11" fill="#6b6b66" text-anchor="start">01</text>
+<text x="24" y="13" font-family="Menlo, monospace" font-size="11" fill="#101010" text-anchor="start" letter-spacing="0.18em">WORKER TIER</text>
+<rect x="1" y="24" width="818" height="216" fill="#f1f1ec"/>
+<rect x="1" y="340" width="818" height="220" fill="#f1f1ec"/>
+<rect x="12" y="42" width="388" height="174" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+<text x="24" y="58" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="start">worker 1</text>
+<rect x="26" y="88" width="114" height="50" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+<image xlink:href="logos/opensearch-logo-official.svg" href="logos/opensearch-logo-official.svg" x="45" y="94" width="76" height="14.7"/>
+<text x="83" y="121" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11.5" fill="#101010" text-anchor="middle" font-weight="600">local node</text>
+<text x="83" y="133" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#6b6b66" text-anchor="middle">data, ingest</text>
+<rect x="162" y="88" width="104" height="50" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+<image xlink:href="logos/fluentbit-logo-official.svg" href="logos/fluentbit-logo-official.svg" x="175" y="92" width="78" height="24.1"/>
+<text x="214" y="131" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#6b6b66" text-anchor="middle">the collector</text>
+<rect x="294" y="88" width="94" height="50" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+<text x="341" y="108" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12.5" fill="#101010" text-anchor="middle" font-weight="600">the stamper</text>
+<text x="341" y="123" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10.5" fill="#6b6b66" text-anchor="middle">template ids</text>
+<path d="M162,103 H144" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+<path d="M162,122 H144" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+<text x="151" y="71" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">bulk http · localhost · 1 s</text>
+<text x="151" y="82" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">health sample · every 30 s</text>
+<path d="M270,113 H290" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)" marker-start="url(#head)"/>
+<text x="280" y="154" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">unix socket</text>
+<path d="M62,138 V160" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+<text x="68" y="154" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="start">info</text>
+<rect x="56" y="164" width="192" height="36" fill="#f1f1ec" stroke="#6b6b66" stroke-width="1"/>
+<text x="66" y="179" font-family="Menlo, monospace" font-size="10" fill="#101010" text-anchor="start">application-logs-local-*</text>
+<text x="66" y="193" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#3a3a36" text-anchor="start">1 shard, 0 replicas, never leaves</text>
+<rect x="412" y="42" width="388" height="174" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+<text x="424" y="58" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="start">worker 2</text>
+<rect x="426" y="88" width="114" height="50" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+<image xlink:href="logos/opensearch-logo-official.svg" href="logos/opensearch-logo-official.svg" x="445" y="94" width="76" height="14.7"/>
+<text x="483" y="121" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11.5" fill="#101010" text-anchor="middle" font-weight="600">local node</text>
+<text x="483" y="133" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#6b6b66" text-anchor="middle">data, ingest</text>
+<rect x="562" y="88" width="104" height="50" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+<image xlink:href="logos/fluentbit-logo-official.svg" href="logos/fluentbit-logo-official.svg" x="575" y="92" width="78" height="24.1"/>
+<text x="614" y="131" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#6b6b66" text-anchor="middle">the collector</text>
+<rect x="694" y="88" width="94" height="50" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+<text x="741" y="108" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12.5" fill="#101010" text-anchor="middle" font-weight="600">the stamper</text>
+<text x="741" y="123" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10.5" fill="#6b6b66" text-anchor="middle">template ids</text>
+<path d="M562,103 H544" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+<path d="M562,122 H544" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+<text x="551" y="71" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">bulk http · localhost · 1 s</text>
+<text x="551" y="82" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">health sample · every 30 s</text>
+<path d="M670,113 H690" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)" marker-start="url(#head)"/>
+<text x="680" y="154" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">unix socket</text>
+<path d="M462,138 V160" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+<text x="468" y="154" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="start">info</text>
+<rect x="456" y="164" width="192" height="36" fill="#f1f1ec" stroke="#6b6b66" stroke-width="1"/>
+<text x="466" y="179" font-family="Menlo, monospace" font-size="10" fill="#101010" text-anchor="start">application-logs-local-*</text>
+<text x="466" y="193" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#3a3a36" text-anchor="start">1 shard, 0 replicas, never leaves</text>
+<text x="800" y="231" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#6b6b66" text-anchor="end">… N workers, the same on every EPN</text>
+<text x="0" y="332" font-family="Menlo, monospace" font-size="11" fill="#6b6b66" text-anchor="start">02</text>
+<text x="24" y="332" font-family="Menlo, monospace" font-size="11" fill="#101010" text-anchor="start" letter-spacing="0.18em">STORAGE TIER</text>
+<rect x="12" y="352" width="590" height="36" fill="#fdf1f0" stroke="#e1251b" stroke-width="1.6"/>
+<text x="24" y="367" font-family="Menlo, monospace" font-size="10" fill="#e1251b" text-anchor="start">infologger · application-logs-central</text>
+<text x="24" y="381" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#e1251b" text-anchor="start">2 replicas, one copy on every storage node · 1 primary on staging, 3 on the farm</text>
+<rect x="614" y="352" width="150" height="36" fill="#f1f1ec" stroke="#6b6b66" stroke-width="1"/>
+<text x="624" y="367" font-family="Menlo, monospace" font-size="10" fill="#101010" text-anchor="start">cockpit-metrics</text>
+<text x="624" y="381" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#3a3a36" text-anchor="start">1 shard, 2 replicas</text>
+<rect x="12" y="400" width="244" height="146" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+<text x="24" y="418" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="start">storage node 1 · control host</text>
+<image xlink:href="logos/opensearch-logo-official.svg" href="logos/opensearch-logo-official.svg" x="24" y="428" width="76" height="14.7"/>
+<text x="24" y="458" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10.5" fill="#6b6b66" text-anchor="start">cluster manager, data, ingest</text>
+<path d="M24,466 H244" stroke="#d6d6cf" stroke-width="1"/>
+<rect x="24" y="474" width="106" height="18" fill="#f1f1ec" stroke="#6b6b66" stroke-width="1"/>
+<text x="32" y="486.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10.5" fill="#3a3a36" text-anchor="start">Dashboards, nginx</text>
+<rect x="138" y="474" width="106" height="18" fill="#f1f1ec" stroke="#6b6b66" stroke-width="1"/>
+<text x="146" y="486.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10.5" fill="#3a3a36" text-anchor="start">the poller, 30 s</text>
+<rect x="24" y="496" width="106" height="18" fill="#f1f1ec" stroke="#6b6b66" stroke-width="1"/>
+<text x="32" y="508.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10.5" fill="#3a3a36" text-anchor="start">Alertmanager</text>
+<rect x="138" y="496" width="106" height="18" fill="#f1f1ec" stroke="#6b6b66" stroke-width="1"/>
+<text x="146" y="508.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10.5" fill="#3a3a36" text-anchor="start">the receiver</text>
+<rect x="24" y="518" width="106" height="18" fill="#f1f1ec" stroke="#6b6b66" stroke-width="1"/>
+<rect x="266" y="400" width="244" height="146" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+<text x="278" y="418" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="start">storage node 2 · background host</text>
+<image xlink:href="logos/opensearch-logo-official.svg" href="logos/opensearch-logo-official.svg" x="278" y="428" width="76" height="14.7"/>
+<text x="278" y="458" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10.5" fill="#6b6b66" text-anchor="start">cluster manager, data, ingest</text>
+<path d="M278,466 H498" stroke="#d6d6cf" stroke-width="1"/>
+<rect x="278" y="474" width="220" height="18" fill="#f1f1ec" stroke="#6b6b66" stroke-width="1"/>
+<text x="286" y="486.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10.5" fill="#3a3a36" text-anchor="start">the projector, 30 s</text>
+<rect x="278" y="496" width="220" height="18" fill="#f1f1ec" stroke="#6b6b66" stroke-width="1"/>
+<text x="286" y="508.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10.5" fill="#3a3a36" text-anchor="start">the trend rollup, 10 min</text>
+<rect x="520" y="400" width="244" height="146" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+<text x="532" y="418" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="start">storage node 3 · shifter host</text>
+<image xlink:href="logos/opensearch-logo-official.svg" href="logos/opensearch-logo-official.svg" x="532" y="428" width="76" height="14.7"/>
+<text x="532" y="458" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10.5" fill="#6b6b66" text-anchor="start">cluster manager, data, ingest</text>
+<path d="M532,466 H752" stroke="#d6d6cf" stroke-width="1"/>
+<rect x="532" y="474" width="220" height="36" fill="#f1f1ec" stroke="#6b6b66" stroke-width="1"/>
+<text x="542" y="489" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11.5" fill="#101010" text-anchor="start" font-weight="600">the shifter view</text>
+<text x="542" y="503" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#6b6b66" text-anchor="start">live page · templates page</text>
+<text x="808" y="555" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#6b6b66" text-anchor="end">on the farm: three containers on one infra machine</text>
+<path d="M38,138 V262" fill="none" stroke="#101010" stroke-width="1.25"/>
+<path d="M438,138 V262" fill="none" stroke="#101010" stroke-width="1.25"/>
+<path d="M38,262 H438" fill="none" stroke="#101010" stroke-width="1.25"/>
+<path d="M400,262 V348" fill="none" stroke="#101010" stroke-width="1.25" marker-end="url(#head)"/>
+<rect x="92.0" y="253" width="296" height="18" fill="#ffffff" stroke="#6b6b66" stroke-width="1"/>
+<text x="240" y="265.5" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">warn+, InfoLogger, health · one hop, transport</text>
+<path d="M258,88 V32" fill="none" stroke="#6b6b66" stroke-width="1.25" stroke-dasharray="4 4"/>
+<path d="M658,88 V32" fill="none" stroke="#6b6b66" stroke-width="1.25" stroke-dasharray="4 4"/>
+<path d="M258,32 H810" fill="none" stroke="#6b6b66" stroke-width="1.25" stroke-dasharray="4 4"/>
+<path d="M810,32 V490 H756" fill="none" stroke="#6b6b66" stroke-width="1.25" stroke-dasharray="4 4" marker-end="url(#head)"/>
+<rect x="303.0" y="23" width="334" height="18" fill="#ffffff" stroke="#6b6b66" stroke-width="1"/>
+<text x="470" y="35.5" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">live lane today · http · InfoLogger, daemon log, warn+</text>
+<rect x="430" y="254" width="200" height="54" fill="#ffffff" stroke="#101010" stroke-width="1.1" stroke-opacity="0.32"/>
+<text x="530" y="278" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12.5" fill="#101010" text-anchor="middle" font-weight="600" fill-opacity="0.55">the bus · Kafka</text>
+<text x="530" y="293" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#6b6b66" text-anchor="middle">live lane only · one topic, one consumer</text>
+<path d="M806,268 H634" fill="none" stroke="#101010" stroke-width="1.25" stroke-opacity="0.32" marker-end="url(#ghosthead)"/>
+<text x="719" y="281" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">InfoLogger, daemon log, warn+</text>
+<text x="719" y="292" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">kafka produce</text>
+<path d="M630,303 H802" fill="none" stroke="#101010" stroke-width="1.25" stroke-opacity="0.32" marker-end="url(#ghosthead)"/>
+<text x="719" y="316" font-family="Menlo, monospace" font-size="10" fill="#6b6b66" text-anchor="middle">one consumer · kafka fetch</text>
+<rect x="12" y="570" width="22" height="12" fill="#ffffff" stroke="#101010" stroke-width="1.1"/>
+<text x="40" y="580" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#3a3a36" text-anchor="start">built and running on staging</text>
+<rect x="210" y="570" width="22" height="12" fill="#ffffff" stroke="#101010" stroke-width="1.1" stroke-opacity="0.32"/>
+<text x="238" y="580" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#3a3a36" text-anchor="start">agreed, not built</text>
+<path d="M360,576 H392" fill="none" stroke="#6b6b66" stroke-width="1.25" stroke-dasharray="4 4"/>
+<text x="398" y="580" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10" fill="#3a3a36" text-anchor="start">the live lane as built today, replaced by the bus</text>
+</svg>

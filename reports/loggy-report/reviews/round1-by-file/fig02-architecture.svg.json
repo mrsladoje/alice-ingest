@@ -1,0 +1,32 @@
+[
+ {
+  "file": "reports/loggy-report/figures/fig02-architecture.svg",
+  "line": 116,
+  "quote": "<path d=\"M806,268 H764\" fill=\"none\" stroke=\"#101010\" stroke-width=\"1.25\" stroke-opacity=\"0.32\" marker-end=\"url(#ghosthead)\"/>",
+  "problem": "Both arrows at the bus (lines 116 and 117) carry no label, so what the collectors publish and what the shifter view consumes is a guess, while every other edge in the figure names its cargo and protocol.",
+  "source": "reports/loggy-report/figures/STYLE.md:47 (\"Label every arrow with what flows and how (protocol, cadence), in monospace. An unlabelled arrow is a guess.\"); briefs/target-architecture.md:81 (the collector gets a Kafka output, the shifter view consumes the topic)",
+  "fix": "Label the inbound arrow \"severe lines \u00b7 kafka produce\" and the outbound arrow \"one consumer \u00b7 kafka fetch\".",
+  "severity": "should",
+  "lens": "figures"
+ },
+ {
+  "file": "reports/loggy-report/figures/fig02-architecture.svg",
+  "line": 90,
+  "quote": "<text x=\"400\" y=\"486.5\" font-family=\"Helvetica Neue, Helvetica, Arial, sans-serif\" font-size=\"10.5\" fill=\"#3a3a36\" text-anchor=\"start\">the trend rollup</text>",
+  "problem": "The rollup is the only service card without a cadence, while its neighbours read \"the poller, 30 s\" and \"the projector, 30 s\", so it reads as continuous; it runs every ten minutes.",
+  "source": "reports/loggy-report/briefs/walkthroughs-3-5.md:163 (the rollup service runs every 600 seconds); briefs/target-architecture.md:65",
+  "fix": "Write \"the trend rollup, 10 min\".",
+  "severity": "should",
+  "lens": "figures"
+ },
+ {
+  "file": "reports/loggy-report/figures/fig02-architecture.svg",
+  "line": 12,
+  "quote": "<text x=\"388\" y=\"58\" font-family=\"Menlo, monospace\" font-size=\"10\" fill=\"#6b6b66\" text-anchor=\"end\">role = worker</text>",
+  "problem": "This is a shard-allocation attribute written in configuration vocabulary (also on line 36), and in a report that bans role names it reads as one; the card already says what the node is in plain words.",
+  "source": "reports/loggy-report/figures/STYLE.md:51 (\"No Ansible role names, no file names, no version numbers in figures.\"); briefs/target-architecture.md:25 (the attribute exists, to pin the local index)",
+  "fix": "Replace both with \"the local index is pinned here\", or drop the tag.",
+  "severity": "should",
+  "lens": "figures"
+ }
+]

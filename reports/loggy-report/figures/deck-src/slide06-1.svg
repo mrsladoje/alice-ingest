@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" viewBox="0 0 820 560" role="img"
+           aria-label="Federated search inside one cluster, in three parts. Part one, ask once and every node answers: one query, written against one saved pattern, goes to a storage machine, and that machine collects the answers from the others. Three arrows run both ways to the rest of the cluster: the query goes out and the answers come back. Two worker rows are drawn, node-01 and node-02, each holding its own local logs. Below them one card groups node-03, node-04 and node-05 as the storage part of the same cluster. Part two, one cluster and not many: a card of five squares labelled one cluster stands beside a faded card of three separate clusters joined by dashed lines labelled cross-cluster search. The note says we run one cluster, the other way is many clusters joined together by cross-cluster search. Under the heading pros of many clusters: one bad query cannot slow the other clusters, and each cluster upgrades on its own schedule. Beside it, six lines. Under the heading pros of one cluster: built-in cross-cluster search does not scale to a hundred machines; the cluster places shards and replicas itself across all machines; one set of users, roles and saved searches; detection and alerting are streamlined; no federation layer of our own to write and keep alive. Part three, fanout, where not everything is perfect: a search that asks every machine takes processor time on every machine. It is as slow as the slowest machine. Those same machines reconstruct events, which is their real job, so log search must not compete with it. So we ask only when we must: the live lane covers watching, but a question such as which machines saw this error in run 561234 has to ask all of them.">
+        <defs>
+          <marker id="mk05a" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0,1 L10,5 L0,9 z" class="d-head" style="fill:#101010"></path>
+          </marker>
+        </defs>
+
+        <image href="logos/opensearch-logo-official.svg" x="0" y="4" width="104" height="19.9"></image>
+        <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="118" y="20">one query, every machine</text>
+        <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M0,32 H820"></path>
+
+        <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="50">01</text>
+        <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="50">Ask once — every node answers</text>
+
+        <rect class="d-panel" style="fill:#f1f1ec" x="1" y="58" width="818" height="156"></rect>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="14" y="100" width="140" height="56"></rect>
+        <text class="d-t is-sm" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="84" y="122">One query</text>
+        <text class="d-s is-sm" style="font-size:10.5px;fill:#6b6b66;text-anchor:middle" x="84" y="140">(one saved pattern)</text>
+
+        <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M154,128 H176" marker-end="url(#mk05a)"></path>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="182" y="100" width="160" height="56"></rect>
+        <text class="d-t is-sm" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="262" y="122">Storage machine</text>
+        <text class="d-s is-sm" style="font-size:10.5px;fill:#6b6b66;text-anchor:middle" x="262" y="140">collects the answers</text>
+
+        <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M540,76 H460 V128 H342" marker-start="url(#mk05a)" marker-end="url(#mk05a)"></path>
+        <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M540,106 H460 V128 H342" marker-start="url(#mk05a)" marker-end="url(#mk05a)"></path>
+        <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M540,166 H460 V128 H342" marker-start="url(#mk05a)" marker-end="url(#mk05a)"></path>
+
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="14" y="182">Dashboards sends the query to a storage machine.</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="14" y="196">That machine asks the others and merges the answers.</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="546" y="64" width="260" height="24"></rect>
+        <text class="d-ix is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.02em;fill:#101010;text-anchor:start" x="556" y="80">node-01</text>
+        <text class="d-ix is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.02em;fill:#101010;text-anchor:start" x="646" y="80">local logs</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="546" y="94" width="260" height="24"></rect>
+        <text class="d-ix is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.02em;fill:#101010;text-anchor:start" x="556" y="110">node-02</text>
+        <text class="d-ix is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.02em;fill:#101010;text-anchor:start" x="646" y="110">local logs</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="546" y="124" width="260" height="84"></rect>
+        <text class="d-ix is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.02em;fill:#101010;text-anchor:start" x="558" y="148">node-03</text>
+        <text class="d-ix is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.02em;fill:#101010;text-anchor:start" x="558" y="166">node-04</text>
+        <text class="d-ix is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.02em;fill:#101010;text-anchor:start" x="558" y="184">node-05</text>
+        <text class="d-ix is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.02em;fill:#101010;text-anchor:start" x="646" y="159">storage part</text>
+        <text class="d-ix is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.02em;fill:#101010;text-anchor:start" x="646" y="177">of the cluster</text>
+
+
+        <g class="d-anim" style="display:none" aria-hidden="true">
+          <rect class="d-flash" style="fill:#e1251b;opacity:0" x="546" y="64" width="260" height="24"><animate attributeName="opacity" dur="4.4s" repeatCount="indefinite" values="0;0;0.18;0.18;0;0" keyTimes="0;0.364;0.4;0.48;0.5;1"></animate></rect><rect class="d-flash" style="fill:#e1251b;opacity:0" x="546" y="94" width="260" height="24"><animate attributeName="opacity" dur="4.4s" repeatCount="indefinite" values="0;0;0.18;0.18;0;0" keyTimes="0;0.364;0.4;0.48;0.5;1"></animate></rect><rect class="d-flash" style="fill:#e1251b;opacity:0" x="546" y="124" width="260" height="84"><animate attributeName="opacity" dur="4.4s" repeatCount="indefinite" values="0;0;0.18;0.18;0;0" keyTimes="0;0.364;0.4;0.48;0.5;1"></animate></rect><rect class="d-flash" style="fill:#e1251b;opacity:0" x="182" y="100" width="160" height="56"><animate attributeName="opacity" dur="4.4s" repeatCount="indefinite" values="0;0;0.18;0.18;0;0" keyTimes="0;0.727;0.76;0.84;0.864;1"></animate></rect>
+          <circle class="d-pulse" style="fill:#e1251b" r="3.4"><animateMotion dur="4.4s" repeatCount="indefinite" calcMode="linear" path="M154,128 H176" keyPoints="0;0;1;1" keyTimes="0;0;0.136;1"></animateMotion><animate attributeName="opacity" dur="4.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0;0.005;0.136;0.141;1"></animate></circle>
+          <circle class="d-pulse" style="fill:#e1251b" r="3.4"><animateMotion dur="4.4s" repeatCount="indefinite" calcMode="linear" path="M540,76 H460 V128 H342" keyPoints="1;1;0;0" keyTimes="0;0.136;0.364;1"></animateMotion><animate attributeName="opacity" dur="4.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.136;0.141;0.364;0.369;1"></animate></circle>
+          <circle class="d-pulse" style="fill:#e1251b" r="3.4"><animateMotion dur="4.4s" repeatCount="indefinite" calcMode="linear" path="M540,106 H460 V128 H342" keyPoints="1;1;0;0" keyTimes="0;0.136;0.364;1"></animateMotion><animate attributeName="opacity" dur="4.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.136;0.141;0.364;0.369;1"></animate></circle>
+          <circle class="d-pulse" style="fill:#e1251b" r="3.4"><animateMotion dur="4.4s" repeatCount="indefinite" calcMode="linear" path="M540,166 H460 V128 H342" keyPoints="1;1;0;0" keyTimes="0;0.136;0.364;1"></animateMotion><animate attributeName="opacity" dur="4.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.136;0.141;0.364;0.369;1"></animate></circle>
+          <circle class="d-pulse" style="fill:#e1251b" r="3.4"><animateMotion dur="4.4s" repeatCount="indefinite" calcMode="linear" path="M540,76 H460 V128 H342" keyPoints="0;0;1;1" keyTimes="0;0.5;0.727;1"></animateMotion><animate attributeName="opacity" dur="4.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.5;0.505;0.727;0.732;1"></animate></circle>
+          <circle class="d-pulse" style="fill:#e1251b" r="3.4"><animateMotion dur="4.4s" repeatCount="indefinite" calcMode="linear" path="M540,106 H460 V128 H342" keyPoints="0;0;1;1" keyTimes="0;0.5;0.727;1"></animateMotion><animate attributeName="opacity" dur="4.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.5;0.505;0.727;0.732;1"></animate></circle>
+          <circle class="d-pulse" style="fill:#e1251b" r="3.4"><animateMotion dur="4.4s" repeatCount="indefinite" calcMode="linear" path="M540,166 H460 V128 H342" keyPoints="0;0;1;1" keyTimes="0;0.5;0.727;1"></animateMotion><animate attributeName="opacity" dur="4.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.5;0.505;0.727;0.732;1"></animate></circle>
+          <circle class="d-pulse" style="fill:#e1251b" r="3.4"><animateMotion dur="4.4s" repeatCount="indefinite" calcMode="linear" path="M154,128 H176" keyPoints="1;1;0;0" keyTimes="0;0.727;0.864;1"></animateMotion><animate attributeName="opacity" dur="4.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.727;0.732;0.864;0.869;1"></animate></circle>
+        </g>
+
+        <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="242">02</text>
+        <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="242">One cluster, not many</text>
+        <rect class="d-panel" style="fill:#f1f1ec" x="1" y="250" width="818" height="182"></rect>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="12" y="260" width="180" height="52"></rect>
+        <text class="d-vm is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:start" x="22" y="275">ONE CLUSTER</text>
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="22" y="284" width="16" height="16"></rect>
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="56" y="284" width="16" height="16"></rect>
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="90" y="284" width="16" height="16"></rect>
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="124" y="284" width="16" height="16"></rect>
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="158" y="284" width="16" height="16"></rect>
+
+        <rect class="d-card is-soft" style="fill:#f1f1ec;stroke:#6b6b66;stroke-width:1.1" x="204" y="260" width="180" height="52"></rect>
+        <text class="d-vm is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:start" x="214" y="275">MANY CLUSTERS</text>
+        <rect class="d-ghost" style="fill:#ffffff;stroke:#101010;stroke-width:1.1;opacity:0.32" x="214" y="282" width="46" height="18"></rect>
+        <rect class="d-ghost" style="fill:#ffffff;stroke:#101010;stroke-width:1.1;opacity:0.32" x="272" y="282" width="46" height="18"></rect>
+        <rect class="d-ghost" style="fill:#ffffff;stroke:#101010;stroke-width:1.1;opacity:0.32" x="330" y="282" width="46" height="18"></rect>
+        <path class="d-line is-dash" style="fill:none;stroke:#6b6b66;stroke-width:1.25;stroke-dasharray:4 4" d="M260,291 H272"></path>
+        <path class="d-line is-dash" style="fill:none;stroke:#6b6b66;stroke-width:1.25;stroke-dasharray:4 4" d="M318,291 H330"></path>
+        <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="294" y="309">cross-cluster search</text>
+
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="12" y="332">We run one cluster. The other way is many clusters,</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="12" y="344">joined together by cross-cluster search.</text>
+
+        <text class="d-vm is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:start" x="12" y="372">PROS OF MANY CLUSTERS</text>
+        <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M12,379 H384"></path>
+
+        <path class="d-plus" style="stroke:#1c7c46;stroke-width:2;stroke-linecap:square" d="M12,392 H22 M17,387 V397"></path>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="30" y="395">One bad query cannot slow the other clusters.</text>
+
+        <path class="d-plus" style="stroke:#1c7c46;stroke-width:2;stroke-linecap:square" d="M12,410 H22 M17,405 V415"></path>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="30" y="413">Each cluster upgrades on its own schedule.</text>
+
+        <text class="d-vm is-start" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66;text-anchor:start" x="436" y="275">PROS OF ONE CLUSTER</text>
+        <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M436,282 H808"></path>
+
+        <path class="d-plus" style="stroke:#1c7c46;stroke-width:2;stroke-linecap:square" d="M436,300 H446 M441,295 V305"></path>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="454" y="303">Built-in cross-cluster search does not scale to 100 machines.</text>
+
+        <path class="d-plus" style="stroke:#1c7c46;stroke-width:2;stroke-linecap:square" d="M436,324 H446 M441,319 V329"></path>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="454" y="327">The cluster places shards and replicas itself, across all machines.</text>
+
+        <path class="d-plus" style="stroke:#1c7c46;stroke-width:2;stroke-linecap:square" d="M436,348 H446 M441,343 V353"></path>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="454" y="351">One set of users, roles and saved searches.</text>
+
+        <path class="d-plus" style="stroke:#1c7c46;stroke-width:2;stroke-linecap:square" d="M436,372 H446 M441,367 V377"></path>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="454" y="375">Detection and alerting streamlined.</text>
+
+        <path class="d-plus" style="stroke:#1c7c46;stroke-width:2;stroke-linecap:square" d="M436,396 H446 M441,391 V401"></path>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="454" y="399">No federation layer of our own to write and keep alive.</text>
+
+        <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="450">04</text>
+        <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="450">Fanout — not everything is perfect</text>
+
+        <rect class="d-panel" style="fill:#f1f1ec" x="1" y="458" width="818" height="96"></rect>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="12" y="470" width="260" height="74"></rect>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="24" y="492">Every machine pays</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="24" y="510">One search asks all of them, so all of</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="24" y="523">them spend processor time on it. It is</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="24" y="536">as slow as the slowest machine.</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="284" y="470" width="260" height="74"></rect>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="296" y="492">Reconstruction comes first</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="296" y="510">Those same machines reconstruct</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="296" y="523">events. That is their real job, and log</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="296" y="536">search must not compete with it.</text>
+
+        <rect class="d-card is-hot" style="fill:#fdf1f0;stroke:#e1251b;stroke-width:1.6" x="556" y="470" width="252" height="74"></rect>
+        <text class="d-t is-sm is-start is-hot" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#e1251b;text-anchor:start" x="568" y="492">So we ask only when we must</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="568" y="510">The live lane covers watching. But</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="568" y="523">“which machines saw this error in</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="568" y="536">run 561234?” has to ask all of them.</text>
+      </svg>

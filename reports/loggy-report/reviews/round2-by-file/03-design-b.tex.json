@@ -1,0 +1,212 @@
+[
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 19,
+  "quote": "From the death: the grace and the poll give the first missing flag after 60 to 150~seconds, the monitor adds up to 60, the projector up to 30, and the page wait 30.",
+  "problem": "The sentence has 33 words against the 25-word rule.",
+  "source": "task rules (at most 25 words per sentence); word count 33",
+  "fix": "\"The grace and the poll give the first missing flag 60 to 150 seconds after the death. The monitor adds up to 60 seconds, the projector up to 30, and the page wait 30.\"",
+  "severity": "must",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 9,
+  "quote": "\\begin{figure}[htbp]\\centering\\includegraphics[width=0.88\\textwidth]{fig06-alerts.pdf}",
+  "problem": "Figure 6 sits alone on a float page (printed page 8) that is about 45 % empty.",
+  "source": "report/report.pdf printed page 8, rendered at 45 and 110 dpi: only Figure 6, blank above and below",
+  "fix": "Add \\renewcommand{\\floatpagefraction}{0.8} and \\renewcommand{\\topfraction}{0.9} to preamble.tex, or place the figure [t] at width 0.8; saves about 0.4 page.",
+  "severity": "should",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 5,
+  "quote": "Seventeen detectors run, one model per entity, and a silent host scores zero.",
+  "problem": "Zero imputation makes the counted value zero, not the anomaly grade, and only the volume detectors set it, so the sentence says silence is graded as normal when the design exists to make silence visible.",
+  "source": "deploy/roles/loggy_anomaly_detection/files/detectors/il-per-epn.json:51-53 (imputation_option ZERO, present only on the volume detectors); reports/loggy-report/briefs/why.md:16 citing docs/explained/ANOMALY_DETECTION.md:34-37",
+  "fix": "Write: \"Seventeen detectors run, one model per entity, and a volume detector reads a silent host as zero records, so silence is a value it can grade.\"",
+  "severity": "must",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 5,
+  "quote": "Three lanes read those numbers.",
+  "problem": "The antecedent is the pushed heartbeats and the poller's cluster samples, but fourteen of the seventeen detectors read the three log families and the nine trend rules read rows rolled up from the logs, so detection reads more than platform health.",
+  "source": "reports/inputs/dataflow-atlas.md:196 (fourteen log detectors read the three log families, three read cockpit-metrics); reports/loggy-report/briefs/walkthroughs-3-5.md:141",
+  "fix": "Write: \"Three lanes read numbers: the health samples above, and the counts, error rates and lags rolled up from the logs themselves.\"",
+  "severity": "should",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 29,
+  "quote": "It never queries the cluster, so it holds when the cluster is down.",
+  "problem": "\"It\" reads as the shifter view, which walkthrough 1 step 7 has querying the central index, so the reader cannot tell which claim holds.",
+  "source": "reports/inputs/dataflow-atlas.md:22 (audited, live lane has \"no cluster query at all\") against dataflow-atlas.md:24 (audited, \"The Shifter's query lane searches the same central index, capped at 20,000 rows\"); the report's own sections/02-design-a.tex:44.",
+  "fix": "\"Its live page never queries the cluster, so the page holds when the cluster is down. A second lane in the same page does search the central index, capped at 20,000 rows.\"",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 19,
+  "quote": "From the death: the grace and the poll give the first missing flag after 60 to 150~seconds, the monitor adds up to 60, the projector up to 30, and the page wait 30.",
+  "problem": "Thirty-four words against the 25-word rule, with three of its four numbers carrying no unit, in the sentence that must prove the 90 to 270 second bound.",
+  "source": "The report's rule of at most 25 words a sentence; the cadences at sections/03-design-b.tex:17 and briefs/target-architecture.md:163.",
+  "fix": "\"The first missing flag arrives 60 to 150~seconds after the death. The monitor adds up to 60~seconds, the projector up to 30, and the page wait another 30.\" Four further sentences run to 26 words: 01-intro-problem.tex:59, 02-design-a.tex:57, 02-design-a.tex:59, 02-design-a.tex:73.",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 29,
+  "quote": "The ops page counts families, alerts, anomaly results, incidents and signals.",
+  "problem": "The reader is promised four surfaces and meets five named things, and the ops page appears once with no reader and no contrast to the maintainer cockpit.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:56 \u2014 \"Ops page | The operator's status line plus the buttons that drive the test harness (atlas:387) ... built on staging; the buttons are tester tooling\"; round1-simplicity.md S14 raised the same gap.",
+  "fix": "Either say \"five surfaces\" and give the ops page its reader (\"a maintainer's status line over the platform's own indices\"), or drop it from the prose and leave it in Figure 2.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 5,
+  "quote": "Of 30 monitors, 17 are threshold and detector monitors, 13 every minute and four every ten.",
+  "problem": "The preceding sentence says \"Seventeen detectors run\", so the reader reads the two seventeens as one set and concludes detectors are monitors, which the same paragraph denies.",
+  "source": "reports/inputs/dataflow-atlas.md:193-217 keeps 17 detector plugin jobs apart from 30 alerting monitors (15 every minute, two of them break-glass); briefs/target-architecture.md:203.",
+  "fix": "Remove the collision: \"Of the 30 monitors, 13 run every minute and four every ten on thresholds and on detector results. Nine are trend comparisons every ten minutes, two run hourly on templates and two are break-glass.\"",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 5,
+  "quote": "Seventeen detectors run, one model per entity, and a silent host scores zero.",
+  "problem": "Two sentences later the paragraph says \"Of 30 monitors, 17 are threshold and detector monitors\"; both counts are correct but the repeated 17 reads as one number.",
+  "source": "reports/inputs/dataflow-atlas.md:193, 214; briefs/target-architecture.md:120",
+  "fix": "Write the monitor breakdown without restating 17: \"Of 30 monitors, 13 threshold and detector monitors run every minute and four every ten.\"",
+  "severity": "nit",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 7,
+  "quote": "One monitor watches every grade and pages once for the whole fleet above 0.7.",
+  "problem": "The monitor needs the maximum grade above 0.7 and that row's confidence above 0.7; the report names only one of the two thresholds.",
+  "source": "briefs/walkthroughs-6-9.md:29 (ad-high-grade.json:68)",
+  "fix": "Write: \"...pages once for the whole fleet when a grade and its confidence both pass 0.7.\"",
+  "severity": "nit",
+  "lens": "numbers"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 19,
+  "quote": "From the death: the grace and the poll give the first missing flag after 60 to 150~seconds, the monitor adds up to 60, the projector up to 30, and the page wait 30.",
+  "problem": "The sentence runs to 34 words and its last three clauses drop their verbs and their units, so 60, 30 and 30 count nothing the reader can name.",
+  "source": "reports/loggy-report/briefs/style.md:11; .claude/skills/simple-english/SKILL.md:32 and :37",
+  "fix": "Split into four sentences with units: \"The grace period and the poll give the first missing flag 60 to 150~seconds after the death. The monitor adds up to 60~seconds. The projector adds up to 30. The page wait adds another 30.\"",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 29,
+  "quote": "It never queries the cluster, so it holds when the cluster is down.",
+  "problem": "\"It\" reads as the whole shifter view, which contradicts 02-design-a.tex:44, where the shifter view has a query lane capped at 20,000 rows; only the live page never queries.",
+  "source": "reports/inputs/dataflow-atlas.md:23; reports/loggy-report/briefs/target-architecture.md:75",
+  "fix": "\"The live page never queries the cluster, so it holds when the cluster is down.\" Name the query lane at 02-design-a.tex:44 as the shifter view's one search over the central index.",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 7,
+  "quote": "An incident is the episode document grouping the signals of one alert name on one entity.",
+  "problem": "The previous sentence already defines an episode as one trouble on one thing, so the reader gets two names for one thing and no way to tell them apart.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:108; .claude/skills/simple-english/SKILL.md:40",
+  "fix": "Keep one name in prose: \"The projector stores each episode as one document, which groups the signals of one alert name on one entity.\"",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 5,
+  "quote": "Of 30 monitors, 17 are threshold and detector monitors, 13 every minute and four every ten.",
+  "problem": "The last clause drops its verb and its unit, so \"four every ten\" cannot be read, and the paragraph holding it runs to twelve sentences.",
+  "source": ".claude/skills/simple-english/SKILL.md:37 and :32",
+  "fix": "\"Thirty monitors run. Seventeen are threshold and detector monitors: 13 run every minute and four every ten minutes.\" Break the paragraph after the entity definition.",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 11,
+  "quote": "A page waits 30~seconds, a warn five minutes.",
+  "problem": "\"a page\" and \"a warn\" are used as nouns for the two severity tiers with no definition, and 3.7 and 3.8 then lean on \"page severity\" and \"the warn tier\".",
+  "source": ".claude/skills/simple-english/SKILL.md:40; reports/loggy-report/briefs/style.md:22",
+  "fix": "\"Alerts carry one of two tiers: a page wakes a person, a warn waits for one. Alertmanager holds a page 30~seconds and a warn five minutes before it sends the batch.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 13,
+  "quote": "Two break-glass monitors watch the projector and Alertmanager, and only they post straight to the receiver.",
+  "problem": "\"Break-glass\" carries the self-watching argument here and in 5.7, and the report never says it means the path that still works when the normal path is the broken thing.",
+  "source": "reports/loggy-report/briefs/style.md:22; reports/loggy-report/sections/06-eval-b.tex:52",
+  "fix": "\"Two monitors watch the projector and Alertmanager themselves. They take the break-glass path: they post straight to the receiver, because the projector they watch can be the dead part.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 29,
+  "quote": "The ops page counts families, alerts, anomaly results, incidents and signals.",
+  "problem": "The paragraph promises four surfaces and then names a fifth thing that was never introduced, with no word on who opens it or why.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:56",
+  "fix": "Drop the sentence, or say what it is: \"A fifth screen, the ops page, holds the counts a maintainer checks and the buttons that drive the test harness.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 29,
+  "quote": "Two clocks run: health and the log detectors use the time the collector accepted a record, Discover the time it was written.",
+  "problem": "Section 3.6 ends \"No lane reads the log text\", so \"the log detectors\" reads as a contradiction, and the second clause is a comma splice with no verb.",
+  "source": "reports/loggy-report/briefs/why.md:357; reports/loggy-report/briefs/target-architecture.md:162",
+  "fix": "\"Two clocks run. The health samples and the detectors that count log records use the time the collector accepted a record. Discover uses the time the line was written.\"",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 19,
+  "quote": "From the death: the grace and the poll give the first missing flag after 60 to 150~seconds, the monitor adds up to 60, the projector up to 30, and the page wait 30.",
+  "problem": "Section 3.6 says a collector silent for 90 seconds is absent, so a first missing flag at 60 seconds looks impossible, because the condensing dropped the clause that the last sample may already be 30 seconds old.",
+  "source": "briefs/walkthroughs-3-5.md:181 (heartbeat every 30 seconds, 90-second grace, poll every 30 seconds, monitor every minute, page group wait 30 seconds)",
+  "fix": "Write \"the grace and the poll give the first missing flag 60 to 150 seconds after the death, because the last sample may already be 30 seconds old\".",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 7,
+  "quote": "An incident is the episode document grouping the signals of one alert name on one entity.",
+  "problem": "Episode and incident are one object with two names, and defining them as two things is why the reader answered question 12 only partly.",
+  "source": "briefs/walkthroughs-3-5.md:77 (\"writes the signal row ... and opens an incident episode\"); briefs/target-architecture.md:66 (the projector \"decides what is one incident\" and writes alice-incidents)",
+  "fix": "Write \"The projector stores each episode as one incident document, so the two words name the same thing. The index is alice-incidents.\"",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 5,
+  "quote": "Threshold monitors catch cliffs: a storage disk above 92~\\% pages, and above 85 up to 92~\\% warns.",
+  "problem": "This is the first use of page and warn as the two severity tiers, and neither is named as such, although the page tier and the warn tier then carry Sections 3.7 and 3.8.",
+  "source": "briefs/style.md (define a term at first use); briefs/walkthroughs-3-5.md:105-106 (disk-cliff-warn severity 2, disk-cliff-page severity 1)",
+  "fix": "Write \"reaches the page tier, the severity that would wake a person, and 85 to 92 % the warn tier\".",
+  "severity": "nit",
+  "lens": "reader"
+ }
+]

@@ -1,0 +1,22 @@
+[
+ {
+  "file": "reports/loggy-report/report/preamble.tex",
+  "line": 1,
+  "quote": "\\documentclass[a4paper,11pt]{article}",
+  "problem": "The built PDF is still 18 pages; the target is 16 including the title page (round 1 must finding, still present).",
+  "source": "pdfinfo report/report.pdf: Pages: 18",
+  "fix": "Recover the white space (floatpagefraction 0.8, topfraction 0.9), cut Table 10 with Appendix B, and cut Figure 3 or Figure 7; together about 2 pages.",
+  "severity": "must",
+  "lens": "build"
+ },
+ {
+  "file": "reports/loggy-report/report/preamble.tex",
+  "line": 52,
+  "quote": "\\rhead{\\small\\color{inksoft}\\nouppercase{\\leftmark}}",
+  "problem": "The running head names the last section that starts on a page, so printed page 16 opens with \"7 Conclusion\" under a head reading \"B The soak in one line per round\".",
+  "source": "report/report.pdf printed pages 2 and 16",
+  "fix": "Load extramarks and use \\firstleftmark, or accept it.",
+  "severity": "nit",
+  "lens": "build"
+ }
+]

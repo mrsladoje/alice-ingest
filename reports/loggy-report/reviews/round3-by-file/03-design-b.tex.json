@@ -1,0 +1,122 @@
+[
+ {
+  "file": "sections/03-design-b.tex",
+  "line": 5,
+  "quote": "Three lanes read numbers: health samples, and counts, error rates and lags from the log records.",
+  "problem": "The colon promises three lanes and delivers two kinds of number, so the reader never learns which three lanes exist or what each is for.",
+  "source": "briefs/why.md:172",
+  "fix": "Three lanes read those numbers. Threshold monitors catch the cliffs we know. Detectors catch unfamiliar shapes. Trend monitors catch slow drift. The numbers are health samples, and counts, error rates and lags from the log records.",
+  "severity": "must",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/03-design-b.tex",
+  "line": 25,
+  "quote": "Each row holds record, error and fatal counts and the 95th percentile of two lags.",
+  "problem": "Two trend rules and part of the detector lane rest on lag, and the reader meets the word here with no definition and no pair.",
+  "source": "reports/inputs/dataflow-atlas.md:18",
+  "fix": "Each row holds record, error and fatal counts and the 95th percentile of two delays: the line's age when the collector read it, and the shipping time from the collector to the store.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/03-design-b.tex",
+  "line": 9,
+  "quote": "A grade above 0.5 opens an episode. One monitor watches every grade and pages once for the fleet above 0.7.",
+  "problem": "Every other rule names one entity, and this one names the fleet with no reason, so the reader cannot tell who is paged about what.",
+  "source": "briefs/why.md:178",
+  "fix": "A grade above 0.5 opens an episode. One monitor reads every detector's grades and pages once for the whole fleet when any grade passes 0.7.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "sections/03-design-b.tex",
+  "line": 5,
+  "quote": "Threshold monitors catch cliffs in two tiers: a storage disk above 92~\\% pages, and above 85 up to 92~\\% warns.",
+  "problem": "Page and warn then carry the projector, the Alertmanager timers and the trend lane, and the reader never learns that they are the two severities of a notification.",
+  "source": "sections/03-design-b.tex:13",
+  "fix": "An alert carries one of two tiers. A page asks for a person now, a warn waits in a batch. A storage disk above 92~\\% pages, and above 85 up to 92~\\% warns.",
+  "severity": "should",
+  "lens": "simplicity"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 19,
+  "quote": "Within 30 seconds the poller writes the collector's row with a missing flag.",
+  "problem": "The poller marks absence only after 90 seconds of silence, so the first missing flag arrives 60 to 150 seconds after the death, as the next paragraph of the same section states.",
+  "source": "briefs/walkthroughs-3-5.md:64 (\"The poller flags a collector whose last heartbeat is older than 90 seconds (metrics_poller.py:16-17, 100-102). It ticks every 30 seconds (metrics_poller.py:12). First fleet document with heartbeat_missing 1: 60 to 150 seconds after death\")",
+  "fix": "Every 30 seconds the poller writes one row per rostered collector, and flags the collector that has been silent for 90 seconds.",
+  "severity": "must",
+  "lens": "facts"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 19,
+  "quote": "Within 30~seconds the poller writes the collector's row with a missing flag.",
+  "problem": "The poller writes a row every 30 seconds, but the flag says missing only after 90 seconds of silence, so this sentence contradicts \"A rostered collector silent for 90 seconds is absent\" in 3.6 and the \"60 to 150~seconds\" figure two sentences later.",
+  "source": "reports/loggy-report/briefs/walkthroughs-3-5.md:64",
+  "fix": "Every 30~seconds the poller writes one row for each rostered collector. The row says missing once no sample has arrived for 90~seconds.",
+  "severity": "must",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 5,
+  "quote": "Threshold monitors catch cliffs in two tiers: a storage disk above 92~\\% pages, and above 85 up to 92~\\% warns.",
+  "problem": "The same section says \"Nothing pages a human today\", so one verb carries a severity tier and a human act and the two sentences read as a contradiction.",
+  "source": "reports/loggy-report/briefs/walkthroughs-3-5.md:121",
+  "fix": "Threshold monitors catch cliffs in two tiers: a storage disk above 92~\\% raises a page-tier alert, and above 85 up to 92~\\% raises a warn-tier alert. Keep \"pages a human\" for the act alone.",
+  "severity": "should",
+  "lens": "reader"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 5,
+  "quote": "Three lanes read numbers: health samples, and counts, error rates and lags from the log records.",
+  "problem": "The colon lists the numbers the lanes read rather than the lanes, so the three lanes that Section 3.8 and the Figure 6 caption rely on are never named.",
+  "source": "reports/loggy-report/briefs/why.md:172",
+  "fix": "Three lanes read numbers: threshold monitors, Random Cut Forest detectors and trend monitors. The numbers are the health samples, and the counts, error rates and lags taken from the log records.",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 5,
+  "quote": "Threshold monitors catch cliffs in two tiers: a storage disk above 92~\\% pages, and above 85 up to 92~\\% warns.",
+  "problem": "The page and warn alert tiers arrive as verbs, return as nouns four more times, are never defined, and \"page\" already means a screen elsewhere in the report.",
+  "source": "reports/loggy-report/briefs/walkthroughs-3-5.md:121",
+  "fix": "An alert carries one of two tiers. A page wakes a person, a warn waits for one. Threshold monitors catch cliffs in both tiers: a storage disk above 92~\\% raises a page, and above 85 up to 92~\\% raises a warn.",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 9,
+  "quote": "It stores each episode as one incident document, grouping the signals of one alert name on one entity.",
+  "problem": "The nearest subject is \"An episode\", so the sentence reads as an episode storing itself, and an \"-ing\" rider follows a comma.",
+  "source": "reports/loggy-report/briefs/walkthroughs-6-9.md:45",
+  "fix": "The projector stores each episode as one incident document. That document groups the signals of one alert name on one entity.",
+  "severity": "must",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 15,
+  "quote": "The two watching the projector and Alertmanager take the break-glass path and post straight to the receiver, because that part can be dead. The stale monitor fires after ten minutes without a projector heartbeat.",
+  "problem": "\"The two\" never says two what, and \"the stale monitor\" reads as a monitor that has gone stale, while Section 6.2 calls the same rule the stale-projector monitor.",
+  "source": "reports/loggy-report/briefs/walkthroughs-6-9.md:107",
+  "fix": "The two monitors that watch the projector and Alertmanager post straight to the receiver, because the part they watch can be the dead part. That is the break-glass path. The stale-projector monitor fires after ten minutes without a projector heartbeat.",
+  "severity": "should",
+  "lens": "voice"
+ },
+ {
+  "file": "reports/loggy-report/sections/03-design-b.tex",
+  "line": 25,
+  "quote": "Each row holds record, error and fatal counts and the 95th percentile of two lags.",
+  "problem": "The report never says which two lags or what they measure, and two of the nine trend rules then fire on one of them two lines later.",
+  "source": "reports/loggy-report/briefs/walkthroughs-3-5.md:163",
+  "fix": "Each row holds record, error and fatal counts and the 95th percentile of two lags: the time from the line being written to the collector accepting it, and the time from acceptance to the record being stored.",
+  "severity": "should",
+  "lens": "voice"
+ }
+]

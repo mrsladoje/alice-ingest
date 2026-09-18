@@ -1,0 +1,62 @@
+\section{What the measurements say}\label{sec:eval}
+
+The numbers settle what the stack costs a worker, its ceiling, and what templating costs. Every figure comes from a laptop rig. Shapes, knees and rankings transfer to the farm. Absolute rates and core-seconds do not.
+
+\subsection{The instrument and its limits}\label{sec:eval-instrument}
+
+The rig runs the whole stack in containers. The instrument sums every container's processor time into core-seconds, one core busy for one second. Cost is core-seconds per million records.
+
+Two rigs exist, never averaged. The healthy rig tested the collector's settings at 20,000 records a second. The re-run rig, the same laptop slowed, offered 5,000. An arm is one setting under test, and a cell is one arm at one rate.
+
+The noise floor is the spread of three control runs: 1.61~\% at 20,000 records a second and 9.48~\% at 1,000. Cost per record falls as rate rises: the collector alone costs 75.32 core-seconds per million at 1,000 a second and 11.19 at 20,000.
+
+The rig saturated unnoticed after that first pass, so we retracted every later measurement. A 47-cell re-run left one product change: the flush interval.
+
+\subsection{The collector under load}\label{sec:eval-collector}
+
+Against a sink that always accepts, the collector's memory sat between 133 and 228~MB on two cores, up to 53,000 records a second. In a sink outage with the shipped 256~MB buffer it peaked at 373~MB, under its 384~MB memory line.
+
+The flush interval is how often the collector pushes buffered records out. Table~\ref{tab:flush} comes from three alternating runs. Across eight flush values from 0.125 to 10 seconds, whole-stack cost is a U with its floor at 1 second, best to worst 17.9~\% apart.
+
+\begin{table}[htbp]\caption{Flush 1 second beats the shipped 5 seconds on every measure, at 5,000 records a second on the re-run rig.}\label{tab:flush}\centering\footnotesize
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Measure & Flush 5 s (shipped) & Flush 1 s (chosen) & Change \\
+\midrule
+Whole stack, core-seconds per million records & 108.40 & 104.67 & $-3.4$~\% \\
+Collector alone, core-seconds per million records & 36.70 & 27.70 & $-24.5$~\% \\
+Collector peak memory, MB & 87.1 & 62.7 & $-28.0$~\% \\
+Live-lane latency floor, s & 5 & 1 & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Every threading arm cost more against the 1.61~\% floor: a second collector process 7.4~\%, a thread per source 11.5~\%, and parsing moved into those threads 26.5~\%. One single-threaded loop does 89.3~\% of the collector's processor work, so threads elsewhere cannot help it.
+
+The live lane of Section~\ref{sec:design-tiers} is the largest cost any setting adds: 41 to 68~\% more collector processor time on the healthy rig.
+
+A fifteen-minute sink outage at 20,000 records a second loses 66.7~\% of InfoLogger at the buffer cap. That buffer holds 865,674 InfoLogger records of 310~bytes, and InfoLogger is 60~\% of a worker's mix. At a median worker's 23 records a second InfoLogger is 13.8, and the buffer covers 17.4~hours. At the busiest worker-second, 78, it is 46.8 and the buffer covers 5.1~hours.
+
+The stack sustains about 42,000 records a second. It holds 50,000 for two minutes with zero loss. The storage tier runs at 86~\% of its four cores. The decline starts near six million documents, where index merging cuts throughput, so the ceiling is the storage tier's.
+
+Overload is safe. At 82~\% of the buffer cap the collector absorbs the shortfall and loses nothing. At the cap it discards oldest-first, 1.8~\% of records, without error, then drains in 263 seconds.
+
+Two settings make no difference. On the re-run rig a 2~GB heap moved cost 2.1~\% against a 6.7~\% floor, so 1~GB ships. Core placement between collector and store moved it 2.7~\% against a 5.5~\% floor. The rig always pinned four exclusive cores, so sharing them with reconstruction is not measured.
+
+\subsection{Kafka between the collector and the store, decided on numbers}\label{sec:eval-kafka}
+
+The soak rejected a queue between the collector and the store on three counts. Decoupling: the stack sustains 538 times the busiest worker-second and 4.3 times the farm's peak second of 9,781. If the archive under-counts by ten times, the margin is 54 times. Durability: the collector's buffer holds hours at a real worker's rate. Cost: three brokers and a second system to run, on memory the machines do not have.
+
+Two rates reopen the question: a sustained worker rate above about 1,000 records a second, or one within 50 times of 42,000. Two needs do too: a second consumer, or an outage longer than the buffer holds. The live-lane bus is separate.
+
+\subsection{The other sources and the real node}\label{sec:eval-sources}
+
+The collector had never read three of the six log sources. Those are the second process-tree format, written by the data-distribution processes, the InfoLogger daemon log and the system journal. The first fixture run sent 41.8~\% of the corpus to the storage tier with no severity: a parser anchor missed a date the replay prepends. Severity now comes out of 99.83~\% of process-tree lines, against a 99~\% gate. 96.94~\% of that family stays on the worker.
+
+A read-only census of four farm machines corrected four facts. Four installations run there, on three releases where we assumed two. The storage machine's release is two majors behind and untested. A worker's journal is small beside millions of process-tree lines, so the collector reads all of it.
+
+The fixture and restart checks passed on the three farm releases and on one newer. A later review found the rotation check itself was flaky. Release 5.0.8 loses every byte appended after rotation, in five of five runs, so it is blocked.
+
+An external review retracted every collector regex cost figure. Two identical configurations differ by up to 19.3~\% in processor time, so the rig cannot resolve a change below about a fifth. No regex change is worth making on cost.
+
+We fixed 99 defects, 32 in the instrument, the rest in the collector, the stamper and the catalogue. A retried bulk write duplicated every record, so the product now writes with create under a stamped document identifier.

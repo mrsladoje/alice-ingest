@@ -1,0 +1,22 @@
+[
+ {
+  "file": "reports/loggy-report/figures/fig04-collector.svg",
+  "line": 12,
+  "quote": "<text font-family=\"Menlo, monospace\" font-size=\"9.5\" letter-spacing=\"0.04em\" fill=\"#6b6b66\" x=\"108\" y=\"19\">the collector, one process on every worker</text>",
+  "problem": "This label and the memory-envelope row labels at line 104 are set at 9.5 px, under the size the style sets for the 820-wide box.",
+  "source": "reports/loggy-report/figures/STYLE.md:29 (\"Keep text at 10 to 14 px in that box; smaller than 9 px is unreadable in print.\")",
+  "fix": "Raise both to font-size 10.",
+  "severity": "nit",
+  "lens": "figures"
+ },
+ {
+  "file": "figures/fig04-collector.svg",
+  "line": 113,
+  "quote": "<text x=\"800\" y=\"466\">128 MB</text>",
+  "problem": "The figure gives 128 MB as the documented worst case, against Section 3.4's 307 MB; 128 MB is the 64-chunk bound on the line above.",
+  "source": "briefs/target-architecture.md:153-154 (64 chunks, about 128 MB; documented worst case 128 MB x 2 x 1.2, roughly 307 MB)",
+  "fix": "Read \"Chunks in memory 64, about 128 MB\" and \"Documented worst case 307 MB\".",
+  "severity": "must",
+  "lens": "reader"
+ }
+]

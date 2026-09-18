@@ -1,0 +1,42 @@
+[
+ {
+  "file": "reports/loggy-report/figures/fig06-alerts.svg",
+  "line": 109,
+  "quote": "<text x=\"690\" y=\"348\" font-family=\"Menlo, monospace\" font-size=\"10\" fill=\"#6b6b66\" text-anchor=\"middle\">30 monitors, every minute or ten</text>",
+  "problem": "The threshold lane is labelled with the platform's total monitor count, so it double-counts the nine trend rules drawn in the box beside it and contradicts this figure's own inbound edge, \"14 monitors, every minute\".",
+  "source": "reports/loggy-report/sections/03-design-b.tex:5 (\"30 monitors run: 28 write to the alert index, 2 take the break-glass path below\"); reports/loggy-report/briefs/target-architecture.md:203; deploy/roles/loggy_anomaly_detection/files/monitors/ holds 30 definitions, 11 of them trend-* and 2 template-*",
+  "fix": "Change the card line to \"14 of the 30 monitors, every minute or ten\" and state the total once, outside the threshold box, so it covers all three lanes.",
+  "severity": "must",
+  "lens": "figures"
+ },
+ {
+  "file": "reports/loggy-report/figures/fig06-alerts.svg",
+  "line": 32,
+  "quote": "<text x=\"101\" y=\"214\" font-size=\"10\" fill=\"#6b6b66\" text-anchor=\"middle\">a week of history</text>",
+  "problem": "The sibling index card in the same figure uses that slot for retention (\"one row per sample, seven days kept\"), so a week reads as the rollup index's retention; the index keeps rows 30 days and the week is the baseline the rules read.",
+  "source": "reports/loggy-report/briefs/target-architecture.md:101 (trend-rollup, 30 d by document); sections/03-design-b.tex:25 (three slices against the previous seven days)",
+  "fix": "Write \"rows kept 30 days; the rules read the last seven\".",
+  "severity": "should",
+  "lens": "figures"
+ },
+ {
+  "file": "reports/loggy-report/figures/fig06-alerts.svg",
+  "line": 127,
+  "quote": "<text x=\"782\" y=\"472\" font-family=\"Menlo, monospace\" font-size=\"10\" fill=\"#6b6b66\" text-anchor=\"end\">break-glass:</text>",
+  "problem": "The break-glass path is drawn with the grey 4-4 dash that fig02 and fig07 use for \"agreed, not built\", although it is built and proven by injection.",
+  "source": "reports/loggy-report/figures/STYLE.md:26 (ghost = planned, not built); sections/06-eval-b.tex:52 (the stop-projector run proves the break-glass path); figures/fig07-layouts.svg:179-180 (the legend's dashed key = planned, not built)",
+  "fix": "Draw the path solid in ink-soft, or add a word to the label so the dash reads as a bypass rather than as a plan.",
+  "severity": "nit",
+  "lens": "figures"
+ },
+ {
+  "file": "figures/fig06-alerts.svg",
+  "line": 109,
+  "quote": "30 monitors, every minute or ten",
+  "problem": "The whole monitor total sits inside the threshold lane, while the lane labels add to 25, so the figure cannot be reconciled with Section 3.6's 30.",
+  "source": "reports/inputs/dataflow-atlas.md:211-216 (15 monitors every minute, two of them break-glass; 13 every ten minutes, nine of them the trend comparisons; two every hour)",
+  "fix": "Label the threshold box \"17 monitors, 13 every minute and 4 every ten\", the trend arrow \"9 comparisons, every 10 min\", and add the same split to Section 3.6 so 9 + 17 + 2 hourly + 2 break-glass = 30.",
+  "severity": "must",
+  "lens": "reader"
+ }
+]

@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" viewBox="0 0 820 544" role="img"
+           aria-label="How the cluster is arranged, in two bands. Band one, the split: two panels stand far apart with an empty gap between them. The left panel is the local half. Two worker machines each hold their own routine-severity index, one copy, on the machine that made it. A red note says routine info logs are the bulk and they never cross the wire. Two arrows cross the empty gap to the right panel, labelled everything above info crosses the wire, plus all of InfoLogger. The right panel is the replicated half: three identical storage machines, each drawn with three small squares. Three cards below them say the storage machines are ours alone, because no reconstruction runs there, so we can afford the expensive work; that sharding splits each index three ways, which raises throughput; and that replication copies every slice twice. Below both panels a red band states that one storage machine may die and we lose nothing, because every record is on all three and the cluster needs two of the three to agree, so it keeps running; the local half is one copy on purpose, so if a worker dies you lose that machine's routine logs, which is the cheap half. Band two, three things to watch, drawn with three small line icons: a box with a fill level for the JVM heap, the memory the Java process may hold, where every index costs heap just by existing so we cap how many exist; a box inside a box for memory outside the heap, used by the search index and the file cache, locked down so a node can never swap; and a clock for ISM, Index State Management, where indices roll on a clock and old ones are deleted, keeping routine logs 8 days, other logs 35 days and InfoLogger 56 days.">
+        <defs>
+          <marker id="a9b" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0,1 L10,5 L0,9 z" class="d-head" style="fill:#101010"></path>
+          </marker>
+        </defs>
+
+        <image href="logos/opensearch-logo-official.svg" x="0" y="4" width="104" height="19.9"></image>
+        <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="118" y="20">one cluster, five machines, two halves</text>
+        <text class="d-fact is-end" style="font-size:10.5px;fill:#3a3a36;text-anchor:end" x="820" y="20">All five machines hold data. The three storage machines run the cluster.</text>
+        <path class="d-hair" style="stroke:#d6d6cf;stroke-width:1" d="M0,34 H820"></path>
+
+        <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="61">01</text>
+        <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="61">The split, and why it is a split</text>
+
+        <rect class="d-panel" style="fill:#f1f1ec" x="1" y="78" width="249" height="244"></rect>
+        <rect class="d-panel" style="fill:#f1f1ec" x="400" y="78" width="419" height="244"></rect>
+
+        <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="14" y="101">LOCAL — ON THE MACHINE</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="14" y="117" width="222" height="62"></rect>
+        <text class="d-t is-sm is-mid" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="125" y="141">Worker machine</text>
+        <text class="d-s is-sm is-mid" style="font-size:10.5px;fill:#6b6b66;text-anchor:middle" x="125" y="160">its own info index, one copy</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="14" y="196" width="222" height="62"></rect>
+        <text class="d-t is-sm is-mid" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="125" y="220">Worker machine</text>
+        <text class="d-s is-sm is-mid" style="font-size:10.5px;fill:#6b6b66;text-anchor:middle" x="125" y="239">its own info index, one copy</text>
+
+        <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="14" y="289">Routine info logs are the bulk.</text>
+        <text class="d-fact is-hot is-start" style="font-size:10.5px;fill:#e1251b;text-anchor:start" x="14" y="303">They never cross the wire.</text>
+
+        <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M244,148 H392" marker-end="url(#a9b)"></path>
+        <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M244,227 H392" marker-end="url(#a9b)"></path>
+        <text class="d-t is-sm is-mid" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="320" y="178">Everything above info</text>
+        <text class="d-s is-sm is-mid" style="font-size:10.5px;fill:#6b6b66;text-anchor:middle" x="320" y="196">crosses the wire</text>
+        <text class="d-s is-sm is-mid" style="font-size:10.5px;fill:#6b6b66;text-anchor:middle" x="320" y="214">&#43; all of InfoLogger</text>
+
+        <text class="d-vm" style="font-family:Menlo, monospace;font-size:9.5px;letter-spacing:0.04em;fill:#6b6b66" x="414" y="101">REPLICATED — THREE MACHINES</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="414" y="117" width="124" height="87"></rect>
+        <text class="d-t is-sm is-mid" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="476" y="141">Storage machine</text>
+        <rect class="d-card is-hot" style="fill:#fdf1f0;stroke:#e1251b;stroke-width:1.6" x="437" y="157" width="20" height="20"></rect>
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="466" y="157" width="20" height="20"></rect>
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="495" y="157" width="20" height="20"></rect>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="548" y="117" width="124" height="87"></rect>
+        <text class="d-t is-sm is-mid" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="610" y="141">Storage machine</text>
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="571" y="157" width="20" height="20"></rect>
+        <rect class="d-card is-hot" style="fill:#fdf1f0;stroke:#e1251b;stroke-width:1.6" x="600" y="157" width="20" height="20"></rect>
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="629" y="157" width="20" height="20"></rect>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="682" y="117" width="124" height="87"></rect>
+        <text class="d-t is-sm is-mid" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:middle" x="744" y="141">Storage machine</text>
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="705" y="157" width="20" height="20"></rect>
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="734" y="157" width="20" height="20"></rect>
+        <rect class="d-card is-hot" style="fill:#fdf1f0;stroke:#e1251b;stroke-width:1.6" x="763" y="157" width="20" height="20"></rect>
+
+        <text class="d-l is-mid" style="font-family:Menlo, monospace;font-size:10px;fill:#6b6b66;text-anchor:middle" x="610" y="224">each machine writes one slice and holds two copies</text>
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="414" y="240" width="392" height="32"></rect>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="426" y="254">These machines are ours alone</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="426" y="266">No reconstruction here, so we can afford expensive work.</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="414" y="280" width="192" height="32"></rect>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="426" y="294">Sharding</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="426" y="306">Split three ways, more throughput.</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="614" y="280" width="192" height="32"></rect>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="626" y="294">Replication</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="626" y="306">Copied twice, a machine can die.</text>
+
+        <rect class="d-card is-hot" style="fill:#fdf1f0;stroke:#e1251b;stroke-width:1.6" x="1" y="345" width="818" height="52"></rect>
+        <text class="d-t is-mid is-hot" style="font-size:14px;font-weight:600;letter-spacing:-0.01em;fill:#e1251b;text-anchor:middle" x="410" y="370">One storage machine may die and we lose nothing.</text>
+        <text class="d-s is-sm is-mid" style="font-size:10.5px;fill:#6b6b66;text-anchor:middle" x="410" y="388">Every record is on all three. The cluster needs two of the three to agree, so it keeps running.</text>
+        <text class="d-fact is-mid" style="font-size:10.5px;fill:#3a3a36;text-anchor:middle" x="410" y="420">The local half is one copy on purpose. If a worker dies you lose that machine’s routine logs, which is the cheap half.</text>
+
+        <text class="d-num" style="font-family:Menlo, monospace;font-size:11px;fill:#6b6b66" x="0" y="454">02</text>
+        <text class="d-stage" style="font-family:Menlo, monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;fill:#101010" x="24" y="454">Three things to watch</text>
+
+        <rect class="d-panel" style="fill:#f1f1ec" x="1" y="470" width="818" height="73"></rect>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="14" y="482" width="18" height="18"></rect>
+        <rect class="d-dot" style="fill:#6b6b66" x="14" y="491" width="18" height="9"></rect>
+        <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M14,482 H32 V500 H14 Z"></path>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="42" y="495">JVM heap</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="14" y="521">The memory the Java process may hold. Every</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="14" y="535">index costs heap, so we cap how many exist.</text>
+
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="291" y="482" width="18" height="18"></rect>
+        <rect class="d-card" style="fill:#ffffff;stroke:#101010;stroke-width:1.1" x="295" y="486" width="10" height="10"></rect>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="319" y="495">Memory outside the heap</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="291" y="521">The search index and the file cache use it. We lock the</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="291" y="535">memory down, so a node can never swap.</text>
+
+        <circle class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" cx="577" cy="491" r="9"></circle>
+        <path class="d-line" style="fill:none;stroke:#101010;stroke-width:1.25" d="M577,491 V485 M577,491 H582"></path>
+        <text class="d-t is-sm is-start" style="font-size:12.5px;font-weight:600;letter-spacing:-0.01em;fill:#101010;text-anchor:start" x="596" y="495">ISM — Index State Management</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="568" y="521">Indices roll on a clock, old ones are deleted.</text>
+        <text class="d-fact is-start" style="font-size:10.5px;fill:#3a3a36;text-anchor:start" x="568" y="535">Routine logs 8 days, others 35, InfoLogger 56.</text>
+      </svg>

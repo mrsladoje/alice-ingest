@@ -1,0 +1,12 @@
+[
+ {
+  "file": "reports/loggy-report/figures/fig01-logging-today.svg",
+  "line": 76,
+  "quote": "query, tcp 3306",
+  "problem": "The arrowhead lands on the desktop browser, so what travels the edge is the result set, but the label names the request. Round-1 nit, still open.",
+  "source": "reports/loggy-report/figures/fig01-logging-today.svg:74 (path M584,303 H722 V222, arrowhead at the browser); reports/loggy-report/reviews/round1-by-file/fig01-logging-today.svg.json",
+  "fix": "Write \"query results, tcp 3306\".",
+  "severity": "nit",
+  "lens": "figures"
+ }
+]
