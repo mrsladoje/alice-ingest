@@ -10,7 +10,7 @@ Every section below names its claim (the sentence the section exists to prove), 
 
 These settle contradictions the briefs flagged. Change any of them before the draft starts.
 
-1. Title: "loggy: a logging platform for the ALICE Event Processing Nodes". Subtitle: "Keep the volume where it is made, and the value where it is safe."
+1. Title: "Modern Logging Platform with Machine Learning for HPC". No subtitle.
 2. The projector and the trend rollup run on the second storage node, off the control host, as the sources say. The task text that put the projector on the control host was wrong.
 3. Storage-tier indices: on staging one primary shard and two replicas (one copy on every storage machine). On the farm three primaries, one per storage node, two replicas each. Both stated, each with its layout.
 4. Counts: 30 monitors (28 post into the alert index, 2 break-glass monitors post straight to the receiver), 17 detectors, 1 forecaster. The deck's 28 is the older count.
